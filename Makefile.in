@@ -1,0 +1,151 @@
+# Configuration
+
+VERSION = @PACKAGE_VERSION@
+
+OCAMLFIND_COMMANDS = ocamlc=metaocamlc ocamlopt=metaocamlopt
+OCAMLOPT = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
+OCAMLDEP = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
+QTEST    = qtest
+WARNS    = -w -40-58+27
+
+override OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
+
+ifdef NDEBUG
+OCAMLOPTFLAGS += -noassert -O2
+else
+OCAMLOPTFLAGS += -g
+endif
+
+META_REQUIRES = \
+	findlib batteries stdint
+
+PACKAGES = \
+	batteries stdint
+
+INSTALLED_LIB = \
+	src/berserdes.cmxa \
+	$(filter %.cmi, $(LIBBERSERDES_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBBERSERDES_SOURCES:.ml=.cmx))
+
+INSTALLED = $(INSTALLED_LIB) META
+
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir ?= @bindir@
+
+all: $(INSTALLED)
+
+# Generic rules
+
+.SUFFIXES: .ml .mli .cmi .cmx .cmxs .cmt .html .adoc
+.PHONY: \
+  clean distclean all dep doc \
+  check unit-check \
+  install uninstall reinstall
+
+%.cmi: %.mli
+	@echo 'Compiling $@ (interface)'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package "$(PACKAGES)" -c $<
+
+%.cmx %.cmt: %.ml
+	@echo 'Compiling $@'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package "$(PACKAGES)" -c $<
+
+# Documentation
+
+%.html: %.adoc
+	@echo 'Building documentation $@'
+	asciidoc -a data-uri -a icons -a toc -a max-width=55em --theme volnitsky -o $@ $<
+
+doc:
+
+LIBBERSERDES_SOURCES = \
+	src/BerSerdes.ml \
+	src/IntRepr.ml \
+	src/IntReprOCaml0.ml \
+	src/IntReprOCaml1.ml
+
+TESTONLY_SOURCES =
+
+SOURCES = $(sort \
+	$(LIBBERSERDES_SOURCES) \
+	$(TESTONLY_SOURCES) \
+)
+
+# Dependencies
+
+dep:
+	@$(RM) .depend
+	@$(MAKE) .depend
+
+.depend: $(SOURCES)
+	@$(OCAMLDEP) -native -I src -package "$(PACKAGES)" $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
+
+include .depend
+
+# Compile berserdes lib
+
+src/berserdes.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
+	@echo 'Linking runtime library $@'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -a $(filter %.cmx, $^) -o $@
+
+src/berserdes.a: src/berserdes.cmxa
+
+
+# Generated sources
+
+META:
+	@echo 'Building findlib configuration (META) for Ramen'
+	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
+	@echo 'version = "$(VERSION)"' >> $@
+	@echo 'archive(native) = "berserdes.cmxa"' >> $@
+	@echo 'requires = "$(META_REQUIRES)"' >> $@
+
+# Tests
+
+TESTABLE_SOURCES =
+
+# For the actual command line building all_tests.opt:
+LINKED_FOR_TESTS =
+
+src/all_tests.ml: $(TESTABLE_SOURCES)
+	@echo 'Generating unit tests into $@'
+	$(QTEST) --shuffle -o $@ extract $^
+
+all_tests.opt: \
+		$(LINKED_FOR_TESTS:.ml=.cmx) src/all_tests.ml
+	@echo 'Building unit tests into $@'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package qcheck $(filter %.cmx, $^) $(filter %.a, $^) $(filter %.ml, $^) -o $@
+
+check: unit-check
+
+unit-check: all_tests.opt
+	@echo 'Running unit tests...'
+	@TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
+
+# Installation
+
+install: $(INSTALLED)
+	ocamlfind install berserdes $(INSTALLED_LIB) META
+
+uninstall: uninstall-bundle
+	@ocamlfind remove berserdes
+
+reinstall: uninstall install
+
+# Packaging
+
+# Cleaning
+
+clean:
+	@echo 'Cleaning'
+	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o
+	@$(RM) *.opt perf.data* gmon.out
+	@$(RM) src/*.cmx src/*.cmxa src/*.cmxs src/*.cmi src/*.a
+	@$(RM) src/oUnit-anon.cache src/qtest.targets.log
+	@$(RM) .depend src/*.opt src/*.byte
+	@$(RM) src/berserdes.cmxa
+
+distclean: clean
+	@echo 'Cleaning all build files'
+	@$(RM) META

@@ -1,0 +1,21 @@
+opam-version: "2.0"
+version: "@PACKAGE_VERSION@"
+name: "berserdes"
+maintainer: "rixed-opam@happyleptic.org"
+authors: "rixed-opam@happyleptic.org"
+homepage: "https://github.com/rixed/berserdes"
+bug-reports: "https://github.com/rixed/berserdes/issues"
+dev-repo: "https://github.com/rixed/berserdes.git"
+build: [
+  ["./configure"]
+  [make]
+]
+build-test: [make "check"]
+install: [make "bindir=%{bin}%" "install"]
+remove: [make "bindir=%{bin}%" "uninstall"]
+depends: [
+  "ocamlfind"
+  "batteries"
+  "stdint"
+  "qtest" {test}
+]

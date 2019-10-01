@@ -1,0 +1,23 @@
+AC_INIT(berserdes, 0.0.1)
+m4_include([m4/ocaml.m4])
+
+AC_ARG_VAR(OCAMLOPTFLAGS, [Additional flags to pass to the ocaml compiler])
+
+AC_PROG_OCAML
+AS_IF(
+  [test "$OCAMLC" = no],
+  AC_MSG_ERROR([You must install the OCaml compiler.]))
+
+AC_PROG_FINDLIB
+AS_IF(
+  [test "$OCAMLFIND" = no],
+  AC_MSG_ERROR([You must install OCaml findlib (the ocamlfind command).]))
+
+AC_CHECK_OCAML_PKG(batteries)
+AC_CHECK_OCAML_PKG(stdint)
+
+AC_CONFIG_FILES([
+  Makefile
+  opam
+])
+AC_OUTPUT
