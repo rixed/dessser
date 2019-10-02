@@ -13,16 +13,13 @@ struct
   type boolv = bool
   type i8v = int
   type i16v = int
-  type stringv = string
-  type 'a arrayv = 'a array
   type length = int
+  type 'a arr = 'a array
 
   let byte_of_i8v n = n
   let i8v_of_byte n = n
   let word_of_i16v n = n
   let i16v_of_word n = n
-  let bytes_of_string = Bytes.of_string
-  let string_of_bytes = Bytes.to_string
 
   let choose b c1 c2 =
     if b then c1 else c2
@@ -33,9 +30,10 @@ struct
     in
     do_loop 0 u
 
-  let string_get s i =
-    Char.code (String.get s i)
+  let arr_get = Array.get
+  let arr_len = Array.length
 
+  let arr_of_const = Array.of_list
   let boolv_of_const n = n
   let i8v_of_const n = n
   let i8v_add = (+)
@@ -43,9 +41,10 @@ struct
   let i8v_mul = ( * )
   let i8v_mod = (mod)
   let i8v_div = (/)
-
+  let i16v_of_const n = n
+  let i16v_gt (n : int)  (m : int) = n > m
 end
 
 module Make (SerData : SerDataBytes0.SERDATA_OCAML0) :
   INTREPR with module SerData = SerData =
-  Raw (SerData)
+  MakeIntRepr (Raw (SerData))

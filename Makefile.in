@@ -33,13 +33,13 @@ prefix = @prefix@
 exec_prefix = @exec_prefix@
 bindir ?= @bindir@
 
-all: $(INSTALLED)
+all: $(INSTALLED) examples
 
 # Generic rules
 
 .SUFFIXES: .ml .mli .cmi .cmx .cmxs .cmt .html .adoc
 .PHONY: \
-  clean distclean all dep doc \
+  clean distclean all dep doc examples \
   check unit-check \
   install uninstall reinstall
 
@@ -61,14 +61,18 @@ doc:
 
 LIBBERSERDES_SOURCES = \
 	src/BerSerdes.ml \
-	src/IntRepr.ml \
 	src/IntReprOCaml0.ml \
-	src/IntReprOCaml1.ml
+	src/SerDataBytes0.ml \
+	src/SExpr0.ml
+
+EXAMPLES_SOURCES = \
+	examples/direct_hard_coded.ml
 
 TESTONLY_SOURCES =
 
 SOURCES = $(sort \
 	$(LIBBERSERDES_SOURCES) \
+	$(EXAMPLES_SOURCES) \
 	$(TESTONLY_SOURCES) \
 )
 
@@ -91,6 +95,12 @@ src/berserdes.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
 
 src/berserdes.a: src/berserdes.cmxa
 
+# Compile examples
+
+examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
+
+examples/direct_hard_coded.opt: src/berserdes.cmxa examples/direct_hard_coded.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package batteries $^ -o $@
 
 # Generated sources
 

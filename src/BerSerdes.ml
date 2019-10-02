@@ -108,35 +108,74 @@ end
 (* Internal representation of values:
  * how to convert from/to serialized bytes and operations to manipulate
  * them: *)
-module type INTREPR =
+
+type typ =
+  | TBool
+  | TI8
+  | TI16
+  | TVec of int * typ
+  | TTuple of typ list
+
+module type INTREPR_BASE =
 sig
   module SerData : SERDATA
 
   type boolv
   type i8v
   type i16v
-  type stringv
-  type 'a arrayv
+  (* length is its own type with the hope that in many cases it will be known
+   * at stage0: *)
   type length
+  type 'a arr
 
   val byte_of_i8v : i8v -> SerData.byte
   val i8v_of_byte : SerData.byte -> i8v
   val word_of_i16v : i16v -> SerData.word
   val i16v_of_word : SerData.word -> i16v
-  val bytes_of_string : stringv -> SerData.bytes
-  val string_of_bytes : SerData.bytes -> stringv
 
   val choose : boolv -> 'a -> 'a -> 'a
   val loop : length -> 'a -> (i16v -> 'a -> 'a) -> 'a
-  val string_get : stringv -> i16v -> i8v
+  val arr_len : 'a arr -> length
+  val arr_get : 'a arr -> i16v -> 'a
 
   val boolv_of_const : bool -> boolv
   val i8v_of_const : int -> i8v
+  val arr_of_const : 'a list -> 'a arr
   val i8v_add : i8v -> i8v -> i8v
   val i8v_sub : i8v -> i8v -> i8v
   val i8v_mul : i8v -> i8v -> i8v
   val i8v_mod : i8v -> i8v -> i8v
   val i8v_div : i8v -> i8v -> i8v
+  val i16v_of_const : int -> i16v
+  val i16v_gt : i16v -> i16v -> boolv
+end
+
+module type INTREPR =
+sig
+  include INTREPR_BASE
+
+  type value =
+    | VBool of boolv
+    | VI8 of i8v
+    | VI16 of i16v
+    | VVec of value arr
+    | VTuple of value list
+
+  and tuplev = value list
+end
+
+module MakeIntRepr (B : INTREPR_BASE) : INTREPR with module SerData = B.SerData =
+struct
+  include B
+
+  type value =
+    | VBool of boolv
+    | VI8 of i8v
+    | VI16 of i16v
+    | VVec of value arr
+    | VTuple of value list
+
+  and tuplev = value list
 end
 
 (* Implementations must (de)serialize using only the functions above.
@@ -148,18 +187,6 @@ module type SERDES =
 sig
   module IntRepr : INTREPR
 
-  module Ser :
-  sig
-    type 'a ser = IntRepr.SerData.pointer -> 'a -> IntRepr.SerData.pointer
-
-    val bool : IntRepr.boolv ser
-    val i8 : IntRepr.i8v ser
-    val i16 : IntRepr.i16v ser
-    val string : IntRepr.length -> IntRepr.stringv ser
-    val array : IntRepr.length -> 'a ser
-  end
-  (*
-  val ser : SerData.pointer -> max_size:SerData.size -> IntReprValue.t -> SerData.size
-  val des : SerData.pointer -> max_size:SerData.size -> IntReprValue.t * SerData.size
-  *)
+  val ser : IntRepr.SerData.pointer -> IntRepr.value -> IntRepr.SerData.pointer
+(*  val des : SerData.pointer -> IntRepr.value * SerData.pointer*)
 end

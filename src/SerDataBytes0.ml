@@ -76,9 +76,9 @@ struct
            else b land (lnot bit) in
     write_byte p b |> ignore
 
-  let write_word ?(be=false) _p _v = assert false
-  let write_dword ?(be=false) _p _v = assert false
-  let write_qword ?(be=false) _p _v = assert false
+  let write_word ?(be=false) _p _v = ignore be ; assert false
+  let write_dword ?(be=false) _p _v = ignore be ; assert false
+  let write_qword ?(be=false) _p _v = ignore be ; assert false
   let write_bytes _p _v = assert false
 
   let rec print_data p len oc =
