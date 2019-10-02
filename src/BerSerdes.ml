@@ -37,6 +37,8 @@ sig
   val write_dword : ?be:bool -> pointer -> dword -> pointer
   val write_qword : ?be:bool -> pointer -> qword -> pointer
   val write_bytes : pointer -> size -> bytes -> pointer
+
+  val make_buffer : size -> pointer
 end
 
 (* Any SERDATA can be turned into a staged SERDATA: *)
@@ -103,6 +105,9 @@ struct
 
   let write_bytes pc sc vc =
     .< M.write_bytes .~pc .~sc .~vc >.
+
+  let make_buffer sc =
+    .< M.make_buffer .~sc >.
 end
 
 (* Internal representation of values:
@@ -116,31 +121,59 @@ type typ =
   | TVec of int * typ
   | TTuple of typ list
 
-module type INTREPR_BASE =
+module type INTREPR_TYPES =
 sig
   module SerData : SERDATA
 
-  type boolv
-  type i8v
-  type i16v
+  type value =
+    | VPointer of SerData.pointer
+    | VSize of SerData.size
+    | VLength of length
+    | VBool of boolv
+    | VI8 of i8v
+    | VI16 of i16v
+    | VVec of length * vecv
+    | VTuple of length * tuplev
+
   (* length is its own type with the hope that in many cases it will be known
    * at stage0: *)
-  type length
-  type 'a arr
+  and length
+  and boolv
+  and i8v
+  and i16v
+  and vecv
+  and tuplev
+end
+
+module type INTREPR =
+sig
+  include INTREPR_TYPES
+
+  val value_of_pointer : SerData.pointer -> value
+  val pointer_of_value : value -> SerData.pointer
+  val value_of_size : SerData.size -> value
+  val size_of_value : value -> SerData.size
+  val value_of_length : length -> value
+  val length_of_value : value -> length
+  val value_of_i8v : i8v -> value
+  val i8v_of_value : value -> i8v
+  (* To be continued... *)
 
   val byte_of_i8v : i8v -> SerData.byte
   val i8v_of_byte : SerData.byte -> i8v
   val word_of_i16v : i16v -> SerData.word
   val i16v_of_word : SerData.word -> i16v
 
-  val choose : boolv -> 'a -> 'a -> 'a
-  val loop : length -> 'a -> (i16v -> 'a -> 'a) -> 'a
-  val arr_len : 'a arr -> length
-  val arr_get : 'a arr -> i16v -> 'a
+  val choose : boolv -> value -> value -> value
+  val loop : length -> value -> (i16v -> value -> value) -> value
+  val vec_get : vecv -> i16v -> value
+  val tuple_get : tuplev -> i16v -> value
 
+  val vecv_of_const : value list -> vecv
+  val tuplev_of_const : value list -> tuplev
+  val lengthv_of_const : int -> length
   val boolv_of_const : bool -> boolv
   val i8v_of_const : int -> i8v
-  val arr_of_const : 'a list -> 'a arr
   val i8v_add : i8v -> i8v -> i8v
   val i8v_sub : i8v -> i8v -> i8v
   val i8v_mul : i8v -> i8v -> i8v
@@ -150,32 +183,16 @@ sig
   val i16v_gt : i16v -> i16v -> boolv
 end
 
-module type INTREPR =
-sig
-  include INTREPR_BASE
-
-  type value =
-    | VBool of boolv
-    | VI8 of i8v
-    | VI16 of i16v
-    | VVec of value arr
-    | VTuple of value list
-
-  and tuplev = value list
-end
-
-module MakeIntRepr (B : INTREPR_BASE) : INTREPR with module SerData = B.SerData =
+module MakeCasts (B : INTREPR_TYPES) =
 struct
-  include B
-
-  type value =
-    | VBool of boolv
-    | VI8 of i8v
-    | VI16 of i16v
-    | VVec of value arr
-    | VTuple of value list
-
-  and tuplev = value list
+  let value_of_pointer c = B.VPointer c
+  let pointer_of_value = function B.VPointer c -> c | _ -> assert false
+  let value_of_size c = B.VSize c
+  let size_of_value = function B.VSize c -> c | _ -> assert false
+  let value_of_length c = B.VLength c
+  let length_of_value = function B.VLength c -> c | _ -> assert false
+  let value_of_i8v c = B.VI8 c
+  let i8v_of_value = function B.VI8 c -> c | _ -> assert false
 end
 
 (* Implementations must (de)serialize using only the functions above.

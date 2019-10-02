@@ -1,20 +1,36 @@
 (* Immediate representation of possible values, using a straightforward
  * algebraic data type. *)
-open Batteries
-open Stdint
 open BerSerdes
 
-module Raw (SerData : SerDataBytes0.SERDATA_OCAML0) =
+module MakeTypes (SerData : SerDataBytes0.SERDATA_OCAML0) =
 struct
   module SerData = SerData
 
+  type value =
+    | VPointer of SerData.pointer
+    | VSize of SerData.size
+    | VLength of length
+    | VBool of boolv
+    | VI8 of i8v
+    | VI16 of i16v
+    | VVec of length * vecv
+    | VTuple of length * tuplev
+
   (* The values we serialize and read back are normal OCaml values: *)
 
-  type boolv = bool
-  type i8v = int
-  type i16v = int
-  type length = int
-  type 'a arr = 'a array
+  and length = int
+  and boolv = bool
+  and i8v = int
+  and i16v = int
+  and vecv = value array
+  and tuplev = value array
+end
+
+module Raw (SerData : SerDataBytes0.SERDATA_OCAML0) =
+struct
+  module T = MakeTypes (SerData)
+  include T
+  include MakeCasts (T)
 
   let byte_of_i8v n = n
   let i8v_of_byte n = n
@@ -30,10 +46,12 @@ struct
     in
     do_loop 0 u
 
-  let arr_get = Array.get
-  let arr_len = Array.length
+  let vec_get = Array.get
+  let tuple_get = Array.get
 
-  let arr_of_const = Array.of_list
+  let lengthv_of_const n = n
+  let vecv_of_const = Array.of_list
+  let tuplev_of_const = Array.of_list
   let boolv_of_const n = n
   let i8v_of_const n = n
   let i8v_add = (+)
@@ -46,5 +64,4 @@ struct
 end
 
 module Make (SerData : SerDataBytes0.SERDATA_OCAML0) :
-  INTREPR with module SerData = SerData =
-  MakeIntRepr (Raw (SerData))
+  INTREPR with module SerData = SerData = Raw (SerData)

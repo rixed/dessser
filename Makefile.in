@@ -62,6 +62,7 @@ doc:
 LIBBERSERDES_SOURCES = \
 	src/BerSerdes.ml \
 	src/IntReprOCaml0.ml \
+	src/IntReprOCaml1.ml \
 	src/SerDataBytes0.ml \
 	src/SExpr0.ml
 
