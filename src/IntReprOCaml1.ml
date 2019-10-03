@@ -2,90 +2,82 @@
  * algebraic data type. *)
 open BerSerdes
 
-module MakeTypes (SerData : SERDATA) =
+module Types =
 struct
-  module SerData = SerData
+  module SerData = SerDataBytes1
 
   type value =
     | VPointer of SerData.pointer
     | VSize of SerData.size
-    | VLength of length
     | VBool of boolv
     | VI8 of i8v
     | VI16 of i16v
-    | VVec of length * vecv
-    | VTuple of length * tuplev
+    | VVec of vecv
+    | VTuple of tupv
 
   and boolv = bool code
   and i8v = int code
   and i16v = int code
-  and length = int code
-  and vecv = value array code
-  and tuplev = value array code
+  and vecv = value array
+  and tupv = value array
 end
 
-module Raw (SerData0 : SerDataBytes0.SERDATA_OCAML0) =
-struct
-  module T = MakeTypes (SerDataStaged (SerData0))
-  include T
-  include MakeCasts (T)
+include Types
 
-  let byte_of_i8v n = n
-  let i8v_of_byte n = n
-  let word_of_i16v n = n
-  let i16v_of_word n = n
+include MakeCasts (Types)
 
-  (* Could GADT help with choose prototype while preserving tuples? *)
-  let choose b c1 c2 =
-    let aux c1 c2 =
-      .< if .~b then .~c1 else .~c2 >. in
-    match c1, c2 with
-    | VPointer c1, VPointer c2 -> VPointer (aux c1 c2)
-    | VSize c1, VSize c2 -> VSize (aux c1 c2)
-    | VLength c1, VLength c2 -> VLength (aux c1 c2)
-    | _ -> assert false
+let byte_of_i8v n = n
+let i8v_of_byte n = n
+let word_of_i16v n = n
+let i16v_of_word n = n
 
-  (* Again... *)
-  let loop len u f =
-    let aux : type a. (a code -> value) -> (value -> a code) -> a code -> a code =
-      fun to_value of_value c ->
-        .<
-          let rec do_loop i u =
-            if i >= .~len then
-              u
-            else
-              let u = .~(of_value (f .<i>. (to_value .<u>.))) in
-              do_loop (i + 1) u
-          in
-          do_loop 0 .~c
-        >. in
-    match u with
-    | VPointer c -> VPointer (aux value_of_pointer pointer_of_value c)
-    | VSize c -> VSize (aux value_of_size size_of_value c)
-    | VLength c -> VLength (aux value_of_length length_of_value c)
-    | _ -> assert false
+(* Could GADT help with choose prototype while preserving tuples? *)
+let choose b c1 c2 =
+  let aux c1 c2 =
+    .< if .~b then .~c1 else .~c2 >. in
+  match c1, c2 with
+  | VPointer c1, VPointer c2 -> VPointer (aux c1 c2)
+  | VSize c1, VSize c2 -> VSize (aux c1 c2)
+  | VI8 c1, VI8 c2 -> VI8 (aux c1 c2)
+  | _ -> assert false
 
-  let vec_get _a _i = assert false
+let vec_length = Array.length
+let tup_length = Array.length
 
-  let tuple_get a i = assert false
+let vec_get = Array.get
 
-  let vecv_of_const lst =
-    .< Array.of_list lst >.
+let tup_get = Array.get
 
-  let tuplev_of_const lst =
-    .< Array.of_list lst >.
+let vecv_of_const = Array.of_list
 
-  let lengthv_of_const n = .< n >.
-  let boolv_of_const n = .< n >.
-  let i8v_of_const i = .< i >.
-  let i8v_add n m = .< .~n + .~m >.
-  let i8v_sub n m = .< .~n - .~m >.
-  let i8v_mul n m = .< .~n * .~m >.
-  let i8v_mod n m = .< .~n mod .~m >.
-  let i8v_div n m = .< .~n / .~m >.
-  let i16v_of_const i = .< i >.
-  let i16v_gt n m = .< .~n > .~m >.
-end
+let tupv_of_const = Array.of_list
 
-module Make (SerData : SerDataBytes0.SERDATA_OCAML0) :
-  INTREPR with module SerData = SerDataStaged (SerData) = Raw (SerData)
+let boolv_of_const n = .< n >.
+let boolv_and n m = .< .~n && .~m >.
+let i8v_of_const i = .< i >.
+let i8v_eq n m = .< .~n = .~m >.
+let i8v_ge n m = .< .~n >= .~m >.
+let i8v_add n m = .< .~n + .~m >.
+let i8v_sub n m = .< .~n - .~m >.
+let i8v_mul n m = .< .~n * .~m >.
+let i8v_mod n m = .< .~n mod .~m >.
+let i8v_div n m = .< .~n / .~m >.
+let i16v_of_const i = .< i >.
+let i16v_gt n m = .< .~n > .~m >.
+
+let read_while p cond reducer v0 =
+  let rec aux of_value to_value c0 =
+    .<
+      let rec loop c =
+        let b = .~(SerDataBytes1.peek_byte p) in
+        if .~(cond .<b>.) then (
+          .~(SerDataBytes1.skip p .<1>.) ;
+          loop .~(of_value (reducer (to_value .<c>.) .<b>.))
+        ) else c
+      in
+      loop .~c0
+    >. in
+  match v0 with
+  | VBool c -> VBool (aux boolv_of_value value_of_boolv c)
+  | VI8 c -> VI8 (aux i8v_of_value value_of_i8v c)
+  | _ -> assert false

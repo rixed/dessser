@@ -2,66 +2,67 @@
  * algebraic data type. *)
 open BerSerdes
 
-module MakeTypes (SerData : SerDataBytes0.SERDATA_OCAML0) =
+
+module Types =
 struct
-  module SerData = SerData
+
+  module SerData = SerDataBytes0
 
   type value =
     | VPointer of SerData.pointer
     | VSize of SerData.size
-    | VLength of length
     | VBool of boolv
     | VI8 of i8v
     | VI16 of i16v
-    | VVec of length * vecv
-    | VTuple of length * tuplev
+    | VVec of vecv
+    | VTuple of tupv
 
   (* The values we serialize and read back are normal OCaml values: *)
 
-  and length = int
   and boolv = bool
   and i8v = int
   and i16v = int
   and vecv = value array
-  and tuplev = value array
+  and tupv = value array
 end
 
-module Raw (SerData : SerDataBytes0.SERDATA_OCAML0) =
-struct
-  module T = MakeTypes (SerData)
-  include T
-  include MakeCasts (T)
+include Types
+include MakeCasts (Types)
 
-  let byte_of_i8v n = n
-  let i8v_of_byte n = n
-  let word_of_i16v n = n
-  let i16v_of_word n = n
+let byte_of_i8v n = n
+let i8v_of_byte n = n
+let word_of_i16v n = n
+let i16v_of_word n = n
 
-  let choose b c1 c2 =
-    if b then c1 else c2
+let choose b c1 c2 =
+  if b then c1 else c2
 
-  let loop len u f =
-    let rec do_loop i u =
-      if i >= len then u else do_loop (i + 1) (f i u)
-    in
-    do_loop 0 u
+let vec_length arr = Array.length arr
+let tup_length arr = Array.length arr
+let vec_get arr i = Array.get arr i
+let tup_get arr i = Array.get arr i
 
-  let vec_get = Array.get
-  let tuple_get = Array.get
+let vecv_of_const = Array.of_list
+let tupv_of_const = Array.of_list
+let boolv_of_const n = n
+let boolv_and n m = n && m
+let i8v_of_const n = n
+let i8v_eq = (=)
+let i8v_ge = (>=)
+let i8v_add = (+)
+let i8v_sub = (-)
+let i8v_mul = ( * )
+let i8v_mod = (mod)
+let i8v_div = (/)
+let i16v_of_const n = n
+let i16v_gt = (>)
 
-  let lengthv_of_const n = n
-  let vecv_of_const = Array.of_list
-  let tuplev_of_const = Array.of_list
-  let boolv_of_const n = n
-  let i8v_of_const n = n
-  let i8v_add = (+)
-  let i8v_sub = (-)
-  let i8v_mul = ( * )
-  let i8v_mod = (mod)
-  let i8v_div = (/)
-  let i16v_of_const n = n
-  let i16v_gt (n : int)  (m : int) = n > m
-end
-
-module Make (SerData : SerDataBytes0.SERDATA_OCAML0) :
-  INTREPR with module SerData = SerData = Raw (SerData)
+let read_while p cond reducer v0 =
+  let rec loop v =
+    let b = SerData.peek_byte p in
+    if cond b then (
+      SerData.skip p 1 ;
+      loop (reducer v b)
+    ) else v
+  in
+  loop v0

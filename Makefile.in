@@ -61,10 +61,11 @@ doc:
 
 LIBBERSERDES_SOURCES = \
 	src/BerSerdes.ml \
+	src/SerDataBytes0.ml \
+	src/SerDataBytes1.ml \
 	src/IntReprOCaml0.ml \
 	src/IntReprOCaml1.ml \
-	src/SerDataBytes0.ml \
-	src/SExpr0.ml
+	src/SExpr.ml
 
 EXAMPLES_SOURCES = \
 	examples/direct_hard_coded.ml
