@@ -36,4 +36,8 @@ pkgs.mkShell {
     ocamlPackages_ber.stdint
     ocamlPackages_ber.qtest
   ];
+  # I like to know this to customize prompts etc:
+  shellHook = ''
+    export NIX_SHELL=1
+  '';
 }

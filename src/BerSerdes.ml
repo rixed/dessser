@@ -21,9 +21,11 @@ sig
   type pointer
   type size
   type nop
+  type input
   val nop : nop
   val and_then : nop -> nop -> nop
   val skip : pointer -> size -> nop
+  val add : pointer -> size -> pointer
   val sub : pointer -> pointer -> size
   (*val print_pointer : 'a BatIO.output -> pointer -> unit
   val print_data : 'a BatIO.output -> pointer -> size -> unit*)
@@ -35,26 +37,26 @@ sig
   type qword
   type bytes
   val test_bit : pointer -> int -> bit
-  (* read functions also advance pointer! *)
-  val read_byte : pointer -> byte
-  val read_word : ?be:bool -> pointer -> word
-  val read_dword : ?be:bool -> pointer -> dword
-  val read_qword : ?be:bool -> pointer -> qword
-  val read_bytes : pointer -> size -> bytes
+  (* read functions: *)
+  val read_byte : pointer -> byte * pointer
+  val read_word : ?be:bool -> pointer -> word * pointer
+  val read_dword : ?be:bool -> pointer -> dword * pointer
+  val read_qword : ?be:bool -> pointer -> qword * pointer
+  val read_bytes : pointer -> size -> bytes * pointer
   val set_bit : pointer -> int -> bit -> nop
-  (* write functions also advance pointer! *)
-  val write_byte : pointer -> byte -> nop
-  val write_word : ?be:bool -> pointer -> word -> nop
-  val write_dword : ?be:bool -> pointer -> dword -> nop
-  val write_qword : ?be:bool -> pointer -> qword -> nop
-  val write_bytes : pointer -> bytes -> nop
+  (* write functions: *)
+  val write_byte : pointer -> byte -> pointer
+  val write_word : ?be:bool -> pointer -> word -> pointer
+  val write_dword : ?be:bool -> pointer -> dword -> pointer
+  val write_qword : ?be:bool -> pointer -> qword -> pointer
+  val write_bytes : pointer -> bytes -> pointer
   (* Those two do not move the pointer: *)
   val peek_byte : pointer -> byte
   val poke_byte : pointer -> byte -> nop
 
   val size_of_const : int -> size
   val make_buffer : size -> pointer
-  val print : pointer -> nop
+  val of_input : input -> pointer
 end
 
 (* Now when we generate code expressions we want to generate ocaml code (or
@@ -104,6 +106,13 @@ sig
   and i16v
   and vecv
   and tupv
+
+  type value_pointer =
+    | VBoolP of boolvp
+    | VI8P of i8vp
+    (* etc *)
+  and boolvp
+  and i8vp
 end
 
 module type INTREPR =
@@ -153,13 +162,14 @@ sig
   val i16v_of_const : int -> i16v
   val i16v_gt : i16v -> i16v -> boolv
 
-  (* Peek next byte and if cond is true then accumulate it into the value *)
+  val make_value_pointer : value -> SerData.pointer -> value_pointer
+
+  (* Peek next byte and if cond is true then accumulate it into the value. *)
   val read_while :
-    SerData.pointer ->
     (SerData.byte -> boolv) ->
     (value -> SerData.byte -> value) ->
-    value ->
-      value
+    value_pointer ->
+      value_pointer
 end
 
 module MakeCasts (B : INTREPR_TYPES) =
@@ -189,6 +199,6 @@ module type SERDES =
 sig
   module IntRepr : INTREPR
 
-  val ser : IntRepr.SerData.pointer -> IntRepr.value -> IntRepr.SerData.nop
-  val des : typ -> IntRepr.SerData.pointer -> IntRepr.value
+  val ser : IntRepr.SerData.pointer -> IntRepr.value -> IntRepr.SerData.pointer
+  val des : typ -> IntRepr.SerData.pointer -> IntRepr.value * IntRepr.SerData.pointer
 end

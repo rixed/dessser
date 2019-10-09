@@ -24,6 +24,12 @@ struct
   and i16v = int
   and vecv = value array
   and tupv = value array
+
+  type value_pointer =
+    | VBoolP of boolvp
+    | VI8P of i8vp
+  and boolvp = bool * SerData.pointer
+  and i8vp = int * SerData.pointer
 end
 
 include Types
@@ -57,12 +63,17 @@ let i8v_div = (/)
 let i16v_of_const n = n
 let i16v_gt = (>)
 
+let make_value_pointer v p =
+  match v with
+  | VBool v -> VBoolP (v, p)
+  | VI8 v -> VI8P (v, p)
+  | _ -> assert false
+
 let read_while p cond reducer v0 =
-  let rec loop v =
+  let rec loop p v =
     let b = SerData.peek_byte p in
     if cond b then (
-      SerData.skip p 1 ;
-      loop (reducer v b)
-    ) else v
+      loop (SerData.add p 1) (reducer v b)
+    ) else v, p
   in
-  loop v0
+  loop p v0

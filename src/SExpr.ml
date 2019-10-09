@@ -30,18 +30,18 @@ struct
       SerData.write_byte p byte
 
     let i8 p v =
-      let rec loop seq scale =
+      let rec loop p scale =
         if scale > 0 then
           let digit =
             IntRepr.(i8v_mod (i8v_div v (i8v_of_const scale)) i8v_10) in
           let digit_char = IntRepr.(i8v_add i8v_ascii_0) digit in
           let byte = IntRepr.byte_of_i8v digit_char in
-          let seq = SerData.(and_then seq (SerData.write_byte p byte)) in
-          loop seq (scale / 10)
+          let p = SerData.write_byte p byte in
+          loop p (scale / 10)
         else
-          seq
+          p
       in
-      loop SerData.nop 100
+      loop p 100
 
     let i16 _p _v = assert false
 
@@ -58,57 +58,55 @@ struct
 
     and tup p vs =
       let len = IntRepr.tup_length vs in
-      let seq = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
-      let rec loop seq i =
+      let p = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
+      let rec loop p i =
         if i < len then
-          let seq =
+          let p =
             if i > 0 then
-              SerData.(and_then seq
-                (write_byte p (IntRepr.byte_of_i8v i8v_spc)))
+              SerData.write_byte p (IntRepr.byte_of_i8v i8v_spc)
             else
-              seq in
+              p in
           let v = IntRepr.tup_get vs i in
-          let seq = SerData.and_then seq (ser p v) in
-          loop seq (i + 1)
+          let p = ser p v in
+          loop p (i + 1)
         else
-          seq
+          p
       in
-      let seq = loop seq 0 in
-      SerData.and_then seq
-        (SerData.write_byte p (IntRepr.byte_of_i8v i8v_cls))
+      let p = loop p 0 in
+      SerData.write_byte p (IntRepr.byte_of_i8v i8v_cls)
 
     and vec p vs =
       let len = IntRepr.vec_length vs in
-      let seq = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
-      let rec loop seq i =
+      let p = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
+      let rec loop p i =
         if i < len then
-          let seq =
+          let p =
             if i > 0 then
-              SerData.(and_then seq
-                (write_byte p (IntRepr.byte_of_i8v i8v_spc)))
+              SerData.write_byte p (IntRepr.byte_of_i8v i8v_spc)
             else
-              seq in
+              p in
           let v = IntRepr.vec_get vs i in
-          let seq = SerData.(and_then seq (ser p v)) in
-          loop seq (i + 1)
+          let p = ser p v in
+          loop p (i + 1)
         else
-          seq
+          p
       in
-      let seq = loop seq 0 in
-      SerData.(and_then seq
-        (write_byte p (IntRepr.byte_of_i8v i8v_cls)))
+      let p = loop p 0 in
+      SerData.write_byte p (IntRepr.byte_of_i8v i8v_cls)
   end
 
   module Des =
   struct
     let bool p =
-      let c = IntRepr.i8v_of_byte (SerData.read_byte p) in
+      let v, p = SerData.read_byte p in
+      let c = IntRepr.i8v_of_byte v in
       let is_true = IntRepr.i8v_eq c i8v_ascii_T in
-      IntRepr.VBool is_true
+      IntRepr.VBool is_true, p
 
     let i8 p =
       (* Assume we can read at least one byte and its a valid digit *)
-      let c = IntRepr.i8v_of_byte (SerData.read_byte p) in
+      let v, p = SerData.read_byte p in
+      let c = IntRepr.i8v_of_byte v in
       let v0 = IntRepr.i8v_sub c i8v_ascii_0 in
 
       let cond byte =
@@ -121,13 +119,25 @@ struct
         IntRepr.i8v_add (IntRepr.i8v_mul v i8v_10)
                         (IntRepr.i8v_sub c i8v_ascii_0) |>
         IntRepr.value_of_i8v in
-      IntRepr.read_while p cond reduce (IntRepr.value_of_i8v v0)
+      let v_p =
+        IntRep.(make_value_pointer (value_of_i8v v0) p in
+      IntRepr.read_while cond reduce v_p
 
     let rec des typ p =
+      (* Swallow any blank before the actual value: *)
+(*      let p = IntRepr.read_while p cond 
+      let rec skip_blanks p =
+        let v = SerData.peek p in
+        if is_blank p then
+          skip_blanks (SerData.add p 1)
+        else
+          p
+      in
+      let p = skip_blanks p in*)
       match typ with
       | TBool -> bool p
-      | TI8   -> i8 p
-      | TI16  -> assert false
+      | TI8 -> i8 p
+      | TI16 -> assert false
       | TVec (dim, typ) ->
           vec dim typ p
       | TTuple typs ->
@@ -138,30 +148,30 @@ struct
           assert false
 
     and vec dim typ p =
-      let rec loop vs i =
+      let rec loop vs p i =
         if i >= dim then
-          IntRepr.(value_of_vecv (vecv_of_const (List.rev vs)))
+          IntRepr.(value_of_vecv (vecv_of_const (List.rev vs))),
+          p
         else
-          let v = des typ p in
-          loop (v :: vs) (i + 1)
+          let v, p = des typ p in
+          loop (v :: vs) p (i + 1)
       in
-      loop [] 0
+      loop [] p 0
 
     and tup typs p =
-      let rec loop vs i =
+      let rec loop vs p i =
         if i >= Array.length typs then
-          IntRepr.(value_of_tupv (tupv_of_const (List.rev vs)))
+          IntRepr.(value_of_tupv (tupv_of_const (List.rev vs))),
+          p
         else
-          let v = des typs.(i) p in
-          loop (v :: vs) (i + 1)
+          let v, p = des typs.(i) p in
+          loop (v :: vs) p (i + 1)
       in
-      loop [] 0
+      loop [] p 0
 
   end
 
-  let ser p v =
-    let seq = Ser.ser p v in
-    SerData.(and_then seq (print p))
+  let ser = Ser.ser
 
   let des = Des.des
 end
