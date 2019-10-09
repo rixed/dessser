@@ -57,7 +57,7 @@ struct
           assert false
 
     and tup p vs =
-      let len = IntRepr.tup_length vs in
+      let len = Array.length vs in
       let p = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
       let rec loop p i =
         if i < len then
@@ -66,7 +66,7 @@ struct
               SerData.write_byte p (IntRepr.byte_of_i8v i8v_spc)
             else
               p in
-          let v = IntRepr.tup_get vs i in
+          let v = vs.(i) in
           let p = ser p v in
           loop p (i + 1)
         else
@@ -76,7 +76,7 @@ struct
       SerData.write_byte p (IntRepr.byte_of_i8v i8v_cls)
 
     and vec p vs =
-      let len = IntRepr.vec_length vs in
+      let len = Array.length vs in
       let p = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
       let rec loop p i =
         if i < len then
@@ -85,7 +85,7 @@ struct
               SerData.write_byte p (IntRepr.byte_of_i8v i8v_spc)
             else
               p in
-          let v = IntRepr.vec_get vs i in
+          let v = vs.(i) in
           let p = ser p v in
           loop p (i + 1)
         else
@@ -98,8 +98,8 @@ struct
   module Des =
   struct
     let bool p =
-      let v, p = SerData.read_byte p in
-      let c = IntRepr.i8v_of_byte v in
+      let v_p = SerData.read_byte p in
+      let c = IntRepr.(i8v_of_byte (fst v_p)) in
       let is_true = IntRepr.i8v_eq c i8v_ascii_T in
       IntRepr.VBool is_true, p
 
@@ -108,7 +108,6 @@ struct
       let v, p = SerData.read_byte p in
       let c = IntRepr.i8v_of_byte v in
       let v0 = IntRepr.i8v_sub c i8v_ascii_0 in
-
       let cond byte =
         let c = IntRepr.i8v_of_byte byte in
         IntRepr.boolv_and (IntRepr.i8v_ge c i8v_ascii_0)
@@ -119,9 +118,7 @@ struct
         IntRepr.i8v_add (IntRepr.i8v_mul v i8v_10)
                         (IntRepr.i8v_sub c i8v_ascii_0) |>
         IntRepr.value_of_i8v in
-      let v_p =
-        IntRep.(make_value_pointer (value_of_i8v v0) p in
-      IntRepr.read_while cond reduce v_p
+      IntRepr.read_while ~cond ~reduce p (IntRepr.value_of_i8v v0)
 
     let rec des typ p =
       (* Swallow any blank before the actual value: *)

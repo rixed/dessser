@@ -9,22 +9,10 @@ let make_buffer sz =
 
 type size = int
 
-type nop = unit
-
-type input = string
-
-let of_input input =
-  { data = Bytes.of_string input ;
-    offset = 0 }
-
-let nop = ()
-
-let and_then () () = ()
+let of_string s =
+  { data = Bytes.of_string s ; offset = 0 }
 
 let size_of_const n = n
-
-let skip p s =
-  p.offset <- p.offset + s
 
 let add p s =
   { p with offset = p.offset + s }
@@ -53,9 +41,6 @@ let peek_byte p =
 let test_bit p o =
   let b = peek_byte p in
   (b lsr o) mod 1 = 1
-
-let and_skip p s v =
-  skip p s ; v
 
 let read_byte p =
   peek_byte p,
@@ -91,8 +76,7 @@ let read_bytes p l =
 
 let poke_byte p v =
   assert (p.offset < Bytes.length p.data) ;
-  Bytes.set p.data p.offset (Char.chr v) ;
-  skip p 1
+  Bytes.set p.data p.offset (Char.chr v)
 
 let set_bit p o v =
   let bit = 1 lsl o in

@@ -13,20 +13,15 @@
 (* Serialized data are read from / written to memory buffers accessed via this
  * interface.
  * You will find several implementations:
- * - One reading/writing directly (ie stage 0) into a Bytes.t;
- * - One reading/writing directly into a file;
- * - One that return the code to read/write into a stage 1 Bytes.t buffer. *)
+ * - One reading/writing into a Bytes.t;
+ * - One reading/writing into a file;
+ * - Other should be easy to add. *)
 module type SERDATA =
 sig
   type pointer
   type size
-  type nop
-  type input
-  val nop : nop
-  val and_then : nop -> nop -> nop
-  val skip : pointer -> size -> nop
-  val add : pointer -> size -> pointer
-  val sub : pointer -> pointer -> size
+  val add : pointer code -> size code -> pointer code
+  val sub : pointer code -> pointer code -> size code
   (*val print_pointer : 'a BatIO.output -> pointer -> unit
   val print_data : 'a BatIO.output -> pointer -> size -> unit*)
 
@@ -36,27 +31,27 @@ sig
   type dword
   type qword
   type bytes
-  val test_bit : pointer -> int -> bit
+  val test_bit : pointer code -> int code -> bit code
   (* read functions: *)
-  val read_byte : pointer -> byte * pointer
-  val read_word : ?be:bool -> pointer -> word * pointer
-  val read_dword : ?be:bool -> pointer -> dword * pointer
-  val read_qword : ?be:bool -> pointer -> qword * pointer
-  val read_bytes : pointer -> size -> bytes * pointer
-  val set_bit : pointer -> int -> bit -> nop
+  val read_byte : pointer code -> (byte * pointer) code
+  val read_word : ?be:bool -> pointer code -> (word * pointer) code
+  val read_dword : ?be:bool -> pointer code -> (dword * pointer) code
+  val read_qword : ?be:bool -> pointer code -> (qword * pointer) code
+  val read_bytes : pointer code -> size code -> (bytes * pointer) code
+  val set_bit : pointer code -> int code -> bit code -> unit code
   (* write functions: *)
-  val write_byte : pointer -> byte -> pointer
-  val write_word : ?be:bool -> pointer -> word -> pointer
-  val write_dword : ?be:bool -> pointer -> dword -> pointer
-  val write_qword : ?be:bool -> pointer -> qword -> pointer
-  val write_bytes : pointer -> bytes -> pointer
+  val write_byte : pointer code -> byte code -> pointer code
+  val write_word : ?be:bool -> pointer code -> word code -> pointer code
+  val write_dword : ?be:bool -> pointer code -> dword code -> pointer code
+  val write_qword : ?be:bool -> pointer code -> qword code -> pointer code
+  val write_bytes : pointer code -> bytes code -> pointer code
   (* Those two do not move the pointer: *)
-  val peek_byte : pointer -> byte
-  val poke_byte : pointer -> byte -> nop
+  val peek_byte : pointer code -> byte code
+  val poke_byte : pointer code -> byte code -> unit code
 
-  val size_of_const : int -> size
-  val make_buffer : size -> pointer
-  val of_input : input -> pointer
+  val size_of_const : int -> size code
+  val make_buffer : size code -> pointer code
+  val of_string : string code -> pointer code
 end
 
 (* Now when we generate code expressions we want to generate ocaml code (or
@@ -93,83 +88,68 @@ sig
   module SerData : SERDATA
 
   type value =
-    | VPointer of SerData.pointer
-    | VSize of SerData.size
-    | VBool of boolv
-    | VI8 of i8v
-    | VI16 of i16v
-    | VVec of vecv
-    | VTuple of tupv
+    | VPointer of SerData.pointer code
+    | VSize of SerData.size code
+    | VBool of boolv code
+    | VI8 of i8v code
+    | VI16 of i16v code
+    | VVec of value array
+    | VTuple of value array
 
   and boolv
   and i8v
   and i16v
-  and vecv
-  and tupv
-
-  type value_pointer =
-    | VBoolP of boolvp
-    | VI8P of i8vp
-    (* etc *)
-  and boolvp
-  and i8vp
 end
 
 module type INTREPR =
 sig
   include INTREPR_TYPES
 
-  val value_of_pointer : SerData.pointer -> value
-  val pointer_of_value : value -> SerData.pointer
-  val value_of_size : SerData.size -> value
-  val size_of_value : value -> SerData.size
-  val value_of_boolv : boolv -> value
-  val boolv_of_value : value -> boolv
-  val value_of_i8v : i8v -> value
-  val i8v_of_value : value -> i8v
-  val value_of_i16v : i16v -> value
-  val i16v_of_value : value -> i16v
-  val value_of_vecv : vecv -> value
-  val vecv_of_value : value -> vecv
-  val value_of_tupv : tupv -> value
-  val tupv_of_value : value -> tupv
+  val value_of_pointer : SerData.pointer code -> value
+  val pointer_of_value : value -> SerData.pointer code
+  val value_of_size : SerData.size code -> value
+  val size_of_value : value -> SerData.size code
+  val value_of_boolv : boolv code -> value
+  val boolv_of_value : value -> boolv code
+  val value_of_i8v : i8v code -> value
+  val i8v_of_value : value -> i8v code
+  val value_of_i16v : i16v code -> value
+  val i16v_of_value : value -> i16v code
+  val value_of_vecv : value array code -> value
+  val vecv_of_value : value -> value array code
+  val value_of_tupv : value array code -> value
+  val tupv_of_value : value -> value array code
   (* To be continued... *)
 
-  val byte_of_i8v : i8v -> SerData.byte
-  val i8v_of_byte : SerData.byte -> i8v
-  val word_of_i16v : i16v -> SerData.word
-  val i16v_of_word : SerData.word -> i16v
+  val byte_of_i8v : i8v code -> SerData.byte code
+  val i8v_of_byte : SerData.byte code -> i8v code
+  val word_of_i16v : i16v code -> SerData.word code
+  val i16v_of_word : SerData.word code -> i16v code
 
-  val choose : boolv -> value -> value -> value
-  val vec_get : vecv -> int -> value
-  (* Lengths are always known at compile time: *)
-  val vec_length : vecv -> int
-  val tup_length : tupv -> int
-  val tup_get : tupv -> int -> value
+  val choose : boolv code -> value -> value -> value
+  val fst : ('a * 'b) code -> 'a code
+  val snd : ('a * 'b) code -> 'b code
 
-  val vecv_of_const : value list -> vecv
-  val tupv_of_const : value list -> tupv
-  val boolv_of_const : bool -> boolv
-  val boolv_and : boolv -> boolv -> boolv
-  val i8v_of_const : int -> i8v
-  val i8v_eq : i8v -> i8v -> boolv
-  val i8v_ge : i8v -> i8v -> boolv
-  val i8v_add : i8v -> i8v -> i8v
-  val i8v_sub : i8v -> i8v -> i8v
-  val i8v_mul : i8v -> i8v -> i8v
-  val i8v_mod : i8v -> i8v -> i8v
-  val i8v_div : i8v -> i8v -> i8v
-  val i16v_of_const : int -> i16v
-  val i16v_gt : i16v -> i16v -> boolv
-
-  val make_value_pointer : value -> SerData.pointer -> value_pointer
+  val boolv_of_const : bool -> boolv code
+  val boolv_and : boolv code -> boolv code -> boolv code
+  val i8v_of_const : int -> i8v code
+  val i8v_eq : i8v code -> i8v code -> boolv code
+  val i8v_ge : i8v code -> i8v code -> boolv code
+  val i8v_add : i8v code -> i8v code -> i8v code
+  val i8v_sub : i8v code -> i8v code -> i8v code
+  val i8v_mul : i8v code -> i8v code -> i8v code
+  val i8v_mod : i8v code -> i8v code -> i8v code
+  val i8v_div : i8v code -> i8v code -> i8v code
+  val i16v_of_const : int -> i16v code
+  val i16v_gt : i16v code -> i16v code -> boolv code
 
   (* Peek next byte and if cond is true then accumulate it into the value. *)
   val read_while :
-    (SerData.byte -> boolv) ->
-    (value -> SerData.byte -> value) ->
-    value_pointer ->
-      value_pointer
+    cond:(SerData.byte -> boolv) code ->
+    reduce:('a -> SerData.byte -> 'a) code ->
+    SerData.pointer code ->
+    'a code ->
+      ('a * SerData.pointer) code
 end
 
 module MakeCasts (B : INTREPR_TYPES) =
@@ -199,6 +179,7 @@ module type SERDES =
 sig
   module IntRepr : INTREPR
 
-  val ser : IntRepr.SerData.pointer -> IntRepr.value -> IntRepr.SerData.pointer
-  val des : typ -> IntRepr.SerData.pointer -> IntRepr.value * IntRepr.SerData.pointer
+  val ser : IntRepr.value -> IntRepr.SerData.pointer code ->
+              IntRepr.SerData.pointer code
+  val des : typ -> IntRepr.SerData.pointer code -> IntRepr.value
 end
