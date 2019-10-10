@@ -31,6 +31,7 @@ sig
   type dword
   type qword
   type bytes
+
   val int_of_byte : byte code -> int code
   val byte_of_int : int code -> byte code
 
@@ -55,6 +56,8 @@ sig
   val size_of_const : int -> size code
   val make_buffer : size code -> pointer code
   val of_string : string code -> pointer code
+  val bytes_append : bytes code -> byte code -> bytes code
+  val make_bytes : bytes code
 end
 
 (* Now when we generate code expressions we want to generate ocaml code (or
@@ -78,8 +81,8 @@ end
  *)
 
 type typ =
-  | TPointer
-  | TSize
+  | TFloat
+  | TString
   | TBool
   | TI8
   | TI16
@@ -89,12 +92,15 @@ type typ =
 module type INTREPR =
 sig
   module SerData : SERDATA
-  type boolv and i8v and i16v
+  type floatv and stringv and boolv and i8v and i16v
 
+  val length_of_stringv : stringv code -> i16v code
   val byte_of_i8v : i8v code -> SerData.byte code
   val i8v_of_byte : SerData.byte code -> i8v code
   val word_of_i16v : i16v code -> SerData.word code
   val i16v_of_word : SerData.word code -> i16v code
+  val stringv_of_bytes : SerData.bytes code -> stringv code
+  val bytes_of_stringv : stringv code -> SerData.bytes code
 
   val choose : boolv code -> 'a code -> 'a code -> 'a code
   val fst : ('a * 'b) code -> 'a code
@@ -105,6 +111,7 @@ sig
 
   val boolv_of_const : bool -> boolv code
   val boolv_and : boolv code -> boolv code -> boolv code
+  val boolv_or : boolv code -> boolv code -> boolv code
   val i8v_of_const : int -> i8v code
   val i8v_eq : i8v code -> i8v code -> boolv code
   val i8v_ne : i8v code -> i8v code -> boolv code
@@ -117,6 +124,9 @@ sig
   val i8v_div : i8v code -> i8v code -> i8v code
   val i16v_of_const : int -> i16v code
   val i16v_gt : i16v code -> i16v code -> boolv code
+  (* Shortcut: convert between floats and string representation: *)
+  val floatv_of_bytes : SerData.bytes code -> floatv code
+  val bytes_of_floatv : floatv code -> SerData.bytes code
 
   (* Peek next byte and if cond is true then accumulate it into the value. *)
   val read_while :
@@ -138,13 +148,17 @@ end
  * - One for some user-friendly s-expression format;
  * - One for some user-friendly CSV format;
  * - One for some more efficient yet still simple binary encoding. *)
+
 module type DES =
 sig
   module IntRepr : INTREPR
   type pointer = IntRepr.SerData.pointer
+  type 'a des = (pointer -> 'a * pointer) code
 
-  val dbool : (pointer -> IntRepr.boolv * pointer) code
-  val di8 : (pointer -> IntRepr.i8v * pointer) code
+  val dfloat : IntRepr.floatv des
+  val dstring : IntRepr.stringv des
+  val dbool : IntRepr.boolv des
+  val di8 : IntRepr.i8v des
 
   val tup_opn : typ array -> pointer code -> pointer code
   val tup_cls : typ array -> pointer code -> pointer code
@@ -158,9 +172,12 @@ module type SER =
 sig
   module IntRepr : INTREPR
   type pointer = IntRepr.SerData.pointer
+  type 'a ser = ('a * pointer -> pointer) code
 
-  val sbool: (IntRepr.boolv * pointer -> pointer) code
-  val si8 : (IntRepr.i8v * pointer -> pointer) code
+  val sfloat : IntRepr.floatv ser
+  val sstring : IntRepr.stringv ser
+  val sbool: IntRepr.boolv ser
+  val si8 : IntRepr.i8v ser
 
   val tup_opn : typ array -> pointer code -> pointer code
   val tup_cls : typ array -> pointer code -> pointer code
@@ -172,21 +189,18 @@ end
 
 module DesSer (Des : DES) (Ser : SER with module IntRepr = Des.IntRepr) =
 struct
-  let dsbool src dst =
-    let ser = Ser.sbool
-    and des = Des.dbool in
-    .<
-      let v, sp = .~des .~src in
-      let dp = .~ser (v, .~dst) in
-      sp, dp >.
+  let ds ser des =
+    fun src dst ->
+      .<
+        let v, sp = .~des .~src in
+        let dp = .~ser (v, .~dst) in
+        sp, dp
+      >.
 
-  let dsi8 src dst =
-    let ser = Ser.si8
-    and des = Des.di8 in
-    .<
-      let v, sp = .~des .~src in
-      let dp = .~ser (v, .~dst) in
-      sp, dp >.
+  let dsfloat = ds Ser.sfloat Des.dfloat
+  let dsstring = ds Ser.sstring Des.dstring
+  let dsbool = ds Ser.sbool Des.dbool
+  let dsi8 = ds Ser.si8 Des.di8
 
   let rec dstup typs src dst =
     let src = Des.tup_opn typs src
@@ -238,6 +252,8 @@ struct
   and desser : typ -> (Des.pointer * Ser.pointer ->
                         Des.pointer * Ser.pointer) code =
     function
+      | TFloat -> .< fun (src, dst) -> .~(dsfloat .<src>. .<dst>.) >.
+      | TString -> .< fun (src, dst) -> .~(dsstring .<src>. .<dst>.) >.
       | TBool -> .< fun (src, dst) -> .~(dsbool .<src>. .<dst>.) >.
       | TI8 -> .< fun (src, dst) -> .~(dsi8 .<src>. .<dst>.) >.
       | TTup typs -> .< fun (src, dst) -> .~(dstup typs .<src>. .<dst>.) >.

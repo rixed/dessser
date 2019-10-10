@@ -4,8 +4,10 @@ open Dessert
 
 module SerData = SerDataBytes
 
-type boolv = bool and i8v = int and i16v = int
+type floatv = float and stringv = string and boolv = bool
+and i8v = int and i16v = int
 
+let length_of_stringv n = .< String.length .~n >.
 let byte_of_i8v n = n
 let i8v_of_byte n = n
 let word_of_i16v n = n
@@ -32,6 +34,7 @@ let map_pair ~fst ~snd a_b =
 
 let boolv_of_const (n : bool) = .< n >.
 let boolv_and n m = .< .~n && .~m >.
+let boolv_or n m = .< .~n || .~m >.
 let i8v_of_const (i : int) = .< i >.
 let i8v_eq n m = .< .~n = .~m >.
 let i8v_ne n m = .< .~n <> .~m >.
@@ -44,6 +47,20 @@ let i8v_mod n m = .< .~n mod .~m >.
 let i8v_div n m = .< .~n / .~m >.
 let i16v_of_const (i : int) = .< i >.
 let i16v_gt n m = .< .~n > .~m >.
+
+let stringv_of_bytes n = .< Bytes.to_string .~n >.
+let bytes_of_stringv n = .< Bytes.of_string .~n >.
+(* Shortcuts: *)
+let floatv_of_bytes n =
+  .<
+    let s = Bytes.to_string .~n in
+    try float_of_string s
+    with e ->
+      Format.eprintf "Cannot convert %S into a float@." s ;
+      raise e
+  >.
+
+let bytes_of_floatv n = .< Bytes.of_string (string_of_float.~n) >.
 
 let read_while ~cond ~reduce v_p =
   .<

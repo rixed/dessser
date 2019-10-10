@@ -96,7 +96,10 @@ let write_byte p v =
 let write_word ?(be=false) _p _v = ignore be ; assert false
 let write_dword ?(be=false) _p _v = ignore be ; assert false
 let write_qword ?(be=false) _p _v = ignore be ; assert false
-let write_bytes _p _v = assert false
+let write_bytes p v =
+  let len = Bytes.length v in
+  Bytes.blit v 0 p.data p.offset len ;
+  add p len
 
 (* For debugging: *)
 let print p =

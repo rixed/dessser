@@ -49,7 +49,8 @@ let () =
     (*TBool*)
     (*TI8*)
     (*TTup [| TBool ; TI8 |]*)
-    TTup [| TBool ; TI8 ; TVec (3, TI8) |]
+    (*TTup [| TBool ; TI8 ; TVec (3, TI8) |]*)
+    TTup [| TBool ; TI8 ; TString ; TVec (3, TFloat) |]
   in
   try
     parse_user_expr typ user_expr

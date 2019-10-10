@@ -69,3 +69,19 @@ let of_string ic =
 
 let size_of_const n =
   .< SerDataBytes0.size_of_const n >.
+
+(* Very efficient as you can see: *)
+
+let make_bytes = .< Bytes.empty >.
+
+let bytes_append bs b =
+  .<
+    let old_bs = .~bs in
+    let len = Bytes.length old_bs in
+    let new_bs = Bytes.create (len + 1) in
+    Bytes.blit old_bs 0 new_bs 0 len ;
+    Bytes.set new_bs len (Char.chr .~b) ;
+(*    Format.printf "old bytes was %S, new bytes is %S@."
+      (Bytes.to_string old_bs) (Bytes.to_string new_bs) ;*)
+    new_bs
+  >.
