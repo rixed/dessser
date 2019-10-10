@@ -29,6 +29,9 @@ type dword = int32
 type qword = int64
 type bytes = Bytes.t
 
+let int_of_byte : byte code -> int code = fun n -> n
+let byte_of_int : int code -> byte code = fun n -> n
+
 let peek_byte p =
   (* It's OK to peek past the end of the puffer, and then one reads 0: *)
   if p.offset = Bytes.length p.data then
@@ -96,9 +99,6 @@ let write_qword ?(be=false) _p _v = ignore be ; assert false
 let write_bytes _p _v = assert false
 
 (* For debugging: *)
-let print printer (v, p) =
-  Format.printf "Deserialized = %a@." printer v ;
-  let unparsed = Bytes.length p.data - p.offset in
-  if unparsed > 0 then
-    Format.printf "Warning: %d bytes of garbage at the end of user input@."
-      unparsed
+let print p =
+  Format.printf "Destination = %S@."
+    (Bytes.sub_string p.data 0 p.offset)

@@ -1,6 +1,6 @@
 opam-version: "2.0"
 version: "@PACKAGE_VERSION@"
-name: "berserdes"
+name: "dessert"
 maintainer: "rixed-opam@happyleptic.org"
 authors: "rixed-opam@happyleptic.org"
 homepage: "https://github.com/rixed/berserdes"

@@ -1,35 +1,10 @@
 (* Immediate representation of possible values, using a straightforward
  * algebraic data type. *)
-open BerSerdes
+open Dessert
 
-module Types =
-struct
-  module SerData = SerDataBytes
+module SerData = SerDataBytes
 
-  type value =
-    | VPointer of SerData.pointer code
-    | VSize of SerData.size code
-    | VBool of boolv code
-    | VI8 of i8v code
-    | VI16 of i16v code
-    | VVec of value array
-    | VTuple of value array
-
-  and boolv = bool
-  and i8v = int
-  and i16v = int
-
-  type value_pointer =
-    | VPBool of (boolv * SerData.pointer) code
-    | VPI8 of (i8v * SerData.pointer) code
-    | VPI16 of (i16v * SerData.pointer) code
-    | VPVec of value array * SerData.pointer code
-    | VPTuple of value array * SerData.pointer code
-end
-
-include Types
-
-include MakeCasts (Types)
+type boolv = bool and i8v = int and i16v = int
 
 let byte_of_i8v n = n
 let i8v_of_byte n = n
@@ -48,6 +23,12 @@ let snd a_b =
 
 let map_fst f a_b =
   .< let a, b = .~a_b in .~f a, b >.
+
+let map_pair ~fst ~snd a_b =
+  .<
+    let a, b = .~a_b in
+    .~(fst .<a>.), .~(snd .<b>.)
+  >.
 
 let boolv_of_const (n : bool) = .< n >.
 let boolv_and n m = .< .~n && .~m >.

@@ -16,6 +16,9 @@ type dword = SerDataBytes0.dword
 type qword = SerDataBytes0.qword
 type bytes = SerDataBytes0.bytes
 
+let int_of_byte = SerDataBytes0.int_of_byte
+let byte_of_int = SerDataBytes0.byte_of_int
+
 let test_bit pc oc =
   .< let p, o = .~pc, .~oc in SerDataBytes0.test_bit p o >.
 

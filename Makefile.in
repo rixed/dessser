@@ -17,13 +17,13 @@ OCAMLOPTFLAGS += -g
 endif
 
 META_REQUIRES = \
-	findlib stdint
+	findlib batteries stdint
 
 PACKAGES = \
-	stdint
+	batteries stdint
 
 INSTALLED_LIB = \
-	src/berserdes.cmxa \
+	src/dessert.cmxa \
 	$(filter %.cmi, $(LIBBERSERDES_SOURCES:.ml=.cmi)) \
 	$(filter %.cmx, $(LIBBERSERDES_SOURCES:.ml=.cmx))
 
@@ -60,7 +60,7 @@ all: $(INSTALLED) examples
 doc:
 
 LIBBERSERDES_SOURCES = \
-	src/BerSerdes.ml \
+	src/Dessert.ml \
 	src/SerDataBytes0.ml \
 	src/SerDataBytes.ml \
 	src/IntReprOCaml.ml \
@@ -88,20 +88,20 @@ dep:
 
 include .depend
 
-# Compile berserdes lib
+# Compile dessert lib
 
-src/berserdes.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
+src/dessert.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -a $(filter %.cmx, $^) -o $@
 
-src/berserdes.a: src/berserdes.cmxa
+src/dessert.a: src/dessert.cmxa
 
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
-examples/direct_hard_coded.opt: src/berserdes.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg $^ -o $@
+examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package batteries $^ -o $@
 
 # Generated sources
 
@@ -109,7 +109,7 @@ META:
 	@echo 'Building findlib configuration (META) for Ramen'
 	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
-	@echo 'archive(native) = "berserdes.cmxa"' >> $@
+	@echo 'archive(native) = "dessert.cmxa"' >> $@
 	@echo 'requires = "$(META_REQUIRES)"' >> $@
 
 # Tests
@@ -137,10 +137,10 @@ unit-check: all_tests.opt
 # Installation
 
 install: $(INSTALLED)
-	ocamlfind install berserdes $(INSTALLED_LIB) META
+	ocamlfind install dessert $(INSTALLED_LIB) META
 
 uninstall: uninstall-bundle
-	@ocamlfind remove berserdes
+	@ocamlfind remove dessert
 
 reinstall: uninstall install
 
@@ -155,7 +155,7 @@ clean:
 	@$(RM) src/*.cmx src/*.cmxa src/*.cmxs src/*.cmi src/*.a
 	@$(RM) src/oUnit-anon.cache src/qtest.targets.log
 	@$(RM) .depend src/*.opt src/*.byte
-	@$(RM) src/berserdes.cmxa
+	@$(RM) src/dessert.cmxa
 
 distclean: clean
 	@echo 'Cleaning all build files'
