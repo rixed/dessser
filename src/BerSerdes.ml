@@ -81,7 +81,7 @@ type typ =
   | TI8
   | TI16
   | TVec of int * typ
-  | TTuple of typ array
+  | TTup of typ array
 
 module type INTREPR_TYPES =
 sig
@@ -93,12 +93,25 @@ sig
     | VBool of boolv code
     | VI8 of i8v code
     | VI16 of i16v code
+    (* There is no such thing as a stage0 representation of the stage1 tuple
+     * because it is impossible and useless. What stage0 needs is a way to
+     * get the code to ser/deser i-th field. *)
+    | VTup of value array
     | VVec of value array
-    | VTuple of value array
 
   and boolv
   and i8v
   and i16v
+
+  type value_pointer =
+    | VPBool of (boolv * SerData.pointer) code
+    | VPI8 of (i8v * SerData.pointer) code
+    | VPI16 of (i16v * SerData.pointer) code
+    (* When deserializing a tuple, we ought to retrieve the array of [value]s,
+     * Note that we deser only to ser again (in another format), not to ever
+     * read the actual values in stage0. *)
+    | VPTup of value_pointer array
+    | VPVec of value_pointer array
 end
 
 module type INTREPR =
@@ -115,10 +128,10 @@ sig
   val i8v_of_value : value -> i8v code
   val value_of_i16v : i16v code -> value
   val i16v_of_value : value -> i16v code
-  val value_of_vecv : value array code -> value
-  val vecv_of_value : value -> value array code
-  val value_of_tupv : value array code -> value
-  val tupv_of_value : value -> value array code
+  val value_of_vecv : value array -> value
+  val vecv_of_value : value -> value array
+  val value_of_tupv : value array -> value
+  val tupv_of_value : value -> value array
   (* To be continued... *)
 
   val byte_of_i8v : i8v code -> SerData.byte code
@@ -126,15 +139,18 @@ sig
   val word_of_i16v : i16v code -> SerData.word code
   val i16v_of_word : SerData.word code -> i16v code
 
-  val choose : boolv code -> value -> value -> value
+  val choose : boolv code -> 'a code -> 'a code -> 'a code
   val fst : ('a * 'b) code -> 'a code
   val snd : ('a * 'b) code -> 'b code
+  val map_fst : ('a -> 'c) code -> ('a * 'b) code -> ('c * 'b) code
 
   val boolv_of_const : bool -> boolv code
   val boolv_and : boolv code -> boolv code -> boolv code
   val i8v_of_const : int -> i8v code
   val i8v_eq : i8v code -> i8v code -> boolv code
+  val i8v_ne : i8v code -> i8v code -> boolv code
   val i8v_ge : i8v code -> i8v code -> boolv code
+  val i8v_gt : i8v code -> i8v code -> boolv code
   val i8v_add : i8v code -> i8v code -> i8v code
   val i8v_sub : i8v code -> i8v code -> i8v code
   val i8v_mul : i8v code -> i8v code -> i8v code
@@ -147,9 +163,15 @@ sig
   val read_while :
     cond:(SerData.byte -> boolv) code ->
     reduce:('a -> SerData.byte -> 'a) code ->
-    SerData.pointer code ->
-    'a code ->
+    ('a * SerData.pointer) code ->
       ('a * SerData.pointer) code
+
+  (* Process a value of type ['a] in a loop while a condition on the loop
+   * counter (of type ['b]) is true. The condition is tested initially. *)
+  val do_while :
+    cond:('a -> 'b -> boolv) code ->
+    loop:('a -> 'b -> 'a * 'b) code ->
+    'b code -> 'a code -> 'a code
 end
 
 module MakeCasts (B : INTREPR_TYPES) =
@@ -166,8 +188,8 @@ struct
   let i16v_of_value = function B.VI16 c -> c | _ -> assert false
   let value_of_vecv c = B.VVec c
   let vecv_of_value = function B.VVec c -> c | _ -> assert false
-  let value_of_tupv c = B.VTuple c
-  let tupv_of_value = function B.VTuple c -> c | _ -> assert false
+  let value_of_tupv c = B.VTup c
+  let tupv_of_value = function B.VTup c -> c | _ -> assert false
 end
 
 (* Implementations must (de)serialize using only the functions above.
@@ -179,7 +201,9 @@ module type SERDES =
 sig
   module IntRepr : INTREPR
 
-  val ser : IntRepr.value -> IntRepr.SerData.pointer code ->
-              IntRepr.SerData.pointer code
-  val des : typ -> IntRepr.SerData.pointer code -> IntRepr.value
+  val ser : IntRepr.value_pointer -> IntRepr.SerData.pointer code
+
+  (* The result pair will match [typ] of course, but OCaml's type checker
+   * won't help with that. *)
+  val des : typ -> IntRepr.SerData.pointer code -> IntRepr.value_pointer
 end

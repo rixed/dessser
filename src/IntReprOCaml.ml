@@ -18,6 +18,13 @@ struct
   and boolv = bool
   and i8v = int
   and i16v = int
+
+  type value_pointer =
+    | VPBool of (boolv * SerData.pointer) code
+    | VPI8 of (i8v * SerData.pointer) code
+    | VPI16 of (i16v * SerData.pointer) code
+    | VPVec of value array * SerData.pointer code
+    | VPTuple of value array * SerData.pointer code
 end
 
 include Types
@@ -31,35 +38,53 @@ let i16v_of_word n = n
 
 (* Could GADT help with choose prototype while preserving tuples? *)
 let choose b c1 c2 =
-  let aux c1 c2 =
-    .< if .~b then .~c1 else .~c2 >. in
-  match c1, c2 with
-  | VPointer c1, VPointer c2 -> VPointer (aux c1 c2)
-  | VSize c1, VSize c2 -> VSize (aux c1 c2)
-  | VI8 c1, VI8 c2 -> VI8 (aux c1 c2)
-  | _ -> assert false
+  .< if .~b then .~c1 else .~c2 >.
 
-let boolv_of_const n = .< n >.
+let fst a_b =
+  .< let a, _ = .~a_b in a >.
+
+let snd a_b =
+  .< let _, b = .~a_b in b >.
+
+let map_fst f a_b =
+  .< let a, b = .~a_b in .~f a, b >.
+
+let boolv_of_const (n : bool) = .< n >.
 let boolv_and n m = .< .~n && .~m >.
-let i8v_of_const i = .< i >.
+let i8v_of_const (i : int) = .< i >.
 let i8v_eq n m = .< .~n = .~m >.
+let i8v_ne n m = .< .~n <> .~m >.
 let i8v_ge n m = .< .~n >= .~m >.
+let i8v_gt n m = .< .~n > .~m >.
 let i8v_add n m = .< .~n + .~m >.
 let i8v_sub n m = .< .~n - .~m >.
 let i8v_mul n m = .< .~n * .~m >.
 let i8v_mod n m = .< .~n mod .~m >.
 let i8v_div n m = .< .~n / .~m >.
-let i16v_of_const i = .< i >.
+let i16v_of_const (i : int) = .< i >.
 let i16v_gt n m = .< .~n > .~m >.
 
-let read_while ~cond ~reducer p v0 =
+let read_while ~cond ~reduce v_p =
   .<
-    let rec loop p v =
+    let rec loop v p =
       let b = .~(SerDataBytes.peek_byte .<p>.) in
-      if .~(cond .<b>.) then (
+      if .~cond b then (
         let p = .~(SerDataBytes.add .<p>. .<1>.) in
-        loop p (.~reducer v b)
+        loop (.~reduce v b) p
       ) else v, p
     in
-    loop .~p .~v0
+    let v, p = .~v_p in
+    loop v p
+  >.
+
+let do_while ~cond ~loop ic vc =
+  .<
+    let rec loop_ v i =
+      if .~cond v i then (
+        let v, i = .~loop v i in
+        loop_ v i
+      ) else
+        v
+    in
+    loop_ .~vc .~ic
   >.

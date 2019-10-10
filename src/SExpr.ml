@@ -10,7 +10,9 @@ struct
 
   let i8v_ascii_T = IntRepr.i8v_of_const (Char.code 'T')
   let i8v_ascii_F = IntRepr.i8v_of_const (Char.code 'F')
+  let i8v_0 = IntRepr.i8v_of_const 0
   let i8v_10 = IntRepr.i8v_of_const 10
+  let i8v_100 = IntRepr.i8v_of_const 100
   let i8v_ascii_0 = IntRepr.i8v_of_const (Char.code '0')
   let i8v_ascii_9 = IntRepr.i8v_of_const (Char.code '9')
   let i8v_opn = IntRepr.i8v_of_const (Char.code '(')
@@ -20,42 +22,45 @@ struct
 
   module Ser =
   struct
-    let bool p v =
-      (* Note: this returns a nop, not unit. Shouldn't we have a new sequencing
-       * operation to compose two nops into one? *)
-      let i8v_chr = IntRepr.choose v (IntRepr.VI8 i8v_ascii_T)
-                                     (IntRepr.VI8 i8v_ascii_F) |>
-                    IntRepr.i8v_of_value in
-      let byte = IntRepr.byte_of_i8v i8v_chr in
-      SerData.write_byte p byte
+    let bool v_p =
+      .<
+        let v, p = .~v_p in
+        let byte =
+          .~(IntRepr.choose .<v>. i8v_ascii_T i8v_ascii_F |>
+             IntRepr.byte_of_i8v) in
+        .~(SerData.write_byte .<p>. .<byte>.)
+      >.
 
-    let i8 p v =
-      let rec loop p scale =
-        if scale > 0 then
-          let digit =
-            IntRepr.(i8v_mod (i8v_div v (i8v_of_const scale)) i8v_10) in
-          let digit_char = IntRepr.(i8v_add i8v_ascii_0) digit in
-          let byte = IntRepr.byte_of_i8v digit_char in
-          let p = SerData.write_byte p byte in
-          loop p (scale / 10)
-        else
-          p
-      in
-      loop p 100
+    let i8 v_p =
+      .<
+        let v, p = .~v_p in
+        .~(IntRepr.choose (IntRepr.i8v_eq .<v>. i8v_0)
+             (SerData.write_byte .<p>. (IntRepr.byte_of_i8v i8v_ascii_0))
+             (let cond =
+                .< fun _ (_v, scale) -> .~(IntRepr.i8v_gt .<scale>. i8v_0) >.
+              and loop =
+                .<
+                  fun p (v, scale) ->
+                    let digit =
+                      .~(IntRepr.(i8v_mod (i8v_div .<v>. .<scale>.) i8v_10)) in
+                    let chr = .~(IntRepr.i8v_add i8v_ascii_0 .<digit>.) in
+                    let byte = .~(IntRepr.byte_of_i8v .<chr>.) in
+                    let p = .~(SerData.write_byte .<p>. .<byte>.) in
+                    p, (v, .~(IntRepr.i8v_div .<scale>. i8v_10))
+                >. in
+              IntRepr.do_while ~cond ~loop .<(v, .~i8v_100)>. .<p>.))
+      >.
 
-    let i16 _p _v = assert false
+    let i16 _v_p = assert false
 
-    let rec ser p = function
-      | IntRepr.VBool v -> bool p v
-      | IntRepr.VI8 v -> i8 p v
-      | IntRepr.VI16 v -> i16 p v
-      | IntRepr.VVec vs -> vec p vs
-      | IntRepr.VTuple vs -> tup p vs
-      (* Those are not meant to be serialized: *)
-      | IntRepr.VPointer _
-      | IntRepr.VSize _ ->
-          assert false
-
+    let rec ser = function
+      | IntRepr.VPBool v_p -> bool v_p
+      | IntRepr.VPI8 v_p -> i8 v_p
+      | _ -> assert false
+(*      | IntRepr.VPI16 v -> i16 p v
+      | IntRepr.VPVec vs -> vec p vs
+      | IntRepr.VPTup vs -> tup p vs*)
+(*
     and tup p vs =
       let len = Array.length vs in
       let p = SerData.write_byte p (IntRepr.byte_of_i8v i8v_opn) in
@@ -93,58 +98,80 @@ struct
       in
       let p = loop p 0 in
       SerData.write_byte p (IntRepr.byte_of_i8v i8v_cls)
+*)
   end
 
   module Des =
   struct
-    let bool p =
-      let v_p = SerData.read_byte p in
-      let c = IntRepr.(i8v_of_byte (fst v_p)) in
-      let is_true = IntRepr.i8v_eq c i8v_ascii_T in
-      IntRepr.VBool is_true, p
+    let map_pair ~fst ~snd a_b =
+      .<
+        let a, b = .~a_b in
+        .~(fst .<a>.), .~(snd .<b>.)
+      >.
 
-    let i8 p =
-      (* Assume we can read at least one byte and its a valid digit *)
-      let v, p = SerData.read_byte p in
-      let c = IntRepr.i8v_of_byte v in
-      let v0 = IntRepr.i8v_sub c i8v_ascii_0 in
-      let cond byte =
-        let c = IntRepr.i8v_of_byte byte in
-        IntRepr.boolv_and (IntRepr.i8v_ge c i8v_ascii_0)
-                          (IntRepr.i8v_ge i8v_ascii_9 c)
-      and reduce v byte =
-        let c = IntRepr.i8v_of_byte byte in
-        let v = IntRepr.i8v_of_value v in
-        IntRepr.i8v_add (IntRepr.i8v_mul v i8v_10)
-                        (IntRepr.i8v_sub c i8v_ascii_0) |>
-        IntRepr.value_of_i8v in
-      IntRepr.read_while ~cond ~reduce p (IntRepr.value_of_i8v v0)
+    let bool pc =
+      SerData.read_byte pc |>
+      map_pair
+        ~fst:(fun vc ->
+          let c = IntRepr.(i8v_of_byte vc) in
+          IntRepr.i8v_eq c i8v_ascii_T)
+        ~snd:(fun x -> x)
 
-    let rec des typ p =
-      (* Swallow any blank before the actual value: *)
-(*      let p = IntRepr.read_while p cond 
-      let rec skip_blanks p =
-        let v = SerData.peek p in
-        if is_blank p then
-          skip_blanks (SerData.add p 1)
-        else
-          p
+    let i8 pc =
+      (* Assume that we can read at least one byte and that it's a valid digit *)
+      let v_p =
+        SerData.read_byte pc in
+      let v_p =
+        IntRepr.map_fst .<
+          fun v ->
+            let c = .~(IntRepr.i8v_of_byte .<v>.) in
+            .~(IntRepr.i8v_sub .<c>. i8v_ascii_0)
+        >. v_p in
+      let cond =
+        .<
+          fun byte ->
+            let c = .~(IntRepr.i8v_of_byte .<byte>.) in
+            .~(IntRepr.boolv_and (IntRepr.i8v_ge .<c>. i8v_ascii_0)
+                                 (IntRepr.i8v_ge i8v_ascii_9 .<c>.))
+        >.
+      and reduce =
+        .<
+          fun v byte ->
+            let c = .~(IntRepr.i8v_of_byte .<byte>.) in
+            .~(IntRepr.i8v_add (IntRepr.i8v_mul .<v>. i8v_10)
+                               (IntRepr.i8v_sub .<c>. i8v_ascii_0))
+        >.
       in
-      let p = skip_blanks p in*)
+      IntRepr.read_while ~cond ~reduce v_p
+
+    let skip_blanks pc =
+      let cond =
+        .<
+          fun byte ->
+            .~(IntRepr.i8v_eq (IntRepr.i8v_of_byte .<byte>.) i8v_spc)
+        >.
+      and reduce =
+        .< fun () _byte -> () >.
+      in
+      IntRepr.read_while ~cond ~reduce .<((), .~pc)>. |>
+      IntRepr.snd
+
+    let rec des typ pc =
+      (* Swallow any blank before the actual value: *)
+      let pc = skip_blanks pc in
       match typ with
-      | TBool -> bool p
-      | TI8 -> i8 p
+      | TBool -> IntRepr.VPBool (bool pc)
+      | TI8 -> IntRepr.VPI8 (i8 pc)
       | TI16 -> assert false
-      | TVec (dim, typ) ->
-          vec dim typ p
-      | TTuple typs ->
-          tup typs p
+      | TVec (dim, typ) -> vec dim typ pc
+      | TTup typs -> IntRepr.VPTup (tup typs pc)
       (* Those are not supposed to be serialized: *)
       | TPointer
       | TSize ->
           assert false
 
-    and vec dim typ p =
+    and vec _dim _typ _p =
+      assert false (*
       let rec loop vs p i =
         if i >= dim then
           IntRepr.(value_of_vecv (vecv_of_const (List.rev vs))),
@@ -153,18 +180,34 @@ struct
           let v, p = des typ p in
           loop (v :: vs) p (i + 1)
       in
-      loop [] p 0
+      loop [] p 0*)
 
-    and tup typs p =
-      let rec loop vs p i =
-        if i >= Array.length typs then
-          IntRepr.(value_of_tupv (tupv_of_const (List.rev vs))),
-          p
-        else
-          let v, p = des typs.(i) p in
-          loop (v :: vs) p (i + 1)
-      in
-      loop [] p 0
+    (* Expected returned value:
+     * [| VPBool .< code to deser the first bool and the end pointer >. ;
+     *    VPI8   .< code to deser the following i8 and the end pointer >. ;
+     *    ... |].
+     * As expected there is no way to get the end pointer without executing
+     * all that pieces of code one by one.
+     * The first deser function also has to read and skip the opening
+     * parenthesis and the first one has to parse the closing one. *)
+    and tup typs pc =
+      let desers =
+        Array.map (fun typ ->
+
+      let pc = until_char '(' in
+      let vs_p =
+        Array.fold_left (fun vs_p typ ->
+          .<
+            let vs, p = .~vs_p in
+            let v, p = .~(des typ .<p>.) in
+            v :: vs, p
+          >.
+        ) .< [], .~pc >. typs in
+      .<
+        let vs, p = .~vs_p in
+        IntRepr.tupv_of_list Array.of_list (List.rev vs), p
+      >.,
+
 
   end
 

@@ -17,10 +17,10 @@ OCAMLOPTFLAGS += -g
 endif
 
 META_REQUIRES = \
-	findlib batteries stdint
+	findlib stdint
 
 PACKAGES = \
-	batteries stdint
+	stdint
 
 INSTALLED_LIB = \
 	src/berserdes.cmxa \
@@ -101,7 +101,7 @@ src/berserdes.a: src/berserdes.cmxa
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
 examples/direct_hard_coded.opt: src/berserdes.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package batteries $^ -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg $^ -o $@
 
 # Generated sources
 

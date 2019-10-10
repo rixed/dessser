@@ -9,10 +9,13 @@
  * ie a bool, an i8, then an array of 3 i8s.
  *)
 
-module SerData0 = SerDataBytes0
-module IntRepr0 = IntReprOCaml0
-module SExpr0 = SExpr.Make (IntRepr0)
+(* For dynlink to succeed, as it will call functions from SerDataBytes0: *)
+module MustBeLinkedIn = SerDataBytes0
+module SerData = SerDataBytes
+module IntRepr = IntReprOCaml
+module SerDes = SExpr.Make (IntRepr)
 
+(*
 let print_sexpr v =
   (* Just output something for now: *)
   let p = SerData0.make_buffer 100 in
@@ -27,10 +30,6 @@ let print_sexpr v =
   let p = SExpr0.ser p v in
   Format.printf "Serialized: %s@." (Bytes.sub_string p.data 0 p.offset)
 
-module SerData1 = SerDataBytes1
-module IntRepr1 = IntReprOCaml1
-module SExpr1 = SExpr.Make (IntRepr1)
-
 let print_sexpr_ocaml_code _user_expr =
   let p = SerData1.make_buffer .<100>. in
   let v =
@@ -44,23 +43,36 @@ let print_sexpr_ocaml_code _user_expr =
   let p = SExpr1.ser p v in
   Format.printf "OCaml code producing the value: %a@."
     Codelib.print_code p ;
-  Runnative.add_search_path "src" ;
   let p = Runnative.run p in
   Format.printf "Serialized: %s@." (Bytes.sub_string p.data 0 p.offset)
-
+*)
 let typ =
   let open BerSerdes in
   TTuple [| TBool ; TI8 |]
   (*TTuple [| TBool ; TI8 ; TVec (3, TI8) |]*)
 
 let parse_user_expr user_expr =
-  let p = SerData0.of_input user_expr in
-  let v, p = SExpr0.des typ p in
-  let unparsed = String.length user_expr - p.SerData0.offset in
-  if unparsed > 0 then
-    Format.printf "Warning: %d bytes of garbage at the end of user input@."
-      unparsed ;
-  v
+  let pc = SerData.of_string .<user_expr>. in
+  let v_p = SerDes.des typ pc in
+  match v_p with
+  | VPBool c ->
+      let c =
+        .<
+          SerDataBytes0.print Format.pp_print_bool .~c
+        >. in
+      Format.printf "OCaml code producing a bool value: %a@."
+        Codelib.print_code c ;
+      Runnative.run c
+  | VPI8 c ->
+      let c =
+        .<
+          SerDataBytes0.print Format.pp_print_int .~c
+        >. in
+      Format.printf "OCaml code producing a i8 value: %a@."
+        Codelib.print_code c ;
+      Runnative.run c
+  | _ -> assert false
+
 
 let () =
   let die msg =
@@ -69,9 +81,13 @@ let () =
   if Array.length Sys.argv < 2 then
     die "argument must be an expression" ;
 
+  Runnative.add_search_path "src" ;
+
   let user_expr = Sys.argv.(1) in
   Format.printf "Pretty printing %S...@." user_expr ;
 
-  let user_val = parse_user_expr user_expr in
-  print_sexpr user_val (*;
-  print_sexpr_ocaml_code user_val*)
+  try
+    parse_user_expr user_expr
+  with Dynlink.Error e ->
+    Format.printf "Linking error: %s@." (Dynlink.error_message e)
+  (*print_sexpr_ocaml_code user_val*)

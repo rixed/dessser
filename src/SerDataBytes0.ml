@@ -94,3 +94,11 @@ let write_word ?(be=false) _p _v = ignore be ; assert false
 let write_dword ?(be=false) _p _v = ignore be ; assert false
 let write_qword ?(be=false) _p _v = ignore be ; assert false
 let write_bytes _p _v = assert false
+
+(* For debugging: *)
+let print printer (v, p) =
+  Format.printf "Deserialized = %a@." printer v ;
+  let unparsed = Bytes.length p.data - p.offset in
+  if unparsed > 0 then
+    Format.printf "Warning: %d bytes of garbage at the end of user input@."
+      unparsed
