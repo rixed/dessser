@@ -50,7 +50,12 @@ let () =
     (*TI8*)
     (*TTup [| TBool ; TI8 |]*)
     (*TTup [| TBool ; TI8 ; TVec (3, TI8) |]*)
-    TTup [| TBool ; TI8 ; TString ; TVec (3, TFloat) |]
+    Type.(make ~nullable:true (TTup [|
+      make ~nullable:true TBool ;
+      make ~nullable:true TI8 ;
+      make ~nullable:true TString ;
+      make ~nullable:true (TVec (3, make ~nullable:true TFloat))
+    |]))
   in
   try
     parse_user_expr typ user_expr

@@ -9,6 +9,9 @@ let add pc sc =
 let sub p1c p2c =
   .< SerDataBytes0.sub .~p1c .~p2c >.
 
+let rem pc =
+  .< SerDataBytes0.rem .~pc >.
+
 type bit = SerDataBytes0.bit
 type byte = SerDataBytes0.byte
 type word = SerDataBytes0.word
@@ -22,23 +25,32 @@ let byte_of_int = SerDataBytes0.byte_of_int
 let test_bit pc oc =
   .< let p, o = .~pc, .~oc in SerDataBytes0.test_bit p o >.
 
-let peek_byte pc =
-  .< let p = .~pc in SerDataBytes0.peek_byte p >.
+let peek_byte ?at pc =
+  .< let p, at = .~pc, at in SerDataBytes0.peek_byte ?at p >.
+
+let peek_word ?be ?at pc =
+  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_word ?be ?at p >.
+
+let peek_dword ?be ?at pc =
+  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_dword ?be ?at p >.
+
+let peek_qword ?be ?at pc =
+  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_qword ?be ?at p >.
 
 let read_byte pc =
   .< let p = .~pc in SerDataBytes0.read_byte p >.
 
 let read_word ?be pc =
-  .< let p = .~pc in SerDataBytes0.read_word ?be p >.
+  .< let p, be = .~pc, be in SerDataBytes0.read_word ?be p >.
 
 let read_dword ?be pc =
-  .< let p = .~pc in SerDataBytes0.read_dword ?be p >.
+  .< let p, be = .~pc, be in SerDataBytes0.read_dword ?be p >.
 
 let read_qword ?be pc =
-  .< let p = .~pc in SerDataBytes0.read_qword ?be p >.
+  .< let p, be = .~pc, be in SerDataBytes0.read_qword ?be p >.
 
-let read_bytes pc sc =
-  .< let p, s = .~pc, .~sc in SerDataBytes0.read_bytes p s >.
+let read_bytes v_p =
+  .< let v_p = .~v_p in SerDataBytes0.read_bytes v_p >.
 
 let set_bit pc oc bc =
   .< let p, o, b = .~pc, .~oc, .~bc in SerDataBytes0.set_bit p o b >.
@@ -50,13 +62,13 @@ let write_byte pc vc =
   .< let p, v = .~pc, .~vc in SerDataBytes0.write_byte p v >.
 
 let write_word ?be pc vc =
-  .< let p, v = .~pc, .~vc in SerDataBytes0.write_word ?be p v >.
+  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_word ?be p v >.
 
 let write_dword ?be pc vc =
-  .< let p, v = .~pc, .~vc in SerDataBytes0.write_dword ?be p v >.
+  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_dword ?be p v >.
 
 let write_qword ?be pc vc =
-  .< let p, v = .~pc, .~vc in SerDataBytes0.write_qword ?be p v >.
+  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_qword ?be p v >.
 
 let write_bytes pc vc =
   .< let p, v = .~pc, .~vc in SerDataBytes0.write_bytes p v >.
@@ -67,8 +79,11 @@ let make_buffer sc =
 let of_string ic =
   .< let i = .~ic in SerDataBytes0.of_string i >.
 
-let size_of_const n =
-  .< SerDataBytes0.size_of_const n >.
+let size_of_const = SerDataBytes0.size_of_const
+let byte_of_const = SerDataBytes0.byte_of_const
+let word_of_const = SerDataBytes0.word_of_const
+let dword_of_const = SerDataBytes0.dword_of_const
+let qword_of_const = SerDataBytes0.qword_of_const
 
 (* Very efficient as you can see: *)
 
