@@ -19,10 +19,10 @@ struct
   type pointer = SerData.pointer
 
   let size_1 = SerData.size_of_const 1
-  let i8v_128 = IntRepr.i8v_of_const 0b1000_0000
-  let i8v_7 = IntRepr.i8v_of_const 7
-  let i8v_0 = IntRepr.i8v_of_const 0
-  let i32v_0 = IntRepr.i32v_of_const 0
+  let i8v_128 = IntRepr.I8.of_const 0b1000_0000
+  let i8v_7 = IntRepr.I8.of_const 7
+  let i8v_0 = IntRepr.I8.of_const 0
+  let i32v_0 = IntRepr.I32.of_const 0l
 end
 
 module MakeDes (IntRepr : INTREPR) : DES with module IntRepr = IntRepr =
@@ -33,7 +33,7 @@ struct
   (*external float_of_bytes : bytes -> bla = "float_of_bytes"*)
   let float pc =
     SerData.read_qword pc |>
-    IntRepr.map_fst IntRepr.floatv_of_qword
+    IntRepr.map_fst IntRepr.Float.of_qword
 
   let dfloat = .< fun p -> .~(float .<p>.) >.
 
@@ -41,30 +41,30 @@ struct
     let cond =
       .<
         fun leb128_byte ->
-          .~(IntRepr.(i8v_gt (i8v_of_byte .<leb128_byte>.) .<i8v_128>.))
+          .~(IntRepr.(I8.gt (I8.of_byte .<leb128_byte>.) .<i8v_128>.))
       >.
     and reduce =
       .<
         fun (leb128, shft) leb128_byte ->
-          .~(IntRepr.(i32v_add (i32v_lsl (i32v_of_byte .<leb128_byte>.) .<shft>.)
+          .~(IntRepr.(I32.add (I32.shift_left (I32.of_byte .<leb128_byte>.) .<shft>.)
                                .<leb128>.)),
-          .~(IntRepr.(i8v_add .<shft>. .<i8v_7>.))
+          .~(IntRepr.(I8.add .<shft>. .<i8v_7>.))
       >. in
     let len_shft_p =
-      IntRepr.read_while ~cond ~reduce .<(i32v_0, i8v_0), .~pc>. in
+      IntRepr.read_while ~cond ~reduce .<(IntRepr.I32.of_const 0l, i8v_0), .~pc>. in
     (* Still have to add the last byte: *)
     .<
       let (leb128, shft), p = .~len_shft_p in
       .~(SerData.read_byte .<p>. |>
          IntRepr.map_fst (fun leb128_fin ->
-           IntRepr.(i32v_add
-                     (i32v_lsl (i32v_of_byte leb128_fin) .<shft>.)
+           IntRepr.(I32.add
+                     (I32.shift_left (I32.of_byte leb128_fin) .<shft>.)
                      .<leb128>.)))
     >.
 
   let string pc =
     read_leb128 pc |>
-    IntRepr.map_fst IntRepr.size_of_i32v |>
+    IntRepr.map_fst IntRepr.I32.to_size |>
     SerData.read_bytes |>
     IntRepr.(map_fst stringv_of_bytes)
 
@@ -72,21 +72,33 @@ struct
 
   let bool pc =
     SerData.read_byte pc |>
-    IntRepr.(map_fst (fun bc -> i8v_of_byte bc |> boolv_of_i8v))
+    IntRepr.(map_fst (fun bc -> I8.of_byte bc |> I8.to_boolv))
 
   let dbool = .< fun p -> .~(bool .<p>.) >.
 
   let i8 pc =
     SerData.read_byte pc |>
-    IntRepr.(map_fst i8v_of_byte)
+    IntRepr.(map_fst I8.of_byte)
 
   let di8 = .< fun p -> .~(i8 .<p>.) >.
 
   let i16 pc =
     SerData.read_word pc |>
-    IntRepr.(map_fst i16v_of_word)
+    IntRepr.(map_fst I16.of_word)
 
   let di16 = .< fun p -> .~(i16 .<p>.) >.
+
+  let i32 pc =
+    SerData.read_dword pc |>
+    IntRepr.(map_fst I32.of_dword)
+
+  let di32 = .< fun p -> .~(i32 .<p>.) >.
+
+  let i64 pc =
+    SerData.read_qword pc |>
+    IntRepr.(map_fst I64.of_qword)
+
+  let di64 = .< fun p -> .~(i64 .<p>.) >.
 
   (* Items of a tuples a just concatenated together: *)
   let tup_opn _typs pc = pc
@@ -109,7 +121,7 @@ struct
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
   let is_null _typ pc =
-    IntRepr.(boolv_of_i8v (i8v_of_byte (SerData.peek_byte pc)))
+    IntRepr.(I8.to_boolv (I8.of_byte (SerData.peek_byte pc)))
 
-  let dnull pc = SerData.add pc .<size_1>.
+  let dnull pc = SerData.add pc .< SerData.size_of_const 1 >.
 end

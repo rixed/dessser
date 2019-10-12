@@ -100,28 +100,38 @@ struct
     | TFloat
     | TString
     | TBool
-    | TI8
-    | TI16
+    | TI8 | TI16 | TI32 | TI64
     | TVec of int * t
     | TTup of t array
 
   let make ?(nullable=false) structure = { nullable ; structure }
 end
 
+module type NUMOPS =
+sig
+  type t
+  type boolv
+  type i8v
+  val eq : t code -> t code -> boolv code
+  val ne : t code -> t code -> boolv code
+  val ge : t code -> t code -> boolv code
+  val gt : t code -> t code -> boolv code
+  val add : t code -> t code -> t code
+  val sub : t code -> t code -> t code
+  val mul : t code -> t code -> t code
+  val div : t code -> t code -> t code
+  val modulo : t code -> t code -> t code
+  val shift_left : t code -> i8v code -> t code
+  val shift_right : t code -> i8v code -> t code
+end
+
 module type INTREPR =
 sig
   module SerData : SERDATA
-  type floatv and stringv and boolv and i8v and i16v and i32v
+  type floatv and stringv and boolv
+  and i8v and i16v and i32v and i64v
 
   val length_of_stringv : stringv code -> i16v code
-  val byte_of_i8v : i8v code -> SerData.byte code
-  val i8v_of_byte : SerData.byte code -> i8v code
-  val word_of_i16v : i16v code -> SerData.word code
-  val i16v_of_word : SerData.word code -> i16v code
-  val qword_of_floatv : floatv code -> SerData.qword code
-  val floatv_of_qword : SerData.qword code -> floatv code
-  val byte_of_i32v : i32v code -> SerData.byte code
-  val i32v_of_byte : SerData.byte code -> i32v code
   val stringv_of_bytes : SerData.bytes code -> stringv code
   val bytes_of_stringv : stringv code -> SerData.bytes code
 
@@ -137,53 +147,57 @@ sig
   val boolv_of_const : bool -> boolv
   val boolv_and : boolv code -> boolv code -> boolv code
   val boolv_or : boolv code -> boolv code -> boolv code
-  val i8v_of_const : int -> i8v
-  val i8v_eq : i8v code -> i8v code -> boolv code
-  val i8v_ne : i8v code -> i8v code -> boolv code
-  val i8v_ge : i8v code -> i8v code -> boolv code
-  val i8v_gt : i8v code -> i8v code -> boolv code
-  val i8v_add : i8v code -> i8v code -> i8v code
-  val i8v_sub : i8v code -> i8v code -> i8v code
-  val i8v_mul : i8v code -> i8v code -> i8v code
-  val i8v_div : i8v code -> i8v code -> i8v code
-  val i8v_mod : i8v code -> i8v code -> i8v code
-  val i8v_lsl : i8v code -> i8v code -> i8v code
-  val i8v_lsr : i8v code -> i8v code -> i8v code
-  val i8v_of_boolv : boolv code -> i8v code
-  val boolv_of_i8v : i8v code -> boolv code
-  val i16v_of_const : int -> i16v
-  val i16v_eq : i16v code -> i16v code -> boolv code
-  val i16v_ne : i16v code -> i16v code -> boolv code
-  val i16v_ge : i16v code -> i16v code -> boolv code
-  val i16v_gt : i16v code -> i16v code -> boolv code
-  val i16v_add : i16v code -> i16v code -> i16v code
-  val i16v_sub : i16v code -> i16v code -> i16v code
-  val i16v_mul : i16v code -> i16v code -> i16v code
-  val i16v_div : i16v code -> i16v code -> i16v code
-  val i16v_mod : i16v code -> i16v code -> i16v code
-  val i16v_lsl : i16v code -> i8v code -> i16v code
-  val i16v_lsr : i16v code -> i8v code -> i16v code
-  val i16v_of_i8v : i8v code -> i16v code
-  val i8v_of_i16v : i16v code -> i8v code
-  val i32v_of_const : int -> i32v
-  val i32v_eq : i32v code -> i32v code -> boolv code
-  val i32v_ne : i32v code -> i32v code -> boolv code
-  val i32v_ge : i32v code -> i32v code -> boolv code
-  val i32v_gt : i32v code -> i32v code -> boolv code
-  val i32v_add : i32v code -> i32v code -> i32v code
-  val i32v_sub : i32v code -> i32v code -> i32v code
-  val i32v_mul : i32v code -> i32v code -> i32v code
-  val i32v_div : i32v code -> i32v code -> i32v code
-  val i32v_mod : i32v code -> i32v code -> i32v code
-  val i32v_lsl : i32v code -> i8v code -> i32v code
-  val i32v_lsr : i32v code -> i8v code -> i32v code
-  val i32v_of_i8v : i8v code -> i32v code
-  val i8v_of_i32v : i32v code -> i8v code
-  val i32v_of_size : SerData.size code -> i32v code
-  val size_of_i32v : i32v code -> SerData.size code
-  (* Shortcut: convert between floats and string representation: *)
-  val floatv_of_bytes : SerData.bytes code -> floatv code
-  val bytes_of_floatv : floatv code -> SerData.bytes code
+
+  module I8 :
+  sig
+    include NUMOPS with type t = i8v and type boolv = boolv and type i8v = i8v
+    val of_const : int -> t
+    val of_boolv : boolv code -> i8v code
+    val to_boolv : i8v code -> boolv code
+    val of_byte : SerData.byte code -> i8v code
+    val to_byte : i8v code -> SerData.byte code
+  end
+  module I16 :
+  sig
+    include NUMOPS with type t = i16v and type boolv = boolv and type i8v = i8v
+    val of_const : int -> t
+    val of_i8v : i8v code -> i16v code
+    val to_i8v : i16v code -> i8v code
+    val to_word : i16v code -> SerData.word code
+    val of_word : SerData.word code -> i16v code
+  end
+  module I32 :
+  sig
+    include NUMOPS with type t = i32v and type boolv = boolv and type i8v = i8v
+    val of_const : int32 -> t
+    val of_i8v : i8v code -> i32v code
+    val to_i8v : i32v code -> i8v code
+    val of_byte : SerData.byte code -> i32v code
+    val to_byte : i32v code -> SerData.byte code
+    val of_size : SerData.size code -> i32v code
+    val to_size : i32v code -> SerData.size code
+    val to_dword : i32v code -> SerData.dword code
+    val of_dword : SerData.dword code -> i32v code
+    val of_byte : SerData.byte code -> i32v code
+    val to_byte : i32v code -> SerData.byte code
+  end
+  module I64 :
+  sig
+    include NUMOPS with type t = i64v and type boolv = boolv and type i8v = i8v
+    val of_const : int64 -> t
+    val of_i8v : i8v code -> i64v code
+    val to_i8v : i64v code -> i8v code
+    val to_qword : i64v code -> SerData.qword code
+    val of_qword : SerData.qword code -> i64v code
+  end
+  module Float :
+  sig
+    val to_qword : floatv code -> SerData.qword code
+    val of_qword : SerData.qword code -> floatv code
+    (* Shortcut: convert between floats and string representation: *)
+    val of_bytes : SerData.bytes code -> floatv code
+    val to_bytes : floatv code -> SerData.bytes code
+  end
 
   (* Peek next byte and if cond is true then accumulate it into the value. *)
   val read_while :
@@ -217,6 +231,8 @@ sig
   val dbool : IntRepr.boolv des
   val di8 : IntRepr.i8v des
   val di16 : IntRepr.i16v des
+  val di32 : IntRepr.i32v des
+  val di64 : IntRepr.i64v des
 
   val tup_opn : Type.t array -> pointer code -> pointer code
   val tup_cls : Type.t array -> pointer code -> pointer code
@@ -240,6 +256,8 @@ sig
   val sbool: IntRepr.boolv ser
   val si8 : IntRepr.i8v ser
   val si16 : IntRepr.i16v ser
+  val si32 : IntRepr.i32v ser
+  val si64 : IntRepr.i64v ser
 
   val tup_opn : Type.t array -> pointer code -> pointer code
   val tup_cls : Type.t array -> pointer code -> pointer code
@@ -266,6 +284,8 @@ struct
   let dsbool = ds Ser.sbool Des.dbool
   let dsi8 = ds Ser.si8 Des.di8
   let dsi16 = ds Ser.si16 Des.di16
+  let dsi32 = ds Ser.si32 Des.di32
+  let dsi64 = ds Ser.si64 Des.di64
 
   let dsnull src dst =
     .<
@@ -328,6 +348,8 @@ struct
       | Type.TBool -> dsbool src dst
       | Type.TI8 -> dsi8 src dst
       | Type.TI16 -> dsi16 src dst
+      | Type.TI32 -> dsi32 src dst
+      | Type.TI64 -> dsi64 src dst
       | Type.TTup typs -> dstup typs src dst
       | Type.TVec (d, typ) -> dsvec d typ src dst
     in
