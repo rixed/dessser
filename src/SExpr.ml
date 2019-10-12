@@ -20,12 +20,6 @@ struct
   let i16v_0 = IntRepr.I16.of_const 0
   let i16v_10 = IntRepr.I16.of_const 10
   let i16v_10000 = IntRepr.I16.of_const 10_000
-  let i32v_0 = IntRepr.I32.of_const 0l
-  let i32v_10 = IntRepr.I32.of_const 10l
-  let i32v_1000000000 = IntRepr.I32.of_const 1_000_000_000l
-  let i64v_0 = IntRepr.I64.of_const 0L
-  let i64v_10 = IntRepr.I64.of_const 10L
-  let i64v_1000000000000000000 = IntRepr.I64.of_const 1_000_000_000_000_000_000L
   let i8v_ascii_0 = IntRepr.I8.of_const (Char.code '0')
   let i8v_ascii_9 = IntRepr.I8.of_const (Char.code '9')
   let i8v_ascii_e = IntRepr.I8.of_const (Char.code 'e')
@@ -36,6 +30,13 @@ struct
   let i8v_cls = IntRepr.I8.of_const (Char.code ')')
   let i8v_spc = IntRepr.I8.of_const (Char.code ' ')
   let i8v_quo = IntRepr.I8.of_const (Char.code '"')
+  (* Unfortunately, those are not "trivially serializable": *)
+  let i32v_0 = IntRepr.I32.of_const 0l
+  let i32v_10 = IntRepr.I32.of_const 10l
+  let i32v_1000000000 = IntRepr.I32.of_const 1_000_000_000l
+  let i64v_0 = IntRepr.I64.of_const 0L
+  let i64v_10 = IntRepr.I64.of_const 10L
+  let i64v_1000000000000000000 = IntRepr.I64.of_const 1_000_000_000_000_000_000L
 end
 
 module MakeDes (IntRepr : INTREPR) : DES with module IntRepr = IntRepr =
@@ -46,22 +47,25 @@ struct
   let read_digit : pointer code -> (IntRepr.i8v * pointer) code = fun pc ->
     SerData.read_byte pc |>
     IntRepr.map_fst (fun vc ->
-      IntRepr.(I8.sub (IntRepr.I8.of_byte vc) .<i8v_ascii_0>.))
+      .< let ascii0 = i8v_ascii_0 in
+         .~(IntRepr.(I8.sub (IntRepr.I8.of_byte vc) .<ascii0>.)) >.)
 
   let is_digit =
     .<
       fun byte ->
-        let c = .~(IntRepr.I8.of_byte .<byte>.) in
-        .~(IntRepr.(boolv_and (I8.ge .<c>. .<i8v_ascii_0>.)
+        let c = .~(IntRepr.I8.of_byte .<byte>.)
+        and ascii0 = i8v_ascii_0 in
+        .~(IntRepr.(boolv_and (I8.ge .<c>. .<ascii0>.)
                               (I8.ge .<i8v_ascii_9>. .<c>.)))
     >.
 
   let is_float_char =
     .<
       fun byte ->
-        let c = .~(IntRepr.I8.of_byte .<byte>.) in
+        let c = .~(IntRepr.I8.of_byte .<byte>.)
+        and ascii0 = i8v_ascii_0 in
         .~(IntRepr.(boolv_or
-            (boolv_and (I8.ge .<c>. .<i8v_ascii_0>.)
+            (boolv_and (I8.ge .<c>. .<ascii0>.)
                        (I8.ge .<i8v_ascii_9>. .<c>.))
             (boolv_or (boolv_or (I8.eq .<c>. .<i8v_ascii_plus>.)
                                 (I8.eq .<c>. .<i8v_ascii_minus>.))
@@ -120,7 +124,7 @@ struct
       let v, p =
         .~(IntRepr.read_while ~cond ~reduce .< .~SerData.make_bytes, .~pc >.) in
       .~(IntRepr.stringv_of_bytes .<v>.),
-      .~(SerData.add .<p>. .<SerData.size_of_const 1>.)
+      .~(SerData.add .<p>. .<size_1>.)
     >.
 
   let dstring = .< fun p -> .~(string (skip_blanks .<p>.)) >.
@@ -140,9 +144,10 @@ struct
     and reduce =
       .<
         fun v byte ->
-          let c = .~(IntRepr.I8.of_byte .<byte>.) in
+          let c = .~(IntRepr.I8.of_byte .<byte>.)
+          and ascii0 = i8v_ascii_0 in
           .~(add (mul .<v>. (of_i8v .<i8v_10>.))
-                 (of_i8v (IntRepr.I8.sub .<c>. .<i8v_ascii_0>.)))
+                 (of_i8v (IntRepr.I8.sub .<c>. .<ascii0>.)))
       >.
     in
     IntRepr.read_while ~cond ~reduce .< .~zero, .~pc >.
@@ -153,10 +158,10 @@ struct
   let i16 = integer IntRepr.I16.of_i8v IntRepr.I16.add IntRepr.I16.mul .<i16v_0>.
   let di16 = .< fun p -> .~(i16 (skip_blanks .<p>.)) >.
 
-  let i32 = integer IntRepr.I32.of_i8v IntRepr.I32.add IntRepr.I32.mul .<i32v_0>.
+  let i32 = integer IntRepr.I32.of_i8v IntRepr.I32.add IntRepr.I32.mul .<IntRepr.I32.of_const 0l>.
   let di32 = .< fun p -> .~(i32 (skip_blanks .<p>.)) >.
 
-  let i64 = integer IntRepr.I64.of_i8v IntRepr.I64.add IntRepr.I64.mul .<i64v_0>.
+  let i64 = integer IntRepr.I64.of_i8v IntRepr.I64.add IntRepr.I64.mul .<IntRepr.I64.of_const 0L>.
   let di64 = .< fun p -> .~(i64 (skip_blanks .<p>.)) >.
 
   let tup_opn _typs pc =
@@ -184,11 +189,11 @@ struct
       (* Notice that boolv_and must translate into code that terminate
        * evaluation early (even if it's not the case in stage0) *)
       .~(IntRepr.(boolv_and
-           (size_ge (SerData.rem .<p>.) .<SerData.size_of_const 4>.)
+           (size_ge (SerData.rem .<p>.) .<size_4>.)
            (dword_eq (SerData.peek_dword .<p>.) .<SerData.dword_of_const 0x6c_6c_75_6el>.)))
     >.
 
-  let dnull pc = SerData.add pc .<SerData.size_of_const 4>.
+  let dnull pc = SerData.add pc .<size_4>.
 end
 
 module MakeSer (IntRepr : INTREPR) : SER with module IntRepr = IntRepr =
@@ -229,16 +234,17 @@ struct
 
   let integer to_i8v zero max_scale eq gt div mod_ ten v_p =
     .<
-      let v, p = .~v_p in
+      let v, p = .~v_p
+      and ascii0 = i8v_ascii_0 in
       .~(IntRepr.choose (eq .<v>. zero)
-           (SerData.write_byte .<p>. (IntRepr.I8.to_byte .<i8v_ascii_0>.))
+           (SerData.write_byte .<p>. (IntRepr.I8.to_byte .<ascii0>.))
            (let cond =
               .< fun _ (_v, scale) -> .~(gt .<scale>. zero) >.
             and loop =
               .<
                 fun p (v, scale) ->
                   let digit = .~(to_i8v (mod_ (div .<v>. .<scale>.) ten)) in
-                  let chr = .~(IntRepr.I8.add .<i8v_ascii_0>. .<digit>.) in
+                  let chr = .~(IntRepr.I8.add .<ascii0>. .<digit>.) in
                   let byte = .~(IntRepr.I8.to_byte .<chr>.) in
                   let p = .~(SerData.write_byte .<p>. .<byte>.) in
                   p, (v, .~(div .<scale>. ten))
@@ -255,11 +261,11 @@ struct
   let si16 = .< fun v_p -> .~(i16 .<v_p>.) >.
 
   let i32 =
-    integer IntRepr.I32.to_i8v .<i32v_0>. .<i32v_1000000000>. IntRepr.I32.eq IntRepr.I32.gt IntRepr.I32.div IntRepr.I32.modulo .<i32v_10>.
+    integer IntRepr.I32.to_i8v .<IntRepr.I32.of_const 0l>. .<IntRepr.I32.of_const 1_000_000_000l>. IntRepr.I32.eq IntRepr.I32.gt IntRepr.I32.div IntRepr.I32.modulo .<IntRepr.I32.of_const 10l>.
   let si32 = .< fun v_p -> .~(i32 .<v_p>.) >.
 
   let i64 =
-    integer IntRepr.I64.to_i8v .<i64v_0>. .<i64v_1000000000000000000>. IntRepr.I64.eq IntRepr.I64.gt IntRepr.I64.div IntRepr.I64.modulo .<i64v_10>.
+    integer IntRepr.I64.to_i8v .<IntRepr.I64.of_const 0L>. .<IntRepr.I64.of_const 1_000_000_000_000_000_000L>. IntRepr.I64.eq IntRepr.I64.gt IntRepr.I64.div IntRepr.I64.modulo .<IntRepr.I64.of_const 10L>.
   let si64 = .< fun v_p -> .~(i64 .<v_p>.) >.
 
   let tup_opn _typs pc =
