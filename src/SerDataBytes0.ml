@@ -30,13 +30,13 @@ type qword = int64
 type bytes = Bytes.t
 
 let size_of_const n = n
-let byte_of_const n = n
+let byte_of_const n = n land 0xff
 let word_of_const n = n
 let dword_of_const n = n
 let qword_of_const n = n
 
-let int_of_byte : byte code -> int code = fun n -> n
-let byte_of_int : int code -> byte code = fun n -> n
+let int_of_byte : byte code -> int code = fun n -> .< .~n land 0xff >.
+let byte_of_int : int code -> byte code = fun n -> .< .~n land 0xff >.
 
 let peek_byte ?(at=0) p =
   let o = p.offset + at in
