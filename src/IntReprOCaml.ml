@@ -90,7 +90,7 @@ struct
   let sub n m = .< Int32.sub .~n .~m >.
   let mul n m = .< Int32.mul .~n .~m >.
   let div n m = .< Int32.div .~n .~m >.
-  let modulo n m = .< Int32.rem .~n .~m >.
+  let modulo n m = .< Int32.(abs (rem .~n .~m)) >.
   let shift_left n m = .< Int32.shift_left .~n .~m >.
   let shift_right n m = .< Int32.shift_right .~n .~m >.
   let to_i8v n = .< (Int32.to_int .~n) land 0xff >.
@@ -115,7 +115,7 @@ struct
   let sub n m = .< Int64.sub .~n .~m >.
   let mul n m = .< Int64.mul .~n .~m >.
   let div n m = .< Int64.div .~n .~m >.
-  let modulo n m = .< Int64.rem .~n .~m >.
+  let modulo n m = .< Int64.(abs (rem .~n .~m)) >.
   let to_i8v n = .< (Int64.to_int .~n) land 0xff >.
   let of_i8v n = .< Int64.of_int .~n >.
   let shift_left n m = .< Int64.shift_left .~n .~m >.
