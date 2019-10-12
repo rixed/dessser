@@ -241,8 +241,9 @@ sig
   val vec_cls : int -> Type.t -> pointer code -> pointer code
   val vec_sep : int -> Type.t -> int (* before *) -> pointer code -> pointer code
 
-  val dnull : pointer code -> pointer code
   val is_null : Type.structure -> pointer code -> IntRepr.boolv code
+  val dnull : pointer code -> pointer code
+  val dnotnull : pointer code -> pointer code
 end
 
 module type SER =
@@ -267,6 +268,7 @@ sig
   val vec_sep : int -> Type.t -> int (* before *) -> pointer code -> pointer code
 
   val snull : pointer code -> pointer code
+  val snotnull : pointer code -> pointer code
 end
 
 module DesSer (Des : DES) (Ser : SER with module IntRepr = Des.IntRepr) =
@@ -291,6 +293,12 @@ struct
     .<
       .~(Des.dnull src),
       .~(Ser.snull dst)
+    >.
+
+  let dsnotnull src dst =
+    .<
+      .~(Des.dnotnull src),
+      .~(Ser.snotnull dst)
     >.
 
   let rec dstup typs src dst =
@@ -356,9 +364,17 @@ struct
     if typ.nullable then
       .<
         fun (src, dst) ->
-          .~(Des.IntRepr.choose (Des.is_null typ.structure .<src>.)
-               (dsnull .<src>. .<dst>.)
-               (desser_structure .<src>. .<dst>. typ.structure))
+          .~(
+            Des.IntRepr.choose (Des.is_null typ.structure .<src>.)
+              .<
+                Printf.printf "NULL@%a\n" .~Des.IntRepr.SerData.print_pointer src ;
+                .~(dsnull .<src>. .<dst>.)
+              >.
+              .<
+                let s, d = .~(dsnotnull .<src>. .<dst>.) in
+                .~(desser_structure .<s>. .<d>. typ.structure)
+              >.
+          )
       >.
     else
       .<

@@ -194,6 +194,7 @@ struct
     >.
 
   let dnull pc = SerData.add pc .<size_4>.
+  let dnotnull pc = pc
 end
 
 module MakeSer (IntRepr : INTREPR) : SER with module IntRepr = IntRepr =
@@ -288,4 +289,5 @@ struct
 
   (* Regardless of the type structure, nulls are simply encoded as `null` *)
   let snull pc = SerData.write_dword pc .<SerData.dword_of_const 0x6c_6c_75_6el>.
+  let snotnull pc = pc
 end

@@ -124,4 +124,5 @@ struct
     IntRepr.(I8.to_boolv (I8.of_byte (SerData.peek_byte pc)))
 
   let dnull pc = SerData.add pc .< SerData.size_of_const 1 >.
+  let dnotnull = dnull
 end
