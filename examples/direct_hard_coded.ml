@@ -10,8 +10,12 @@
  *)
 open Batteries
 
-(* For dynlink to succeed, as it will call functions from SerDataBytes0: *)
-module MustBeLinkedIn = SerDataBytes0
+(* For dynlink to succeed, make sure those modules are linked in: *)
+let () =
+  let _ = SerDataBytes0.make_buffer 0 in
+  let _ = Stdint.Uint8.of_int 0 in
+  ()
+
 module SerData = SerDataBytes
 module Desser = Dessert.DesSer (RowBinary.Des) (DevNull.Ser)
 
@@ -33,10 +37,17 @@ let parse_user_expr typ user_expr =
     >. in
   Runnative.run c
 
+let search_path_of name =
+  let cmd = Printf.sprintf "ocamlfind query %S" name in
+  let _, path = Unix.run_and_read cmd in
+  let path = String.trim path in
+  Format.printf "Will look for %S in %S@.%!" name path ;
+  path
+
 let () =
   Runnative.add_search_path "src" ;
-  Runnative.add_search_path "+../batteries" ;
-  Runnative.add_search_path "+../stdint" ;
+  Runnative.add_search_path (search_path_of "batteries") ;
+  Runnative.add_search_path (search_path_of "stdint") ;
 
   let user_expr = IO.read_all stdin in
   Printf.printf "Pretty-printing %d bytes of input...\n%!"
