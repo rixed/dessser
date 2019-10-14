@@ -151,16 +151,16 @@ let write_qword ?(be=false) p v =
     if be then Uint64.shift_right_logical v 32, v
           else v, Uint64.shift_right_logical v 32
   in
-  let p = write_dword p (Uint64.to_uint32 fst) in
-  write_dword p (Uint64.to_uint32 snd)
+  let p = write_dword ~be p (Uint64.to_uint32 fst) in
+  write_dword ~be p (Uint64.to_uint32 snd)
 
 let write_oword ?(be=false) p v =
   let fst, snd =
     if be then Uint128.shift_right_logical v 64, v
           else v, Uint128.shift_right_logical v 64
   in
-  let p = write_qword p (Uint128.to_uint64 fst) in
-  write_qword p (Uint128.to_uint64 snd)
+  let p = write_qword ~be p (Uint128.to_uint64 fst) in
+  write_qword ~be p (Uint128.to_uint64 snd)
 
 let write_bytes p v =
   let len = Bytes.length v in
