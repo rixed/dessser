@@ -9,6 +9,8 @@
  * 3. Integrate nicely with Ramen types and type checker (ie: no need to ask
  *    to much to OCaml's typechecker since we are going to typecheck with z3)
  *)
+open Batteries
+open Stdint
 
 (* Serialized data are read from / written to memory buffers accessed via this
  * interface.
@@ -25,14 +27,15 @@ sig
   val add : pointer code -> size code -> pointer code
   val sub : pointer code -> pointer code -> size code
   val rem : pointer code -> size code
-  (*val print_pointer : 'a BatIO.output -> pointer -> unit
-  val print_data : 'a BatIO.output -> pointer -> size -> unit*)
+  val print_pointer : ('a IO.output -> pointer -> unit) code
+  val print_data : ('a IO.output -> pointer -> size -> unit) code
 
   type bit
   type byte
   type word
   type dword
   type qword
+  type oword
   type bytes
 
   val int_of_byte : byte code -> int code
@@ -44,6 +47,7 @@ sig
   val read_word : ?be:bool -> pointer code -> (word * pointer) code
   val read_dword : ?be:bool -> pointer code -> (dword * pointer) code
   val read_qword : ?be:bool -> pointer code -> (qword * pointer) code
+  val read_oword : ?be:bool -> pointer code -> (oword * pointer) code
   (* signature suitable for application: *)
   val read_bytes : (size * pointer) code -> (bytes * pointer) code
   val set_bit : pointer code -> int code -> bit code -> unit code
@@ -52,20 +56,23 @@ sig
   val write_word : ?be:bool -> pointer code -> word code -> pointer code
   val write_dword : ?be:bool -> pointer code -> dword code -> pointer code
   val write_qword : ?be:bool -> pointer code -> qword code -> pointer code
+  val write_oword : ?be:bool -> pointer code -> oword code -> pointer code
   val write_bytes : pointer code -> bytes code -> pointer code
   (* Those two do not move the pointer: *)
   val peek_byte : ?at:size -> pointer code -> byte code
   val peek_word : ?be:bool -> ?at:size -> pointer code -> word code
   val peek_dword : ?be:bool -> ?at:size -> pointer code -> dword code
   val peek_qword : ?be:bool -> ?at:size -> pointer code -> qword code
+  val peek_oword : ?be:bool -> ?at:size -> pointer code -> oword code
   val poke_byte : pointer code -> byte code -> unit code
 
   (* Those should return the values rather than code values but that allows
    * to work around many instances of the unquoted Obj.majic issue: *)
   val byte_of_const : int -> byte
   val word_of_const : int -> word
-  val dword_of_const : int32 -> dword
-  val qword_of_const : int64 -> qword
+  val dword_of_const : Uint32.t -> dword
+  val qword_of_const : Uint64.t -> qword
+  val oword_of_const : Uint128.t -> oword
   val size_of_const : int -> size
   val make_buffer : size code -> pointer code
   val of_string : string code -> pointer code
@@ -100,7 +107,8 @@ struct
     | TFloat
     | TString
     | TBool
-    | TI8 | TI16 | TI32 | TI64
+    | TU8 | TU16 | TU32 | TU64 | TU128
+    | TI8 | TI16 | TI32 | TI64 | TI128
     | TVec of int * t
     | TTup of t array
 
@@ -111,7 +119,11 @@ module type NUMOPS =
 sig
   type t
   type boolv
-  type i8v
+  type u8v
+  val zero : t code
+  val one : t code
+  val of_u8v : u8v code -> t code
+  val to_u8v : t code -> u8v code
   val eq : t code -> t code -> boolv code
   val ne : t code -> t code -> boolv code
   val ge : t code -> t code -> boolv code
@@ -120,18 +132,19 @@ sig
   val sub : t code -> t code -> t code
   val mul : t code -> t code -> t code
   val div : t code -> t code -> t code
-  val modulo : t code -> t code -> t code
-  val shift_left : t code -> i8v code -> t code
-  val shift_right : t code -> i8v code -> t code
+  val rem : t code -> t code -> t code
+  val shift_left : t code -> u8v code -> t code
+  val shift_right : t code -> u8v code -> t code
 end
 
 module type INTREPR =
 sig
   module SerData : SERDATA
   type floatv and stringv and boolv
-  and i8v and i16v and i32v and i64v
+  and i8v and i16v and i32v and i64v and i128v
+  and u8v and u16v and u32v and u64v and u128v
 
-  val length_of_stringv : stringv code -> i16v code
+  val length_of_stringv : stringv code -> u32v code
   val stringv_of_bytes : SerData.bytes code -> stringv code
   val bytes_of_stringv : stringv code -> SerData.bytes code
 
@@ -150,7 +163,7 @@ sig
 
   module I8 :
   sig
-    include NUMOPS with type t = i8v and type boolv = boolv and type i8v = i8v
+    include NUMOPS with type t = i8v and type boolv = boolv and type u8v = u8v
     val of_const : int -> t
     val of_boolv : boolv code -> i8v code
     val to_boolv : i8v code -> boolv code
@@ -159,37 +172,79 @@ sig
   end
   module I16 :
   sig
-    include NUMOPS with type t = i16v and type boolv = boolv and type i8v = i8v
+    include NUMOPS with type t = i16v and type boolv = boolv and type u8v = u8v
     val of_const : int -> t
-    val of_i8v : i8v code -> i16v code
-    val to_i8v : i16v code -> i8v code
     val to_word : i16v code -> SerData.word code
     val of_word : SerData.word code -> i16v code
   end
   module I32 :
   sig
-    include NUMOPS with type t = i32v and type boolv = boolv and type i8v = i8v
+    include NUMOPS with type t = i32v and type boolv = boolv and type u8v = u8v
     val of_const : int32 -> t
-    val of_i8v : i8v code -> i32v code
-    val to_i8v : i32v code -> i8v code
     val of_byte : SerData.byte code -> i32v code
     val to_byte : i32v code -> SerData.byte code
     val of_size : SerData.size code -> i32v code
     val to_size : i32v code -> SerData.size code
     val to_dword : i32v code -> SerData.dword code
     val of_dword : SerData.dword code -> i32v code
-    val of_byte : SerData.byte code -> i32v code
-    val to_byte : i32v code -> SerData.byte code
   end
   module I64 :
   sig
-    include NUMOPS with type t = i64v and type boolv = boolv and type i8v = i8v
+    include NUMOPS with type t = i64v and type boolv = boolv and type u8v = u8v
     val of_const : int64 -> t
-    val of_i8v : i8v code -> i64v code
-    val to_i8v : i64v code -> i8v code
     val to_qword : i64v code -> SerData.qword code
     val of_qword : SerData.qword code -> i64v code
   end
+  module I128 :
+  sig
+    include NUMOPS with type t = i128v and type boolv = boolv and type u8v = u8v
+    val of_const : Int128.t -> t
+    val to_oword : i128v code -> SerData.oword code
+    val of_oword : SerData.oword code -> i128v code
+  end
+
+  module U8 :
+  sig
+    include NUMOPS with type t = u8v and type boolv = boolv and type u8v = u8v
+    val of_const : int -> t
+    val of_boolv : boolv code -> u8v code
+    val to_boolv : u8v code -> boolv code
+    val of_byte : SerData.byte code -> u8v code
+    val to_byte : u8v code -> SerData.byte code
+  end
+  module U16 :
+  sig
+    include NUMOPS with type t = u16v and type boolv = boolv and type u8v = u8v
+    val of_const : int -> t
+    val to_word : u16v code -> SerData.word code
+    val of_word : SerData.word code -> u16v code
+  end
+  module U32 :
+  sig
+    include NUMOPS with type t = u32v and type boolv = boolv and type u8v = u8v
+    val of_const : Uint32.t -> t
+    val of_byte : SerData.byte code -> u32v code
+    val to_byte : u32v code -> SerData.byte code
+    val of_size : SerData.size code -> u32v code
+    val to_size : u32v code -> SerData.size code
+    val to_dword : u32v code -> SerData.dword code
+    val of_dword : SerData.dword code -> u32v code
+  end
+  module U64 :
+  sig
+    include NUMOPS with type t = u64v and type boolv = boolv and type u8v = u8v
+    val of_const : Uint64.t -> t
+    val to_qword : u64v code -> SerData.qword code
+    val of_qword : SerData.qword code -> u64v code
+  end
+  module U128 :
+  sig
+    include NUMOPS with type t = u128v and type boolv = boolv and type u8v = u8v
+    val of_const : Uint128.t -> t
+    val to_oword : u128v code -> SerData.oword code
+    val of_oword : SerData.oword code -> u128v code
+  end
+
   module Float :
   sig
     val to_qword : floatv code -> SerData.qword code
@@ -222,7 +277,6 @@ end
 
 module type DES =
 sig
-  module IntRepr : INTREPR
   type pointer = IntRepr.SerData.pointer
   type 'a des = (pointer -> 'a * pointer) code
 
@@ -233,6 +287,12 @@ sig
   val di16 : IntRepr.i16v des
   val di32 : IntRepr.i32v des
   val di64 : IntRepr.i64v des
+  val di128 : IntRepr.i128v des
+  val du8 : IntRepr.u8v des
+  val du16 : IntRepr.u16v des
+  val du32 : IntRepr.u32v des
+  val du64 : IntRepr.u64v des
+  val du128 : IntRepr.u128v des
 
   val tup_opn : Type.t array -> pointer code -> pointer code
   val tup_cls : Type.t array -> pointer code -> pointer code
@@ -248,7 +308,6 @@ end
 
 module type SER =
 sig
-  module IntRepr : INTREPR
   type pointer = IntRepr.SerData.pointer
   type 'a ser = ('a * pointer -> pointer) code
 
@@ -259,6 +318,12 @@ sig
   val si16 : IntRepr.i16v ser
   val si32 : IntRepr.i32v ser
   val si64 : IntRepr.i64v ser
+  val si128 : IntRepr.i128v ser
+  val su8 : IntRepr.u8v ser
+  val su16 : IntRepr.u16v ser
+  val su32 : IntRepr.u32v ser
+  val su64 : IntRepr.u64v ser
+  val su128 : IntRepr.u128v ser
 
   val tup_opn : Type.t array -> pointer code -> pointer code
   val tup_cls : Type.t array -> pointer code -> pointer code
@@ -271,7 +336,7 @@ sig
   val snotnull : pointer code -> pointer code
 end
 
-module DesSer (Des : DES) (Ser : SER with module IntRepr = Des.IntRepr) =
+module DesSer (Des : DES) (Ser : SER) =
 struct
   let ds ser des =
     fun src dst ->
@@ -288,6 +353,12 @@ struct
   let dsi16 = ds Ser.si16 Des.di16
   let dsi32 = ds Ser.si32 Des.di32
   let dsi64 = ds Ser.si64 Des.di64
+  let dsi128 = ds Ser.si128 Des.di128
+  let dsu8 = ds Ser.su8 Des.du8
+  let dsu16 = ds Ser.su16 Des.du16
+  let dsu32 = ds Ser.su32 Des.du32
+  let dsu64 = ds Ser.su64 Des.du64
+  let dsu128 = ds Ser.su128 Des.du128
 
   let dsnull src dst =
     .<
@@ -350,47 +421,37 @@ struct
 
   and desser : Type.t -> (Des.pointer * Ser.pointer ->
                             Des.pointer * Ser.pointer) code = fun typ ->
-    let desser_structure src dst = function
-      | Type.TFloat -> dsfloat src dst
-      | Type.TString -> dsstring src dst
-      | Type.TBool -> dsbool src dst
-      | Type.TI8 -> dsi8 src dst
-      | Type.TI16 -> dsi16 src dst
-      | Type.TI32 -> dsi32 src dst
-      | Type.TI64 -> dsi64 src dst
-      | Type.TTup typs -> dstup typs src dst
-      | Type.TVec (d, typ) -> dsvec d typ src dst
+    let desser_structure = function
+      | Type.TFloat -> dsfloat
+      | Type.TString -> dsstring
+      | Type.TBool -> dsbool
+      | Type.TI8 -> dsi8
+      | Type.TI16 -> dsi16
+      | Type.TI32 -> dsi32
+      | Type.TI64 -> dsi64
+      | Type.TI128 -> dsi128
+      | Type.TU8 -> dsu8
+      | Type.TU16 -> dsu16
+      | Type.TU32 -> dsu32
+      | Type.TU64 -> dsu64
+      | Type.TU128 -> dsu128
+      | Type.TTup typs -> dstup typs
+      | Type.TVec (d, typ) -> dsvec d typ
     in
     if typ.nullable then
       .<
         fun (src, dst) ->
           .~(
-            Des.IntRepr.choose (Des.is_null typ.structure .<src>.)
-              .<
-                Printf.printf "NULL@%a\n" .~Des.IntRepr.SerData.print_pointer src ;
-                .~(dsnull .<src>. .<dst>.)
-              >.
+            IntRepr.choose (Des.is_null typ.structure .<src>.)
+              (dsnull .<src>. .<dst>.)
               .<
                 let s, d = .~(dsnotnull .<src>. .<dst>.) in
-                .~(desser_structure .<s>. .<d>. typ.structure)
+                .~(desser_structure typ.structure .<s>. .<d>.)
               >.
           )
       >.
     else
       .<
-        fun (src, dst) -> .~(desser_structure .<src>. .<dst>. typ.structure)
+        fun (src, dst) -> .~(desser_structure typ.structure .<src>. .<dst>.)
       >.
 end
-
-(* As the generated code is only temporary (and hard to follow), assertions
- * and backtraces are not that usefull. Rather print as much as possible when
- * failing: *)
-let fail msg =
-  Format.eprintf "FAILURE: %s@." msg ;
-  assert false
-
-let fail_if ~cond ~msg =
-  if not cond then fail msg
-
-let todo what =
-  fail ("TODO: "^ what)

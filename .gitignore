@@ -41,3 +41,5 @@ opam
 *.trace
 tmp
 *.xcodeproj
+src/IntReprOCaml.ml
+src/IntRepr.ml

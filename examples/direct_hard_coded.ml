@@ -8,12 +8,12 @@
  *
  * ie a bool, an i8, then an array of 3 i8s.
  *)
+open Batteries
 
 (* For dynlink to succeed, as it will call functions from SerDataBytes0: *)
 module MustBeLinkedIn = SerDataBytes0
 module SerData = SerDataBytes
-module IntRepr = IntReprOCaml
-module Desser = Dessert.DesSer (SExpr.MakeDes (IntRepr)) (SExpr.MakeSer (IntRepr))
+module Desser = Dessert.DesSer (RowBinary.Des) (SExpr.Ser)
 
 let parse_user_expr typ user_expr =
   let src = SerData.of_string .<user_expr>.
@@ -33,16 +33,13 @@ let parse_user_expr typ user_expr =
   Runnative.run c
 
 let () =
-  let die msg =
-    Printf.eprintf "%s" msg ;
-    exit 1 in
-  if Array.length Sys.argv < 2 then
-    die "argument must be an expression" ;
-
   Runnative.add_search_path "src" ;
+  Runnative.add_search_path "+../batteries" ;
+  Runnative.add_search_path "+../stdint" ;
 
-  let user_expr = Sys.argv.(1) in
-  Format.printf "Pretty printing %S...@." user_expr ;
+  let user_expr = IO.read_all stdin in
+  Printf.printf "Pretty-printing %d bytes of input...\n%!"
+    (String.length user_expr) ;
 
   let typ =
     let open Dessert in
@@ -50,11 +47,42 @@ let () =
     (*TI8*)
     (*TTup [| TBool ; TI8 |]*)
     (*TTup [| TBool ; TI8 ; TVec (3, TI8) |]*)
-    Type.(make ~nullable:true (TTup [|
-      make ~nullable:true TBool ;
-      make ~nullable:true TI8 ;
-      make ~nullable:true TString ;
-      make ~nullable:true (TVec (3, make ~nullable:true TFloat))
+    let nullable = true in
+    Type.(make  (TTup [|
+      make TString ;
+      make TU64 ;
+      make TU64 ;
+      make TU8 ;
+      make TString ;
+      make TU8 ;
+      make TString ;
+      make ~nullable TU32 ;
+      make ~nullable TU32 ;
+      make TU64 ;
+      make TU64 ;
+      make TU32 ;
+      make TU32 ;
+      make ~nullable TU32 ;
+      make ~nullable TString ;
+      make ~nullable TU32 ;
+      make ~nullable TString ;
+      make ~nullable TU32 ;
+      make ~nullable TString ;
+      make TU16 ;
+      make TU16 ;
+      make TU8 ;
+      make TU8 ;
+      make ~nullable TU32 ;
+      make ~nullable TU32 ;
+      make TU32 ;
+      make TString ;
+      make TU64 ;
+      make TU64 ;
+      make TU32 ;
+      make TU32 ;
+      make TU64 ;
+      make TU64 ;
+      make ~nullable TString
     |]))
   in
   try

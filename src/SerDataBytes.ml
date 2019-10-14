@@ -1,7 +1,11 @@
 (* Staged version of SerDataBytes0 *)
+open Stdint
 
 type pointer = SerDataBytes0.pointer
 type size = SerDataBytes0.size
+
+let print_pointer = .< SerDataBytes0.print_pointer >.
+let print_data = .< SerDataBytes0.print_data >.
 
 let add pc sc =
   .< SerDataBytes0.add .~pc .~sc >.
@@ -17,6 +21,7 @@ type byte = SerDataBytes0.byte
 type word = SerDataBytes0.word
 type dword = SerDataBytes0.dword
 type qword = SerDataBytes0.qword
+type oword = SerDataBytes0.oword
 type bytes = SerDataBytes0.bytes
 
 let int_of_byte = SerDataBytes0.int_of_byte
@@ -37,6 +42,9 @@ let peek_dword ?be ?at pc =
 let peek_qword ?be ?at pc =
   .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_qword ?be ?at p >.
 
+let peek_oword ?be ?at pc =
+  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_oword ?be ?at p >.
+
 let read_byte pc =
   .< let p = .~pc in SerDataBytes0.read_byte p >.
 
@@ -48,6 +56,9 @@ let read_dword ?be pc =
 
 let read_qword ?be pc =
   .< let p, be = .~pc, be in SerDataBytes0.read_qword ?be p >.
+
+let read_oword ?be pc =
+  .< let p, be = .~pc, be in SerDataBytes0.read_oword ?be p >.
 
 let read_bytes v_p =
   .< let v_p = .~v_p in SerDataBytes0.read_bytes v_p >.
@@ -70,6 +81,9 @@ let write_dword ?be pc vc =
 let write_qword ?be pc vc =
   .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_qword ?be p v >.
 
+let write_oword ?be pc vc =
+  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_oword ?be p v >.
+
 let write_bytes pc vc =
   .< let p, v = .~pc, .~vc in SerDataBytes0.write_bytes p v >.
 
@@ -84,6 +98,7 @@ let byte_of_const = SerDataBytes0.byte_of_const
 let word_of_const = SerDataBytes0.word_of_const
 let dword_of_const = SerDataBytes0.dword_of_const
 let qword_of_const = SerDataBytes0.qword_of_const
+let oword_of_const = SerDataBytes0.oword_of_const
 
 (* Very efficient as you can see: *)
 
@@ -95,7 +110,7 @@ let bytes_append bs b =
     let len = Bytes.length old_bs in
     let new_bs = Bytes.create (len + 1) in
     Bytes.blit old_bs 0 new_bs 0 len ;
-    Bytes.set new_bs len (Char.chr .~b) ;
+    Bytes.set new_bs len (Char.chr (Uint8.to_int .~b)) ;
 (*    Format.printf "old bytes was %S, new bytes is %S@."
       (Bytes.to_string old_bs) (Bytes.to_string new_bs) ;*)
     new_bs

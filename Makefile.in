@@ -60,10 +60,11 @@ all: $(INSTALLED) examples
 doc:
 
 LIBBERSERDES_SOURCES = \
-	src/Dessert.ml \
+	src/Helpers.ml \
 	src/SerDataBytes0.ml \
 	src/SerDataBytes.ml \
-	src/IntReprOCaml.ml \
+	src/IntRepr.ml \
+	src/Dessert.ml \
 	src/SExpr.ml \
 	src/RowBinary.ml
 
@@ -97,12 +98,18 @@ src/dessert.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
 
 src/dessert.a: src/dessert.cmxa
 
+src/IntReprOCaml.ml: src/IntReprOCaml.ml.m4
+	m4 > $@ < $<
+
+src/IntRepr.ml: src/IntReprOCaml.ml
+	ln -f $< $@
+
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
 examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package batteries $^ -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 # Generated sources
 
@@ -157,6 +164,7 @@ clean:
 	@$(RM) src/oUnit-anon.cache src/qtest.targets.log
 	@$(RM) .depend src/*.opt src/*.byte
 	@$(RM) src/dessert.cmxa
+	@$(RM) src/IntRepr.ml src/IntReprOCaml.ml
 
 distclean: clean
 	@echo 'Cleaning all build files'
