@@ -9,7 +9,7 @@ CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
 
-override OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
+OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
 
 ifdef NDEBUG
 OCAMLOPTFLAGS += -noassert -O2
