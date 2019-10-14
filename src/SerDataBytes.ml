@@ -1,5 +1,6 @@
 (* Staged version of SerDataBytes0 *)
 open Stdint
+open MyLifts
 
 type pointer = SerDataBytes0.pointer
 type size = SerDataBytes0.size
@@ -31,34 +32,43 @@ let test_bit pc oc =
   .< let p, o = .~pc, .~oc in SerDataBytes0.test_bit p o >.
 
 let peek_byte ?at pc =
-  .< let p, at = .~pc, at in SerDataBytes0.peek_byte ?at p >.
+  .< let p, at = .~pc, .~(lift_option Lifts.Lift_int.lift at) in
+     SerDataBytes0.peek_byte ?at p >.
 
 let peek_word ?be ?at pc =
-  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_word ?be ?at p >.
+  .< let p, be, at = .~pc, .~(lift_option lift_bool be), .~(lift_option Lifts.Lift_int.lift at) in
+     SerDataBytes0.peek_word ?be ?at p >.
 
 let peek_dword ?be ?at pc =
-  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_dword ?be ?at p >.
+  .< let p, be, at = .~pc, .~(lift_option lift_bool be), .~(lift_option Lifts.Lift_int.lift at) in
+ SerDataBytes0.peek_dword ?be ?at p >.
 
 let peek_qword ?be ?at pc =
-  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_qword ?be ?at p >.
+  .< let p, be, at = .~pc, .~(lift_option lift_bool be), .~(lift_option Lifts.Lift_int.lift at) in
+ SerDataBytes0.peek_qword ?be ?at p >.
 
 let peek_oword ?be ?at pc =
-  .< let p, be, at = .~pc, be, at in SerDataBytes0.peek_oword ?be ?at p >.
+  .< let p, be, at = .~pc, .~(lift_option lift_bool be), .~(lift_option Lifts.Lift_int.lift at) in
+ SerDataBytes0.peek_oword ?be ?at p >.
 
 let read_byte pc =
   .< let p = .~pc in SerDataBytes0.read_byte p >.
 
 let read_word ?be pc =
-  .< let p, be = .~pc, be in SerDataBytes0.read_word ?be p >.
+  .< let p, be = .~pc, .~(lift_option lift_bool be) in
+ SerDataBytes0.read_word ?be p >.
 
 let read_dword ?be pc =
-  .< let p, be = .~pc, be in SerDataBytes0.read_dword ?be p >.
+  .< let p, be = .~pc, .~(lift_option lift_bool be) in
+ SerDataBytes0.read_dword ?be p >.
 
 let read_qword ?be pc =
-  .< let p, be = .~pc, be in SerDataBytes0.read_qword ?be p >.
+  .< let p, be = .~pc, .~(lift_option lift_bool be) in
+ SerDataBytes0.read_qword ?be p >.
 
 let read_oword ?be pc =
-  .< let p, be = .~pc, be in SerDataBytes0.read_oword ?be p >.
+  .< let p, be = .~pc, .~(lift_option lift_bool be) in
+ SerDataBytes0.read_oword ?be p >.
 
 let read_bytes v_p =
   .< let v_p = .~v_p in SerDataBytes0.read_bytes v_p >.
@@ -73,16 +83,20 @@ let write_byte pc vc =
   .< let p, v = .~pc, .~vc in SerDataBytes0.write_byte p v >.
 
 let write_word ?be pc vc =
-  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_word ?be p v >.
+  .< let p, v, be = .~pc, .~vc, .~(lift_option lift_bool be) in
+ SerDataBytes0.write_word ?be p v >.
 
 let write_dword ?be pc vc =
-  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_dword ?be p v >.
+  .< let p, v, be = .~pc, .~vc, .~(lift_option lift_bool be) in
+ SerDataBytes0.write_dword ?be p v >.
 
 let write_qword ?be pc vc =
-  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_qword ?be p v >.
+  .< let p, v, be = .~pc, .~vc, .~(lift_option lift_bool be) in
+ SerDataBytes0.write_qword ?be p v >.
 
 let write_oword ?be pc vc =
-  .< let p, v, be = .~pc, .~vc, be in SerDataBytes0.write_oword ?be p v >.
+  .< let p, v, be = .~pc, .~vc, .~(lift_option lift_bool be) in
+ SerDataBytes0.write_oword ?be p v >.
 
 let write_bytes pc vc =
   .< let p, v = .~pc, .~vc in SerDataBytes0.write_bytes p v >.

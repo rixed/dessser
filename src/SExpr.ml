@@ -5,47 +5,48 @@ open Batteries
 open Stdint
 open Dessert
 open Helpers
+open MyLifts
 
 module Common =
 struct
   module SerData = IntRepr.SerData
   type pointer = SerData.pointer
 
-  let size_1 = .< SerData.size_of_const 1 >.
-  let size_4 = .< SerData.size_of_const 4 >.
-  let dword_null = .< SerData.dword_of_const (Uint32.of_int32 0x6c_6c_75_6el) >.
-  let ascii_T = .< IntRepr.U8.of_const (Char.code 'T') >.
-  let ascii_F = .< IntRepr.U8.of_const (Char.code 'F') >.
-  let ascii_0 = .< IntRepr.U8.of_const (Char.code '0') >.
-  let ascii_9 = .< IntRepr.U8.of_const (Char.code '9') >.
-  let ascii_e = .< IntRepr.U8.of_const (Char.code 'e') >.
-  let ascii_dot = .< IntRepr.U8.of_const (Char.code '.') >.
-  let ascii_plus = .< IntRepr.U8.of_const (Char.code '+') >.
-  let ascii_minus = .< IntRepr.U8.of_const (Char.code '-') >.
-  let opn = .< IntRepr.U8.of_const (Char.code '(') >.
-  let cls = .< IntRepr.U8.of_const (Char.code ')') >.
-  let spc = .< IntRepr.U8.of_const (Char.code ' ') >.
-  let quo = .< IntRepr.U8.of_const (Char.code '"') >.
-  let i8v_10 = .< IntRepr.I8.of_const 10 >.
-  let i8v_100 = .< IntRepr.I8.of_const 100 >.
-  let u8v_10 = .< IntRepr.U8.of_const 10 >.
-  let u8v_100 = .< IntRepr.U8.of_const 100 >.
-  let i16v_10 = .< IntRepr.I16.of_const 10 >.
-  let i16v_10e4 = .< IntRepr.I16.of_const 10_000 >.
-  let u16v_10 = .< IntRepr.U16.of_const 10 >.
-  let u16v_10e4 = .< IntRepr.U16.of_const 10_000 >.
-  let i32v_10 = .< IntRepr.I32.of_const 10l >.
-  let i32v_10e9 = .< IntRepr.I32.of_const 1_000_000_000l >.
-  let u32v_10 = .< IntRepr.U32.of_const (Uint32.of_int 10) >.
-  let u32v_10e9 = .< IntRepr.U32.of_const (Uint32.of_int32 1_000_000_000l) >.
-  let i64v_10 = .< IntRepr.I64.of_const 10L >.
-  let i64v_10e18 = .< IntRepr.I64.of_const 1_000_000_000_000_000_000L >.
-  let u64v_10 = .< IntRepr.U64.of_const (Uint64.of_int 10) >.
-  let u64v_10e19 = .< IntRepr.U64.of_const (Uint64.of_int64 (-8446744073709551616L) (* aka 10_000_000_000_000_000_000 *)) >.
-  let i128v_10 = .< IntRepr.I128.of_const (Int128.of_int 10) >.
-  let i128v_10e38 = .< IntRepr.I128.of_const (Int128.of_string "100000000000000000000000000000000000000") >.
-  let u128v_10 = .< IntRepr.U128.of_const (Uint128.of_int 10) >.
-  let u128v_10e38 = .< IntRepr.U128.of_const (Uint128.of_string "100000000000000000000000000000000000000") >.
+  let size_1 = SerData.size_of_const 1
+  let size_4 = SerData.size_of_const 4
+  let dword_null = SerData.dword_of_const (Uint32.of_int32 0x6c_6c_75_6el)
+  let ascii_T = IntRepr.U8.of_const (Char.code 'T')
+  let ascii_F = IntRepr.U8.of_const (Char.code 'F')
+  let ascii_0 = IntRepr.U8.of_const (Char.code '0')
+  let ascii_9 = IntRepr.U8.of_const (Char.code '9')
+  let ascii_e = IntRepr.U8.of_const (Char.code 'e')
+  let ascii_dot = IntRepr.U8.of_const (Char.code '.')
+  let ascii_plus = IntRepr.U8.of_const (Char.code '+')
+  let ascii_minus = IntRepr.U8.of_const (Char.code '-')
+  let opn = IntRepr.U8.of_const (Char.code '(')
+  let cls = IntRepr.U8.of_const (Char.code ')')
+  let spc = IntRepr.U8.of_const (Char.code ' ')
+  let quo = IntRepr.U8.of_const (Char.code '"')
+  let i8v_10 = IntRepr.I8.of_const 10
+  let i8v_100 = IntRepr.I8.of_const 100
+  let u8v_10 = IntRepr.U8.of_const 10
+  let u8v_100 = IntRepr.U8.of_const 100
+  let i16v_10 = IntRepr.I16.of_const 10
+  let i16v_10e4 = IntRepr.I16.of_const 10_000
+  let u16v_10 = IntRepr.U16.of_const 10
+  let u16v_10e4 = IntRepr.U16.of_const 10_000
+  let i32v_10 = IntRepr.I32.of_const 10l
+  let i32v_10e9 = IntRepr.I32.of_const 1_000_000_000l
+  let u32v_10 = IntRepr.U32.of_const (Uint32.of_int 10)
+  let u32v_10e9 = IntRepr.U32.of_const (Uint32.of_int32 1_000_000_000l)
+  let i64v_10 = IntRepr.I64.of_const 10L
+  let i64v_10e18 = IntRepr.I64.of_const 1_000_000_000_000_000_000L
+  let u64v_10 = IntRepr.U64.of_const (Uint64.of_int 10)
+  let u64v_10e19 = IntRepr.U64.of_const (Uint64.of_int64 (-8446744073709551616L) (* aka 10_000_000_000_000_000_000 *))
+  let i128v_10 = IntRepr.I128.of_const (Int128.of_int 10)
+  let i128v_10e38 = IntRepr.I128.of_const (Int128.of_string "100000000000000000000000000000000000000")
+  let u128v_10 = IntRepr.U128.of_const (Uint128.of_int 10)
+  let u128v_10e38 = IntRepr.U128.of_const (Uint128.of_string "100000000000000000000000000000000000000")
 end
 
 module Des : DES =
@@ -56,14 +57,14 @@ struct
   let read_digit pc =
     SerData.read_byte pc |>
     IntRepr.map_fst (fun vc ->
-      IntRepr.(U8.sub (IntRepr.U8.of_byte vc) ascii_0))
+      IntRepr.(U8.sub (IntRepr.U8.of_byte vc) (lift_uint8 ascii_0)))
 
   let is_digit =
     .<
       fun byte ->
         let c = .~(IntRepr.U8.of_byte .<byte>.) in
-        .~(IntRepr.(boolv_and (U8.ge .<c>. ascii_0)
-                              (U8.ge ascii_9 .<c>.)))
+        .~(IntRepr.(boolv_and (U8.ge .<c>. (lift_uint8 ascii_0))
+                              (U8.ge (lift_uint8 ascii_9) .<c>.)))
     >.
 
   let is_float_char =
@@ -71,19 +72,19 @@ struct
       fun byte ->
         let c = .~(IntRepr.U8.of_byte .<byte>.) in
         .~(IntRepr.(boolv_or
-            (boolv_and (U8.ge .<c>. ascii_0)
-                       (U8.ge ascii_9 .<c>.))
-            (boolv_or (boolv_or (U8.eq .<c>. ascii_plus)
-                                (U8.eq .<c>. ascii_minus))
-                      (boolv_or (U8.eq .<c>. ascii_dot)
-                                (U8.eq .<c>. ascii_e)))))
+            (boolv_and (U8.ge .<c>. (lift_uint8 ascii_0))
+                       (U8.ge (lift_uint8 ascii_9) .<c>.))
+            (boolv_or (boolv_or (U8.eq .<c>. (lift_uint8 ascii_plus))
+                                (U8.eq .<c>. (lift_uint8 ascii_minus)))
+                      (boolv_or (U8.eq .<c>. (lift_uint8 ascii_dot))
+                                (U8.eq .<c>. (lift_uint8 ascii_e))))))
     >.
 
   let skip_blanks pc =
     let cond =
       .<
         fun byte ->
-          .~(IntRepr.(U8.eq (U8.of_byte .<byte>.) spc))
+          .~(IntRepr.(U8.eq (U8.of_byte .<byte>.) (lift_uint8 spc)))
       >.
     and reduce =
       .< fun () _byte -> () >.
@@ -119,7 +120,7 @@ struct
     let pc = skip_expected_char '"' pc in
     let cond =
       .<
-        fun byte -> .~(IntRepr.(U8.ne (U8.of_byte .<byte >.) quo))
+        fun byte -> .~(IntRepr.(U8.ne (U8.of_byte .<byte >.) (lift_uint8 quo)))
       >. in
     let reduce =
       .<
@@ -130,7 +131,7 @@ struct
       let v, p =
         .~(IntRepr.read_while ~cond ~reduce .< .~SerData.make_bytes, .~pc >.) in
       .~(IntRepr.stringv_of_bytes .<v>.),
-      .~(SerData.add .<p>. size_1)
+      .~(SerData.add .<p>. .<size_1>.)
     >.
 
   let dstring = .< fun p -> .~(string (skip_blanks .<p>.)) >.
@@ -140,7 +141,7 @@ struct
     IntRepr.map_pair
       ~fst:(fun vc ->
         let c = IntRepr.(U8.of_byte vc) in
-        IntRepr.U8.eq c ascii_T)
+        IntRepr.U8.eq c (lift_uint8 ascii_T))
       ~snd:(fun x -> x)
 
   let dbool = .< fun p -> .~(bool (skip_blanks .<p>.)) >.
@@ -151,8 +152,8 @@ struct
       .<
         fun v byte ->
           let c = .~(IntRepr.U8.of_byte .<byte>.) in
-          .~(add (mul .<v>. (of_u8v u8v_10))
-                 (of_u8v (IntRepr.U8.sub .<c>. ascii_0)))
+          .~(add (mul .<v>. (of_u8v (lift_uint8 u8v_10)))
+                 (of_u8v (IntRepr.U8.sub .<c>. (lift_uint8 ascii_0))))
       >.
     in
     IntRepr.read_while ~cond ~reduce .< .~zero, .~pc >.
@@ -209,15 +210,15 @@ struct
   let is_null _typ pc =
     .<
       let p = .~pc in
-      let knull = .~dword_null in
+      let knull = .~(lift_uint32 dword_null) in
       (* Notice that boolv_and must translate into code that terminate
        * evaluation early (even if it's not the case in stage0) *)
       .~(IntRepr.(boolv_and
-           (size_ge (SerData.rem .<p>.) size_4)
+           (size_ge (SerData.rem .<p>.) .<size_4>.)
            (dword_eq (SerData.peek_dword .<p>.) .<knull>.)))
     >.
 
-  let dnull pc = SerData.add pc size_4
+  let dnull pc = SerData.add pc .<size_4>.
   let dnotnull pc = pc
 end
 
@@ -238,10 +239,10 @@ struct
   let string v_p =
     .<
       let v, p = .~v_p in
-      let p = .~(SerData.write_byte .<p>. (IntRepr.U8.to_byte quo)) in
+      let p = .~(SerData.write_byte .<p>. (IntRepr.U8.to_byte (lift_uint8 quo))) in
       let v = .~(IntRepr.bytes_of_stringv .<v>.) in
       let p = .~(SerData.write_bytes .<p>. .<v>.) in
-      .~(SerData.write_byte .<p>. (IntRepr.U8.to_byte quo))
+      .~(SerData.write_byte .<p>. (IntRepr.U8.to_byte (lift_uint8 quo)))
     >.
 
   let sstring = .< fun v_p -> .~(string .<v_p>.) >.
@@ -250,7 +251,7 @@ struct
     .<
       let v, p = .~v_p in
       let byte =
-        .~(IntRepr.choose .<v>. ascii_T ascii_F |>
+        .~(IntRepr.choose .<v>. (lift_uint8 ascii_T) (lift_uint8 ascii_F) |>
            IntRepr.U8.to_byte) in
       .~(SerData.write_byte .<p>. .<byte>.)
     >.
@@ -261,14 +262,14 @@ struct
     .<
       let v, p = .~v_p in
       .~(IntRepr.choose (eq .<v>. zero)
-           (SerData.write_byte .<p>. (IntRepr.U8.to_byte ascii_0))
+           (SerData.write_byte .<p>. (IntRepr.U8.to_byte (lift_uint8 ascii_0)))
            (let cond =
               .< fun _ (_v, scale) -> .~(gt .<scale>. zero) >.
             and loop =
               .<
                 fun p (v, scale) ->
                   let digit = .~(to_u8v (rem (div .<v>. .<scale>.) ten)) in
-                  let chr = .~(IntRepr.U8.add ascii_0 .<digit>.) in
+                  let chr = .~(IntRepr.U8.add (lift_uint8 ascii_0) .<digit>.) in
                   let byte = .~(IntRepr.U8.to_byte .<chr>.) in
                   let p = .~(SerData.write_byte .<p>. .<byte>.) in
                   p, (v, .~(div .<scale>. ten))
@@ -277,66 +278,66 @@ struct
     >.
 
   let i8 =
-    integer IntRepr.I8.to_u8v IntRepr.I8.zero i8v_100 IntRepr.I8.eq IntRepr.I8.gt IntRepr.I8.div IntRepr.I8.rem i8v_10
+    integer IntRepr.I8.to_u8v IntRepr.I8.zero (lift_int8 i8v_100) IntRepr.I8.eq IntRepr.I8.gt IntRepr.I8.div IntRepr.I8.rem (lift_int8 i8v_10)
   let si8 = .< fun v_p -> .~(i8 .<v_p>.) >.
 
   let u8 =
-    integer identity IntRepr.U8.zero u8v_100 IntRepr.U8.eq IntRepr.U8.gt IntRepr.U8.div IntRepr.U8.rem u8v_10
+    integer identity IntRepr.U8.zero (lift_uint8 u8v_100) IntRepr.U8.eq IntRepr.U8.gt IntRepr.U8.div IntRepr.U8.rem (lift_uint8 u8v_10)
   let su8 = .< fun v_p -> .~(u8 .<v_p>.) >.
 
   let i16 =
-    integer IntRepr.I16.to_u8v IntRepr.I16.zero i16v_10e4 IntRepr.I16.eq IntRepr.I16.gt IntRepr.I16.div IntRepr.I16.rem i16v_10
+    integer IntRepr.I16.to_u8v IntRepr.I16.zero (lift_int16 i16v_10e4) IntRepr.I16.eq IntRepr.I16.gt IntRepr.I16.div IntRepr.I16.rem (lift_int16 i16v_10)
   let si16 = .< fun v_p -> .~(i16 .<v_p>.) >.
 
   let u16 =
-    integer IntRepr.U16.to_u8v IntRepr.U16.zero u16v_10e4 IntRepr.U16.eq IntRepr.U16.gt IntRepr.U16.div IntRepr.U16.rem u16v_10
+    integer IntRepr.U16.to_u8v IntRepr.U16.zero (lift_uint16 u16v_10e4) IntRepr.U16.eq IntRepr.U16.gt IntRepr.U16.div IntRepr.U16.rem (lift_uint16 u16v_10)
   let su16 = .< fun v_p -> .~(u16 .<v_p>.) >.
 
   let i32 =
-    integer IntRepr.I32.to_u8v IntRepr.I32.zero i32v_10e9 IntRepr.I32.eq IntRepr.I32.gt IntRepr.I32.div IntRepr.I32.rem i32v_10
+    integer IntRepr.I32.to_u8v IntRepr.I32.zero (lift_int32 i32v_10e9) IntRepr.I32.eq IntRepr.I32.gt IntRepr.I32.div IntRepr.I32.rem (lift_int32 i32v_10)
   let si32 = .< fun v_p -> .~(i32 .<v_p>.) >.
 
   let u32 =
-    integer IntRepr.U32.to_u8v IntRepr.U32.zero u32v_10e9 IntRepr.U32.eq IntRepr.U32.gt IntRepr.U32.div IntRepr.U32.rem u32v_10
+    integer IntRepr.U32.to_u8v IntRepr.U32.zero (lift_uint32 u32v_10e9) IntRepr.U32.eq IntRepr.U32.gt IntRepr.U32.div IntRepr.U32.rem (lift_uint32 u32v_10)
   let su32 = .< fun v_p -> .~(u32 .<v_p>.) >.
 
   let i64 =
-    integer IntRepr.I64.to_u8v IntRepr.I64.zero i64v_10e18 IntRepr.I64.eq IntRepr.I64.gt IntRepr.I64.div IntRepr.I64.rem i64v_10
+    integer IntRepr.I64.to_u8v IntRepr.I64.zero (lift_int64 i64v_10e18) IntRepr.I64.eq IntRepr.I64.gt IntRepr.I64.div IntRepr.I64.rem (lift_int64 i64v_10)
   let si64 = .< fun v_p -> .~(i64 .<v_p>.) >.
 
   let u64 =
-    integer IntRepr.U64.to_u8v IntRepr.U64.zero u64v_10e19 IntRepr.U64.eq IntRepr.U64.gt IntRepr.U64.div IntRepr.U64.rem u64v_10
+    integer IntRepr.U64.to_u8v IntRepr.U64.zero (lift_uint64 u64v_10e19) IntRepr.U64.eq IntRepr.U64.gt IntRepr.U64.div IntRepr.U64.rem (lift_uint64 u64v_10)
   let su64 = .< fun v_p -> .~(u64 .<v_p>.) >.
 
   let i128 =
-    integer IntRepr.I128.to_u8v IntRepr.I128.zero i128v_10e38 IntRepr.I128.eq IntRepr.I128.gt IntRepr.I128.div IntRepr.I128.rem i128v_10
+    integer IntRepr.I128.to_u8v IntRepr.I128.zero (lift_int128 i128v_10e38) IntRepr.I128.eq IntRepr.I128.gt IntRepr.I128.div IntRepr.I128.rem (lift_int128 i128v_10)
   let si128 = .< fun v_p -> .~(i128 .<v_p>.) >.
 
   let u128 =
-    integer IntRepr.U128.to_u8v IntRepr.U128.zero u128v_10e38 IntRepr.U128.eq IntRepr.U128.gt IntRepr.U128.div IntRepr.U128.rem u128v_10
+    integer IntRepr.U128.to_u8v IntRepr.U128.zero (lift_uint128 u128v_10e38) IntRepr.U128.eq IntRepr.U128.gt IntRepr.U128.div IntRepr.U128.rem (lift_uint128 u128v_10)
   let su128 = .< fun v_p -> .~(u128 .<v_p>.) >.
 
   let tup_opn _typs pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte opn)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 opn))
 
   let tup_cls _typs pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte cls)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 cls))
 
   let tup_sep _typs _n pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte spc)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 spc))
 
   let vec_opn _dim _typ pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte opn)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 opn))
 
   let vec_cls _dim _typ pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte cls)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 cls))
 
   let vec_sep _dim _typ _n pc =
-    SerData.write_byte pc (IntRepr.U8.to_byte spc)
+    SerData.write_byte pc (IntRepr.U8.to_byte (lift_uint8 spc))
 
   (* Regardless of the type structure, nulls are simply encoded as "null" *)
   let snull pc =
-    .< let knull = .~dword_null in
+    .< let knull = .~(lift_uint32 dword_null) in
        .~(SerData.write_dword pc .<knull>.) >.
   let snotnull pc = pc
 end

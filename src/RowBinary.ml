@@ -13,15 +13,16 @@
 open Batteries
 open Stdint
 open Dessert
+open MyLifts
 
 module Common =
 struct
   module SerData = IntRepr.SerData
   type pointer = SerData.pointer
 
-  let size_1 = .< SerData.size_of_const 1 >.
-  let u8v_128 = .< IntRepr.U8.of_const 0b1000_0000 >.
-  let u8v_7 = .< IntRepr.U8.of_const 7 >.
+  let size_1 = SerData.size_of_const 1
+  let u8v_128 = IntRepr.U8.of_const 0b1000_0000
+  let u8v_7 = IntRepr.U8.of_const 7
 end
 
 module Des : DES =
@@ -40,14 +41,14 @@ struct
     let cond =
       .<
         fun leb128_byte ->
-          .~(IntRepr.(U8.gt (U8.of_byte .<leb128_byte>.) u8v_128))
+          .~(IntRepr.(U8.gt (U8.of_byte .<leb128_byte>.) (lift_uint8 u8v_128)))
       >.
     and reduce =
       .<
         fun (leb128, shft) leb128_byte ->
           .~(IntRepr.(U32.add (U32.shift_left (U32.of_byte .<leb128_byte>.) .<shft>.)
                                .<leb128>.)),
-          .~(IntRepr.(U8.add .<shft>. u8v_7))
+          .~(IntRepr.(U8.add .<shft>. (lift_uint8 u8v_7)))
       >. in
     let len_shft_p =
       IntRepr.read_while ~cond ~reduce .<(.~IntRepr.U32.zero, .~IntRepr.U8.zero), .~pc>. in
@@ -158,6 +159,6 @@ struct
   let is_null _typ pc =
     IntRepr.(U8.to_boolv (U8.of_byte (SerData.peek_byte pc)))
 
-  let dnull pc = SerData.add pc size_1
+  let dnull pc = SerData.add pc .<size_1>.
   let dnotnull = dnull
 end

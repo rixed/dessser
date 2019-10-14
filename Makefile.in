@@ -66,6 +66,7 @@ doc:
 
 LIBBERSERDES_SOURCES = \
 	src/Helpers.ml \
+	src/MyLifts.ml \
 	src/SerDataBytes0.ml \
 	src/SerDataBytes.ml \
 	src/IntRepr.ml \
@@ -112,7 +113,7 @@ src/IntRepr.ml: src/IntReprOCaml.ml
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
 examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' lifts.cmx $^ -o $@
 
 # Generated sources
 
