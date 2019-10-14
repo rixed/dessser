@@ -71,7 +71,8 @@ LIBBERSERDES_SOURCES = \
 	src/IntRepr.ml \
 	src/Dessert.ml \
 	src/SExpr.ml \
-	src/RowBinary.ml
+	src/RowBinary.ml \
+	src/DevNull.ml
 
 EXAMPLES_SOURCES = \
 	examples/direct_hard_coded.ml
