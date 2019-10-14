@@ -23,7 +23,7 @@ let snd a_b =
   .< let _, b = .~a_b in b >.
 
 let map_fst f a_b =
-  .< let a, b = .~a_b in .~(f .<a>.), b >.
+  .< let fst_a, fst_b = .~a_b in .~(f .<fst_a>.), fst_b >.
 
 let map_pair ~fst ~snd a_b =
   .<
@@ -171,25 +171,25 @@ end
 
 let read_while ~cond ~reduce v_p =
   .<
-    let rec loop v p =
-      let b = .~(SerDataBytes.peek_byte .<p>.) in
-      if .~cond b then (
+    let rec read_while_loop v p =
+      let read_while_byte = .~(SerDataBytes.peek_byte .<p>.) in
+      if .~cond read_while_byte then (
         let p = .~(SerDataBytes.add .<p>. .<1>.) in
-        loop (.~reduce v b) p
+        read_while_loop (.~reduce v read_while_byte) p
       ) else v, p
     in
     let v, p = .~v_p in
-    loop v p
+    read_while_loop v p
   >.
 
 let do_while ~cond ~loop ic vc =
   .<
-    let rec loop_ v i =
+    let rec do_while_loop v i =
       if .~cond v i then (
         let v, i = .~loop v i in
-        loop_ v i
+        do_while_loop v i
       ) else
         v
     in
-    loop_ .~vc .~ic
+    do_while_loop .~vc .~ic
   >.

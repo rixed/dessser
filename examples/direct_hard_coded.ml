@@ -26,14 +26,14 @@ let parse_user_expr typ user_expr =
     Codelib.print_code c ;
   let c =
     .<
-      let rec loop src =
+      let rec loop_tuples src =
         if SerDataBytes0.rem src > 0 then (
           let dst = SerDataBytes0.make_buffer 5_000 in
           let src, dst = .~c (src, dst) in
           SerDataBytes0.print dst ;
-          loop src
+          loop_tuples src
         ) in
-      loop .~src
+      loop_tuples .~src
     >. in
   Runnative.run c
 
