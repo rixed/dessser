@@ -5,8 +5,9 @@ VERSION = @PACKAGE_VERSION@
 OCAMLFIND_COMMANDS = ocamlc=metaocamlc ocamlopt=metaocamlopt
 OCAMLOPT = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
 OCAMLDEP = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
-QTEST    = qtest
-WARNS    = -w -40-58+27
+CPPO = cppo
+QTEST = qtest
+WARNS = -w -40-58+27
 
 override OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
 
@@ -37,7 +38,7 @@ all: $(INSTALLED) examples
 
 # Generic rules
 
-.SUFFIXES: .ml .mli .cmi .cmx .cmxs .cmt .html .adoc
+.SUFFIXES: .ml .mli .mlo .cmi .cmx .cmxs .cmt .html .adoc
 .PHONY: \
   clean distclean all dep doc examples \
   check unit-check \
@@ -50,6 +51,10 @@ all: $(INSTALLED) examples
 %.cmx %.cmt: %.ml
 	@echo 'Compiling $@'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package "$(PACKAGES)" -c $<
+
+%.ml: %.mlo
+	@echo "Preprocessing $@"
+	$(CPPO) $< -o $@
 
 # Documentation
 
@@ -97,9 +102,6 @@ src/dessert.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -a $(filter %.cmx, $^) -o $@
 
 src/dessert.a: src/dessert.cmxa
-
-src/IntReprOCaml.ml: src/IntReprOCaml.ml.m4
-	m4 > $@ < $<
 
 src/IntRepr.ml: src/IntReprOCaml.ml
 	ln -f $< $@
