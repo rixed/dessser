@@ -13,22 +13,23 @@ open Batteries
 (* For dynlink to succeed, as it will call functions from SerDataBytes0: *)
 module MustBeLinkedIn = SerDataBytes0
 module SerData = SerDataBytes
-module Desser = Dessert.DesSer (RowBinary.Des) (SExpr.Ser)
+module Desser = Dessert.DesSer (RowBinary.Des) (DevNull.Ser)
 
 let parse_user_expr typ user_expr =
-  let src = SerData.of_string .<user_expr>.
-  and dst = SerData.make_buffer .<500>. in
+  let src = SerData.of_string .<user_expr>. in
   let c = Desser.desser typ in
   Format.printf "OCaml code to print the value: %a@."
     Codelib.print_code c ;
   let c =
     .<
-      let src, dst = .~c (.~src, .~dst) in
-      SerDataBytes0.print dst ;
-      let unparsed = Bytes.length src.SerDataBytes0.data - src.offset in
-      if unparsed > 0 then
-        Format.printf "Warning: %d bytes of garbage at the end of user input@."
-          unparsed
+      let rec loop src =
+        if SerDataBytes0.rem src > 0 then (
+          let dst = SerDataBytes0.make_buffer 5_000 in
+          let src, dst = .~c (src, dst) in
+          SerDataBytes0.print dst ;
+          loop src
+        ) in
+      loop .~src
     >. in
   Runnative.run c
 
@@ -78,8 +79,8 @@ let () =
       make TString ;
       make TU64 ;
       make TU64 ;
-      make TU32 ;
-      make TU32 ;
+      make TU64 ;  (* SHould be U32 *)
+      make TU64 ;  (* SHould be U32 *)
       make TU64 ;
       make TU64 ;
       make ~nullable TString
