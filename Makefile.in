@@ -46,11 +46,11 @@ all: $(INSTALLED) examples
 
 %.cmi: %.mli
 	@echo 'Compiling $@ (interface)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package "$(PACKAGES)" -c $<
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES)' -c $<
 
 %.cmx %.cmt: %.ml
 	@echo 'Compiling $@'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package "$(PACKAGES)" -c $<
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES)' -c $<
 
 %.ml: %.mlo
 	@echo "Preprocessing $@"
@@ -92,7 +92,7 @@ dep:
 	@$(MAKE) .depend
 
 .depend: $(SOURCES)
-	@$(OCAMLDEP) -native -I src -package "$(PACKAGES)" $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
+	@$(OCAMLDEP) -native -I src -package '$(PACKAGES)' $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
 
 include .depend
 

@@ -1,5 +1,4 @@
-(* vim: ft=ocaml
- * This is a (de)serializer for an external format where all values are
+(* This is a (de)serializer for an external format where all values are
  * encoded as human readable s-expressions, and are internally represented
  * as regular OCaml values. *)
 open Batteries
