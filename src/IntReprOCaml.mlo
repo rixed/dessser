@@ -48,10 +48,12 @@ type u8v_ = u8v
   let one = .< MOD.one >. \
   let to_u8v n = .< MOD.to_uint8 .~n >. \
   let of_u8v n = .< MOD.of_uint8 .~n >. \
-  let eq n m = .< MOD.compare .~n .~m = 0 >. \
-  let ne n m = .< MOD.compare .~n .~m <> 0 >. \
-  let ge n m = .< MOD.compare .~n .~m >= 0 >. \
-  let gt n m = .< MOD.compare .~n .~m > 0 >. \
+  (* Rely on proper implementation of the custom comparators of the generic \
+   * comparison, that the compiler knows how to optimise in many cases:  *) \
+  let eq n m = .< .~n = .~m >. \
+  let ne n m = .< .~n <> .~m >. \
+  let ge n m = .< .~n >= .~m >. \
+  let gt n m = .< .~n > .~m >. \
   let add n m = .< MOD.add .~n .~m >. \
   let sub n m = .< MOD.sub .~n .~m >. \
   let mul n m = .< MOD.mul .~n .~m >. \
