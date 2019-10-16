@@ -84,7 +84,8 @@ LIBBERSERDES_SOURCES = \
 	src/DevNull.ml
 
 EXAMPLES_SOURCES = \
-	examples/direct_hard_coded.ml
+	examples/direct_hard_coded.ml \
+	examples/manual_codegen.ml
 
 TESTONLY_SOURCES =
 
@@ -130,6 +131,10 @@ examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
 examples/direct_hard_coded.byte: src/dessert.cma examples/direct_hard_coded.ml
 	$(OCAMLC) $(OCAMLCFLAGS) -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
 
+# Compile another exxperiment
+
+examples/manual_codegen.opt: src/Code.cmx examples/manual_codegen.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 # Generated sources
 
@@ -179,12 +184,11 @@ reinstall: uninstall install
 
 clean:
 	@echo 'Cleaning'
-	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o
+	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o src/*.opt src/*.byte
+	@$(RM) src/*.cmx src/*.cmo src/*.cmxa src/*.cma src/*.cmxs src/*.cmi src/*.a
+	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
+	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
 	@$(RM) *.opt perf.data* gmon.out
-	@$(RM) src/*.cmx src/*.cmxa src/*.cmxs src/*.cmi src/*.a
-	@$(RM) src/oUnit-anon.cache src/qtest.targets.log
-	@$(RM) .depend src/*.opt src/*.byte
-	@$(RM) src/dessert.cmxa
 	@$(RM) src/IntRepr.ml src/IntReprOCaml.ml
 
 distclean: clean
