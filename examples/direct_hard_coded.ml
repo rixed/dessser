@@ -14,16 +14,38 @@ open Batteries
 let () =
   let _ = SerDataBytes0.make_buffer 0 in
   let _ = Stdint.Uint8.of_int 0 in
+  let _ = BatOption.may ignore None in
   ()
 
 module SerData = SerDataBytes
-module Desser = Dessert.DesSer (RowBinary.Des) (DevNull.Ser)
+module Desser = Dessert.DesSer (RowBinary.Des) (SExpr.Ser (*DevNull.Ser*))
 
-let parse_user_expr typ user_expr =
-  let src = SerData.of_string .<user_expr>. in
+(*
+module IRConverter =
+struct
+  open OffshoringIR
+  include DefaultConv
+
+  let id_conv pathname varname =
+    Format.printf "id_conv %s %s@." pathname varname ;
+    match pathname, varname with
+    | "SerDataBytes0", "peek_byte" ->
+        "foobar"
+    | _ ->
+        id_conv pathname varname
+end
+*)
+let parse_user_expr typ =
   let c = Desser.desser typ in
   Format.printf "OCaml code to print the value: %a@."
     Codelib.print_code c ;
+(*  (* Try offshoring: *)
+  (match OffshoringIR.(offshore (module IRConverter)) c with
+  | exception e ->
+      Format.printf "Cannot offshore: %s@."
+        (Printexc.to_string e)
+  | _ ->
+      Format.printf "Could offshore just fine.@.") *)
   let c =
     .<
       let rec loop_tuples src =
@@ -33,7 +55,11 @@ let parse_user_expr typ user_expr =
           SerDataBytes0.print dst ;
           loop_tuples src
         ) in
-      loop_tuples .~src
+      Printf.printf "Reading data...\n%!" ;
+      let user_expr = IO.read_all stdin in
+      let src = SerDataBytes0.of_string user_expr in
+      Printf.printf "starting...\n%!" ;
+      loop_tuples src
     >. in
   Runnative.run c
 
@@ -48,10 +74,6 @@ let () =
   Runnative.add_search_path "src" ;
   Runnative.add_search_path (search_path_of "batteries") ;
   Runnative.add_search_path (search_path_of "stdint") ;
-
-  let user_expr = IO.read_all stdin in
-  Printf.printf "Pretty-printing %d bytes of input...\n%!"
-    (String.length user_expr) ;
 
   let typ =
     let open Dessert in
@@ -98,6 +120,6 @@ let () =
     |]))
   in
   try
-    parse_user_expr typ user_expr
+    parse_user_expr typ
   with Dynlink.Error e ->
     Format.printf "Linking error: %s@." (Dynlink.error_message e)

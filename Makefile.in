@@ -4,12 +4,14 @@ VERSION = @PACKAGE_VERSION@
 
 OCAMLFIND_COMMANDS = ocamlc=metaocamlc ocamlopt=metaocamlopt
 OCAMLOPT = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
+OCAMLC   = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlc
 OCAMLDEP = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
 CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
 
 OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
+OCAMLCFLAGS =   @OCAMLCFLAGS@   -I src $(WARNS)
 
 ifdef NDEBUG
 OCAMLOPTFLAGS += -noassert -O2
@@ -17,16 +19,18 @@ else
 OCAMLOPTFLAGS += -g
 endif
 
-META_REQUIRES = \
-	findlib batteries stdint
-
 PACKAGES = \
 	batteries stdint
 
+META_REQUIRES = \
+	findlib $(PACKAGES)
+
 INSTALLED_LIB = \
 	src/dessert.cmxa \
+	src/dessert.cma \
 	$(filter %.cmi, $(LIBBERSERDES_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBBERSERDES_SOURCES:.ml=.cmx))
+	$(filter %.cmx, $(LIBBERSERDES_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBBERSERDES_SOURCES:.ml=.cmo))
 
 INSTALLED = $(INSTALLED_LIB) META
 
@@ -38,7 +42,7 @@ all: $(INSTALLED) examples
 
 # Generic rules
 
-.SUFFIXES: .ml .mli .mlo .cmi .cmx .cmxs .cmt .html .adoc
+.SUFFIXES: .ml .mli .mlo .cmi .cmx .cmo .cmt .html .adoc
 .PHONY: \
   clean distclean all dep doc examples \
   check unit-check \
@@ -51,6 +55,10 @@ all: $(INSTALLED) examples
 %.cmx %.cmt: %.ml
 	@echo 'Compiling $@'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES)' -c $<
+
+%.cmo: %.ml
+	@echo 'Compiling $@'
+	$(OCAMLC) $(OCAMLCFLAGS) -package '$(PACKAGES)' -c $<
 
 %.ml: %.mlo
 	@echo "Preprocessing $@"
@@ -100,8 +108,12 @@ include .depend
 # Compile dessert lib
 
 src/dessert.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
-	@echo 'Linking runtime library $@'
+	@echo 'Linking runtime library $@ (native)'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -a $(filter %.cmx, $^) -o $@
+
+src/dessert.cma: $(LIBBERSERDES_SOURCES:.ml=.cmo)
+	@echo 'Linking runtime library $@ (bytecode)'
+	$(OCAMLC) $(OCAMLCFLAGS) -a $(filter %.cmo, $^) -o $@
 
 src/dessert.a: src/dessert.cmxa
 
@@ -113,7 +125,11 @@ src/IntRepr.ml: src/IntReprOCaml.ml
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
 examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' lifts.cmx $^ -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
+
+examples/direct_hard_coded.byte: src/dessert.cma examples/direct_hard_coded.ml
+	$(OCAMLC) $(OCAMLCFLAGS) -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
+
 
 # Generated sources
 
@@ -122,6 +138,7 @@ META:
 	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
 	@echo 'archive(native) = "dessert.cmxa"' >> $@
+	@echo 'archive(byte) = "dessert.cma"' >> $@
 	@echo 'requires = "$(META_REQUIRES)"' >> $@
 
 # Tests

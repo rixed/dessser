@@ -1,7 +1,8 @@
 AC_INIT(dessert, 0.0.1)
 m4_include([m4/ocaml.m4])
 
-AC_ARG_VAR(OCAMLOPTFLAGS, [Additional flags to pass to the ocaml compiler])
+AC_ARG_VAR(OCAMLOPTFLAGS, [Additional flags to pass to the ocaml native compiler])
+AC_ARG_VAR(OCAMLCFLAGS, [Additional flags to pass to the ocaml bytecode compiler])
 
 AC_PROG_OCAML
 AS_IF(
