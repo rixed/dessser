@@ -136,7 +136,7 @@ struct
 
   let du128 = .< fun p -> .~(u128 .<p>.) >.
 
-  (* Items of a tuples a just concatenated together: *)
+  (* Items of a tuples are just concatenated together: *)
   let tup_opn _typs pc = pc
   let tup_cls _typs pc = pc
   let tup_sep _typs _n pc = pc

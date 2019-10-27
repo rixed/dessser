@@ -82,7 +82,7 @@ let () =
     (*TTup [| TBool ; TI8 |]*)
     (*TTup [| TBool ; TI8 ; TVec (3, TI8) |]*)
     let nullable = true in
-    Type.(make  (TTup [|
+    Type.(make (TTup [|
       make TString ;
       make TU64 ;
       make TU64 ;
