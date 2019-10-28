@@ -26,13 +26,12 @@ META_REQUIRES = \
 	findlib $(PACKAGES)
 
 INSTALLED_LIB = \
-	ber/dessert.cmxa \
-	ber/dessert.cma \
-	direct/dessert.cmxa \
-	direct/dessert.cma \
-	$(filter %.cmi, $(LIBBERDESSERT_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBBERDESSERT_SOURCES:.ml=.cmx)) \
-	$(filter %.cmo, $(LIBBERDESSERT_SOURCES:.ml=.cmo))
+	dessert.cmxa \
+	dessert.cma \
+	dessert.a \
+	$(filter %.cmi, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmo))
 
 INSTALLED = $(INSTALLED_LIB) META
 
@@ -142,6 +141,17 @@ direct/dessert.cma: $(LIBDIRECTDESSERT_SOURCES:.ml=.cmo)
 
 direct/dessert.a: direct/dessert.cmxa
 
+INSTALLED_IMPL = direct
+
+dessert.cmxa: $(INSTALLED_IMPL)/dessert.cmxa
+	@ln $< $@
+
+dessert.cma: $(INSTALLED_IMPL)/dessert.cma
+	@ln $< $@
+
+dessert.a: $(INSTALLED_IMPL)/dessert.a
+	@ln $< $@
+
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
@@ -167,13 +177,17 @@ META:
 	@echo 'archive(byte) = "dessert.cma"' >> $@
 	@echo 'requires = "$(META_REQUIRES)"' >> $@
 
+# Tests
+
+check:
+
 # Installation
 
 install: $(INSTALLED)
 	ocamlfind install dessert $(INSTALLED_LIB) META
 
-uninstall: uninstall-bundle
-	@ocamlfind remove dessert
+uninstall:
+	ocamlfind remove dessert
 
 reinstall: uninstall install
 

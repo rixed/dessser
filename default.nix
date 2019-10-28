@@ -17,7 +17,6 @@ let
         ber_metaocaml
         ocamlPackages_ber.findlib
         ocamlPackages_ber.ocamlbuild
-        ocamlPackages_ber.qtest
       ];
       propagatedBuildInputs = [ ocamlPackages_ber.num ];
       createFindlibDestdir = true;
@@ -34,7 +33,6 @@ pkgs.mkShell {
     batteries_master
     ocamlPackages_ber.findlib
     ocamlPackages_ber.stdint
-    ocamlPackages_ber.qtest
   ];
   # I like to know this to customize prompts etc:
   shellHook = ''
