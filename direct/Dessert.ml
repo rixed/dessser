@@ -120,7 +120,6 @@ module Identifier :
     val oWord_of_any : 'a t -> [`OWord] t
     val bytes_of_any : 'a t -> [`Bytes] t
 
-    val to_string : 'a t -> string
     val to_any : 'a t -> [`Any] t
     val of_any : Types.structure -> [`Any] t -> 'a t
 
@@ -193,7 +192,6 @@ struct
   let oWord_of_any s = s
   let bytes_of_any s = s
 
-  let to_string s = s
   let to_any s = s
   let of_any structure s =
     let open Types in

@@ -120,7 +120,7 @@ let print_function0 oc out_typ p =
       Identifier.print res_id in
   oc.code <- cur_code ;
   oc.indent <- cur_indent ;
-  oc.funs <- (Identifier.to_string fun_id, str) :: oc.funs ;
+  oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
 let print_function1 oc out_typ in_typ0 p =
@@ -146,7 +146,7 @@ let print_function1 oc out_typ in_typ0 p =
       Identifier.print res_id in
   oc.code <- cur_code ;
   oc.indent <- cur_indent ;
-  oc.funs <- (Identifier.to_string fun_id, str) :: oc.funs ;
+  oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
 let print_function2 oc out_typ in_typ0 in_typ1 p =
@@ -176,7 +176,7 @@ let print_function2 oc out_typ in_typ0 in_typ1 p =
       Identifier.print res_id in
   oc.code <- cur_code ;
   oc.indent <- cur_indent ;
-  oc.funs <- (Identifier.to_string fun_id, str) :: oc.funs ;
+  oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
 (* All operations create a new object (and return its identifier),
