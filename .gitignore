@@ -41,5 +41,7 @@ opam
 *.trace
 tmp
 *.xcodeproj
-src/IntReprOCaml.ml
-src/IntRepr.ml
+ber/IntReprOCaml.ml
+ber/IntRepr.ml
+*.gch
+examples/rowbinary2sexpr

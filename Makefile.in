@@ -10,8 +10,8 @@ CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
 
-OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ -I src $(WARNS) -annot
-OCAMLCFLAGS =   @OCAMLCFLAGS@   -I src $(WARNS)
+OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ $(WARNS) -annot
+OCAMLCFLAGS =   @OCAMLCFLAGS@   $(WARNS)
 
 ifdef NDEBUG
 OCAMLOPTFLAGS += -noassert -O2
@@ -26,11 +26,13 @@ META_REQUIRES = \
 	findlib $(PACKAGES)
 
 INSTALLED_LIB = \
-	src/dessert.cmxa \
-	src/dessert.cma \
-	$(filter %.cmi, $(LIBBERSERDES_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBBERSERDES_SOURCES:.ml=.cmx)) \
-	$(filter %.cmo, $(LIBBERSERDES_SOURCES:.ml=.cmo))
+	ber/dessert.cmxa \
+	ber/dessert.cma \
+	direct/dessert.cmxa \
+	direct/dessert.cma \
+	$(filter %.cmi, $(LIBBERDESSERT_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBBERDESSERT_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBBERDESSERT_SOURCES:.ml=.cmo))
 
 INSTALLED = $(INSTALLED_LIB) META
 
@@ -50,15 +52,15 @@ all: $(INSTALLED) examples
 
 %.cmi: %.mli
 	@echo 'Compiling $@ (interface)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES)' -c $<
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I $(dir $@) -package '$(PACKAGES)' -c $<
 
 %.cmx %.cmt: %.ml
 	@echo 'Compiling $@'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -package '$(PACKAGES)' -c $<
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I $(dir $@) -package '$(PACKAGES)' -c $<
 
 %.cmo: %.ml
 	@echo 'Compiling $@'
-	$(OCAMLC) $(OCAMLCFLAGS) -package '$(PACKAGES)' -c $<
+	$(OCAMLC) $(OCAMLCFLAGS) -I $(dir $@) -package '$(PACKAGES)' -c $<
 
 %.ml: %.mlo
 	@echo "Preprocessing $@"
@@ -72,16 +74,23 @@ all: $(INSTALLED) examples
 
 doc:
 
-LIBBERSERDES_SOURCES = \
-	src/Helpers.ml \
-	src/MyLifts.ml \
-	src/SerDataBytes0.ml \
-	src/SerDataBytes.ml \
-	src/IntRepr.ml \
-	src/Dessert.ml \
-	src/SExpr.ml \
-	src/RowBinary.ml \
-	src/DevNull.ml
+LIBBERDESSERT_SOURCES = \
+	ber/Helpers.ml \
+	ber/MyLifts.ml \
+	ber/SerDataBytes0.ml \
+	ber/SerDataBytes.ml \
+	ber/IntRepr.ml \
+	ber/Dessert.ml \
+	ber/SExpr.ml \
+	ber/RowBinary.ml \
+	ber/DevNull.ml
+
+LIBDIRECTDESSERT_SOURCES = \
+	direct/Dessert.ml \
+	direct/SExpr.ml \
+	direct/RowBinary.ml \
+	direct/DevNull.ml \
+	direct/BackEndCPP.ml
 
 EXAMPLES_SOURCES = \
 	examples/direct_hard_coded.ml \
@@ -90,7 +99,8 @@ EXAMPLES_SOURCES = \
 TESTONLY_SOURCES =
 
 SOURCES = $(sort \
-	$(LIBBERSERDES_SOURCES) \
+	$(LIBBERDESSERT_SOURCES) \
+	$(LIBDIRECTDESSERT_SOURCES) \
 	$(EXAMPLES_SOURCES) \
 	$(TESTONLY_SOURCES) \
 )
@@ -102,39 +112,50 @@ dep:
 	@$(MAKE) .depend
 
 .depend: $(SOURCES)
-	@$(OCAMLDEP) -native -I src -package '$(PACKAGES)' $(filter %.ml, $(SOURCES)) $(filter %.mli, $(SOURCES)) > $@
+	@$(OCAMLDEP) -I ber -package '$(PACKAGES)' $(filter %.ml, $(LIBBERDESSERT_SOURCES)) $(filter %.mli, $(LIBBERDESSERT_SOURCES)) > $@
+	@$(OCAMLDEP) -I direct -package '$(PACKAGES)' $(filter %.ml, $(LIBDIRECTDESSERT_SOURCES)) $(filter %.mli, $(LIBDIRECTDESSERT_SOURCES)) >> $@
 
 include .depend
 
 # Compile dessert lib
 
-src/dessert.cmxa: $(LIBBERSERDES_SOURCES:.ml=.cmx)
+ber/dessert.cmxa: $(LIBBERDESSERT_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@ (native)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -a $(filter %.cmx, $^) -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -a $(filter %.cmx, $^) -o $@
 
-src/dessert.cma: $(LIBBERSERDES_SOURCES:.ml=.cmo)
+ber/dessert.cma: $(LIBBERDESSERT_SOURCES:.ml=.cmo)
 	@echo 'Linking runtime library $@ (bytecode)'
-	$(OCAMLC) $(OCAMLCFLAGS) -a $(filter %.cmo, $^) -o $@
+	$(OCAMLC) $(OCAMLCFLAGS) -I ber -a $(filter %.cmo, $^) -o $@
 
-src/dessert.a: src/dessert.cmxa
+ber/dessert.a: ber/dessert.cmxa
 
-src/IntRepr.ml: src/IntReprOCaml.ml
+ber/IntRepr.ml: ber/IntReprOCaml.ml
 	ln -f $< $@
+
+direct/dessert.cmxa: $(LIBDIRECTDESSERT_SOURCES:.ml=.cmx)
+	@echo 'Linking runtime library $@ (native)'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -a $(filter %.cmx, $^) -o $@
+
+direct/dessert.cma: $(LIBDIRECTDESSERT_SOURCES:.ml=.cmo)
+	@echo 'Linking runtime library $@ (bytecode)'
+	$(OCAMLC) $(OCAMLCFLAGS) -I direct -a $(filter %.cmo, $^) -o $@
+
+direct/dessert.a: direct/dessert.cmxa
 
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
-examples/direct_hard_coded.opt: src/dessert.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
+examples/direct_hard_coded.opt: ber/dessert.cmxa examples/direct_hard_coded.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -linkpkg -package '$(PACKAGES)' $^ -o $@
 
-examples/direct_hard_coded.byte: src/dessert.cma examples/direct_hard_coded.ml
-	$(OCAMLC) $(OCAMLCFLAGS) -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
+examples/direct_hard_coded.byte: ber/dessert.cma examples/direct_hard_coded.ml
+	$(OCAMLC) $(OCAMLCFLAGS) -I ber -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
 
 # Compile another exxperiment
 
-examples/manual_codegen.opt: src/Code.cmx examples/manual_codegen.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package '$(PACKAGES)' $^ -o $@
+examples/manual_codegen.opt: direct/dessert.cmxa examples/manual_codegen.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 # Generated sources
 
@@ -145,28 +166,6 @@ META:
 	@echo 'archive(native) = "dessert.cmxa"' >> $@
 	@echo 'archive(byte) = "dessert.cma"' >> $@
 	@echo 'requires = "$(META_REQUIRES)"' >> $@
-
-# Tests
-
-TESTABLE_SOURCES =
-
-# For the actual command line building all_tests.opt:
-LINKED_FOR_TESTS =
-
-src/all_tests.ml: $(TESTABLE_SOURCES)
-	@echo 'Generating unit tests into $@'
-	$(QTEST) --shuffle -o $@ extract $^
-
-all_tests.opt: \
-		$(LINKED_FOR_TESTS:.ml=.cmx) src/all_tests.ml
-	@echo 'Building unit tests into $@'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package qcheck $(filter %.cmx, $^) $(filter %.a, $^) $(filter %.ml, $^) -o $@
-
-check: unit-check
-
-unit-check: all_tests.opt
-	@echo 'Running unit tests...'
-	@TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
 
 # Installation
 
@@ -184,12 +183,14 @@ reinstall: uninstall install
 
 clean:
 	@echo 'Cleaning'
-	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o src/*.opt src/*.byte
-	@$(RM) src/*.cmx src/*.cmo src/*.cmxa src/*.cma src/*.cmxs src/*.cmi src/*.a
+	@$(RM) ber/*.s ber/*.annot ber/*.cmt ber/*.cmti ber/*.o ber/*.opt ber/*.byte
+	@$(RM) ber/*.cmx ber/*.cmo ber/*.cmxa ber/*.cma ber/*.cmxs ber/*.cmi ber/*.a
+	@$(RM) direct/*.s direct/*.annot direct/*.cmt direct/*.cmti direct/*.o direct/*.opt direct/*.byte
+	@$(RM) direct/*.cmx direct/*.cmo direct/*.cmxa direct/*.cma direct/*.cmxs direct/*.cmi direct/*.a
 	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
 	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
 	@$(RM) *.opt perf.data* gmon.out
-	@$(RM) src/IntRepr.ml src/IntReprOCaml.ml
+	@$(RM) ber/IntRepr.ml ber/IntReprOCaml.ml
 
 distclean: clean
 	@echo 'Cleaning all build files'
