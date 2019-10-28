@@ -9,7 +9,7 @@ struct PtrPair {
   Pointer src;
   Pointer dst;
 };
-extern PtrPair func_0(Pointer src, Pointer dst);
+extern PtrPair func2_0(Pointer src, Pointer dst);
 
 static std::string readWholeFile(std::string const fname)
 {
@@ -29,7 +29,7 @@ int main(int numArgs, char **args)
     Size outSz(1024);
     Pointer dst(outSz);
 
-    PtrPair ptrs = func_0(src, dst);
+    PtrPair ptrs = func2_0(src, dst);
 
     // Print serialized:
     assert(ptrs.dst.offset < ptrs.dst.size-1);

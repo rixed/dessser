@@ -4,8 +4,7 @@ module Ser (BE : BACKEND) : SER with module BE = BE =
 struct
   module BE = BE
 
-  type pointer = Identifier.t
-  type 'a ser = BE.output -> 'a -> pointer -> pointer
+  type 'a ser = BE.output -> 'a -> [`Pointer] id -> [`Pointer] id
 
   let sfloat oc v p = BE.ignore oc v ; p
   let sstring oc v p = BE.ignore oc v ; p

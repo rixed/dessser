@@ -6,8 +6,7 @@ struct
   module BE = BE
   module T = Types
 
-  type pointer = Identifier.t
-  type 'a des = BE.output -> pointer -> 'a * pointer
+  type 'a des = BE.output -> [`Pointer] id -> 'a * [`Pointer] id
 
   let dfloat oc p =
     let w, p = BE.read_qword oc p in
@@ -23,22 +22,25 @@ struct
         BE.U8.gt oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
       BE.print_function2 oc t_pair_u32_u8 t_pair_u32_u8 t_byte (fun oc leb_shft_tup byte ->
-        let leb = BE.tuple_get oc leb_shft_tup 0
-        and shft = BE.tuple_get oc leb_shft_tup 1 in
+        let leb = Identifier.u32_of_any (BE.tuple_get oc leb_shft_tup 0)
+        and shft = Identifier.u8_of_any (BE.tuple_get oc leb_shft_tup 1) in
         BE.make_tuple oc t_pair_u32_u8 [|
-          BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc leb) shft) byte ;
-          BE.U8.add oc shft (BE.U8.of_const_int oc 7)
+          Identifier.to_any (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc byte) shft) leb) ;
+          Identifier.to_any (BE.U8.add oc shft (BE.U8.of_const_int oc 7))
         |])
     in
     let u32_zero = BE.U32.of_const_int oc 0
     and u8_zero = BE.U8.of_const_int oc 0 in
-    let init = BE.make_tuple oc t_pair_u32_u8 [| u32_zero ; u8_zero |] in
+    let init =
+      BE.make_tuple oc t_pair_u32_u8
+        [| Identifier.to_any u32_zero ;
+           Identifier.to_any u8_zero |] in
     let leb_shft_tup, p = BE.read_while oc ~cond ~reduce init p in
     (* Still have to add the last byte: *)
     let last_b, p = BE.read_byte oc p in
-    let leb = BE.tuple_get oc leb_shft_tup 0
-    and shft = BE.tuple_get oc leb_shft_tup 1 in
-    BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc last_b) shft) leb,
+    let leb = Identifier.u32_of_any (BE.tuple_get oc leb_shft_tup 0)
+    and shft = Identifier.u8_of_any (BE.tuple_get oc leb_shft_tup 1) in
+    BE.size_of_u32 oc (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc last_b) shft) leb),
     p
 
   (* Given a list of fields * typ, generate a function that takes a pointer and

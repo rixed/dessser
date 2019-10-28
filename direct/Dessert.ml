@@ -60,61 +60,211 @@ end
  * linearising the generated code (FWIW). *)
 module Identifier :
   sig
-    type t = private string
-    val print : 'a IO.output -> t -> unit
-    val make : string -> t
-    val cat : t -> string -> t
+    type +'a t = private string
+    val print : 'a IO.output -> 'b t -> unit
+
+    val float : unit -> [`Float] t
+    val string : unit -> [`String] t
+    val bool : unit -> [`Bool] t
+    val i8 : unit -> [`I8] t
+    val u8 : unit -> [`U8] t
+    val i16 : unit -> [`I16] t
+    val u16 : unit -> [`U16] t
+    val u32 : unit -> [`U32] t
+    val i32 : unit -> [`I32] t
+    val u64 : unit -> [`U64] t
+    val i64 : unit -> [`I64] t
+    val u128 : unit -> [`U128] t
+    val i128 : unit -> [`I128] t
+    val tuple : unit -> [`Tuple] t
+    val pointer : unit -> [`Pointer] t
+    val size : unit -> [`Size] t
+    val bit : unit -> [`Bit] t
+    val byte : unit -> [`Byte] t
+    val word : unit -> [`Word] t
+    val dword : unit -> [`DWord] t
+    val qword : unit -> [`QWord] t
+    val oword : unit -> [`OWord] t
+    val bytes : unit -> [`Bytes] t
+    val pair : unit -> 'a t
+    val auto : unit -> 'a t
+    (* FunctionX * param1 * param2 * ... * returned type *)
+    val func0 : unit -> ([`Function0] * 'a) t
+    val func1 : 'a t -> 'b t -> ([`Function1] * 'a * 'b) t
+    val func2 : unit -> ([`Function2] * 'a * 'b * 'c) t
+    val func3 : unit -> ([`Function3] * 'a * 'b * 'c * 'd) t
+    val param : int -> unit -> 'a t
+
+    val float_of_any : 'a t -> [`Float] t
+    val string_of_any : 'a t -> [`String] t
+    val bool_of_any : 'a t -> [`Bool] t
+    val u8_of_any : 'a t -> [`U8] t
+    val u16_of_any : 'a t -> [`U16] t
+    val u32_of_any : 'a t -> [`U32] t
+    val u64_of_any : 'a t -> [`U64] t
+    val u128_of_any : 'a t -> [`U12] t
+    val i8_of_any : 'a t -> [`I8] t
+    val i16_of_any : 'a t -> [`I16] t
+    val i32_of_any : 'a t -> [`I32] t
+    val i64_of_any : 'a t -> [`I64] t
+    val i128_of_any : 'a t -> [`I128] t
+    val vec_of_any : 'a t -> [`Vec] t
+    val tup_of_any : 'a t -> [`Tup] t
+    val pointer_of_any : 'a t -> [`Pointer] t
+    val size_of_any : 'a t -> [`Size] t
+    val bit_of_any : 'a t -> [`Bit] t
+    val byte_of_any : 'a t -> [`Byte] t
+    val word_of_any : 'a t -> [`Word] t
+    val dWord_of_any : 'a t -> [`DWord] t
+    val qWord_of_any : 'a t -> [`QWord] t
+    val oWord_of_any : 'a t -> [`OWord] t
+    val bytes_of_any : 'a t -> [`Bytes] t
+
+    val to_string : 'a t -> string
+    val to_any : 'a t -> [`Any] t
+    val of_any : Types.structure -> [`Any] t -> 'a t
+
+    val cat : 'a t -> string -> 'a t
   end =
 struct
-  type t = string
+  type 'a t = string
 
-  let print = String.print
-
-  let make =
+  let make pref =
     let seq = ref (-1) in
-    fun pref ->
+    fun () ->
       incr seq ;
       pref ^ "_" ^ string_of_int !seq
+
+  let float = make "flt"
+  let string = make "str"
+  let bool = make "bool"
+  let i8 = make "i8"
+  let u8 = make "u8"
+  let i16 = make "i16"
+  let u16 = make "u16"
+  let u32 = make "u32"
+  let i32 = make "i32"
+  let u64 = make "u64"
+  let i64 = make "i64"
+  let u128 = make "u128"
+  let i128 = make "i128"
+  let tuple = make "tup"
+  let pointer = make "ptr"
+  let size = make "sz"
+  let bit = make "bit"
+  let byte = make "byte"
+  let word = make "word"
+  let dword = make "dword"
+  let qword = make "qword"
+  let oword = make "oword"
+  let bytes = make "bytes"
+  let pair = make "pair"
+  let auto = make "auto"
+  let func0 = make "func0"
+  let func1 : 'a t -> 'a t -> ([`Function1] * 'a * 'b) t =
+    let maker = make "func1" in
+    fun _ _ -> maker ()
+  let func2 = make "func2"
+  let func3 = make "func3"
+  let param n = make ("param"^ string_of_int n)
+
+  let float_of_any s = s
+  let string_of_any s = s
+  let bool_of_any s = s
+  let u8_of_any s = s
+  let u16_of_any s = s
+  let u32_of_any s = s
+  let u64_of_any s = s
+  let u128_of_any s = s
+  let i8_of_any s = s
+  let i16_of_any s = s
+  let i32_of_any s = s
+  let i64_of_any s = s
+  let i128_of_any s = s
+  let vec_of_any s = s
+  let tup_of_any s = s
+  let pointer_of_any s = s
+  let size_of_any s = s
+  let bit_of_any s = s
+  let byte_of_any s = s
+  let word_of_any s = s
+  let dWord_of_any s = s
+  let qWord_of_any s = s
+  let oWord_of_any s = s
+  let bytes_of_any s = s
+
+  let to_string s = s
+  let to_any s = s
+  let of_any structure s =
+    let open Types in
+    match structure with
+    | TFloat -> float_of_any s
+    | TString -> string_of_any s
+    | TBool -> bool_of_any s
+    | TU8 -> u8_of_any s
+    | TU16 -> u16_of_any s
+    | TU32 -> u32_of_any s
+    | TU64 -> u64_of_any s
+    | TU128 -> u128_of_any s
+    | TI8 -> i8_of_any s
+    | TI16 -> i16_of_any s
+    | TI32 -> i32_of_any s
+    | TI64 -> i64_of_any s
+    | TI128 -> i128_of_any s
+    | TVec _ -> vec_of_any s
+    | TTup _ -> tup_of_any s
+    | TPointer -> pointer_of_any s
+    | TSize -> size_of_any s
+    | TBit -> bit_of_any s
+    | TByte -> byte_of_any s
+    | TWord -> word_of_any s
+    | TDWord -> dWord_of_any s
+    | TQWord -> qWord_of_any s
+    | TOWord -> oWord_of_any s
+    | TBytes -> bytes_of_any s
+
+  let print : 'a BatIO.output -> 'b t -> unit = String.print
 
   let cat = (^)
 end
 
-type id = Identifier.t
+type 'a id = 'a Identifier.t
 
 module type NUMERIC =
 sig
   type output
-  val eq : output -> id -> id -> id
-  val ne : output -> id -> id -> id
-  val gt : output -> id -> id -> id
-  val ge : output -> id -> id -> id
-  val add : output -> id -> id -> id
-  val sub : output -> id -> id -> id
-  val mul : output -> id -> id -> id
-  val div : output -> id -> id -> id
+  type mid
+  val eq : output -> mid -> mid -> [`Bool] id
+  val ne : output -> mid -> mid -> [`Bool] id
+  val gt : output -> mid -> mid -> [`Bool] id
+  val ge : output -> mid -> mid -> [`Bool] id
+  val add : output -> mid -> mid -> mid
+  val sub : output -> mid -> mid -> mid
+  val mul : output -> mid -> mid -> mid
+  val div : output -> mid -> mid -> mid
 
-  val of_const_int : output -> int -> id
-  val of_byte : output -> id -> id
-  val to_byte : output -> id -> id
-  val of_word : output -> id -> id
-  val to_word : output -> id -> id
-  val of_dword : output -> id -> id
-  val to_dword : output -> id -> id
-  val of_qword : output -> id -> id
-  val to_qword : output -> id -> id
-  val of_oword : output -> id -> id
-  val to_oword : output -> id -> id
-  val of_string : output -> id -> id
-  val to_string : output -> id -> id
+  val of_const_int : output -> int -> mid
+  val of_byte : output -> [`Byte] id -> mid
+  val to_byte : output -> mid -> [`Byte] id
+  val of_word : output -> [`Word] id -> mid
+  val to_word : output -> mid -> [`Word] id
+  val of_dword : output -> [`DWord] id -> mid
+  val to_dword : output -> mid -> [`DWord] id
+  val of_qword : output -> [`QWord] id -> mid
+  val to_qword : output -> mid -> [`QWord] id
+  val of_oword : output -> [`OWord] id -> mid
+  val to_oword : output -> mid -> [`OWord] id
+  val to_string : output -> mid -> [`String] id
 end
 
 module type INTEGER =
 sig
   include NUMERIC
 
-  val rem : output -> id -> id -> id
-  val shift_left : output -> id -> id -> id
-  val shift_right : output -> id -> id -> id
+  val rem : output -> mid -> mid -> mid
+  val shift_left : output -> mid -> [`U8] id -> mid
+  val shift_right : output -> mid -> [`U8] id -> mid
+  val of_string : output -> [`String] id -> mid
 end
 
 module type BACKEND =
@@ -125,301 +275,158 @@ sig
    * code proper. *)
   type output
   val make_output : unit -> output
-  val print_function0 : output -> Types.t -> (output -> id) -> id
-  val print_function1 : output -> Types.t -> Types.t -> (output -> id -> id) -> id
-  val print_function2 : output -> Types.t -> Types.t -> Types.t -> (output -> id -> id -> id) -> id
+  val print_function0 : output -> Types.t -> (output -> 'a id) -> ([`Function0] * 'a)  id
+  val print_function1 : output -> Types.t -> Types.t -> (output -> 'a id -> 'b id) -> ([`Function1] * 'a * 'b) id
+  val print_function2 : output -> Types.t -> Types.t -> Types.t -> (output -> 'a id -> 'b id -> 'c id) -> ([`Function2] * 'a * 'b * 'c) id
   val print_output : 'a IO.output -> output -> unit
 
-  val ignore : output -> id -> unit
+  val ignore : output -> 'a id -> unit
 
-  val dword_eq : output -> id -> id -> id
-  val size_ge : output -> id -> id -> id
-  val of_string : output -> string -> id
-  val bytes_append : output -> id -> id -> id
-  val make_bytes : output -> id
-  val u8_of_byte : output -> id -> id
-  val byte_of_u8 : output -> id -> id
-  val test_bit : output -> id -> id -> id
-  val set_bit : output -> id -> id -> id -> unit
-  val read_byte : output -> id -> (id * id)
-  val read_word : output -> ?be:bool -> id -> (id * id)
-  val read_dword : output -> ?be:bool -> id -> (id * id)
-  val read_qword : output -> ?be:bool -> id -> (id * id)
-  val read_oword : output -> ?be:bool -> id -> (id * id)
-  val read_bytes : output -> id -> id -> (id * id)
-  val write_byte : output -> id -> id -> id
-  val write_word : output -> ?be:bool -> id -> id -> id
-  val write_dword : output -> ?be:bool -> id -> id -> id
-  val write_qword : output -> ?be:bool -> id -> id -> id
-  val write_oword : output -> ?be:bool -> id -> id -> id
-  val write_bytes : output -> id -> id -> id
-  val peek_byte : output -> ?at:id -> id -> id
-  val peek_word : output -> ?be:bool -> ?at:id -> id -> id
-  val peek_dword : output -> ?be:bool -> ?at:id -> id -> id
-  val peek_qword : output -> ?be:bool -> ?at:id -> id -> id
-  val peek_oword : output -> ?be:bool -> ?at:id -> id -> id
-  val poke_byte : output -> id -> id -> unit
+  val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
+  val size_ge : output -> [`Size] id -> [`Size] id -> [`Bool] id
+  val bytes_append : output -> [`Bytes] id -> [`Bytes] id -> [`Bytes] id
+  val make_bytes : output -> [`Bytes] id
+  val u8_of_byte : output -> [`Byte] id -> [`U8] id
+  val byte_of_u8 : output -> [`U8] id -> [`Byte] id
+  val test_bit : output -> [`Pointer] id -> [`U8] id -> [`Bit] id
+  val set_bit : output -> [`Pointer] id -> [`U8] id -> [`Bit] id -> unit
+  val read_byte : output -> [`Pointer] id -> ([`Byte] id * [`Pointer] id)
+  val read_word : output -> ?be:bool -> [`Pointer] id -> ([`Word] id * [`Pointer] id)
+  val read_dword : output -> ?be:bool -> [`Pointer] id -> ([`DWord] id * [`Pointer] id)
+  val read_qword : output -> ?be:bool -> [`Pointer] id -> ([`QWord] id * [`Pointer] id)
+  val read_oword : output -> ?be:bool -> [`Pointer] id -> ([`OWord] id * [`Pointer] id)
+  val read_bytes : output -> [`Pointer] id -> [`Size] id -> ([`Bytes] id * [`Pointer] id)
+  val write_byte : output -> [`Pointer] id -> [`Byte] id -> [`Pointer] id
+  val write_word : output -> ?be:bool -> [`Pointer] id -> [`Word] id -> [`Pointer] id
+  val write_dword : output -> ?be:bool -> [`Pointer] id -> [`DWord] id -> [`Pointer] id
+  val write_qword : output -> ?be:bool -> [`Pointer] id -> [`QWord] id -> [`Pointer] id
+  val write_oword : output -> ?be:bool -> [`Pointer] id -> [`OWord] id -> [`Pointer] id
+  val write_bytes : output -> [`Pointer] id -> [`Bytes] id -> [`Pointer] id
+  val peek_byte : output -> ?at:[`Size] id -> [`Pointer] id -> [`Byte] id
+  val peek_word : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`Word] id
+  val peek_dword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`DWord] id
+  val peek_qword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`QWord] id
+  val peek_oword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`OWord] id
+  val poke_byte : output -> [`Pointer] id -> [`Byte] id -> unit
 
-  val pointer_add : output -> id -> id -> id
-  val pointer_sub : output -> id -> id -> id
-  val rem_size : output -> id -> id
-  val byte_of_const : output -> int -> id
-  val word_of_const : output -> int -> id
-  val dword_of_const : output -> Uint32.t -> id
-  val qword_of_const : output -> Uint64.t -> id
-  val oword_of_const : output -> Uint128.t -> id
-  val size_of_const : output -> int -> id
-  val make_pointer : output -> id -> id
-  val float_of_i8 : output -> id -> id
-  val float_of_qword : output -> id -> id
-  val bytes_of_float : output -> id -> id (* binary repr of the float *)
-  val string_of_float : output -> id -> id (* human readable *)
-  val cat_string : output -> id -> id -> id
-  val and_ : output -> id -> id -> id
-  val or_ : output -> id -> id -> id
-  val make_tuple : output -> Types.t -> id array -> id
-  val tuple_get : output -> id -> int -> id
+  val pointer_add : output -> [`Pointer] id -> [`Size] id -> [`Pointer] id
+  val pointer_sub : output -> [`Pointer] id -> [`Pointer] id -> [`Size] id
+  val rem_size : output -> [`Pointer] id -> [`Size] id
+  val byte_of_const : output -> int -> [`Byte] id
+  val word_of_const : output -> int -> [`Word] id
+  val dword_of_const : output -> Uint32.t -> [`DWord] id
+  val qword_of_const : output -> Uint64.t -> [`QWord] id
+  val oword_of_const : output -> Uint128.t -> [`OWord] id
+  val size_of_const : output -> int -> [`Size] id
+  val size_of_u32 : output -> [`U32] id -> [`Size] id
+  val make_pointer : output -> [`Size] id -> [`Pointer] id
+  (* Build a pointer from a const string *)
+  val of_string : output -> string -> [`Pointer] id
+  val float_of_i8 : output -> [`I8] id -> [`Float] id
+  val float_of_qword : output -> [`QWord] id -> [`Float] id
+  val bytes_of_float : output -> [`Float] id -> [`Bytes] id (* binary repr of the float *)
+  val string_of_float : output -> [`Float] id -> [`String] id (* human readable *)
+  val cat_string : output -> [`String] id -> [`String] id -> [`String] id
 
-  val length_of_string : output -> id -> id
-  val string_of_bytes : output -> id -> id
-  val bytes_of_string : output -> id -> id
+  (* Cast those from/into a common TupItem type? *)
+  val make_tuple : output -> Types.t -> [`Any] id array -> [`Tuple] id
+  val tuple_get : output -> [`Tuple] id -> int -> [`Any] id
 
-  val bool_of_const : output -> bool -> id
-  val bool_and : output -> id -> id -> id
-  val bool_or : output -> id -> id -> id
-  val bool_not : output -> id -> id
+  val length_of_string : output -> [`String] id -> [`Size] id
+  val string_of_bytes : output -> [`Bytes] id -> [`String] id
+  val bytes_of_string : output -> [`String] id -> [`Bytes] id
+
+  val string_of_const : output -> string -> [`String] id
+  val bool_of_const : output -> bool -> [`Bool] id
+  val bool_and : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
+  val bool_or : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
+  val bool_not : output -> [`Bool] id -> [`Bool] id
 
   (* [cond] must be a function from byte to bool and each alternative
    * must return an identifier. *)
   val choose :
-    output -> cond:id -> (output -> id) -> (output -> id) -> id
+    output -> cond:[`Bool] id -> (output -> 'a id) -> (output -> 'a id) -> 'a id
   (* [cond] must be a function from byte to bool.
    * [reduce] must be a function from any value and byte into any value. *)
-  val read_while : output -> cond:id -> reduce:id -> id -> id -> id * id
+  (* TODO: an id type for pair of 'a * 'b *)
+  val read_while : output -> cond:([`Function1] * [`Byte] * [`Bool]) id -> reduce:([`Function2] * 'a * [`Byte] * 'a) id -> 'a id -> [`Pointer] id -> 'a id * [`Pointer] id
   (* [cond] must be a function from byte to bool *)
-  val do_while : output -> cond:id -> loop:id -> id -> id -> id
+  val do_while : output -> cond:[`Bool] id -> loop:'a id -> 'a id -> 'a id -> 'a id
 
-  module Float : NUMERIC with type output = output
-  module U8 : INTEGER with type output = output
-  module I8 : INTEGER with type output = output
-  module U16 : INTEGER with type output = output
-  module I16 : INTEGER with type output = output
-  module U32 : INTEGER with type output = output
-  module I32 : INTEGER with type output = output
-  module U64 : INTEGER with type output = output
-  module I64 : INTEGER with type output = output
-  module U128 : INTEGER with type output = output
-  module I128 : INTEGER with type output = output
-end
-
-module Expr (BackEnd : BACKEND) =
-struct
-  module BackEnd = BackEnd
-  open BackEnd
-
-  (* Base values: *)
-  type value =
-    | VFloat of float
-    | VString of string
-    | VBool of bool
-    | VI8 of Int8.t
-    | VTuple of value array
-
-  (* Although it is possible to call directly a backend function to
-   * generate any code, it is safer to use those typed expressions.
-   * Quite verbose though, so not sure it's worth the maintenance
-   * effort. *)
-  type any_expr =
-    | PointerExpr of pointer_expr
-    | SizeExpr of size_expr
-    | FloatExpr of float_expr
-    | I8Expr of i8_expr
-    | StringExpr of string_expr
-    | BoolExpr of bool_expr
-    | TupleExpr of tuple_expr
-  (* Expressions of type pointer: *)
-  and pointer_expr =
-    | ObjPointer of id
-    | MakePointer of size_expr
-    | AddPointer of pointer_expr * size_expr
-  (* Expressions of type size: *)
-  and size_expr =
-    | ConstSize of int
-    | ObjSize of id
-    | SubPointer of pointer_expr * pointer_expr
-    | RemSize of pointer_expr
-  (* Expressions of type float: *)
-  and float_expr =
-    | ObjFloat of id
-    | AddFloat of float_expr * float_expr
-    | SubFloat of float_expr * float_expr
-    | FloatOfI8 of i8_expr
-  and i8_expr =
-    | ObjI8 of id
-    (* etc, for now let's convert everything into float *)
-  (* Expressions of type string: *)
-  and string_expr =
-    | ObjString of id
-    | Concat of string_expr * string_expr
-  (* Expressions of type bool: *)
-  and bool_expr =
-    | ObjBool of id
-    | And of bool_expr * bool_expr
-    | Or of bool_expr * bool_expr
-  and tuple_expr =
-    | ObjTuple of id * Types.t array
-    | MakeTuple of any_expr array (* Only identifiers *)
-
-  (* Each of these printer returns the id and type *)
-  let rec print_any_expr oc = function
-    | PointerExpr e -> print_pointer_expr oc e, Types.(make TPointer)
-    | SizeExpr e -> print_size_expr oc e, Types.(make TSize)
-    | FloatExpr e -> print_float_expr oc e, Types.(make TFloat)
-    | I8Expr e -> print_i8_expr oc e, Types.(make TI8)
-    | StringExpr e -> print_string_expr oc e, Types.(make TString)
-    | BoolExpr e -> print_bool_expr oc e, Types.(make TBool)
-    | TupleExpr e -> print_tuple_expr oc e
-
-  and print_pointer_expr oc = function
-    | ObjPointer t ->
-        t
-    | MakePointer s ->
-        let st = print_size_expr oc s in
-        BackEnd.make_pointer oc st
-    | AddPointer (p, s) ->
-        let pt = print_pointer_expr oc p
-        and st = print_size_expr oc s in
-        BackEnd.pointer_add oc pt st
-
-  and print_size_expr oc = function
-    | ConstSize s ->
-        BackEnd.size_of_const oc s
-    | ObjSize t ->
-        t
-    | SubPointer (p1, p2) ->
-        let p1t = print_pointer_expr oc p1
-        and p2t = print_pointer_expr oc p2 in
-        BackEnd.pointer_sub oc p1t p2t
-    | RemSize p ->
-        let pt = print_pointer_expr oc p in
-        BackEnd.rem_size oc pt
-
-  and print_float_expr oc = function
-    | ObjFloat t ->
-        t
-    | AddFloat (n1, n2) ->
-        let n1t = print_float_expr oc n1
-        and n2t = print_float_expr oc n2 in
-        BackEnd.Float.add oc n1t n2t
-    | SubFloat (n1, n2) ->
-        let n1t = print_float_expr oc n1
-        and n2t = print_float_expr oc n2 in
-        BackEnd.Float.sub oc n1t n2t
-    | FloatOfI8 n ->
-        let nt = print_i8_expr oc n in
-        BackEnd.float_of_i8 oc nt
-
-  and print_i8_expr _oc = function
-    | ObjI8 t ->
-        t
-
-  and print_string_expr oc = function
-    | ObjString t ->
-        t
-    | Concat (s1, s2) ->
-        let s1t = print_string_expr oc s1
-        and s2t = print_string_expr oc s2 in
-        BackEnd.cat_string oc s1t s2t
-
-  and print_bool_expr oc = function
-    | ObjBool t ->
-        t
-    | And (b1, b2) ->
-        let b1t = print_bool_expr oc b1
-        and b2t = print_bool_expr oc b2 in
-        BackEnd.and_ oc b1t b2t
-    | Or (b1, b2) ->
-        let b1t = print_bool_expr oc b1
-        and b2t = print_bool_expr oc b2 in
-        BackEnd.or_ oc b1t b2t
-
-  and print_tuple_expr oc = function
-    | ObjTuple (id, typs) ->
-        id, Types.(make (TTup typs))
-    | MakeTuple exprs ->
-        let fields =
-          Array.map (fun any_e ->
-            print_any_expr oc any_e
-          ) exprs in
-        let ids = Array.map fst fields in
-        let typ = Types.(make (TTup (Array.map snd fields))) in
-        BackEnd.make_tuple oc typ ids,
-        typ
+  module Float : NUMERIC with type output = output and type mid = [`Float] id
+  module U8 : INTEGER with type output = output and type mid = [`U8] id
+  module I8 : INTEGER with type output = output and type mid = [`I8] id
+  module U16 : INTEGER with type output = output and type mid = [`U16] id
+  module I16 : INTEGER with type output = output and type mid = [`I16] id
+  module U32 : INTEGER with type output = output and type mid = [`U32] id
+  module I32 : INTEGER with type output = output and type mid = [`I32] id
+  module U64 : INTEGER with type output = output and type mid = [`U64] id
+  module I64 : INTEGER with type output = output and type mid = [`I64] id
+  module U128 : INTEGER with type output = output and type mid = [`U128] id
+  module I128 : INTEGER with type output = output and type mid = [`I128] id
 end
 
 module type DES =
 sig
   module BE : BACKEND
 
-  type pointer = Identifier.t
-  type 'a des = BE.output -> pointer -> 'a * pointer
+  type 'a des = BE.output -> [`Pointer] id -> 'a * [`Pointer] id
 
-  val dfloat : Identifier.t des
-  val dstring : Identifier.t des
-  val dbool : Identifier.t des
-  val di8 : Identifier.t des
-  val di16 : Identifier.t des
-  val di32 : Identifier.t des
-  val di64 : Identifier.t des
-  val di128 : Identifier.t des
-  val du8 : Identifier.t des
-  val du16 : Identifier.t des
-  val du32 : Identifier.t des
-  val du64 : Identifier.t des
-  val du128 : Identifier.t des
+  val dfloat : [`Float] id des
+  val dstring : [`String] id des
+  val dbool : [`Bool] id des
+  val di8 : [`I8] id des
+  val di16 : [`I16] id des
+  val di32 : [`I32] id des
+  val di64 : [`I64] id des
+  val di128 : [`I128] id des
+  val du8 : [`U8] id des
+  val du16 : [`U16] id des
+  val du32 : [`U32] id des
+  val du64 : [`U64] id des
+  val du128 : [`U128] id des
 
-  val tup_opn : Types.t array -> BE.output -> pointer -> pointer
-  val tup_cls : Types.t array -> BE.output -> pointer -> pointer
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> pointer -> pointer
-  val vec_opn : int -> Types.t -> BE.output -> pointer -> pointer
-  val vec_cls : int -> Types.t -> BE.output -> pointer -> pointer
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> pointer -> pointer
+  val tup_opn : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : Types.t array -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
 
-  val is_null : Types.structure -> BE.output -> pointer -> Identifier.t
-  val dnull : BE.output -> pointer -> pointer
-  val dnotnull : BE.output -> pointer -> pointer
+  val is_null : Types.structure -> BE.output -> [`Pointer] id -> [`Bool] id
+  val dnull : BE.output -> [`Pointer] id -> [`Pointer] id
+  val dnotnull : BE.output -> [`Pointer] id -> [`Pointer] id
 end
 
 module type SER =
 sig
   module BE : BACKEND
 
-  type pointer = Identifier.t
-  type 'a ser = BE.output -> 'a -> pointer -> pointer
+  type 'a ser = BE.output -> 'a -> [`Pointer] id -> [`Pointer] id
 
-  val sfloat : Identifier.t ser
-  val sstring : Identifier.t ser
-  val sbool: Identifier.t ser
-  val si8 : Identifier.t ser
-  val si16 : Identifier.t ser
-  val si32 : Identifier.t ser
-  val si64 : Identifier.t ser
-  val si128 : Identifier.t ser
-  val su8 : Identifier.t ser
-  val su16 : Identifier.t ser
-  val su32 : Identifier.t ser
-  val su64 : Identifier.t ser
-  val su128 : Identifier.t ser
+  val sfloat : [`Float] id ser
+  val sstring : [`String] id ser
+  val sbool: [`Bool] id ser
+  val si8 : [`I8] id ser
+  val si16 : [`I16] id ser
+  val si32 : [`I32] id ser
+  val si64 : [`I64] id ser
+  val si128 : [`I128] id ser
+  val su8 : [`U8] id ser
+  val su16 : [`U16] id ser
+  val su32 : [`U32] id ser
+  val su64 : [`U64] id ser
+  val su128 : [`U128] id ser
 
-  val tup_opn : Types.t array -> BE.output -> pointer -> pointer
-  val tup_cls : Types.t array -> BE.output -> pointer -> pointer
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> pointer -> pointer
-  val vec_opn : int -> Types.t -> BE.output -> pointer -> pointer
-  val vec_cls : int -> Types.t -> BE.output -> pointer -> pointer
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> pointer -> pointer
+  val tup_opn : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : Types.t array -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
 
-  val snull : BE.output -> pointer -> pointer
-  val snotnull : BE.output -> pointer -> pointer
+  val snull : BE.output -> [`Pointer] id -> [`Pointer] id
+  val snotnull : BE.output -> [`Pointer] id -> [`Pointer] id
 end
 
 (* Many return values have the type of a pair or src*dst pointers: *)
@@ -432,7 +439,8 @@ struct
   let ds ser des oc src dst =
     let v, src = des oc src in
     let dst = ser oc v dst in
-    BE.make_tuple oc t_pair_ptrs [| src ; dst |]
+    BE.make_tuple oc t_pair_ptrs
+      [| Identifier.to_any src ; Identifier.to_any dst |]
 
   let dsfloat = ds Ser.sfloat Des.dfloat
   let dsstring = ds Ser.sstring Des.dstring
@@ -469,8 +477,8 @@ struct
           desser typ oc src dst
       ) (src, dst) typs in
     BE.make_tuple oc t_pair_ptrs [|
-      Des.tup_cls typs oc src ;
-      Ser.tup_cls typs oc dst |]
+      Identifier.to_any (Des.tup_cls typs oc src) ;
+      Identifier.to_any (Ser.tup_cls typs oc dst) |]
 
   (* This will generates a long linear code with one block per array
    * item. Maybe have a IntRepr.loop instead? *)
@@ -481,8 +489,8 @@ struct
     let rec loop src dst i =
       if i >= dim then
         BE.make_tuple oc t_pair_ptrs [|
-          Des.vec_cls dim typ oc src ;
-          Ser.vec_cls dim typ oc dst |]
+          Identifier.to_any (Des.vec_cls dim typ oc src) ;
+          Identifier.to_any (Ser.vec_cls dim typ oc dst) |]
       else if i = 0 then
         let src, dst = desser_typ src dst in
         loop src dst (i + 1)
@@ -494,8 +502,8 @@ struct
     in
     loop src dst 0
 
-  and desser : Types.t -> BE.output -> Identifier.t -> Identifier.t ->
-                 (Identifier.t * Identifier.t) = fun typ oc src dst ->
+  and desser : Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id ->
+                 ([`Pointer] id * [`Pointer] id) = fun typ oc src dst ->
     let desser_structure = function
       | Types.TFloat -> dsfloat
       | Types.TString -> dsstring
@@ -520,13 +528,14 @@ struct
         BE.choose oc ~cond
           (fun oc ->
             let s, d = dsnull oc src dst in
-            BE.make_tuple oc t_pair_ptrs [| s ; d |])
+            BE.make_tuple oc t_pair_ptrs
+              [| Identifier.to_any s ; Identifier.to_any d |])
           (fun oc ->
             let s, d = dsnotnull oc src dst in
             desser_structure typ.structure oc s d)
       else
         desser_structure typ.structure oc src dst in
     (* Returns src and dest: *)
-    BE.tuple_get oc pair 0,
-    BE.tuple_get oc pair 1
+    Identifier.pointer_of_any (BE.tuple_get oc pair 0),
+    Identifier.pointer_of_any (BE.tuple_get oc pair 1)
 end
