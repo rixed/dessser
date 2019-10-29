@@ -349,6 +349,9 @@ let rem_size oc p =
     Printf.fprintf oc "%a.remSize()"
       Identifier.print p)
 
+let bit_of_const oc b =
+  emit_bit oc (fun oc -> String.print oc (if b then "true" else "false"))
+
 let byte_of_const oc b =
   emit_byte oc (fun oc -> Int.print oc b)
 
@@ -369,6 +372,9 @@ let size_of_const oc s =
 
 let size_of_u32 oc v =
   emit_size oc (fun oc -> Identifier.print oc v)
+
+let u32_of_size oc v =
+  emit_u32 oc (fun oc -> Identifier.print oc v)
 
 let dword_eq oc w1 w2 =
   emit_bool oc (fun oc ->
@@ -487,6 +493,13 @@ let write_bytes oc p b =
     Printf.fprintf oc "%a.writeBytes(%a)"
       Identifier.print p
       Identifier.print b)
+
+let blit_bytes oc p b sz =
+  emit_pointer oc (fun oc ->
+    Printf.fprintf oc "%a.blitBytes(%a, %a)"
+      Identifier.print p
+      Identifier.print b
+      Identifier.print sz)
 
 let peek_byte oc ?at p =
   emit_byte oc (fun oc ->
@@ -725,6 +738,9 @@ let string_of_const oc s =
 
 let bool_of_const oc b =
   emit_bool oc (fun oc -> Bool.print oc b)
+
+let u8_of_bool oc b =
+  emit_u8 oc (fun oc -> Identifier.print oc b)
 
 let bool_and oc b1 b2 =
   emit_bool oc (fun oc ->

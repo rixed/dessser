@@ -301,6 +301,7 @@ sig
   val write_qword : output -> ?be:bool -> [`Pointer] id -> [`QWord] id -> [`Pointer] id
   val write_oword : output -> ?be:bool -> [`Pointer] id -> [`OWord] id -> [`Pointer] id
   val write_bytes : output -> [`Pointer] id -> [`Bytes] id -> [`Pointer] id
+  val blit_bytes : output -> [`Pointer] id -> [`Byte] id -> [`Size] id -> [`Pointer] id
   val peek_byte : output -> ?at:[`Size] id -> [`Pointer] id -> [`Byte] id
   val peek_word : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`Word] id
   val peek_dword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`DWord] id
@@ -311,6 +312,7 @@ sig
   val pointer_add : output -> [`Pointer] id -> [`Size] id -> [`Pointer] id
   val pointer_sub : output -> [`Pointer] id -> [`Pointer] id -> [`Size] id
   val rem_size : output -> [`Pointer] id -> [`Size] id
+  val bit_of_const : output -> bool -> [`Bit] id
   val byte_of_const : output -> int -> [`Byte] id
   val word_of_const : output -> int -> [`Word] id
   val dword_of_const : output -> Uint32.t -> [`DWord] id
@@ -318,6 +320,7 @@ sig
   val oword_of_const : output -> Uint128.t -> [`OWord] id
   val size_of_const : output -> int -> [`Size] id
   val size_of_u32 : output -> [`U32] id -> [`Size] id
+  val u32_of_size : output -> [`Size] id -> [`U32] id
   val make_pointer : output -> [`Size] id -> [`Pointer] id
   (* Build a pointer from a const string *)
   val of_string : output -> string -> [`Pointer] id
@@ -337,6 +340,7 @@ sig
 
   val string_of_const : output -> string -> [`String] id
   val bool_of_const : output -> bool -> [`Bool] id
+  val u8_of_bool : output -> [`Bool] id -> [`U8] id
   val bool_and : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
   val bool_or : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
   val bool_not : output -> [`Bool] id -> [`Bool] id

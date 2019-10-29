@@ -249,6 +249,13 @@ struct Pointer {
     return skip(v.size);
   }
 
+  Pointer blitBytes(Byte const b, Size const &sz)
+  {
+    assert(offset + sz <= size);
+    memset(buffer.get() + offset, b, sz);
+    return skip(sz);
+  }
+
   Size operator-(Pointer const &that)
   {
     assert(buffer == that.buffer);
