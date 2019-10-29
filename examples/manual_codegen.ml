@@ -19,7 +19,7 @@ let run_cmd cmd =
       Printf.sprintf "%s stopped by signal %d" cmd s |>
       failwith
 
-let compile_output output =
+let compile_output optim output =
   let mode = [ `create ; `excl ; `text ] in
   let fname =
     File.with_temporary_out ~mode ~suffix:".cpp" (fun oc fname ->
@@ -28,7 +28,7 @@ let compile_output output =
       fname) in
   Printf.printf "Output in %s\n%!" fname ;
   let cmd =
-    Printf.sprintf "g++ -std=c++17 -g -O3 -W -Wall -I direct %s examples/rowbinary2sexpr.cpp -o examples/rowbinary2sexpr" fname in
+    Printf.sprintf "g++ -std=c++17 -g -O%d -W -Wall -I direct %s examples/rowbinary2sexpr.cpp -o examples/rowbinary2sexpr" optim fname in
   run_cmd cmd
 
 
@@ -77,4 +77,5 @@ let () =
     C.print_function2 output t_pair_ptrs Types.(make TPointer) Types.(make TPointer) (fun oc src dst ->
       let src, dst = DS.desser typ oc src dst in
       C.make_tuple oc t_pair_ptrs [| src ; dst |]) in
-  compile_output output
+  let optim = 3 in
+  compile_output optim output

@@ -405,7 +405,7 @@ let byte_of_u8 oc u =
   emit_byte oc (fun oc -> Identifier.print oc u)
 
 let test_bit oc p u =
-  (* TODO: rather, try to make as many functions possibles mere
+  (* TODO: rather, try to make as many functions as possibles mere
    * constructor, so here have a Bit constructor from Pointer and U8. *)
   emit_bit oc (fun oc ->
     Printf.fprintf oc "%a.getBit(%a)"

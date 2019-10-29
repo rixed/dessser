@@ -345,15 +345,12 @@ sig
   val bool_or : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
   val bool_not : output -> [`Bool] id -> [`Bool] id
 
-  (* [cond] must be a function from byte to bool and each alternative
-   * must return an identifier. *)
   val choose :
     output -> cond:[`Bool] id -> (output -> 'a id) -> (output -> 'a id) -> 'a id
   (* [cond] must be a function from byte to bool.
    * [reduce] must be a function from any value and byte into any value. *)
   (* TODO: an id type for pair of 'a * 'b *)
   val read_while : output -> cond:([`Function1] * [`Byte] * [`Bool]) id -> reduce:([`Function2] * 'a * [`Byte] * 'a) id -> 'a id -> [`Pointer] id -> 'a id * [`Pointer] id
-  (* [cond] must be a function from byte to bool *)
   val do_while : output -> cond:([`Function2] * 'res * 'cond0 * [`Bool]) id -> loop:([`Function2] * 'res * 'cond0 * [`Tuple]) id -> 'cond0 id -> 'res id -> 'res id
 
   module Float : NUMERIC with type output = output and type mid = [`Float] id
