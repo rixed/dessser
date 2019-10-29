@@ -12,6 +12,9 @@ struct
     | TI8 | TI16 | TI32 | TI64 | TI128
     | TVec of int * t
     | TTup of t array
+    (* Exact same as a tuple, but with field names that can be used as
+     * accessors (also used to name actual fields in generated code): *)
+    | TRec of (string * t) array
     (* Special purpose for serialization: *)
     | TPointer
     | TSize
@@ -39,6 +42,12 @@ struct
     | TTup typs ->
         Printf.fprintf oc "%a"
           (Array.print ~first:"(" ~last:")" ~sep:";" print) typs
+    | TRec typs ->
+        Printf.fprintf oc "%a"
+          (Array.print ~first:"{" ~last:"}" ~sep:";"
+            (fun oc (n, t) ->
+              Printf.fprintf oc "%s: %a" n print t)
+          ) typs
     | TPointer -> String.print oc "Pointer"
     | TSize -> String.print oc "Size"
     | TBit -> String.print oc "Bit"
@@ -110,6 +119,7 @@ module Identifier :
     val i128_of_any : 'a t -> [`I128] t
     val vec_of_any : 'a t -> [`Vec] t
     val tup_of_any : 'a t -> [`Tup] t
+    val rec_of_any : 'a t -> [`Rec] t
     val pointer_of_any : 'a t -> [`Pointer] t
     val size_of_any : 'a t -> [`Size] t
     val bit_of_any : 'a t -> [`Bit] t
@@ -182,6 +192,7 @@ struct
   let i128_of_any s = s
   let vec_of_any s = s
   let tup_of_any s = s
+  let rec_of_any s = s
   let pointer_of_any s = s
   let size_of_any s = s
   let bit_of_any s = s
@@ -211,6 +222,7 @@ struct
     | TI128 -> i128_of_any s
     | TVec _ -> vec_of_any s
     | TTup _ -> tup_of_any s
+    | TRec _ -> rec_of_any s
     | TPointer -> pointer_of_any s
     | TSize -> size_of_any s
     | TBit -> bit_of_any s
@@ -394,6 +406,9 @@ sig
   val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_opn : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_cls : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_sep : (string * Types.t) array -> string (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
@@ -430,6 +445,9 @@ sig
   val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_opn : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_cls : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_sep : (string * Types.t) array -> string (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
   val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
@@ -496,6 +514,24 @@ struct
       Identifier.to_any (Des.tup_cls typs oc dstate src) ;
       Identifier.to_any (Ser.tup_cls typs oc sstate dst) |]
 
+  and dsrec typs oc sstate dstate src dst =
+    BE.comment oc "DesSer a Record" ;
+    let src = Des.rec_opn typs oc dstate src
+    and dst = Ser.rec_opn typs oc sstate dst in
+    let src, dst =
+      BatArray.fold_lefti (fun (src, dst) i (fname, typ) ->
+        BE.comment oc ("DesSer record field "^ fname) ;
+        if i = 0 then
+          desser_ typ oc sstate dstate src dst
+        else
+          let src = Des.rec_sep typs fname oc dstate src
+          and dst = Ser.rec_sep typs fname oc sstate dst in
+          desser_ typ oc sstate dstate src dst
+      ) (src, dst) typs in
+    BE.make_tuple oc t_pair_ptrs [|
+      Identifier.to_any (Des.rec_cls typs oc dstate src) ;
+      Identifier.to_any (Ser.rec_cls typs oc sstate dst) |]
+
   (* This will generates a long linear code with one block per array
    * item. Maybe have a IntRepr.loop instead? *)
   and dsvec dim typ oc sstate dstate src dst =
@@ -538,6 +574,7 @@ struct
       | Types.TU64 -> dsu64
       | Types.TU128 -> dsu128
       | Types.TTup typs -> dstup typs
+      | Types.TRec typs -> dsrec typs
       | Types.TVec (d, typ) -> dsvec d typ
       | _ -> assert false
     in

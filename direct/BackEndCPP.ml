@@ -41,6 +41,7 @@ let c_type_of_scalar typ =
   | TOWord -> "uint128_t";
   | TBytes
   | TTup _
+  | TRec _
   | TVec _ ->
       assert false
 
@@ -53,18 +54,28 @@ let comment oc s =
 
 (* TODO: nullable types should be std::optionals *)
 let rec print_type_decl oc id typ =
+  let print_record typs =
+    (* Beware that we might need to print recursively into oc.decl before
+     * we are ready to print this one *)
+    let s = IO.output_string () in
+    Printf.fprintf s "struct %s {\n" id ;
+    Array.iter (fun (name, typ) ->
+      let typ_id = find_or_define_type oc typ in
+      Printf.fprintf s "  %s %s;\n" typ_id name
+    ) typs ;
+    Printf.fprintf s "};\n\n" ;
+    String.print oc.decl (IO.close_out s)
+  in
   match typ.Types.structure with
   | Types.TTup typs ->
-      (* Beware that we might need to print recursively into oc.delc before
-       * we are ready to print this one *)
-      let s = IO.output_string () in
-      Printf.fprintf s "struct %s {\n" id ;
-      Array.iteri (fun i typ ->
-        let typ_id = find_or_define_type oc typ in
-        Printf.fprintf s "  %s field_%d;\n" typ_id i
-      ) typs ;
-      Printf.fprintf s "};\n\n" ;
-      String.print oc.decl (IO.close_out s)
+      let typs =
+        Array.mapi (fun i t ->
+          let name = "field_"^ string_of_int i in
+          name, t
+        ) typs in
+      print_record typs
+  | Types.TRec typs ->
+      print_record typs
   | _ ->
       ()
 
@@ -81,8 +92,11 @@ and find_or_define_type oc typ =
       uniq_id
     in
     match typ.Types.structure with
-    | Types.TTup _ -> do_decl ()
-    | _ -> c_type_of_scalar typ
+    | Types.TTup _
+    | Types.TRec _ ->
+        do_decl ()
+    | _ ->
+        c_type_of_scalar typ
 
 (* Output: make, print... *)
 

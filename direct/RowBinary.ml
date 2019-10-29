@@ -117,6 +117,10 @@ struct
   let tup_cls _typs _oc () p = p
   let tup_sep _typs _n _oc () p = p
 
+  let rec_opn _typs _oc () p = p
+  let rec_cls _typs _oc () p = p
+  let rec_sep _typs _n _oc () p = p
+
   (* Vectors: ClickHouse does not distinguish between vectors (or known
    * dimension) and lists (of variable length). But it has varchars, which
    * are close to our vectors, and that come without any length on the wire.

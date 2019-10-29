@@ -60,6 +60,7 @@ struct
 
   let su128 _oc () _v _p = assert false
 
+  (* Could also write the field names with the value in a pair... *)
   let tup_opn _typs oc () p =
     BE.write_byte oc p (byte_of_char oc '(')
 
@@ -67,6 +68,15 @@ struct
     BE.write_byte oc p (byte_of_char oc ')')
 
   let tup_sep _typs _idx oc () p =
+    BE.write_byte oc p (byte_of_char oc ' ')
+
+  let rec_opn _typs oc () p =
+    BE.write_byte oc p (byte_of_char oc '(')
+
+  let rec_cls _typs oc () p =
+    BE.write_byte oc p (byte_of_char oc ')')
+
+  let rec_sep _typs _idx oc () p =
     BE.write_byte oc p (byte_of_char oc ' ')
 
   let vec_opn _dim _typ _oc () _p = assert false

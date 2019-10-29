@@ -1,3 +1,4 @@
+open Batteries
 open Stdint
 open Dessser
 
@@ -125,6 +126,30 @@ struct
     p
 
   let tup_sep _typs _idx _oc _st p = p
+
+  let is_private name =
+    String.length name > 0 && name.[0] = '_'
+
+  let record_field_cmp (n1, _) (n2, _) =
+    String.compare n1 n2
+
+  let tuple_typs_of_record typs =
+    (* Like tuples, with fields in alphabetic order, with private fields
+     * omitted: *)
+    let typs =
+      Array.filter (fun (name, typ) -> not (is_private name)) typs in
+    Array.fast_sort record_field_cmp typs ;
+    Array.map snd typs
+
+  let rec_opn typs oc st p =
+    let typs = tuple_typs_of_record typs in
+    tup_opn typs oc st p
+
+  let rec_cls typs oc st p =
+    let typs = tuple_typs_of_record typs in
+    tup_cls typs oc st p
+
+  let rec_sep _typs _fname _oc _st p = p
 
   let vec_opn dim typ oc st p =
     let outermost = st.nullmasks = [] in

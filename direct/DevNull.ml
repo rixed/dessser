@@ -25,6 +25,9 @@ struct
   let tup_opn _ _ () p = p
   let tup_cls _ _ () p = p
   let tup_sep _ _ _ () p = p
+  let rec_opn _ _ () p = p
+  let rec_cls _ _ () p = p
+  let rec_sep _ _ _ () p = p
   let vec_opn _ _ _ () p = p
   let vec_cls _ _ _ () p = p
   let vec_sep _ _ _ _ () p = p
