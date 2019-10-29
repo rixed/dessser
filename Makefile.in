@@ -29,9 +29,9 @@ INSTALLED_LIB = \
 	dessser.cmxa \
 	dessser.cma \
 	dessser.a \
-	$(filter %.cmi, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmx)) \
-	$(filter %.cmo, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmo))
+	$(filter %.cmi, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo))
 
 INSTALLED = $(INSTALLED_LIB) META
 
@@ -172,7 +172,7 @@ examples/manual_codegen.opt: direct/dessser.cmxa examples/manual_codegen.ml
 
 META: Makefile
 	@echo 'Building findlib configuration (META) for Ramen'
-	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
+	@echo 'description = "(de)serializer generator"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
 	@echo 'archive(native) = "dessser.cmxa"' >> $@
 	@echo 'archive(byte) = "dessser.cma"' >> $@
