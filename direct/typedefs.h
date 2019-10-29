@@ -11,5 +11,6 @@ typedef uint32_t DWord;
 typedef uint64_t QWord;
 typedef uint128_t OWord;
 typedef size_t Size;
+typedef bool Bit;
 
 #endif
