@@ -170,7 +170,7 @@ examples/manual_codegen.opt: direct/dessert.cmxa examples/manual_codegen.ml
 
 # Generated sources
 
-META:
+META: Makefile
 	@echo 'Building findlib configuration (META) for Ramen'
 	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
