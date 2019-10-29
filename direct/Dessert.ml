@@ -354,7 +354,7 @@ sig
   (* TODO: an id type for pair of 'a * 'b *)
   val read_while : output -> cond:([`Function1] * [`Byte] * [`Bool]) id -> reduce:([`Function2] * 'a * [`Byte] * 'a) id -> 'a id -> [`Pointer] id -> 'a id * [`Pointer] id
   (* [cond] must be a function from byte to bool *)
-  val do_while : output -> cond:[`Bool] id -> loop:'a id -> 'a id -> 'a id -> 'a id
+  val do_while : output -> cond:([`Function2] * 'res * 'cond0 * [`Bool]) id -> loop:([`Function2] * 'res * 'cond0 * [`Tuple]) id -> 'cond0 id -> 'res id -> 'res id
 
   module Float : NUMERIC with type output = output and type mid = [`Float] id
   module U8 : INTEGER with type output = output and type mid = [`U8] id
