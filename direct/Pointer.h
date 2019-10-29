@@ -51,8 +51,10 @@ struct Pointer {
 
   bool getBit(size_t b) const
   {
-    assert(offset < size);
-    return !!(buffer[offset] & (1 << (b & 3)));
+    size_t const off = offset + b / 8;
+    size_t const bit = b & 7;
+    assert( off < size);
+    return !!(buffer[off] & (1 << bit));
   }
 
   Byte peekByte(size_t at = 0) const
@@ -165,10 +167,13 @@ struct Pointer {
 
   void setBit(size_t b, bool v)
   {
-    assert(offset < size);
-    Byte const mask = 1 << b;
-    buffer[offset] =
-      v ? buffer[offset] | mask : buffer[offset] & ~mask;
+    size_t const off = offset + b / 8;
+    size_t const bit = b & 7;
+    assert(off < size);
+    Byte const mask = 1 << bit;
+    buffer[off] =
+      v ? buffer[off] | mask :
+          buffer[off] & ~mask;
   }
 
   void pokeByte(Byte v)

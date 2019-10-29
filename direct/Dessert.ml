@@ -286,8 +286,9 @@ sig
   val make_bytes : output -> [`Bytes] id
   val u8_of_byte : output -> [`Byte] id -> [`U8] id
   val byte_of_u8 : output -> [`U8] id -> [`Byte] id
-  val test_bit : output -> [`Pointer] id -> [`U8] id -> [`Bit] id
-  val set_bit : output -> [`Pointer] id -> [`U8] id -> [`Bit] id -> unit
+  val test_bit : output -> [`Pointer] id -> [`U32] id -> [`Bit] id
+  (* Also works for bits located further away from the pointed byte (when >= 8) *)
+  val set_bit : output -> [`Pointer] id -> [`U32] id -> [`Bit] id -> unit
   val read_byte : output -> [`Pointer] id -> ([`Byte] id * [`Pointer] id)
   val read_word : output -> ?be:bool -> [`Pointer] id -> ([`Word] id * [`Pointer] id)
   val read_dword : output -> ?be:bool -> [`Pointer] id -> ([`DWord] id * [`Pointer] id)
