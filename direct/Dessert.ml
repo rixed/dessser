@@ -279,6 +279,7 @@ sig
   val print_output : 'a IO.output -> output -> unit
 
   val ignore : output -> 'a id -> unit
+  val comment : output -> string -> unit
 
   val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
   val size_ge : output -> [`Size] id -> [`Size] id -> [`Bool] id
@@ -370,7 +371,11 @@ module type DES =
 sig
   module BE : BACKEND
 
-  type 'a des = BE.output -> [`Pointer] id -> 'a * [`Pointer] id
+  (* RW state passed to every deserialization operations *)
+  type state
+  val init_state : BE.output -> [`Pointer] id -> state * [`Pointer] id
+
+  type 'a des = BE.output -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
   val dfloat : [`Float] id des
   val dstring : [`String] id des
@@ -386,23 +391,27 @@ sig
   val du64 : [`U64] id des
   val du128 : [`U128] id des
 
-  val tup_opn : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
-  val is_null : Types.structure -> BE.output -> [`Pointer] id -> [`Bool] id
-  val dnull : BE.output -> [`Pointer] id -> [`Pointer] id
-  val dnotnull : BE.output -> [`Pointer] id -> [`Pointer] id
+  val is_null : Types.structure -> BE.output -> state -> [`Pointer] id -> [`Bool] id
+  val dnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val dnotnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 end
 
 module type SER =
 sig
   module BE : BACKEND
 
-  type 'a ser = BE.output -> 'a -> [`Pointer] id -> [`Pointer] id
+  (* RW state passed to every serialization operations *)
+  type state
+  val init_state : BE.output -> [`Pointer] id -> state * [`Pointer] id
+
+  type 'a ser = BE.output -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
   val sfloat : [`Float] id ser
   val sstring : [`String] id ser
@@ -418,15 +427,16 @@ sig
   val su64 : [`U64] id ser
   val su128 : [`U128] id ser
 
-  val tup_opn : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : Types.t array -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : int -> Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
-  val snull : BE.output -> [`Pointer] id -> [`Pointer] id
-  val snotnull : BE.output -> [`Pointer] id -> [`Pointer] id
+  val nullable : Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val snull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val snotnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 end
 
 (* Many return values have the type of a pair or src*dst pointers: *)
@@ -436,74 +446,83 @@ module DesSer (Des : DES) (Ser : SER with module BE = Des.BE) =
 struct
   module BE = Des.BE
 
-  let ds ser des oc src dst =
-    let v, src = des oc src in
-    let dst = ser oc v dst in
+  let ds what ser des oc sstate dstate src dst =
+    BE.comment oc ("Desserialize a "^ what) ;
+    let v, src = des oc dstate src in
+    BE.comment oc ("Serialize a "^ what) ;
+    let dst = ser oc sstate v dst in
     BE.make_tuple oc t_pair_ptrs
       [| Identifier.to_any src ; Identifier.to_any dst |]
 
-  let dsfloat = ds Ser.sfloat Des.dfloat
-  let dsstring = ds Ser.sstring Des.dstring
-  let dsbool = ds Ser.sbool Des.dbool
-  let dsi8 = ds Ser.si8 Des.di8
-  let dsi16 = ds Ser.si16 Des.di16
-  let dsi32 = ds Ser.si32 Des.di32
-  let dsi64 = ds Ser.si64 Des.di64
-  let dsi128 = ds Ser.si128 Des.di128
-  let dsu8 = ds Ser.su8 Des.du8
-  let dsu16 = ds Ser.su16 Des.du16
-  let dsu32 = ds Ser.su32 Des.du32
-  let dsu64 = ds Ser.su64 Des.du64
-  let dsu128 = ds Ser.su128 Des.du128
+  let dsfloat = ds "float" Ser.sfloat Des.dfloat
+  let dsstring = ds "string" Ser.sstring Des.dstring
+  let dsbool = ds "bool" Ser.sbool Des.dbool
+  let dsi8 = ds "i8" Ser.si8 Des.di8
+  let dsi16 = ds "i16" Ser.si16 Des.di16
+  let dsi32 = ds "i32" Ser.si32 Des.di32
+  let dsi64 = ds "i64" Ser.si64 Des.di64
+  let dsi128 = ds "i128" Ser.si128 Des.di128
+  let dsu8 = ds "u8" Ser.su8 Des.du8
+  let dsu16 = ds "u16" Ser.su16 Des.du16
+  let dsu32 = ds "u32" Ser.su32 Des.du32
+  let dsu64 = ds "u64" Ser.su64 Des.du64
+  let dsu128 = ds "u128" Ser.su128 Des.du128
 
-  let dsnull oc src dst =
-    Des.dnull oc src,
-    Ser.snull oc dst
+  let dsnull oc sstate dstate src dst =
+    BE.comment oc "NULL" ;
+    Des.dnull oc dstate src,
+    Ser.snull oc sstate dst
 
-  let dsnotnull oc src dst =
-    Des.dnotnull oc src,
-    Ser.snotnull oc dst
+  let dsnotnull oc sstate dstate src dst =
+    BE.comment oc "NOT NULL" ;
+    Des.dnotnull oc dstate src,
+    Ser.snotnull oc sstate dst
 
-  let rec dstup typs oc src dst =
-    let src = Des.tup_opn typs oc src
-    and dst = Ser.tup_opn typs oc dst in
+  let rec dstup typs oc sstate dstate src dst =
+    BE.comment oc "DesSer a Tuple" ;
+    let src = Des.tup_opn typs oc dstate src
+    and dst = Ser.tup_opn typs oc sstate dst in
     let src, dst =
       BatArray.fold_lefti (fun (src, dst) i typ ->
+        BE.comment oc ("DesSer tuple field "^ string_of_int i) ;
         if i = 0 then
-          desser typ oc src dst
+          desser_ typ oc sstate dstate src dst
         else
-          let src = Des.tup_sep typs i oc src
-          and dst = Ser.tup_sep typs i oc dst in
-          desser typ oc src dst
+          let src = Des.tup_sep typs i oc dstate src
+          and dst = Ser.tup_sep typs i oc sstate dst in
+          desser_ typ oc sstate dstate src dst
       ) (src, dst) typs in
     BE.make_tuple oc t_pair_ptrs [|
-      Identifier.to_any (Des.tup_cls typs oc src) ;
-      Identifier.to_any (Ser.tup_cls typs oc dst) |]
+      Identifier.to_any (Des.tup_cls typs oc dstate src) ;
+      Identifier.to_any (Ser.tup_cls typs oc sstate dst) |]
 
   (* This will generates a long linear code with one block per array
    * item. Maybe have a IntRepr.loop instead? *)
-  and dsvec dim typ oc src dst =
-    let desser_typ = desser typ oc in
-    let src = Des.vec_opn dim typ oc src
-    and dst = Ser.vec_opn dim typ oc dst in
+  and dsvec dim typ oc sstate dstate src dst =
+    BE.comment oc "DesSer a Vector" ;
+    let desser_typ = desser_ typ oc sstate dstate in
+    let src = Des.vec_opn dim typ oc dstate src
+    and dst = Ser.vec_opn dim typ oc sstate dst in
     let rec loop src dst i =
       if i >= dim then
         BE.make_tuple oc t_pair_ptrs [|
-          Identifier.to_any (Des.vec_cls dim typ oc src) ;
-          Identifier.to_any (Ser.vec_cls dim typ oc dst) |]
-      else if i = 0 then
-        let src, dst = desser_typ src dst in
-        loop src dst (i + 1)
-      else
-        let src = Des.vec_sep dim typ i oc src
-        and dst = Ser.vec_sep dim typ i oc dst in
-        let src, dst = desser_typ src dst in
-        loop src dst (i + 1)
+          Identifier.to_any (Des.vec_cls dim typ oc dstate src) ;
+          Identifier.to_any (Ser.vec_cls dim typ oc sstate dst) |]
+      else (
+        BE.comment oc ("DesSer vector field "^ string_of_int i) ;
+        if i = 0 then
+          let src, dst = desser_typ src dst in
+          loop src dst (i + 1)
+        else
+          let src = Des.vec_sep dim typ i oc dstate src
+          and dst = Ser.vec_sep dim typ i oc sstate dst in
+          let src, dst = desser_typ src dst in
+          loop src dst (i + 1)
+      )
     in
     loop src dst 0
 
-  and desser : Types.t -> BE.output -> [`Pointer] id -> [`Pointer] id ->
-                 ([`Pointer] id * [`Pointer] id) = fun typ oc src dst ->
+  and desser_ typ oc sstate dstate src dst =
     let desser_structure = function
       | Types.TFloat -> dsfloat
       | Types.TString -> dsstring
@@ -524,18 +543,26 @@ struct
     in
     let pair =
       if typ.nullable then
-        let cond = Des.is_null typ.structure oc src in
+        let cond = Des.is_null typ.structure oc dstate src in
+        (* Des can us [is_null] to prepare for a nullable, but Ser might also
+         * have some work to do: *)
+        let dst = Ser.nullable typ oc sstate dst in
         BE.choose oc ~cond
           (fun oc ->
-            let s, d = dsnull oc src dst in
+            let s, d = dsnull oc sstate dstate src dst in
             BE.make_tuple oc t_pair_ptrs
               [| Identifier.to_any s ; Identifier.to_any d |])
           (fun oc ->
-            let s, d = dsnotnull oc src dst in
-            desser_structure typ.structure oc s d)
+            let s, d = dsnotnull oc sstate dstate src dst in
+            desser_structure typ.structure oc sstate dstate s d)
       else
-        desser_structure typ.structure oc src dst in
+        desser_structure typ.structure oc sstate dstate src dst in
     (* Returns src and dest: *)
     Identifier.pointer_of_any (BE.tuple_get oc pair 0),
     Identifier.pointer_of_any (BE.tuple_get oc pair 1)
+
+  let desser typ oc src dst =
+    let sstate, dst = Ser.init_state oc dst
+    and dstate, src = Des.init_state oc src in
+    desser_ typ oc sstate dstate src dst
 end

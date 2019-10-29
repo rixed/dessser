@@ -48,6 +48,9 @@ let ignore oc id =
   Printf.fprintf oc.code "%s(void)%a;\n" oc.indent
     Identifier.print id
 
+let comment oc s =
+  Printf.fprintf oc.code "%s/* %s */\n" oc.indent s
+
 (* TODO: nullable types should be std::optionals *)
 let rec print_type_decl oc id typ =
   match typ.Types.structure with

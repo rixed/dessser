@@ -4,7 +4,7 @@ open Dessert
 
 module C = BackEndCPP
 
-module DS = DesSer (RowBinary.Des (C)) (SExpr.Ser (C)) (*(DevNull (C))*)
+module DS = DesSer (RowBinary.Des (C)) (*(SExpr.Ser (C))*) (*(DevNull (C))*) (RamenRingBuffer.Ser (C))
 
 let run_cmd cmd =
   match Unix.system cmd with

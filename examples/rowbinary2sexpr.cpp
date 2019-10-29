@@ -21,8 +21,21 @@ static std::string readWholeFile(std::string const fname)
 
 int main(int numArgs, char **args)
 {
-  std::string input =
-    readWholeFile(numArgs <= 1 ? "/dev/stdin" : args[1]);
+  char const *fname = "/dev/stdin";
+  char delim = '\n';
+
+  for (int a = 1; a < numArgs; a++) {
+    if (a < numArgs - 1 && (
+          0 == strcasecmp(args[a], "--delim") ||
+          0 == strcasecmp(args[a], "-d")
+        )) {
+      delim = args[a+1][0];
+    } else {
+      fname = args[a];
+    }
+  }
+
+  std::string input = readWholeFile(fname);
   Pointer src(input);
 
   while (src.rem() > 0) {
@@ -34,7 +47,8 @@ int main(int numArgs, char **args)
     // Print serialized:
     assert(ptrs.dst.offset < ptrs.dst.size-1);
     ptrs.dst.buffer.get()[ptrs.dst.offset++] = '\0';
-    std::cout << ptrs.dst.buffer << '\n';
+    fwrite(ptrs.dst.buffer.get(), 1, ptrs.dst.offset, stdout);
+    if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
 
     src = ptrs.src;
   }

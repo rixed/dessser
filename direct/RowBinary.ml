@@ -6,9 +6,12 @@ struct
   module BE = BE
   module T = Types
 
-  type 'a des = BE.output -> [`Pointer] id -> 'a * [`Pointer] id
+  type state = unit
+  let init_state _oc p = (), p
 
-  let dfloat oc p =
+  type 'a des = BE.output -> unit -> [`Pointer] id -> 'a * [`Pointer] id
+
+  let dfloat oc () p =
     let w, p = BE.read_qword oc p in
     BE.float_of_qword oc w, p
 
@@ -48,80 +51,80 @@ struct
    * TTup type: *)
   let des typ = ignore typ
 
-  let dstring oc p =
+  let dstring oc () p =
     let len, p = read_leb128 oc p in
     let bs, p = BE.read_bytes oc p len in
     BE.string_of_bytes oc bs,
     p
 
-  let dbool oc p =
+  let dbool oc () p =
     let b, p = BE.read_byte oc p in
     BE.(bool_not oc U8.(eq oc (of_byte oc b) (of_const_int oc 0))),
     p
 
-  let di8 oc p =
+  let di8 oc () p =
     let b, p = BE.read_byte oc p in
     BE.I8.of_byte oc b,
     p
 
-  let du8 oc p =
+  let du8 oc () p =
     let b, p = BE.read_byte oc p in
     BE.U8.of_byte oc b,
     p
 
-  let di16 oc p =
+  let di16 oc () p =
     let w, p = BE.read_word oc p in
     BE.I16.of_word oc w,
     p
 
-  let du16 oc p =
+  let du16 oc () p =
     let w, p = BE.read_word oc p in
     BE.U16.of_word oc w,
     p
 
-  let di32 oc p =
+  let di32 oc () p =
     let w, p = BE.read_dword oc p in
     BE.I32.of_dword oc w,
     p
 
-  let du32 oc p =
+  let du32 oc () p =
     let w, p = BE.read_dword oc p in
     BE.U32.of_dword oc w,
     p
 
-  let di64 oc p =
+  let di64 oc () p =
     let w, p = BE.read_qword oc p in
     BE.I64.of_qword oc w,
     p
 
-  let du64 oc p =
+  let du64 oc () p =
     let w, p = BE.read_qword oc p in
     BE.U64.of_qword oc w,
     p
 
-  let di128 oc p =
+  let di128 oc () p =
     let w, p = BE.read_oword oc p in
     BE.I128.of_oword oc w,
     p
 
-  let du128 oc p =
+  let du128 oc () p =
     let w, p = BE.read_oword oc p in
     BE.U128.of_oword oc w,
     p
 
   (* Items of a tuples are just concatenated together: *)
-  let tup_opn _typs _oc p = p
-  let tup_cls _typs _oc p = p
-  let tup_sep _typs _n _oc p = p
+  let tup_opn _typs _oc () p = p
+  let tup_cls _typs _oc () p = p
+  let tup_sep _typs _n _oc () p = p
 
   (* Vectors: ClickHouse does not distinguish between vectors (or known
    * dimension) and lists (of variable length). But it has varchars, which
    * are close to our vectors, and that come without any length on the wire.
    * So we assume vectors are not prefixed by any length, and out lists are
    * what ClickHouse refers to as arrays. *)
-  let vec_opn _dim _typ _oc p = p
-  let vec_cls _dim _typ _oc p = p
-  let vec_sep _dim _typ _oc _n p = p
+  let vec_opn _dim _typ _oc () p = p
+  let vec_cls _dim _typ _oc () p = p
+  let vec_sep _dim _typ _oc _n () p = p
 
   (* TODO: lists *)
 
@@ -129,11 +132,13 @@ struct
    * each Nullable value. If 1, then the value is NULL and this byte is
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
-  let is_null _typ oc p =
+  let is_null _typ oc () p =
     let b = BE.peek_byte oc p in
     BE.U8.(eq oc (of_byte oc b) (of_const_int oc 1))
 
-  let dnull oc p = BE.pointer_add oc p (BE.size_of_const oc 1)
+  let dnull oc () p =
+    BE.pointer_add oc p (BE.size_of_const oc 1)
+
   let dnotnull = dnull
 end
 
