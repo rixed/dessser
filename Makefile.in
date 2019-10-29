@@ -144,13 +144,13 @@ direct/dessert.a: direct/dessert.cmxa
 INSTALLED_IMPL = direct
 
 dessert.cmxa: $(INSTALLED_IMPL)/dessert.cmxa
-	@ln $< $@
+	@ln -f $< $@
 
 dessert.cma: $(INSTALLED_IMPL)/dessert.cma
-	@ln $< $@
+	@ln -f $< $@
 
 dessert.a: $(INSTALLED_IMPL)/dessert.a
-	@ln $< $@
+	@ln -f $< $@
 
 # Compile examples
 
