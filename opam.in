@@ -1,11 +1,11 @@
 opam-version: "2.0"
 version: "@PACKAGE_VERSION@"
-name: "dessert"
+name: "dessser"
 maintainer: "rixed-opam@happyleptic.org"
 authors: "rixed-opam@happyleptic.org"
-homepage: "https://github.com/rixed/dessert"
-bug-reports: "https://github.com/rixed/dessert/issues"
-dev-repo: "git+https://github.com/rixed/dessert.git"
+homepage: "https://github.com/rixed/dessser"
+bug-reports: "https://github.com/rixed/dessser/issues"
+dev-repo: "git+https://github.com/rixed/dessser.git"
 synopsis: "(de)serializer generator"
 build: [
   ["./configure"]

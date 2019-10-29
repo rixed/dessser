@@ -26,12 +26,12 @@ META_REQUIRES = \
 	findlib $(PACKAGES)
 
 INSTALLED_LIB = \
-	dessert.cmxa \
-	dessert.cma \
-	dessert.a \
-	$(filter %.cmi, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmx)) \
-	$(filter %.cmo, $(LIBDIRESTDESSERT_SOURCES:.ml=.cmo))
+	dessser.cmxa \
+	dessser.cma \
+	dessser.a \
+	$(filter %.cmi, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBDIRESTDESSSER_SOURCES:.ml=.cmo))
 
 INSTALLED = $(INSTALLED_LIB) META
 
@@ -73,19 +73,19 @@ all: $(INSTALLED) examples
 
 doc:
 
-LIBBERDESSERT_SOURCES = \
+LIBBERDESSSER_SOURCES = \
 	ber/Helpers.ml \
 	ber/MyLifts.ml \
 	ber/SerDataBytes0.ml \
 	ber/SerDataBytes.ml \
 	ber/IntRepr.ml \
-	ber/Dessert.ml \
+	ber/Dessser.ml \
 	ber/SExpr.ml \
 	ber/RowBinary.ml \
 	ber/DevNull.ml
 
-LIBDIRECTDESSERT_SOURCES = \
-	direct/Dessert.ml \
+LIBDIRECTDESSSER_SOURCES = \
+	direct/Dessser.ml \
 	direct/SExpr.ml \
 	direct/RowBinary.ml \
 	direct/DevNull.ml \
@@ -99,8 +99,8 @@ EXAMPLES_SOURCES = \
 TESTONLY_SOURCES =
 
 SOURCES = $(sort \
-	$(LIBBERDESSERT_SOURCES) \
-	$(LIBDIRECTDESSERT_SOURCES) \
+	$(LIBBERDESSSER_SOURCES) \
+	$(LIBDIRECTDESSSER_SOURCES) \
 	$(EXAMPLES_SOURCES) \
 	$(TESTONLY_SOURCES) \
 )
@@ -112,60 +112,60 @@ dep:
 	@$(MAKE) .depend
 
 .depend: $(SOURCES)
-	@$(OCAMLDEP) -I ber -package '$(PACKAGES)' $(filter %.ml, $(LIBBERDESSERT_SOURCES)) $(filter %.mli, $(LIBBERDESSERT_SOURCES)) > $@
-	@$(OCAMLDEP) -I direct -package '$(PACKAGES)' $(filter %.ml, $(LIBDIRECTDESSERT_SOURCES)) $(filter %.mli, $(LIBDIRECTDESSERT_SOURCES)) >> $@
+	@$(OCAMLDEP) -I ber -package '$(PACKAGES)' $(filter %.ml, $(LIBBERDESSSER_SOURCES)) $(filter %.mli, $(LIBBERDESSSER_SOURCES)) > $@
+	@$(OCAMLDEP) -I direct -package '$(PACKAGES)' $(filter %.ml, $(LIBDIRECTDESSSER_SOURCES)) $(filter %.mli, $(LIBDIRECTDESSSER_SOURCES)) >> $@
 
 include .depend
 
-# Compile dessert lib
+# Compile dessser lib
 
-ber/dessert.cmxa: $(LIBBERDESSERT_SOURCES:.ml=.cmx)
+ber/dessser.cmxa: $(LIBBERDESSSER_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@ (native)'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -a $(filter %.cmx, $^) -o $@
 
-ber/dessert.cma: $(LIBBERDESSERT_SOURCES:.ml=.cmo)
+ber/dessser.cma: $(LIBBERDESSSER_SOURCES:.ml=.cmo)
 	@echo 'Linking runtime library $@ (bytecode)'
 	$(OCAMLC) $(OCAMLCFLAGS) -I ber -a $(filter %.cmo, $^) -o $@
 
-ber/dessert.a: ber/dessert.cmxa
+ber/dessser.a: ber/dessser.cmxa
 
 ber/IntRepr.ml: ber/IntReprOCaml.ml
 	ln -f $< $@
 
-direct/dessert.cmxa: $(LIBDIRECTDESSERT_SOURCES:.ml=.cmx)
+direct/dessser.cmxa: $(LIBDIRECTDESSSER_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@ (native)'
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -a $(filter %.cmx, $^) -o $@
 
-direct/dessert.cma: $(LIBDIRECTDESSERT_SOURCES:.ml=.cmo)
+direct/dessser.cma: $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo)
 	@echo 'Linking runtime library $@ (bytecode)'
 	$(OCAMLC) $(OCAMLCFLAGS) -I direct -a $(filter %.cmo, $^) -o $@
 
-direct/dessert.a: direct/dessert.cmxa
+direct/dessser.a: direct/dessser.cmxa
 
 INSTALLED_IMPL = direct
 
-dessert.cmxa: $(INSTALLED_IMPL)/dessert.cmxa
+dessser.cmxa: $(INSTALLED_IMPL)/dessser.cmxa
 	@ln -f $< $@
 
-dessert.cma: $(INSTALLED_IMPL)/dessert.cma
+dessser.cma: $(INSTALLED_IMPL)/dessser.cma
 	@ln -f $< $@
 
-dessert.a: $(INSTALLED_IMPL)/dessert.a
+dessser.a: $(INSTALLED_IMPL)/dessser.a
 	@ln -f $< $@
 
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
-examples/direct_hard_coded.opt: ber/dessert.cmxa examples/direct_hard_coded.ml
+examples/direct_hard_coded.opt: ber/dessser.cmxa examples/direct_hard_coded.ml
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -linkpkg -package '$(PACKAGES)' $^ -o $@
 
-examples/direct_hard_coded.byte: ber/dessert.cma examples/direct_hard_coded.ml
+examples/direct_hard_coded.byte: ber/dessser.cma examples/direct_hard_coded.ml
 	$(OCAMLC) $(OCAMLCFLAGS) -I ber -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
 
 # Compile another exxperiment
 
-examples/manual_codegen.opt: direct/dessert.cmxa examples/manual_codegen.ml
+examples/manual_codegen.opt: direct/dessser.cmxa examples/manual_codegen.ml
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 # Generated sources
@@ -174,8 +174,8 @@ META: Makefile
 	@echo 'Building findlib configuration (META) for Ramen'
 	@echo 'description = "Event processor tailored for small-scale monitoring"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
-	@echo 'archive(native) = "dessert.cmxa"' >> $@
-	@echo 'archive(byte) = "dessert.cma"' >> $@
+	@echo 'archive(native) = "dessser.cmxa"' >> $@
+	@echo 'archive(byte) = "dessser.cma"' >> $@
 	@echo 'requires = "$(META_REQUIRES)"' >> $@
 
 # Tests
@@ -185,10 +185,10 @@ check:
 # Installation
 
 install: $(INSTALLED)
-	ocamlfind install dessert $(INSTALLED_LIB) META
+	ocamlfind install dessser $(INSTALLED_LIB) META
 
 uninstall:
-	ocamlfind remove dessert
+	ocamlfind remove dessser
 
 reinstall: uninstall install
 

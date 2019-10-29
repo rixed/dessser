@@ -1,5 +1,5 @@
 open Batteries
-open Dessert
+open Dessser
 
 module Des (BE : BACKEND) : DES with module BE = BE =
 struct

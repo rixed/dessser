@@ -3,7 +3,7 @@
  * as regular OCaml values. *)
 open Batteries
 open Stdint
-open Dessert
+open Dessser
 open Helpers
 open MyLifts
 

@@ -2,7 +2,7 @@
  * not conflict with MetaOCaml code type) *)
 open Batteries
 open Stdint
-open Dessert
+open Dessser
 
 type output =
   { decl : string IO.output ;

@@ -1,4 +1,4 @@
-open Dessert
+open Dessser
 
 module Ser (BE : BACKEND) : SER with module BE = BE =
 struct

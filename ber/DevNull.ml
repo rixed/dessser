@@ -2,7 +2,7 @@
  * desserializers. *)
 open Batteries
 open Stdint
-open Dessert
+open Dessser
 open Helpers
 
 module Ser : SER =

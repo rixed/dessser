@@ -1,5 +1,5 @@
 open Stdint
-open Dessert
+open Dessser
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
 let ringbuf_word_size = ref 4

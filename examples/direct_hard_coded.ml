@@ -18,7 +18,7 @@ let () =
   ()
 
 module SerData = SerDataBytes
-module Desser = Dessert.DesSer (RowBinary.Des) (SExpr.Ser (*DevNull.Ser*))
+module Desser = Dessser.DesSer (RowBinary.Des) (SExpr.Ser (*DevNull.Ser*))
 
 (*
 module IRConverter =
@@ -76,7 +76,7 @@ let () =
   Runnative.add_search_path (search_path_of "stdint") ;
 
   let typ =
-    let open Dessert in
+    let open Dessser in
     (*TBool*)
     (*TI8*)
     (*TTup [| TBool ; TI8 |]*)
