@@ -9,6 +9,10 @@ type output =
     mutable code : string IO.output ; (* current function body *)
     mutable indent : string ; (* current line prefix *)
     mutable entry_point : bool ;
+    (* When building heap values, determine boxiness as well as access path: *)
+    mutable value_paths : (string (* path *) * string (* accessor to subfields *)) list ;
+    (* The id that was assigned to the latest outermost heap constructed value: *)
+    mutable value_id : string ;
     mutable funs : (string * string) list }
 
 (* Compound types have to be declared (once) *)
@@ -52,30 +56,51 @@ let ignore oc id =
 let comment oc s =
   Printf.fprintf oc.code "%s/* %s */\n" oc.indent s
 
-(* TODO: nullable types should be std::optionals *)
+(* TODO: *)
+let cppify s = s
+
+(* Returns the name and typ of that subfield: *)
+let field_info typ idx =
+  match typ.Types.structure with
+  | Types.TTup typs ->
+      "field_"^ string_of_int idx, typs.(idx)
+  | Types.TRec typs ->
+      cppify (fst typs.(idx)), snd typs.(idx)
+  | Types.TVec (dim, typ) ->
+      assert (idx < dim) ;
+      "["^ string_of_int idx ^"]", typ
+  | _ ->
+      assert false
+
+let field_name typ idx =
+  fst (field_info typ idx)
+
 let rec print_type_decl oc id typ =
   let print_record typs =
     (* Beware that we might need to print recursively into oc.decl before
      * we are ready to print this one *)
     let s = IO.output_string () in
     Printf.fprintf s "struct %s {\n" id ;
-    Array.iter (fun (name, typ) ->
-      let typ_id = find_or_define_type oc typ in
-      Printf.fprintf s "  %s %s;\n" typ_id name
+    Array.iteri (fun i subtyp ->
+      let typ_id = find_or_define_type oc subtyp in
+      let fname, subtyp = field_info typ i in
+      if subtyp.Types.nullable then
+        Printf.fprintf s "  std::optional<%s> %s;\n" typ_id fname
+      else
+        Printf.fprintf s "  %s %s;\n" typ_id fname
     ) typs ;
     Printf.fprintf s "};\n\n" ;
     String.print oc.decl (IO.close_out s)
   in
   match typ.Types.structure with
   | Types.TTup typs ->
-      let typs =
-        Array.mapi (fun i t ->
-          let name = "field_"^ string_of_int i in
-          name, t
-        ) typs in
       print_record typs
   | Types.TRec typs ->
-      print_record typs
+      print_record (Array.map snd typs)
+  | Types.TVec (dim, typ) ->
+      let typ_id = find_or_define_type oc typ in
+      Printf.fprintf oc.decl "typedef %s[%d] %s;\n\n"
+        typ_id dim id
   | _ ->
       ()
 
@@ -105,6 +130,8 @@ let make_output () =
     code = IO.output_string () ;
     indent = "" ;
     entry_point = true ; (* First function emitted will be public *)
+    value_id = "" ;
+    value_paths = [] ;
     funs = [] }
 
 let print_output oc output =
@@ -850,3 +877,68 @@ let do_while oc ~cond ~loop cond0 v0 =
     Printf.fprintf oc.code "%scond0 = loop_res.second;\n" oc.indent) ;
   Printf.fprintf oc.code "%s};\n" oc.indent ;
   id_res
+
+(* For heap allocated values, all subtypes are unboxed so we can perform a
+ * single allocation. *)
+let alloc_value oc typ =
+  let typname = find_or_define_type oc typ in
+  let id = Identifier.any typ.Types.structure in
+  Printf.fprintf oc.code "%s%s *%a = new %s;\n" oc.indent
+    typname Identifier.print id typname ;
+  oc.value_id <- (id : _ Identifier.t :> string) ;
+  id
+
+let set_field oc typ idx v =
+  match oc.value_paths with
+  | [] ->
+      (* The outermost value is a scalar *)
+      Printf.fprintf oc.code "%s*%s = %a;\n" oc.indent
+        oc.value_id
+        Identifier.print v
+  | (path, accessor) :: _ ->
+      Printf.fprintf oc.code "%s%s%s%s = %a;\n" oc.indent
+        path accessor
+        (field_name typ idx)
+        Identifier.print v
+
+let set_nullable_field oc typ idx v =
+  match v with
+  | Some v ->
+      set_field oc typ idx v
+  | None ->
+      set_field oc typ idx (Identifier.of_string "std::nullopt")
+
+let push_subfield oc typ idx =
+  match oc.value_paths with
+  | [] ->
+      (* We enter outermost compound type: *)
+      oc.value_paths <- [ oc.value_id, "->" ]
+  | (path, accessor) :: _ ->
+      let subfield, subtyp = field_info typ idx in
+      let path = path ^ accessor ^ subfield in
+      let accessor =
+        match subtyp.structure with
+        | Types.TVec _ -> ""
+        | _ -> "." in
+      oc.value_paths <- (path, accessor) :: oc.value_paths
+
+let pop_subfield oc =
+  oc.value_paths <- List.tl oc.value_paths
+
+let begin_tup oc typ idx =
+  push_subfield oc typ idx
+
+let end_tup oc =
+  pop_subfield oc
+
+let begin_rec oc typ idx =
+  push_subfield oc typ idx
+
+let end_rec oc =
+  pop_subfield oc
+
+let begin_vec oc typ idx =
+  push_subfield oc typ idx
+
+let end_vec oc =
+  pop_subfield oc

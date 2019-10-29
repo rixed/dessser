@@ -4,7 +4,8 @@ open Dessser
 
 module C = BackEndCPP
 
-module DS = DesSer (RowBinary.Des (C)) (*(SExpr.Ser (C))*) (*(DevNull (C))*) (RamenRingBuffer.Ser (C))
+module DS = DesSer (RowBinary.Des (C))
+  (*(SExpr.Ser (C))*) (*(DevNull (C))*) (*(RamenRingBuffer.Ser (C))*) (HeapValue.Ser (C))
 
 let run_cmd cmd =
   match Unix.system cmd with

@@ -104,6 +104,8 @@ module Identifier :
     val func3 : unit -> ([`Function3] * 'a * 'b * 'c * 'd) t
     val param : int -> unit -> 'a t
 
+    val any : Types.structure -> 'a t
+
     val float_of_any : 'a t -> [`Float] t
     val string_of_any : 'a t -> [`String] t
     val bool_of_any : 'a t -> [`Bool] t
@@ -133,6 +135,8 @@ module Identifier :
     val to_any : 'a t -> [`Any] t
     val of_any : Types.structure -> [`Any] t -> 'a t
 
+    val of_string : string -> [`Any] t
+
     val cat : 'a t -> string -> 'a t
   end =
 struct
@@ -158,6 +162,8 @@ struct
   let u128 = make "u128"
   let i128 = make "i128"
   let tuple = make "tup"
+  let record = make "rec"
+  let vector = make "vec"
   let pointer = make "ptr"
   let size = make "sz"
   let bit = make "bit"
@@ -176,6 +182,34 @@ struct
   let func2 = make "func2"
   let func3 = make "func3"
   let param n = make ("param"^ string_of_int n)
+  let any structure =
+    let open Types in
+    match structure with
+    | TFloat -> float ()
+    | TString -> string ()
+    | TBool -> bool ()
+    | TU8 -> u8 ()
+    | TU16 -> u16 ()
+    | TU32 -> u32 ()
+    | TU64 -> u64 ()
+    | TU128 -> u128 ()
+    | TI8 -> i8 ()
+    | TI16 -> i16 ()
+    | TI32 -> i32 ()
+    | TI64 -> i64 ()
+    | TI128 -> i128 ()
+    | TVec _ -> vector ()
+    | TTup _ -> tuple ()
+    | TRec _ -> record ()
+    | TPointer -> pointer ()
+    | TSize -> size ()
+    | TBit -> bit ()
+    | TByte -> byte ()
+    | TWord -> word ()
+    | TDWord -> dword ()
+    | TQWord -> qword ()
+    | TOWord -> oword ()
+    | TBytes -> bytes ()
 
   let float_of_any s = s
   let string_of_any s = s
@@ -232,6 +266,8 @@ struct
     | TQWord -> qWord_of_any s
     | TOWord -> oWord_of_any s
     | TBytes -> bytes_of_any s
+
+  let of_string s = s
 
   let print : 'a BatIO.output -> 'b t -> unit = String.print
 
@@ -377,6 +413,17 @@ sig
   module I64 : INTEGER with type output = output and type mid = [`I64] id
   module U128 : INTEGER with type output = output and type mid = [`U128] id
   module I128 : INTEGER with type output = output and type mid = [`I128] id
+
+  (* Special needs for desser from/into a heap allocated value *)
+  val alloc_value : output -> Types.t -> [`Any] id
+  val set_field : output -> Types.t -> int -> 'a id -> unit
+  val set_nullable_field : output -> Types.t -> int -> 'a id option -> unit
+  val begin_tup : output -> Types.t -> int -> unit
+  val end_tup : output -> unit
+  val begin_rec : output -> Types.t -> int -> unit
+  val end_rec : output -> unit
+  val begin_vec : output -> Types.t -> int -> unit
+  val end_vec : output -> unit
 end
 
 module type DES =
@@ -385,7 +432,7 @@ sig
 
   (* RW state passed to every deserialization operations *)
   type state
-  val init_state : BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
 
   type 'a des = BE.output -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
@@ -424,13 +471,14 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
-  val init_state : BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
 
+  (* FIXME: make this type "private": *)
   type 'a ser = BE.output -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
   val sfloat : [`Float] id ser
   val sstring : [`String] id ser
-  val sbool: [`Bool] id ser
+  val sbool : [`Bool] id ser
   val si8 : [`I8] id ser
   val si16 : [`I16] id ser
   val si32 : [`I32] id ser
@@ -599,7 +647,7 @@ struct
     Identifier.pointer_of_any (BE.tuple_get oc pair 1)
 
   let desser typ oc src dst =
-    let sstate, dst = Ser.init_state oc dst
-    and dstate, src = Des.init_state oc src in
+    let sstate, dst = Ser.init_state typ oc dst
+    and dstate, src = Des.init_state typ oc src in
     desser_ typ oc sstate dstate src dst
 end

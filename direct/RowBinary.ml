@@ -7,7 +7,7 @@ struct
   module T = Types
 
   type state = unit
-  let init_state _oc p = (), p
+  let init_state _typ _oc p = (), p
 
   type 'a des = BE.output -> unit -> [`Pointer] id -> 'a * [`Pointer] id
 

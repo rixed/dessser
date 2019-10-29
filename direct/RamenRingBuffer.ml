@@ -14,7 +14,7 @@ struct
      * in the nullmask) *)
     { mutable nullmasks : (int * [`Pointer] id) list }
 
-  let init_state _oc p =
+  let init_state _typ _oc p =
     { nullmasks = [] }, p
 
   let push_nullmask st p = st.nullmasks <- (0, p) :: st.nullmasks
@@ -137,7 +137,7 @@ struct
     (* Like tuples, with fields in alphabetic order, with private fields
      * omitted: *)
     let typs =
-      Array.filter (fun (name, typ) -> not (is_private name)) typs in
+      Array.filter (fun (name, _typ) -> not (is_private name)) typs in
     Array.fast_sort record_field_cmp typs ;
     Array.map snd typs
 
