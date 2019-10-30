@@ -33,7 +33,16 @@ INSTALLED_LIB = \
 	$(filter %.cmx, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmx)) \
 	$(filter %.cmo, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo))
 
-INSTALLED = $(INSTALLED_LIB) META
+INSTALLED_HEADERS = \
+	direct/runtime.h \
+	direct/typedefs.h \
+	direct/Pointer.h \
+	direct/Bytes.h
+
+INSTALLED = \
+	$(INSTALLED_LIB) \
+	$(INSTALLED_HEADERS) \
+	META
 
 prefix = @prefix@
 exec_prefix = @exec_prefix@
@@ -186,7 +195,7 @@ check:
 # Installation
 
 install: $(INSTALLED)
-	ocamlfind install dessser $(INSTALLED_LIB) META
+	ocamlfind install dessser $(INSTALLED)
 
 uninstall:
 	ocamlfind remove dessser
