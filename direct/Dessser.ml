@@ -85,7 +85,7 @@ module Identifier :
     val i64 : unit -> [`I64] t
     val u128 : unit -> [`U128] t
     val i128 : unit -> [`I128] t
-    val tuple : unit -> [`Tuple] t
+    val tuple : unit -> [`Tup] t
     val pointer : unit -> [`Pointer] t
     val size : unit -> [`Size] t
     val bit : unit -> [`Bit] t
@@ -388,8 +388,8 @@ sig
   val cat_string : output -> [`String] id -> [`String] id -> [`String] id
 
   (* Cast those from/into a common TupItem type? *)
-  val make_tuple : output -> Types.t -> [`Any] id array -> [`Tuple] id
-  val tuple_get : output -> [`Tuple] id -> int -> [`Any] id
+  val make_tuple : output -> Types.t -> [`Any] id array -> [`Tup] id
+  val tuple_get : output -> [`Tup] id -> int -> [`Any] id
 
   val length_of_string : output -> [`String] id -> [`Size] id
   val string_of_bytes : output -> [`Bytes] id -> [`String] id
@@ -408,7 +408,7 @@ sig
    * [reduce] must be a function from any value and byte into any value. *)
   (* TODO: an id type for pair of 'a * 'b *)
   val read_while : output -> cond:([`Function1] * [`Byte] * [`Bool]) id -> reduce:([`Function2] * 'a * [`Byte] * 'a) id -> 'a id -> [`Pointer] id -> 'a id * [`Pointer] id
-  val do_while : output -> cond:([`Function2] * 'res * 'cond0 * [`Bool]) id -> loop:([`Function2] * 'res * 'cond0 * [`Tuple]) id -> 'cond0 id -> 'res id -> 'res id
+  val do_while : output -> cond:([`Function2] * 'res * 'cond0 * [`Bool]) id -> loop:([`Function2] * 'res * 'cond0 * [`Tup]) id -> 'cond0 id -> 'res id -> 'res id
 
   module Float : NUMERIC with type output = output and type mid = [`Float] id
   module U8 : INTEGER with type output = output and type mid = [`U8] id
