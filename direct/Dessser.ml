@@ -113,7 +113,7 @@ module Identifier :
     val u16_of_any : 'a t -> [`U16] t
     val u32_of_any : 'a t -> [`U32] t
     val u64_of_any : 'a t -> [`U64] t
-    val u128_of_any : 'a t -> [`U12] t
+    val u128_of_any : 'a t -> [`U128] t
     val i8_of_any : 'a t -> [`I8] t
     val i16_of_any : 'a t -> [`I16] t
     val i32_of_any : 'a t -> [`I32] t
@@ -313,6 +313,15 @@ sig
   val of_string : output -> [`String] id -> mid
 end
 
+(* Dessser provides the SER/DES with a frame stack (esp. useful when
+ * (de)constructing heap values but could help with some SER/DES as well: *)
+type frame =
+  { (* The type of the topmost value: *)
+    typ : Types.t ;
+    (* The index of this value within the parent compound type (or 0
+     * if root) *)
+    index : int }
+
 module type BACKEND =
 sig
   (* Depending on the back-end, one might want to write in several sections
@@ -370,9 +379,8 @@ sig
   val size_of_const : output -> int -> [`Size] id
   val size_of_u32 : output -> [`U32] id -> [`Size] id
   val u32_of_size : output -> [`Size] id -> [`U32] id
-  val make_pointer : output -> [`Size] id -> [`Pointer] id
   (* Build a pointer from a const string *)
-  val of_string : output -> string -> [`Pointer] id
+  val pointer_of_string : output -> string -> [`Pointer] id
   val float_of_i8 : output -> [`I8] id -> [`Float] id
   val float_of_qword : output -> [`QWord] id -> [`Float] id
   val bytes_of_float : output -> [`Float] id -> [`Bytes] id (* binary repr of the float *)
@@ -415,15 +423,16 @@ sig
   module I128 : INTEGER with type output = output and type mid = [`I128] id
 
   (* Special needs for desser from/into a heap allocated value *)
-  val alloc_value : output -> Types.t -> [`Any] id
-  val set_field : output -> Types.t -> int -> 'a id -> unit
-  val set_nullable_field : output -> Types.t -> int -> 'a id option -> unit
-  val begin_tup : output -> Types.t -> int -> unit
-  val end_tup : output -> unit
-  val begin_rec : output -> Types.t -> int -> unit
-  val end_rec : output -> unit
-  val begin_vec : output -> Types.t -> int -> unit
-  val end_vec : output -> unit
+  val alloc_value : output -> Types.t -> [`Pointer] id
+  val set_field : output -> frame list -> [`Pointer] id -> 'a id -> [`Pointer] id
+  val set_nullable_field : output -> frame list -> [`Pointer] id -> 'a id option -> [`Pointer] id
+
+  (* Return an id of the field pointed at the frame stack, from the given
+   * "pointer" identifier (that actually identify a value on the heap rather
+   * than a proper pointer object) *)
+  val get_field : output -> frame list -> [`Pointer] id -> [`Any] id
+  val get_nullable_field : output -> frame list -> [`Pointer] id -> [`Any] id
+  val field_is_set : output -> frame list -> [`Pointer] id -> [`Bool] id
 end
 
 module type DES =
@@ -434,7 +443,7 @@ sig
   type state
   val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
 
-  type 'a des = BE.output -> state -> [`Pointer] id -> 'a * [`Pointer] id
+  type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
   val dfloat : [`Float] id des
   val dstring : [`String] id des
@@ -450,19 +459,19 @@ sig
   val du64 : [`U64] id des
   val du128 : [`U128] id des
 
-  val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_opn : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_cls : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_sep : (string * Types.t) array -> string (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_sep : string (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
 
-  val is_null : Types.structure -> BE.output -> state -> [`Pointer] id -> [`Bool] id
-  val dnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val dnotnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val is_null : BE.output -> frame list -> state -> [`Pointer] id -> [`Bool] id
+  val dnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val dnotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
 end
 
 module type SER =
@@ -474,7 +483,7 @@ sig
   val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
 
   (* FIXME: make this type "private": *)
-  type 'a ser = BE.output -> state -> 'a -> [`Pointer] id -> [`Pointer] id
+  type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
   val sfloat : [`Float] id ser
   val sstring : [`String] id ser
@@ -490,19 +499,19 @@ sig
   val su64 : [`U64] id ser
   val su128 : [`U128] id ser
 
-  val tup_opn : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : Types.t array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : Types.t array -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_opn : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_cls : (string * Types.t) array -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_sep : (string * Types.t) array -> string (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : int -> Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int -> Types.t -> int (* before *) -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val rec_sep : string (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val vec_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
 
-  val nullable : Types.t -> BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val snull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
-  val snotnull : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val nullable : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val snull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val snotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
 end
 
 (* Many return values have the type of a pair or src*dst pointers: *)
@@ -512,101 +521,106 @@ module DesSer (Des : DES) (Ser : SER with module BE = Des.BE) =
 struct
   module BE = Des.BE
 
-  let ds what ser des oc sstate dstate src dst =
+  let ds ser des oc frames sstate dstate src dst =
+    let typ = (List.hd frames).typ in
+    let what = IO.to_string Types.print typ in
     BE.comment oc ("Desserialize a "^ what) ;
-    let v, src = des oc dstate src in
+    let v, src = des oc frames dstate src in
     BE.comment oc ("Serialize a "^ what) ;
-    let dst = ser oc sstate v dst in
+    let dst = ser oc frames sstate v dst in
     BE.make_tuple oc t_pair_ptrs
       [| Identifier.to_any src ; Identifier.to_any dst |]
 
-  let dsfloat = ds "float" Ser.sfloat Des.dfloat
-  let dsstring = ds "string" Ser.sstring Des.dstring
-  let dsbool = ds "bool" Ser.sbool Des.dbool
-  let dsi8 = ds "i8" Ser.si8 Des.di8
-  let dsi16 = ds "i16" Ser.si16 Des.di16
-  let dsi32 = ds "i32" Ser.si32 Des.di32
-  let dsi64 = ds "i64" Ser.si64 Des.di64
-  let dsi128 = ds "i128" Ser.si128 Des.di128
-  let dsu8 = ds "u8" Ser.su8 Des.du8
-  let dsu16 = ds "u16" Ser.su16 Des.du16
-  let dsu32 = ds "u32" Ser.su32 Des.du32
-  let dsu64 = ds "u64" Ser.su64 Des.du64
-  let dsu128 = ds "u128" Ser.su128 Des.du128
+  let dsfloat = ds Ser.sfloat Des.dfloat
+  let dsstring = ds Ser.sstring Des.dstring
+  let dsbool = ds Ser.sbool Des.dbool
+  let dsi8 = ds Ser.si8 Des.di8
+  let dsi16 = ds Ser.si16 Des.di16
+  let dsi32 = ds Ser.si32 Des.di32
+  let dsi64 = ds Ser.si64 Des.di64
+  let dsi128 = ds Ser.si128 Des.di128
+  let dsu8 = ds Ser.su8 Des.du8
+  let dsu16 = ds Ser.su16 Des.du16
+  let dsu32 = ds Ser.su32 Des.du32
+  let dsu64 = ds Ser.su64 Des.du64
+  let dsu128 = ds Ser.su128 Des.du128
 
-  let dsnull oc sstate dstate src dst =
+  let dsnull oc frames sstate dstate src dst =
     BE.comment oc "NULL" ;
-    Des.dnull oc dstate src,
-    Ser.snull oc sstate dst
+    Des.dnull oc frames dstate src,
+    Ser.snull oc frames sstate dst
 
-  let dsnotnull oc sstate dstate src dst =
+  let dsnotnull oc frames sstate dstate src dst =
     BE.comment oc "NOT NULL" ;
-    Des.dnotnull oc dstate src,
-    Ser.snotnull oc sstate dst
+    Des.dnotnull oc frames dstate src,
+    Ser.snotnull oc frames sstate dst
 
-  let rec dstup typs oc sstate dstate src dst =
+  let rec dstup typs oc frames sstate dstate src dst =
     BE.comment oc "DesSer a Tuple" ;
-    let src = Des.tup_opn typs oc dstate src
-    and dst = Ser.tup_opn typs oc sstate dst in
+    let src = Des.tup_opn oc frames dstate src
+    and dst = Ser.tup_opn oc frames sstate dst in
     let src, dst =
       BatArray.fold_lefti (fun (src, dst) i typ ->
+        let subframes = { typ ; index = i } :: frames in
         BE.comment oc ("DesSer tuple field "^ string_of_int i) ;
         if i = 0 then
-          desser_ typ oc sstate dstate src dst
+          desser_ oc subframes sstate dstate src dst
         else
-          let src = Des.tup_sep typs i oc dstate src
-          and dst = Ser.tup_sep typs i oc sstate dst in
-          desser_ typ oc sstate dstate src dst
+          let src = Des.tup_sep i oc frames dstate src
+          and dst = Ser.tup_sep i oc frames sstate dst in
+          desser_ oc subframes sstate dstate src dst
       ) (src, dst) typs in
     BE.make_tuple oc t_pair_ptrs [|
-      Identifier.to_any (Des.tup_cls typs oc dstate src) ;
-      Identifier.to_any (Ser.tup_cls typs oc sstate dst) |]
+      Identifier.to_any (Des.tup_cls oc frames dstate src) ;
+      Identifier.to_any (Ser.tup_cls oc frames sstate dst) |]
 
-  and dsrec typs oc sstate dstate src dst =
+  and dsrec typs oc frames sstate dstate src dst =
     BE.comment oc "DesSer a Record" ;
-    let src = Des.rec_opn typs oc dstate src
-    and dst = Ser.rec_opn typs oc sstate dst in
+    let src = Des.rec_opn oc frames dstate src
+    and dst = Ser.rec_opn oc frames sstate dst in
     let src, dst =
       BatArray.fold_lefti (fun (src, dst) i (fname, typ) ->
+        let subframes = { typ ; index = i } :: frames in
         BE.comment oc ("DesSer record field "^ fname) ;
         if i = 0 then
-          desser_ typ oc sstate dstate src dst
+          desser_ oc subframes sstate dstate src dst
         else
-          let src = Des.rec_sep typs fname oc dstate src
-          and dst = Ser.rec_sep typs fname oc sstate dst in
-          desser_ typ oc sstate dstate src dst
+          let src = Des.rec_sep fname oc frames dstate src
+          and dst = Ser.rec_sep fname oc frames sstate dst in
+          desser_ oc subframes sstate dstate src dst
       ) (src, dst) typs in
     BE.make_tuple oc t_pair_ptrs [|
-      Identifier.to_any (Des.rec_cls typs oc dstate src) ;
-      Identifier.to_any (Ser.rec_cls typs oc sstate dst) |]
+      Identifier.to_any (Des.rec_cls oc frames dstate src) ;
+      Identifier.to_any (Ser.rec_cls oc frames sstate dst) |]
 
   (* This will generates a long linear code with one block per array
    * item. Maybe have a IntRepr.loop instead? *)
-  and dsvec dim typ oc sstate dstate src dst =
+  and dsvec dim typ oc frames sstate dstate src dst =
     BE.comment oc "DesSer a Vector" ;
-    let desser_typ = desser_ typ oc sstate dstate in
-    let src = Des.vec_opn dim typ oc dstate src
-    and dst = Ser.vec_opn dim typ oc sstate dst in
+    let src = Des.vec_opn oc frames dstate src
+    and dst = Ser.vec_opn oc frames sstate dst in
     let rec loop src dst i =
       if i >= dim then
         BE.make_tuple oc t_pair_ptrs [|
-          Identifier.to_any (Des.vec_cls dim typ oc dstate src) ;
-          Identifier.to_any (Ser.vec_cls dim typ oc sstate dst) |]
+          Identifier.to_any (Des.vec_cls oc frames dstate src) ;
+          Identifier.to_any (Ser.vec_cls oc frames sstate dst) |]
       else (
+        let subframes = { typ ; index = i } :: frames in
         BE.comment oc ("DesSer vector field "^ string_of_int i) ;
         if i = 0 then
-          let src, dst = desser_typ src dst in
+          let src, dst = desser_ oc subframes sstate dstate src dst in
           loop src dst (i + 1)
         else
-          let src = Des.vec_sep dim typ i oc dstate src
-          and dst = Ser.vec_sep dim typ i oc sstate dst in
-          let src, dst = desser_typ src dst in
+          let src = Des.vec_sep i oc frames dstate src
+          and dst = Ser.vec_sep i oc frames sstate dst in
+          let src, dst = desser_ oc subframes sstate dstate src dst in
           loop src dst (i + 1)
       )
     in
     loop src dst 0
 
-  and desser_ typ oc sstate dstate src dst =
+  and desser_ oc frames sstate dstate src dst =
+    let typ = (List.hd frames).typ in
     let desser_structure = function
       | Types.TFloat -> dsfloat
       | Types.TString -> dsstring
@@ -628,20 +642,20 @@ struct
     in
     let pair =
       if typ.nullable then
-        let cond = Des.is_null typ.structure oc dstate src in
+        let cond = Des.is_null oc frames dstate src in
         (* Des can us [is_null] to prepare for a nullable, but Ser might also
          * have some work to do: *)
-        let dst = Ser.nullable typ oc sstate dst in
+        let dst = Ser.nullable oc frames sstate dst in
         BE.choose oc ~cond
           (fun oc ->
-            let s, d = dsnull oc sstate dstate src dst in
+            let s, d = dsnull oc frames sstate dstate src dst in
             BE.make_tuple oc t_pair_ptrs
               [| Identifier.to_any s ; Identifier.to_any d |])
           (fun oc ->
-            let s, d = dsnotnull oc sstate dstate src dst in
-            desser_structure typ.structure oc sstate dstate s d)
+            let s, d = dsnotnull oc frames sstate dstate src dst in
+            desser_structure typ.structure oc frames sstate dstate s d)
       else
-        desser_structure typ.structure oc sstate dstate src dst in
+        desser_structure typ.structure oc frames sstate dstate src dst in
     (* Returns src and dest: *)
     Identifier.pointer_of_any (BE.tuple_get oc pair 0),
     Identifier.pointer_of_any (BE.tuple_get oc pair 1)
@@ -649,5 +663,5 @@ struct
   let desser typ oc src dst =
     let sstate, dst = Ser.init_state typ oc dst
     and dstate, src = Des.init_state typ oc src in
-    desser_ typ oc sstate dstate src dst
+    desser_ oc [ { typ ; index = 0 } ] sstate dstate src dst
 end

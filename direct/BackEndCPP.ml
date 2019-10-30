@@ -9,10 +9,8 @@ type output =
     mutable code : string IO.output ; (* current function body *)
     mutable indent : string ; (* current line prefix *)
     mutable entry_point : bool ;
-    (* When building heap values, determine boxiness as well as access path: *)
-    mutable value_paths : (string (* path *) * string (* accessor to subfields *)) list ;
-    (* The id that was assigned to the latest outermost heap constructed value: *)
-    mutable value_id : string ;
+    (* When building heap values, remember the base type name (for casts): *)
+    mutable value_typname : string ;
     mutable funs : (string * string) list }
 
 (* Compound types have to be declared (once) *)
@@ -35,6 +33,10 @@ let c_type_of_scalar typ =
   | TU64 -> "uint64_t"
   | TI128 -> "int128_t"
   | TU128 -> "uint128_t"
+  (* The caller does not know if it's a pointer used for reading/writing bytes
+   * or setting/getting subfields, which is a good thing as it allow to
+   * combine freely actual serializers and value "reifiers".
+   * So here both types of pointer should be allowed.  *)
   | TPointer -> "Pointer"
   | TSize -> "Size"
   | TBit -> "bool"
@@ -60,7 +62,7 @@ let comment oc s =
 let cppify s = s
 
 (* Returns the name and typ of that subfield: *)
-let field_info typ idx =
+let subfield_info typ idx =
   match typ.Types.structure with
   | Types.TTup typs ->
       "field_"^ string_of_int idx, typs.(idx)
@@ -70,10 +72,11 @@ let field_info typ idx =
       assert (idx < dim) ;
       "["^ string_of_int idx ^"]", typ
   | _ ->
+      (* Scalar types have no subfields: *)
       assert false
 
-let field_name typ idx =
-  fst (field_info typ idx)
+let subfield_name typ idx =
+  fst (subfield_info typ idx)
 
 let rec print_type_decl oc id typ =
   let print_record typs =
@@ -83,7 +86,7 @@ let rec print_type_decl oc id typ =
     Printf.fprintf s "struct %s {\n" id ;
     Array.iteri (fun i subtyp ->
       let typ_id = find_or_define_type oc subtyp in
-      let fname, subtyp = field_info typ i in
+      let fname, subtyp = subfield_info typ i in
       if subtyp.Types.nullable then
         Printf.fprintf s "  std::optional<%s> %s;\n" typ_id fname
       else
@@ -130,8 +133,7 @@ let make_output () =
     code = IO.output_string () ;
     indent = "" ;
     entry_point = true ; (* First function emitted will be public *)
-    value_id = "" ;
-    value_paths = [] ;
+    value_typname = "" ;
     funs = [] }
 
 let print_output oc output =
@@ -373,11 +375,6 @@ let emit_pair typnames oc p =
     typnames Identifier.print id p ;
   Identifier.cat id ".first", Identifier.cat id ".second"
 
-(* With the idea that pointers are actually C++ objects with an idea of their
- * base, current position and length. *)
-let make_pointer oc s =
-  emit_pointer oc (fun oc -> Identifier.print oc s)
-
 let pointer_add oc p s =
   emit_pointer oc (fun oc ->
     Printf.fprintf oc "%a.skip(%a)"
@@ -428,7 +425,7 @@ let size_ge oc s1 s2 =
   emit_bool oc (fun oc ->
     Printf.fprintf oc "%a >= %a" Identifier.print s1 Identifier.print s2)
 
-let of_string oc s =
+let pointer_of_string oc s =
   emit_pointer oc (fun oc -> String.print_quoted oc s)
 
 let bytes_append oc bs b =
@@ -881,25 +878,44 @@ let do_while oc ~cond ~loop cond0 v0 =
 (* For heap allocated values, all subtypes are unboxed so we can perform a
  * single allocation. *)
 let alloc_value oc typ =
-  let typname = find_or_define_type oc typ in
-  let id = Identifier.any typ.Types.structure in
-  Printf.fprintf oc.code "%s%s *%a = new %s;\n" oc.indent
-    typname Identifier.print id typname ;
-  oc.value_id <- (id : _ Identifier.t :> string) ;
-  id
+  oc.value_typname <- find_or_define_type oc typ ;
+  emit_pointer oc (fun oc' ->
+    (* Build the shared_ptr here that the type is known: *)
+    Printf.fprintf oc' "std::shared_ptr<%s>(new %s)"
+      oc.value_typname
+      oc.value_typname)
 
-let set_field oc typ idx v =
-  match oc.value_paths with
-  | [] ->
-      (* The outermost value is a scalar *)
-      Printf.fprintf oc.code "%s*%s = %a;\n" oc.indent
-        oc.value_id
-        Identifier.print v
-  | (path, accessor) :: _ ->
-      Printf.fprintf oc.code "%s%s%s%s = %a;\n" oc.indent
-        path accessor
-        (field_name typ idx)
-        Identifier.print v
+(* Note: [p] despite being a Pointer identifier is actually the identifier of
+ * the address of a value. *)
+let id_of_path oc frames (p : [`Pointer] id) =
+  let base =
+    Printf.sprintf2 "(*((%s *)((%a).value.get())))"
+      oc.value_typname
+      Identifier.print p in
+  let rec loop = function
+    | [] ->
+        assert false
+    | [ _ ] ->
+        base
+    | top :: (parent :: _ as rest) ->
+        (* Dereference parent: *)
+        let accessor =
+          match parent.typ.Types.structure with
+          | Types.TTup _ -> "."
+          | Types.TRec _ -> "."
+          | Types.TVec _ -> ""
+          | _ -> assert false in
+        let subfield = subfield_name parent.typ top.index in
+        (loop rest) ^ accessor ^ subfield
+  in
+  loop frames
+
+let set_field oc frames p v =
+  let id = id_of_path oc frames p in
+  Printf.fprintf oc.code "%s%s = %a;\n" oc.indent
+    id
+    Identifier.print v ;
+  p
 
 let set_nullable_field oc typ idx v =
   match v with
@@ -908,37 +924,15 @@ let set_nullable_field oc typ idx v =
   | None ->
       set_field oc typ idx (Identifier.of_string "std::nullopt")
 
-let push_subfield oc typ idx =
-  match oc.value_paths with
-  | [] ->
-      (* We enter outermost compound type: *)
-      oc.value_paths <- [ oc.value_id, "->" ]
-  | (path, accessor) :: _ ->
-      let subfield, subtyp = field_info typ idx in
-      let path = path ^ accessor ^ subfield in
-      let accessor =
-        match subtyp.structure with
-        | Types.TVec _ -> ""
-        | _ -> "." in
-      oc.value_paths <- (path, accessor) :: oc.value_paths
+let get_field oc frames p =
+  let id = id_of_path oc frames p in
+  Identifier.of_string id
 
-let pop_subfield oc =
-  oc.value_paths <- List.tl oc.value_paths
+let get_nullable_field oc frames p =
+  let id = id_of_path oc frames p in
+  Identifier.of_string (id ^".value()")
 
-let begin_tup oc typ idx =
-  push_subfield oc typ idx
-
-let end_tup oc =
-  pop_subfield oc
-
-let begin_rec oc typ idx =
-  push_subfield oc typ idx
-
-let end_rec oc =
-  pop_subfield oc
-
-let begin_vec oc typ idx =
-  push_subfield oc typ idx
-
-let end_vec oc =
-  pop_subfield oc
+let field_is_set oc frames p =
+  let id = id_of_path oc frames p in
+  emit_bool oc (fun oc ->
+    Printf.fprintf oc "%s.has_value()" id)

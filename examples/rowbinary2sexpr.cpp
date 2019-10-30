@@ -46,9 +46,10 @@ int main(int numArgs, char **args)
 
     // Print serialized:
     assert(ptrs.dst.offset < ptrs.dst.size-1);
-    ptrs.dst.buffer.get()[ptrs.dst.offset++] = '\0';
-    fwrite(ptrs.dst.buffer.get(), 1, ptrs.dst.offset, stdout);
-    if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
+    if (ptrs.dst.buffer) {
+      fwrite(ptrs.dst.buffer.get(), 1, ptrs.dst.offset, stdout);
+      if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
+    } // else it's a heap value
 
     src = ptrs.src;
   }

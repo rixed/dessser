@@ -4,8 +4,8 @@ open Dessser
 
 module C = BackEndCPP
 
-module DS = DesSer (RowBinary.Des (C))
-  (*(SExpr.Ser (C))*) (*(DevNull (C))*) (*(RamenRingBuffer.Ser (C))*) (HeapValue.Ser (C))
+module DS1 = DesSer (RowBinary.Des (C)) (HeapValue.Ser (C))
+module DS2 = DesSer (HeapValue.Des (C)) (SExpr.Ser (C)) (*(RamenRingBuffer.Ser (C))*)
 
 let run_cmd cmd =
   match Unix.system cmd with
@@ -76,7 +76,11 @@ let () =
   let output = C.make_output () in
   let _read_tuple =
     C.print_function2 output t_pair_ptrs Types.(make TPointer) Types.(make TPointer) (fun oc src dst ->
-      let src, dst = DS.desser typ oc src dst in
+      C.comment oc "Convert from RowBinary into a heap value:" ;
+      let dummy = Identifier.pointer () in (* Will be ignored by HeapValue.Ser *)
+      let src, heap_value = DS1.desser typ oc src dummy in
+      C.comment oc "Now convert the heap value into an SExpr:" ;
+      let _, dst = DS2.desser typ oc heap_value dst in
       C.make_tuple oc t_pair_ptrs [| src ; dst |]) in
   let optim = 3 in
   compile_output optim output

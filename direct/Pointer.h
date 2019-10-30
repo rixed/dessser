@@ -6,6 +6,15 @@
 #include "Bytes.h"
 #include "typedefs.h"
 
+/* We have 2 types of pointers:
+ * Pointers that point to a byte buffer used to (de)serialize values, and
+ * pointers that point to a heap allocated value that's being build with
+ * set_field or peeked at with get_field.
+ * In a few cases we can use both interchangeably, although they share
+ * nothing in common, including copying them by value (which makes
+ * inheritance unpractical). */
+
+/* The type of pointer used to serialize/deserialize with write/read functions: */
 struct Pointer {
   // Shared with all pointers derived from this one:
   std::shared_ptr<Byte[]> buffer;
@@ -13,6 +22,12 @@ struct Pointer {
   size_t size;
   // Current location of the read/write pointer inside the buffer:
   size_t offset;
+  /* The type of pointer used to hold a heap allocated value that's being
+   * build with BackEndCPP.set_field or deconstructed with get_field.
+   * If this is set then buffer must by null, and the other way around.
+   * On shared_ptr<void>, it works because BackEndCPP.alloc_value alloc
+   * with new, and we build the shared_ptr when the actual type is known. */
+  std::shared_ptr<void> value;
 
   /* Construct (with uninitialized buffer) from a size: */
   Pointer(Size const &sz) :
@@ -34,7 +49,15 @@ struct Pointer {
   Pointer(Pointer const &that) :
     buffer(that.buffer),
     size(that.size),
-    offset(that.offset)
+    offset(that.offset),
+    value(that.value)
+  {}
+
+  /* Construct from any heap allocated value */
+  Pointer(std::shared_ptr<void> value_) :
+    size(0),
+    offset(0),
+    value(value_)
   {}
 
   Size rem() const

@@ -51,64 +51,69 @@ struct
         BE.(size_of_const oc sz) in
     align_const oc p sz
 
-  type 'a ser = BE.output -> state -> 'a -> [`Pointer] id -> [`Pointer] id
+  type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
-  let sfloat oc _st v p =
+  let sfloat oc _frames _st v p =
     BE.write_dword oc p (BE.Float.to_dword oc v)
 
-  let sstring oc _st v p =
+  let sstring oc _frames _st v p =
     let len = BE.length_of_string oc v in
     let p = BE.write_dword oc p BE.(u32_of_size oc len |> U32.to_dword oc) in
     let bytes = BE.bytes_of_string oc v in
     let p = BE.write_bytes oc p bytes in
     align_dyn oc p (BE.u32_of_size oc len)
 
-  let sbool oc _st v p =
+  let sbool oc _frames _st v p =
     let byte = BE.(U8.to_byte oc (u8_of_bool oc v)) in
     let p = BE.write_byte oc p byte in
     align_const oc p 1
 
-  let si8 oc _st v p =
+  let si8 oc _frames _st v p =
     let p = BE.(write_byte oc p (I8.to_byte oc v)) in
     align_const oc p 1
 
-  let si16 oc _st v p =
+  let si16 oc _frames _st v p =
     let p = BE.(write_word oc p (I16.to_word oc v)) in
     align_const oc p 2
 
-  let si32 oc _st v p =
+  let si32 oc _frames _st v p =
     let p = BE.(write_dword oc p (I32.to_dword oc v)) in
     align_const oc p 4
 
-  let si64 oc _st v p =
+  let si64 oc _frames _st v p =
     let p = BE.(write_qword oc p (I64.to_qword oc v)) in
     align_const oc p 8
 
-  let si128 oc _st v p =
+  let si128 oc _frames _st v p =
     let p = BE.(write_oword oc p (I128.to_oword oc v)) in
     align_const oc p 16
 
-  let su8 oc _st v p =
+  let su8 oc _frames _st v p =
     let p = BE.(write_byte oc p (U8.to_byte oc v)) in
     align_const oc p 1
 
-  let su16 oc _st v p =
+  let su16 oc _frames _st v p =
     let p = BE.(write_word oc p (U16.to_word oc v)) in
     align_const oc p 2
 
-  let su32 oc _st v p =
+  let su32 oc _frames _st v p =
     let p = BE.(write_dword oc p (U32.to_dword oc v)) in
     align_const oc p 4
 
-  let su64 oc _st v p =
+  let su64 oc _frames _st v p =
     let p = BE.(write_qword oc p (U64.to_qword oc v)) in
     align_const oc p 8
 
-  let su128 oc _st v p =
+  let su128 oc _frames _st v p =
     let p = BE.(write_oword oc p (U128.to_oword oc v)) in
     align_const oc p 16
 
-  let tup_opn typs oc st p =
+  let get_tup_typs frames =
+    match frames with
+    | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ -> typs
+    | _ -> assert false
+
+  let tup_opn_with_typs oc typs st p =
     (* inside tuples have one nullmask bit per item regardless of nullability *)
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
@@ -121,11 +126,15 @@ struct
     push_nullmask st p ;
     zero_nullmask oc nullmask_bits p
 
-  let tup_cls _typs _oc st p =
+  let tup_opn oc frames st p =
+    let typs = get_tup_typs frames in
+    tup_opn_with_typs oc typs st p
+
+  let tup_cls _oc _frames st p =
     pop_nullmask st ;
     p
 
-  let tup_sep _typs _idx _oc _st p = p
+  let tup_sep _idx _oc _frames _st p = p
 
   let is_private name =
     String.length name > 0 && name.[0] = '_'
@@ -141,17 +150,29 @@ struct
     Array.fast_sort record_field_cmp typs ;
     Array.map snd typs
 
-  let rec_opn typs oc st p =
+  let get_rec_typs frames =
+    match frames with
+    | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ -> typs
+    | _ -> assert false
+
+  let rec_opn oc frames st p =
+    let typs = get_rec_typs frames in
     let typs = tuple_typs_of_record typs in
-    tup_opn typs oc st p
+    tup_opn_with_typs oc typs st p
 
-  let rec_cls typs oc st p =
-    let typs = tuple_typs_of_record typs in
-    tup_cls typs oc st p
+  let rec_cls _oc _frames st p =
+    pop_nullmask st ;
+    p
 
-  let rec_sep _typs _fname _oc _st p = p
+  let rec_sep _fname _oc _frames _st p = p
 
-  let vec_opn dim typ oc st p =
+  let get_vec_typs frames =
+    match frames with
+    | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ -> dim, typ
+    | _ -> assert false
+
+  let vec_opn oc frames st p =
+    let dim, typ = get_vec_typs frames in
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
@@ -161,15 +182,17 @@ struct
     push_nullmask st p ;
     zero_nullmask oc nullmask_bits p
 
-  let vec_cls _dim _typ _oc st p =
+  let vec_cls _oc _frames st p =
     pop_nullmask st ;
     p
 
-  let vec_sep _dim _typ _idx _oc _st p = p
+  let vec_sep _idx _oc _frames _st p = p
 
   (* This is called before serializing the null/notnull, but that's
    * our best opportunity to increment the bit index: *)
-  let nullable _typ oc st p =
+  (* FIXME: do this using frames for each sXXX function and get rid of
+   * SER.nullable *)
+  let nullable oc _frames st p =
     (match st.nullmasks with
     | [] -> ()
     | (bi, p) :: r ->
@@ -178,9 +201,9 @@ struct
     p
 
   (* The nullmask has been zeroed already: *)
-  let snull _oc _st p = p
+  let snull _oc _frames _st p = p
 
-  let snotnull oc st p =
+  let snotnull oc _frames st p =
     (* When we encode a non-null nullable value we must also set its bit in
      * the nullmask: *)
     (match st.nullmasks with
