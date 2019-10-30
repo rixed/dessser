@@ -672,6 +672,21 @@ struct
     emit oc (fun oc -> Printf.fprintf oc "%a %% %a"
       print t1 print t2)
 
+  let log_and oc t1 t2 =
+    emit oc (fun oc -> Printf.fprintf oc "%a & %a"
+      print t1 print t2)
+
+  let log_or oc t1 t2 =
+    emit oc (fun oc -> Printf.fprintf oc "%a | %a"
+      print t1 print t2)
+
+  let log_xor oc t1 t2 =
+    emit oc (fun oc -> Printf.fprintf oc "%a ^ %a"
+      print t1 print t2)
+
+  let log_not oc t =
+    emit oc (fun oc -> Printf.fprintf oc "~%a" print t)
+
   let shift_left oc t1 t2 =
     emit oc (fun oc -> Printf.fprintf oc "%a << %a"
       print t1 Identifier.print t2)
@@ -794,6 +809,36 @@ let bool_or oc b1 b2 =
 let bool_not oc b =
   emit_bool oc (fun oc ->
     Printf.fprintf oc "!%a" Identifier.print b)
+
+let u8_of_const oc v =
+  emit_u8 oc (fun oc -> String.print oc (Uint8.to_string v))
+
+let u16_of_const oc v =
+  emit_u16 oc (fun oc -> String.print oc (Uint16.to_string v))
+
+let u32_of_const oc v =
+  emit_u32 oc (fun oc -> String.print oc (Uint32.to_string v))
+
+let u64_of_const oc v =
+  emit_u64 oc (fun oc -> String.print oc (Uint64.to_string v))
+
+let u128_of_const oc v =
+  emit_u128 oc (fun oc -> String.print oc (Uint128.to_string v))
+
+let i8_of_const oc v =
+  emit_i8 oc (fun oc -> String.print oc (Int8.to_string v))
+
+let i16_of_const oc v =
+  emit_i16 oc (fun oc -> String.print oc (Int16.to_string v))
+
+let i32_of_const oc v =
+  emit_i32 oc (fun oc -> String.print oc (Int32.to_string v))
+
+let i64_of_const oc v =
+  emit_i64 oc (fun oc -> String.print oc (Int64.to_string v))
+
+let i128_of_const oc v =
+  emit_i128 oc (fun oc -> String.print oc (Int128.to_string v))
 
 (* [c] and [a] must have been resolved into indentifiers already, ie. their
  * side effect must have happened already (in practice: only for [c] and [a]

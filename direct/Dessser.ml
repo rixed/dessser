@@ -308,6 +308,10 @@ sig
   include NUMERIC
 
   val rem : output -> mid -> mid -> mid
+  val log_and : output -> mid -> mid -> mid
+  val log_or : output -> mid -> mid -> mid
+  val log_xor : output -> mid -> mid -> mid
+  val log_not : output -> mid -> mid
   val shift_left : output -> mid -> [`U8] id -> mid
   val shift_right : output -> mid -> [`U8] id -> mid
   val of_string : output -> [`String] id -> mid
@@ -401,6 +405,17 @@ sig
   val bool_and : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
   val bool_or : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
   val bool_not : output -> [`Bool] id -> [`Bool] id
+
+  val u8_of_const : output -> Uint8.t -> [`U8] id
+  val u16_of_const : output -> Uint16.t -> [`U16] id
+  val u32_of_const : output -> Uint32.t -> [`U32] id
+  val u64_of_const : output -> Uint64.t -> [`U64] id
+  val u128_of_const : output -> Uint128.t -> [`U128] id
+  val i8_of_const : output -> Int8.t -> [`I8] id
+  val i16_of_const : output -> Int16.t -> [`I16] id
+  val i32_of_const : output -> Int32.t -> [`I32] id
+  val i64_of_const : output -> Int64.t -> [`I64] id
+  val i128_of_const : output -> Int128.t -> [`I128] id
 
   val choose :
     output -> cond:[`Bool] id -> (output -> 'a id) -> (output -> 'a id) -> 'a id
