@@ -173,7 +173,7 @@ let print_function0 oc out_typ p =
   oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
-let print_function1 oc out_typ in_typ0 p =
+let print_function1 oc in_typ0 out_typ p =
   let out_tname = find_or_define_type oc out_typ in
   let in_tname0 = find_or_define_type oc in_typ0 in
   let param0 = Identifier.param 0 () in
@@ -199,7 +199,7 @@ let print_function1 oc out_typ in_typ0 p =
   oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
-let print_function2 oc out_typ in_typ0 in_typ1 p =
+let print_function2 oc in_typ0 in_typ1 out_typ p =
   let fun_id = Identifier.func2 () in
   let out_tname = find_or_define_type oc out_typ in
   let in_tname0 = find_or_define_type oc in_typ0 in

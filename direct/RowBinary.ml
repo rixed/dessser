@@ -21,10 +21,10 @@ struct
     and t_bool = T.(make TBool)
     in
     let cond =
-      BE.print_function1 oc t_bool t_byte (fun oc b ->
+      BE.print_function1 oc t_byte t_bool (fun oc b ->
         BE.U8.gt oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
-      BE.print_function2 oc t_pair_u32_u8 t_pair_u32_u8 t_byte (fun oc leb_shft_tup byte ->
+      BE.print_function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8 (fun oc leb_shft_tup byte ->
         let leb = Identifier.u32_of_any (BE.tuple_get oc leb_shft_tup 0)
         and shft = Identifier.u8_of_any (BE.tuple_get oc leb_shft_tup 1) in
         BE.make_tuple oc t_pair_u32_u8 [|

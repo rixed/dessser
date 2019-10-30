@@ -76,7 +76,8 @@ let () =
       |])) in
   let output = C.make_output () in
   let _read_tuple =
-    C.print_function2 output t_pair_ptrs Types.(make TPointer) Types.(make TPointer) (fun oc src dst ->
+    let tptr = Types.(make TPointer) in
+    C.print_function2 output tptr tptr t_pair_ptrs (fun oc src dst ->
       C.comment oc "Convert from RowBinary into a heap value:" ;
       let dummy = Identifier.pointer () in (* Will be ignored by HeapValue.Ser *)
       let src, heap_value = DS1.desser typ oc src dummy in
