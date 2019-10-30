@@ -17,7 +17,7 @@ type output =
 
 let type_decls = ref Set.String.empty
 
-let c_type_of_scalar typ =
+let rec c_type_of_scalar typ =
   let open Types in
   match typ.structure with
   | TFloat -> "double"
@@ -33,6 +33,12 @@ let c_type_of_scalar typ =
   | TU64 -> "uint64_t"
   | TI128 -> "int128_t"
   | TU128 -> "uint128_t"
+  (* Not scalars: *)
+  | TTup _
+  | TRec _ -> assert false
+  (* Treated as a scalar here: *)
+  | TVec (dim, typ) ->
+      Printf.sprintf "%s[%d]" (c_type_of_scalar typ) dim
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allow to
    * combine freely actual serializers and value "reifiers".
@@ -41,15 +47,11 @@ let c_type_of_scalar typ =
   | TSize -> "Size"
   | TBit -> "bool"
   | TByte -> "uint8_t"
-  | TWord -> "uint16_t";
-  | TDWord -> "uint32_t";
-  | TQWord -> "uint64_t";
-  | TOWord -> "uint128_t";
-  | TBytes
-  | TTup _
-  | TRec _
-  | TVec _ ->
-      assert false
+  | TWord -> "uint16_t"
+  | TDWord -> "uint32_t"
+  | TQWord -> "uint64_t"
+  | TOWord -> "uint128_t"
+  | TBytes -> "Bytes"
 
 let ignore oc id =
   Printf.fprintf oc.code "%s(void)%a;\n" oc.indent

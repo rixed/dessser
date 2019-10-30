@@ -136,13 +136,17 @@ struct
 
   let tup_sep _idx _oc _frames _st p = p
 
+  let is_private name =
+    String.length name > 0 && name.[0] = '_'
+
   let record_field_cmp (n1, _) (n2, _) =
     String.compare n1 n2
 
   let tuple_typs_of_record typs =
-    (* Like tuples, with fields in alphabetic order.
-     * Here and everywhere else, it is assumed that private fields have
-     * been filtered out already! *)
+    (* Like tuples, with fields in alphabetic order, with private fields
+     * omitted: *)
+    let typs =
+      Array.filter (fun (name, _typ) -> not (is_private name)) typs in
     Array.fast_sort record_field_cmp typs ;
     Array.map snd typs
 
@@ -227,66 +231,94 @@ struct
         (add oc (u32_of_size oc sz) mask)
         (log_xor oc mask (u32_of_const oc (Uint32.of_int64 0xFFFF_FFFFL)))))
 
-  let ssize_of_string oc _ id =
-    let sz = BE.length_of_string oc id in
-    DynSize (round_up_dyn oc sz)
+  (* HeapValue will iterate over the whole tree of values but we want to
+   * hide anything that's below a private field: *)
+  let or_private frames k =
+    let rec loop child_index = function
+      | [] ->
+          (* Reached the bottom of the stack without meeting a private field
+           * name *)
+          k ()
+      | frame :: rest ->
+          (match frame.typ.Types.structure with
+          | TRec typs ->
+              let name, _ = typs.(child_index) in
+              if is_private name then
+                ConstSize 0
+              else
+                loop frame.index rest
+          | _ ->
+              loop frame.index rest) in
+    (* Index should not be used with the top of stack, let's find out: *)
+    loop ~-1 frames
 
-  let ssize_of_float _ _ _ = round_up_const 8
-  let ssize_of_bool _ _ _ = round_up_const 1
-  let ssize_of_i8 _ _ _ = round_up_const 1
-  let ssize_of_i16 _ _ _ = round_up_const 2
-  let ssize_of_i32 _ _ _ = round_up_const 4
-  let ssize_of_i64 _ _ _ = round_up_const 8
-  let ssize_of_i128 _ _ _ = round_up_const 16
-  let ssize_of_u8 _ _ _ = round_up_const 1
-  let ssize_of_u16 _ _ _ = round_up_const 2
-  let ssize_of_u32 _ _ _ = round_up_const 4
-  let ssize_of_u64 _ _ _ = round_up_const 8
-  let ssize_of_u128 _ _ _ = round_up_const 16
+  let ssize_of_string oc frames id =
+    or_private frames (fun () ->
+      let sz = BE.length_of_string oc id in
+      DynSize (round_up_dyn oc sz))
+
+  let ssize_of_float _ frames _ = or_private frames (fun () -> round_up_const 8)
+  let ssize_of_bool _ frames _ = or_private frames (fun () -> round_up_const 1)
+  let ssize_of_i8 _ frames _ = or_private frames (fun () -> round_up_const 1)
+  let ssize_of_i16 _ frames _ = or_private frames (fun () -> round_up_const 2)
+  let ssize_of_i32 _ frames _ = or_private frames (fun () -> round_up_const 4)
+  let ssize_of_i64 _ frames _ = or_private frames (fun () -> round_up_const 8)
+  let ssize_of_i128 _ frames _ = or_private frames (fun () -> round_up_const 16)
+  let ssize_of_u8 _ frames _ = or_private frames (fun () -> round_up_const 1)
+  let ssize_of_u16 _ frames _ = or_private frames (fun () -> round_up_const 2)
+  let ssize_of_u32 _ frames _ = or_private frames (fun () -> round_up_const 4)
+  let ssize_of_u64 _ frames _ = or_private frames (fun () -> round_up_const 8)
+  let ssize_of_u128 _ frames _ = or_private frames (fun () -> round_up_const 16)
 
   let ssize_of_tup _ frames _ =
-    (* Just the additional bitmask: *)
-    let is_outermost, typs =
-      match frames with
-      | [ { typ = Types.{ structure = TTup typs ; _ } ; _ } ] ->
-          true, typs
-      | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ ->
-          false, typs
-      | _ -> assert false in
-    round_up_const_bits (
-      if is_outermost then
-        Array.length typs
-      else
-        Array.fold_left (fun c typ ->
-          if typ.Types.nullable then c + 1 else c) 0 typs)
+    or_private frames (fun () ->
+      (* Just the additional bitmask: *)
+      let is_outermost, typs =
+        match frames with
+        | [ { typ = Types.{ structure = TTup typs ; _ } ; _ } ] ->
+            true, typs
+        | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ ->
+            false, typs
+        | _ -> assert false in
+      round_up_const_bits (
+        if is_outermost then
+          Array.length typs
+        else
+          Array.fold_left (fun c typ ->
+            if typ.Types.nullable then c + 1 else c) 0 typs))
 
   let ssize_of_rec _ frames _ =
-    (* Just the additional bitmask: *)
-    let is_outermost, typs =
-      match frames with
-      | [ { typ = Types.{ structure = TRec typs ; _ } ; _ } ] ->
-          true, typs
-      | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ ->
-          false, typs
-      | _ -> assert false in
-    let typs = Array.map snd typs in
-    round_up_const_bits (
-      if is_outermost then
-        Array.length typs
-      else
-        Array.fold_left (fun c typ ->
-          if typ.Types.nullable then c + 1 else c) 0 typs)
+    or_private frames (fun () ->
+      (* Just the additional bitmask: *)
+      let is_outermost, typs =
+        match frames with
+        | [ { typ = Types.{ structure = TRec typs ; _ } ; _ } ] ->
+            true, typs
+        | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ ->
+            false, typs
+        | _ -> assert false in
+      let typs = Array.filter_map (fun (name, typ) ->
+        if is_private name then None else Some typ
+      ) typs in
+      round_up_const_bits (
+        if is_outermost then
+          Array.length typs
+        else
+          Array.fold_left (fun c typ ->
+            if typ.Types.nullable then c + 1 else c) 0 typs))
 
   let ssize_of_vec _ frames _ =
-    let is_outermost, dim, typ =
-      match frames with
-      | [ { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } ] ->
-          true, dim, typ
-      | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ ->
-          false, dim, typ
-      | _ -> assert false in
-    round_up_const_bits (
-      if is_outermost || typ.Types.nullable then dim else 0)
+    or_private frames (fun () ->
+      let is_outermost, dim, typ =
+        match frames with
+        | [ { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } ] ->
+            true, dim, typ
+        | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ ->
+            false, dim, typ
+        | _ -> assert false in
+      round_up_const_bits (
+        if is_outermost || typ.Types.nullable then dim else 0))
 
-  let ssize_of_null _ _ = ConstSize 0
+  let ssize_of_null _ frames =
+    or_private frames (fun () -> ConstSize 0)
 end
