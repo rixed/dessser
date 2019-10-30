@@ -6,6 +6,7 @@ module C = BackEndCPP
 
 module DS1 = DesSer (RowBinary.Des (C)) (HeapValue.Ser (C))
 module DS2 = DesSer (HeapValue.Des (C)) (SExpr.Ser (C)) (*(RamenRingBuffer.Ser (C))*)
+module Sizer = HeapValue.SerSizer (RamenRingBuffer.Ser (C))
 
 let run_cmd cmd =
   match Unix.system cmd with
@@ -79,6 +80,13 @@ let () =
       C.comment oc "Convert from RowBinary into a heap value:" ;
       let dummy = Identifier.pointer () in (* Will be ignored by HeapValue.Ser *)
       let src, heap_value = DS1.desser typ oc src dummy in
+      C.comment oc "Compute the serialized size of this tuple:" ;
+      let const_sz, dyn_sz = Sizer.sersize typ oc heap_value in
+      C.dump oc [
+        C.string_of_const oc "Constant size: " ;
+        C.size_to_string oc const_sz ;
+        C.string_of_const oc ", dynamic size: " ;
+        C.size_to_string oc dyn_sz ] ;
       C.comment oc "Now convert the heap value into an SExpr:" ;
       let _, dst = DS2.desser typ oc heap_value dst in
       C.make_tuple oc t_pair_ptrs [| src ; dst |]) in

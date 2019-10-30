@@ -6,6 +6,7 @@
  *
  * For such a format, the pointers used to write/read during resp.
  * serialization/deserialization are unused. *)
+open Batteries
 open Dessser
 
 let is_nullable = function
@@ -79,6 +80,26 @@ struct
     BE.set_nullable_field oc frames p None
 
   let snotnull _oc _frames () p = p
+
+  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  let todo_ssize () = failwith "TODO: ssize for HeapValue"
+  let ssize_of_float _ _ _ = todo_ssize ()
+  let ssize_of_string _ _ _ = todo_ssize ()
+  let ssize_of_bool _ _ _ = todo_ssize ()
+  let ssize_of_i8 _ _ _ = todo_ssize ()
+  let ssize_of_i16 _ _ _ = todo_ssize ()
+  let ssize_of_i32 _ _ _ = todo_ssize ()
+  let ssize_of_i64 _ _ _ = todo_ssize ()
+  let ssize_of_i128 _ _ _ = todo_ssize ()
+  let ssize_of_u8 _ _ _ = todo_ssize ()
+  let ssize_of_u16 _ _ _ = todo_ssize ()
+  let ssize_of_u32 _ _ _ = todo_ssize ()
+  let ssize_of_u64 _ _ _ = todo_ssize ()
+  let ssize_of_u128 _ _ _ = todo_ssize ()
+  let ssize_of_tup _ _ _ = todo_ssize ()
+  let ssize_of_rec _ _ _ = todo_ssize ()
+  let ssize_of_vec _ _ _ = todo_ssize ()
+  let ssize_of_null _ _ = todo_ssize ()
 end
 
 module Des (BE : BACKEND) : DES with module BE = BE =
@@ -141,4 +162,112 @@ struct
 
   let dnull _oc _frames () p = p
   let dnotnull _oc _frames () p = p
+end
+
+(* Module to compute the sersize of a heap value: *)
+module SerSizer (Ser : SER) : sig
+    val sersize : Types.t -> Ser.BE.output -> [`Pointer] id ->
+                    ([`Size] id * [`Size] id)
+  end =
+struct
+  module BE = Ser.BE
+  
+  let t_pair_sizes = Types.(make (TTup [| make TSize ; make TSize |]))
+
+  (* Returns a pair of size identifier holding the const and dyn size of
+   * the heap value pointed by the pointer identifier [src].
+   * [src] must be a pointer to a heap value, as returned by the above
+   * Ser module. *)
+  let sersize typ oc src =
+    let size_0 = BE.size_of_const oc 0 in
+    let add_size sizes = function
+      | ConstSize sz ->
+          BE.make_tuple oc t_pair_sizes
+            [| Identifier.to_any (
+                 BE.(size_add oc
+                   (size_of_const oc sz)
+                   (Identifier.size_of_any (tuple_get oc sizes 0)))) ;
+               BE.tuple_get oc sizes 1 |]
+      | DynSize sz ->
+          BE.make_tuple oc t_pair_sizes
+            [| BE.tuple_get oc sizes 0 ;
+               Identifier.to_any (
+                 BE.(size_add oc
+                   sz
+                   (Identifier.size_of_any (tuple_get oc sizes 1)))) |] in
+    (* Add that value size to the passed size pair: *)
+    let rec ssize_structure sizes oc frames v = function
+      | Types.TFloat ->
+          Ser.ssize_of_float oc frames (Identifier.float_of_any v) |> add_size sizes
+      | Types.TString ->
+          Ser.ssize_of_string oc frames (Identifier.string_of_any v) |> add_size sizes
+      | Types.TBool ->
+          Ser.ssize_of_bool oc frames (Identifier.bool_of_any v) |> add_size sizes
+      | Types.TI8 ->
+          Ser.ssize_of_i8 oc frames (Identifier.i8_of_any v) |> add_size sizes
+      | Types.TI16 ->
+          Ser.ssize_of_i16 oc frames (Identifier.i16_of_any v) |> add_size sizes
+      | Types.TI32 ->
+          Ser.ssize_of_i32 oc frames (Identifier.i32_of_any v) |> add_size sizes
+      | Types.TI64 ->
+          Ser.ssize_of_i64 oc frames (Identifier.i64_of_any v) |> add_size sizes
+      | Types.TI128 ->
+          Ser.ssize_of_i128 oc frames (Identifier.i128_of_any v) |> add_size sizes
+      | Types.TU8 ->
+          Ser.ssize_of_u8 oc frames (Identifier.u8_of_any v) |> add_size sizes
+      | Types.TU16 ->
+          Ser.ssize_of_u16 oc frames (Identifier.u16_of_any v) |> add_size sizes
+      | Types.TU32 ->
+          Ser.ssize_of_u32 oc frames (Identifier.u32_of_any v) |> add_size sizes
+      | Types.TU64 ->
+          Ser.ssize_of_u64 oc frames (Identifier.u64_of_any v) |> add_size sizes
+      | Types.TU128 ->
+          Ser.ssize_of_u128 oc frames (Identifier.u128_of_any v) |> add_size sizes
+      (* Compound types require recursion: *)
+      | Types.TTup typs ->
+          let sizes =
+            Ser.ssize_of_tup oc frames (Identifier.tup_of_any v) |> add_size sizes in
+          Array.fold_lefti (fun sizes i typ ->
+            let subframes = { typ ; index = i } :: frames in
+            sersize_ oc subframes src sizes
+          ) sizes typs
+      | Types.TRec typs ->
+          let sizes =
+            Ser.ssize_of_rec oc frames (Identifier.rec_of_any v) |> add_size sizes in
+          Array.fold_lefti (fun sizes i (_name, typ) ->
+            let subframes = { typ ; index = i } :: frames in
+            sersize_ oc subframes src sizes
+          ) sizes typs
+      | Types.TVec (dim, typ) ->
+          let sizes =
+            Ser.ssize_of_vec oc frames (Identifier.vec_of_any v) |> add_size sizes in
+          let rec loop sizes i =
+            if i >= dim then sizes else
+            let subframes = { typ ; index = i } :: frames in
+            let sizes = sersize_ oc subframes src sizes in
+            loop sizes (i + 1) in
+          loop sizes 0
+      | _ ->
+          assert false
+    and sersize_ oc frames src sizes =
+      let typ = (List.hd frames).typ in
+      if typ.nullable then
+        let cond = BE.field_is_set oc frames src in
+        BE.choose oc ~cond
+          (fun oc ->
+            let v = BE.get_nullable_field oc frames src in
+            ssize_structure sizes oc frames v typ.structure)
+          (fun oc ->
+            add_size sizes (Ser.ssize_of_null oc frames))
+      else
+        let v = BE.get_field oc frames src in
+        ssize_structure sizes oc frames v typ.structure
+  in
+  let sizes =
+    BE.make_tuple oc t_pair_sizes
+      [| Identifier.to_any size_0 ; Identifier.to_any size_0 |] in
+  let sizes = sersize_ oc [ { typ ; index = 0 } ] src sizes in
+  (* Returns the two sizes: *)
+  Identifier.size_of_any (BE.tuple_get oc sizes 0),
+  Identifier.size_of_any (BE.tuple_get oc sizes 1)
 end

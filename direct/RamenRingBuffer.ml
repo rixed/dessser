@@ -136,17 +136,13 @@ struct
 
   let tup_sep _idx _oc _frames _st p = p
 
-  let is_private name =
-    String.length name > 0 && name.[0] = '_'
-
   let record_field_cmp (n1, _) (n2, _) =
     String.compare n1 n2
 
   let tuple_typs_of_record typs =
-    (* Like tuples, with fields in alphabetic order, with private fields
-     * omitted: *)
-    let typs =
-      Array.filter (fun (name, _typ) -> not (is_private name)) typs in
+    (* Like tuples, with fields in alphabetic order.
+     * Here and everywhere else, it is assumed that private fields have
+     * been filtered out already! *)
     Array.fast_sort record_field_cmp typs ;
     Array.map snd typs
 
@@ -212,4 +208,85 @@ struct
         BE.comment oc "Set the nullmask bit" ;
         BE.(set_bit oc p (U32.of_const_int oc (bi-1)) (bit_of_const oc true))) ;
     p
+
+  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+
+  let round_up_const n =
+    ConstSize (
+      ((n + !ringbuf_word_size - 1) / !ringbuf_word_size) * !ringbuf_word_size)
+
+  let round_up_const_bits b =
+    let n = (b + 7) / 8 in
+    round_up_const n
+
+  let round_up_dyn oc sz =
+    let mask =
+      BE.U32.of_const_int oc (!ringbuf_word_size - 1) in
+    BE.(size_of_u32 oc U32.(
+      log_and oc
+        (add oc (u32_of_size oc sz) mask)
+        (log_xor oc mask (u32_of_const oc (Uint32.of_int64 0xFFFF_FFFFL)))))
+
+  let ssize_of_string oc _ id =
+    let sz = BE.length_of_string oc id in
+    DynSize (round_up_dyn oc sz)
+
+  let ssize_of_float _ _ _ = round_up_const 8
+  let ssize_of_bool _ _ _ = round_up_const 1
+  let ssize_of_i8 _ _ _ = round_up_const 1
+  let ssize_of_i16 _ _ _ = round_up_const 2
+  let ssize_of_i32 _ _ _ = round_up_const 4
+  let ssize_of_i64 _ _ _ = round_up_const 8
+  let ssize_of_i128 _ _ _ = round_up_const 16
+  let ssize_of_u8 _ _ _ = round_up_const 1
+  let ssize_of_u16 _ _ _ = round_up_const 2
+  let ssize_of_u32 _ _ _ = round_up_const 4
+  let ssize_of_u64 _ _ _ = round_up_const 8
+  let ssize_of_u128 _ _ _ = round_up_const 16
+
+  let ssize_of_tup _ frames _ =
+    (* Just the additional bitmask: *)
+    let is_outermost, typs =
+      match frames with
+      | [ { typ = Types.{ structure = TTup typs ; _ } ; _ } ] ->
+          true, typs
+      | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ ->
+          false, typs
+      | _ -> assert false in
+    round_up_const_bits (
+      if is_outermost then
+        Array.length typs
+      else
+        Array.fold_left (fun c typ ->
+          if typ.Types.nullable then c + 1 else c) 0 typs)
+
+  let ssize_of_rec _ frames _ =
+    (* Just the additional bitmask: *)
+    let is_outermost, typs =
+      match frames with
+      | [ { typ = Types.{ structure = TRec typs ; _ } ; _ } ] ->
+          true, typs
+      | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ ->
+          false, typs
+      | _ -> assert false in
+    let typs = Array.map snd typs in
+    round_up_const_bits (
+      if is_outermost then
+        Array.length typs
+      else
+        Array.fold_left (fun c typ ->
+          if typ.Types.nullable then c + 1 else c) 0 typs)
+
+  let ssize_of_vec _ frames _ =
+    let is_outermost, dim, typ =
+      match frames with
+      | [ { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } ] ->
+          true, dim, typ
+      | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ ->
+          false, dim, typ
+      | _ -> assert false in
+    round_up_const_bits (
+      if is_outermost || typ.Types.nullable then dim else 0)
+
+  let ssize_of_null _ _ = ConstSize 0
 end

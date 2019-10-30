@@ -58,6 +58,10 @@ let ignore oc id =
 let comment oc s =
   Printf.fprintf oc.code "%s/* %s */\n" oc.indent s
 
+let dump oc lst =
+  Printf.fprintf oc.code "%sstd::cout << %a << std::endl;\n" oc.indent
+    (List.print ~first:"" ~last:"" ~sep:" << " Identifier.print) lst
+
 (* TODO: *)
 let cppify s = s
 
@@ -384,6 +388,15 @@ let pointer_sub oc p1 p2 =
   emit_size oc (fun oc ->
     Printf.fprintf oc "%a - %a"
       Identifier.print p1 Identifier.print p2)
+
+let size_add oc s1 s2 =
+  emit_size oc (fun oc ->
+    Printf.fprintf oc "%a + %a"
+      Identifier.print s1 Identifier.print s2)
+
+let size_to_string oc s =
+  emit_string oc (fun oc -> Printf.fprintf oc "std::to_string(%a)"
+    Identifier.print s)
 
 let rem_size oc p =
   emit_size oc (fun oc ->

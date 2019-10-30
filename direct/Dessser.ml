@@ -86,6 +86,8 @@ module Identifier :
     val u128 : unit -> [`U128] t
     val i128 : unit -> [`I128] t
     val tuple : unit -> [`Tup] t
+    val record : unit -> [`Rec] t
+    val vector : unit -> [`Vec] t
     val pointer : unit -> [`Pointer] t
     val size : unit -> [`Size] t
     val bit : unit -> [`Bit] t
@@ -341,6 +343,7 @@ sig
 
   val ignore : output -> 'a id -> unit
   val comment : output -> string -> unit
+  val dump : output -> [`String] id list -> unit
 
   val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
   val size_ge : output -> [`Size] id -> [`Size] id -> [`Bool] id
@@ -373,6 +376,8 @@ sig
 
   val pointer_add : output -> [`Pointer] id -> [`Size] id -> [`Pointer] id
   val pointer_sub : output -> [`Pointer] id -> [`Pointer] id -> [`Size] id
+  val size_add : output -> [`Size] id -> [`Size] id -> [`Size] id
+  val size_to_string : output -> [`Size] id -> [`String] id
   val rem_size : output -> [`Pointer] id -> [`Size] id
   val bit_of_const : output -> bool -> [`Bit] id
   val byte_of_const : output -> int -> [`Byte] id
@@ -489,6 +494,8 @@ sig
   val dnotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
 end
 
+type ssize = ConstSize of int | DynSize of [`Size] id
+
 module type SER =
 sig
   module BE : BACKEND
@@ -527,6 +534,28 @@ sig
   val nullable : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
   val snull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
   val snotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+
+  (* Sometimes, we'd like to know in advance how large a serialized value is
+   * going to be. Value must have been deserialized already. *)
+  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  val ssize_of_float : [`Float] id ssizer
+  val ssize_of_string : [`String] id ssizer
+  val ssize_of_bool : [`Bool] id ssizer
+  val ssize_of_i8 : [`I8] id ssizer
+  val ssize_of_i16 : [`I16] id ssizer
+  val ssize_of_i32 : [`I32] id ssizer
+  val ssize_of_i64 : [`I64] id ssizer
+  val ssize_of_i128 : [`I128] id ssizer
+  val ssize_of_u8 : [`U8] id ssizer
+  val ssize_of_u16 : [`U16] id ssizer
+  val ssize_of_u32 : [`U32] id ssizer
+  val ssize_of_u64 : [`U64] id ssizer
+  val ssize_of_u128 : [`U128] id ssizer
+  (* Specifically for the compound, excluding the size of the parts: *)
+  val ssize_of_tup : [`Tup] id ssizer
+  val ssize_of_rec : [`Rec] id ssizer
+  val ssize_of_vec : [`Vec] id ssizer
+  val ssize_of_null : BE.output -> frame list -> ssize
 end
 
 (* Many return values have the type of a pair or src*dst pointers: *)

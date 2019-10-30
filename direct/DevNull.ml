@@ -34,4 +34,23 @@ struct
   let nullable _ _frames () p = p
   let snull _ _frames () p = p
   let snotnull _ _frames () p = p
+
+  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  let ssize_of_float _ _ _ = ConstSize 0
+  let ssize_of_string _ _ _ = ConstSize 0
+  let ssize_of_bool _ _ _ = ConstSize 0
+  let ssize_of_i8 _ _ _ = ConstSize 0
+  let ssize_of_i16 _ _ _ = ConstSize 0
+  let ssize_of_i32 _ _ _ = ConstSize 0
+  let ssize_of_i64 _ _ _ = ConstSize 0
+  let ssize_of_i128 _ _ _ = ConstSize 0
+  let ssize_of_u8 _ _ _ = ConstSize 0
+  let ssize_of_u16 _ _ _ = ConstSize 0
+  let ssize_of_u32 _ _ _ = ConstSize 0
+  let ssize_of_u64 _ _ _ = ConstSize 0
+  let ssize_of_u128 _ _ _ = ConstSize 0
+  let ssize_of_tup _ _ _ = ConstSize 0
+  let ssize_of_rec _ _ _ = ConstSize 0
+  let ssize_of_vec _ _ _ = ConstSize 0
+  let ssize_of_null _ _ = ConstSize 0
 end
