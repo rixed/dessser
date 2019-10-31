@@ -7,7 +7,8 @@ struct
   module T = Types
 
   type state = unit
-  let init_state _typ _oc p = (), p
+  let start _typ _oc p = (), p
+  let stop _oc () p = p
 
   type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
@@ -16,7 +17,7 @@ struct
     BE.float_of_qword oc w, p
 
   let read_leb128 oc p =
-    let t_pair_u32_u8 = T.(make (TTup [| make TU32 ; make TU8 |]))
+    let t_pair_u32_u8 = T.(make (TPair (make TU32, make TU8)))
     and t_byte = T.(make TByte)
     and t_bool = T.(make TBool)
     in
@@ -25,24 +26,21 @@ struct
         BE.U8.gt oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
       BE.print_function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8 (fun oc leb_shft_tup byte ->
-        let leb = Identifier.u32_of_any (BE.tuple_get oc leb_shft_tup 0)
-        and shft = Identifier.u8_of_any (BE.tuple_get oc leb_shft_tup 1) in
-        BE.make_tuple oc t_pair_u32_u8 [|
-          Identifier.to_any (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc byte) shft) leb) ;
-          Identifier.to_any (BE.U8.add oc shft (BE.U8.of_const_int oc 7))
-        |])
+        let leb = Identifier.u32_of_any (BE.pair_fst oc leb_shft_tup)
+        and shft = Identifier.u8_of_any (BE.pair_snd oc leb_shft_tup) in
+        BE.make_pair oc t_pair_u32_u8
+          (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc byte) shft) leb)
+          (BE.U8.add oc shft (BE.U8.of_const_int oc 7)))
     in
     let u32_zero = BE.U32.of_const_int oc 0
     and u8_zero = BE.U8.of_const_int oc 0 in
     let init =
-      BE.make_tuple oc t_pair_u32_u8
-        [| Identifier.to_any u32_zero ;
-           Identifier.to_any u8_zero |] in
+      BE.make_pair oc t_pair_u32_u8 u32_zero u8_zero in
     let leb_shft_tup, p = BE.read_while oc ~cond ~reduce init p in
     (* Still have to add the last byte: *)
     let last_b, p = BE.read_byte oc p in
-    let leb = Identifier.u32_of_any (BE.tuple_get oc leb_shft_tup 0)
-    and shft = Identifier.u8_of_any (BE.tuple_get oc leb_shft_tup 1) in
+    let leb = BE.pair_fst oc leb_shft_tup
+    and shft = BE.pair_snd oc leb_shft_tup in
     BE.size_of_u32 oc (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc last_b) shft) leb),
     p
 

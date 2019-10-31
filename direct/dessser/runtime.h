@@ -3,6 +3,7 @@
 #include <string>
 #include <optional> // for nullable types
 #include <iostream> // for dump
+#include <utility>  // for pair
 #include "dessser/typedefs.h"
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"

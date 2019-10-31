@@ -14,8 +14,9 @@ struct
      * in the nullmask) *)
     { mutable nullmasks : (int * [`Pointer] id) list }
 
-  let init_state _typ _oc p =
+  let start _typ _oc p =
     { nullmasks = [] }, p
+  let stop _oc _st p = p
 
   let push_nullmask st p = st.nullmasks <- (0, p) :: st.nullmasks
   let pop_nullmask st = st.nullmasks <- List.tl st.nullmasks

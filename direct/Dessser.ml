@@ -20,6 +20,9 @@ struct
     | TSize
     (* Data accessor, may be just pointer to the actual serialized object: *)
     | TBit | TByte | TWord | TDWord | TQWord | TOWord | TBytes
+    (* Used only at the meta-level. Probably won't work for anything but
+     * non-null scalars: *)
+    | TPair of t * t
 
   let make ?(nullable=false) structure = { nullable ; structure }
 
@@ -37,8 +40,8 @@ struct
     | TI32 -> String.print oc "I32"
     | TI64 -> String.print oc "I64"
     | TI128 -> String.print oc "I128"
-    | TVec (d, typ) ->
-        Printf.fprintf oc "%a[%d]" print typ d
+    | TVec (dim, typ) ->
+        Printf.fprintf oc "%a[%d]" print typ dim
     | TTup typs ->
         Printf.fprintf oc "%a"
           (Array.print ~first:"(" ~last:")" ~sep:";" print) typs
@@ -57,6 +60,10 @@ struct
     | TQWord -> String.print oc "QWord"
     | TOWord -> String.print oc "OWord"
     | TBytes -> String.print oc "Bytes"
+    | TPair (t1, t2) ->
+        Printf.fprintf oc "Pair(%a, %a)"
+          print t1
+          print t2
 
   and print oc t =
     Printf.fprintf oc "%a%s"
@@ -97,7 +104,7 @@ module Identifier :
     val qword : unit -> [`QWord] t
     val oword : unit -> [`OWord] t
     val bytes : unit -> [`Bytes] t
-    val pair : unit -> 'a t
+    val pair : unit -> ([`Pair] * 'a * 'b) t
     val auto : unit -> 'a t
     (* FunctionX * param1 * param2 * ... * returned type *)
     val func0 : unit -> ([`Function0] * 'a) t
@@ -135,11 +142,11 @@ module Identifier :
     val bytes_of_any : 'a t -> [`Bytes] t
 
     val to_any : 'a t -> [`Any] t
-    val of_any : Types.structure -> [`Any] t -> 'a t
+    val of_any : Types.structure -> 'a t -> 'b t
 
     val of_string : string -> [`Any] t
 
-    val cat : 'a t -> string -> 'a t
+    val modify : string -> 'a t -> string -> 'a t
   end =
 struct
   type 'a t = string
@@ -212,6 +219,7 @@ struct
     | TQWord -> qword ()
     | TOWord -> oword ()
     | TBytes -> bytes ()
+    | TPair _ -> pair ()
 
   let float_of_any s = s
   let string_of_any s = s
@@ -268,12 +276,13 @@ struct
     | TQWord -> qWord_of_any s
     | TOWord -> oWord_of_any s
     | TBytes -> bytes_of_any s
+    | TPair _ -> assert false (* get rid of Any! *)
 
   let of_string s = s
 
   let print : 'a BatIO.output -> 'b t -> unit = String.print
 
-  let cat = (^)
+  let modify p id s = p ^ id ^ s
 end
 
 type 'a id = 'a Identifier.t
@@ -330,16 +339,17 @@ type frame =
 
 module type BACKEND =
 sig
+  val preferred_file_extension : string
   (* Depending on the back-end, one might want to write in several sections
    * at the same time and combine them together at the end. For instance,
    * a section for global definitions, for local definitions, and for the
    * code proper. *)
   type output
   val make_output : unit -> output
+  val print_output : 'a IO.output -> output -> unit
   val print_function0 : output -> Types.t -> (output -> 'a id) -> ([`Function0] * 'a)  id
   val print_function1 : output -> Types.t -> Types.t -> (output -> 'a id -> 'b id) -> ([`Function1] * 'a * 'b) id
   val print_function2 : output -> Types.t -> Types.t -> Types.t -> (output -> 'a id -> 'b id -> 'c id) -> ([`Function2] * 'a * 'b * 'c) id
-  val print_output : 'a IO.output -> output -> unit
 
   val ignore : output -> 'a id -> unit
   val comment : output -> ('a, string BatIO.output, unit, unit, unit, unit) format6 -> 'a
@@ -349,7 +359,6 @@ sig
   val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
   val size_ge : output -> [`Size] id -> [`Size] id -> [`Bool] id
   val bytes_append : output -> [`Bytes] id -> [`Bytes] id -> [`Bytes] id
-  val make_bytes : output -> [`Bytes] id
   val u8_of_byte : output -> [`Byte] id -> [`U8] id
   val byte_of_u8 : output -> [`U8] id -> [`Byte] id
   val test_bit : output -> [`Pointer] id -> [`U32] id -> [`Bit] id
@@ -398,8 +407,9 @@ sig
   val cat_string : output -> [`String] id -> [`String] id -> [`String] id
 
   (* Cast those from/into a common TupItem type? *)
-  val make_tuple : output -> Types.t -> [`Any] id array -> [`Tup] id
-  val tuple_get : output -> [`Tup] id -> int -> [`Any] id
+  val make_pair : output -> Types.t -> 'a id -> 'b id -> ([`Pair] * 'a * 'b) id
+  val pair_fst : output -> ([`Pair] * 'a * 'b) id -> 'a id
+  val pair_snd : output -> ([`Pair] * 'a * 'b) id -> 'b id
 
   val length_of_string : output -> [`String] id -> [`Size] id
   val string_of_bytes : output -> [`Bytes] id -> [`String] id
@@ -429,7 +439,7 @@ sig
    * [reduce] must be a function from any value and byte into any value. *)
   (* TODO: an id type for pair of 'a * 'b *)
   val read_while : output -> cond:([`Function1] * [`Byte] * [`Bool]) id -> reduce:([`Function2] * 'a * [`Byte] * 'a) id -> 'a id -> [`Pointer] id -> 'a id * [`Pointer] id
-  val do_while : output -> cond:([`Function2] * 'res * 'cond0 * [`Bool]) id -> loop:([`Function2] * 'res * 'cond0 * [`Tup]) id -> 'cond0 id -> 'res id -> 'res id
+  val do_while : output -> cond:([`Function1] * 'res * [`Bool]) id -> loop:([`Function1] * 'res * 'res * 'res) id -> 'res id -> 'res id
 
   module Float : NUMERIC with type output = output and type mid = [`Float] id
   module U8 : INTEGER with type output = output and type mid = [`U8] id
@@ -445,8 +455,8 @@ sig
 
   (* Special needs for desser from/into a heap allocated value *)
   val alloc_value : output -> Types.t -> [`Pointer] id
-  val set_field : output -> frame list -> [`Pointer] id -> 'a id -> [`Pointer] id
-  val set_nullable_field : output -> frame list -> [`Pointer] id -> 'a id option -> [`Pointer] id
+  val set_field : output -> frame list -> [`Pointer] id -> 'a id -> unit
+  val set_nullable_field : output -> frame list -> [`Pointer] id -> 'a id option -> unit
 
   (* Return an id of the field pointed at the frame stack, from the given
    * "pointer" identifier (that actually identify a value on the heap rather
@@ -462,7 +472,8 @@ sig
 
   (* RW state passed to every deserialization operations *)
   type state
-  val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val start : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
   type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
@@ -503,7 +514,8 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
-  val init_state : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val start : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
   (* FIXME: make this type "private": *)
   type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
@@ -560,7 +572,7 @@ sig
 end
 
 (* Many return values have the type of a pair or src*dst pointers: *)
-let t_pair_ptrs = Types.(make (TTup [| make TPointer ; make TPointer |]))
+let t_pair_ptrs = Types.(make (TPair (make TPointer, make TPointer)))
 
 module DesSer (Des : DES) (Ser : SER with module BE = Des.BE) =
 struct
@@ -573,8 +585,7 @@ struct
     let v, src = des oc frames dstate src in
     BE.comment oc "Serialize a %s" what ;
     let dst = ser oc frames sstate v dst in
-    BE.make_tuple oc t_pair_ptrs
-      [| Identifier.to_any src ; Identifier.to_any dst |]
+    BE.make_pair oc t_pair_ptrs src dst
 
   let dsfloat = ds Ser.sfloat Des.dfloat
   let dsstring = ds Ser.sstring Des.dstring
@@ -615,9 +626,9 @@ struct
           and dst = Ser.tup_sep i oc frames sstate dst in
           desser_ oc subframes sstate dstate src dst
       ) (src, dst) typs in
-    BE.make_tuple oc t_pair_ptrs [|
-      Identifier.to_any (Des.tup_cls oc frames dstate src) ;
-      Identifier.to_any (Ser.tup_cls oc frames sstate dst) |]
+    BE.make_pair oc t_pair_ptrs
+      (Des.tup_cls oc frames dstate src)
+      (Ser.tup_cls oc frames sstate dst)
 
   and dsrec typs oc frames sstate dstate src dst =
     BE.comment oc "DesSer a Record" ;
@@ -634,9 +645,9 @@ struct
           and dst = Ser.rec_sep fname oc frames sstate dst in
           desser_ oc subframes sstate dstate src dst
       ) (src, dst) typs in
-    BE.make_tuple oc t_pair_ptrs [|
-      Identifier.to_any (Des.rec_cls oc frames dstate src) ;
-      Identifier.to_any (Ser.rec_cls oc frames sstate dst) |]
+    BE.make_pair oc t_pair_ptrs
+      (Des.rec_cls oc frames dstate src)
+      (Ser.rec_cls oc frames sstate dst)
 
   (* This will generates a long linear code with one block per array
    * item. Maybe have a IntRepr.loop instead? *)
@@ -646,9 +657,9 @@ struct
     and dst = Ser.vec_opn oc frames sstate dst in
     let rec loop src dst i =
       if i >= dim then
-        BE.make_tuple oc t_pair_ptrs [|
-          Identifier.to_any (Des.vec_cls oc frames dstate src) ;
-          Identifier.to_any (Ser.vec_cls oc frames sstate dst) |]
+        BE.make_pair oc t_pair_ptrs
+          (Des.vec_cls oc frames dstate src)
+          (Ser.vec_cls oc frames sstate dst)
       else (
         let subframes = { typ ; index = i } :: frames in
         BE.comment oc "DesSer vector field %d" i ;
@@ -682,7 +693,7 @@ struct
       | Types.TU128 -> dsu128
       | Types.TTup typs -> dstup typs
       | Types.TRec typs -> dsrec typs
-      | Types.TVec (d, typ) -> dsvec d typ
+      | Types.TVec (dim, typ) -> dsvec dim typ
       | _ -> assert false
     in
     let pair =
@@ -694,19 +705,22 @@ struct
         BE.choose oc ~cond
           (fun oc ->
             let s, d = dsnull oc frames sstate dstate src dst in
-            BE.make_tuple oc t_pair_ptrs
-              [| Identifier.to_any s ; Identifier.to_any d |])
+            BE.make_pair oc t_pair_ptrs s d)
           (fun oc ->
             let s, d = dsnotnull oc frames sstate dstate src dst in
             desser_structure typ.structure oc frames sstate dstate s d)
       else
         desser_structure typ.structure oc frames sstate dstate src dst in
     (* Returns src and dest: *)
-    Identifier.pointer_of_any (BE.tuple_get oc pair 0),
-    Identifier.pointer_of_any (BE.tuple_get oc pair 1)
+    (BE.pair_fst oc pair),
+    (BE.pair_snd oc pair)
 
   let desser typ oc src dst =
-    let sstate, dst = Ser.init_state typ oc dst
-    and dstate, src = Des.init_state typ oc src in
-    desser_ oc [ { typ ; index = 0 } ] sstate dstate src dst
+    let sstate, dst = Ser.start typ oc dst
+    and dstate, src = Des.start typ oc src in
+    let src, dst =
+      desser_ oc [ { typ ; index = 0 } ] sstate dstate src dst in
+    let dst = Ser.stop oc sstate dst
+    and src = Des.stop oc dstate src in
+    src, dst
 end

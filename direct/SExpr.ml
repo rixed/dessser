@@ -6,7 +6,8 @@ struct
   module BE = BE
 
   type state = unit
-  let init_state _typ _oc p = (), p
+  let start _typ _oc p = (), p
+  let stop _oc () p = p
 
   type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 

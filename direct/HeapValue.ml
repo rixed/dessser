@@ -24,7 +24,7 @@ struct
    * be passed and returned unchanged all the way so that the caller end
    * up with it at the end. The pointer object must then be able to
    * transport the address of any allocated value regardless of type. *)
-  let init_state typ oc _p =
+  let start typ oc _p =
     (* For backends that can alloc uninitialized values:
      *   Will define the type, then alloc an uninitialized  value of that
      *   type and return an identifier for it. Fields will be initialized
@@ -34,13 +34,16 @@ struct
      *   and allocation will happen as the serialize progresses. *)
     (), BE.alloc_value oc typ
 
+  let stop _oc () p = p
+
   type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
   let set_field oc frames () id p =
     if is_nullable frames then
       BE.set_nullable_field oc frames p (Some id)
     else
-      BE.set_field oc frames p id
+      BE.set_field oc frames p id ;
+    p
 
   let sfloat oc frames st id p = set_field oc frames st id p
   let sstring oc frames st id p = set_field oc frames st id p
@@ -77,7 +80,8 @@ struct
   let nullable _oc _frames () p = p
 
   let snull oc frames () p =
-    BE.set_nullable_field oc frames p None
+    BE.set_nullable_field oc frames p None ;
+    p
 
   let snotnull _oc _frames () p = p
 
@@ -111,7 +115,8 @@ struct
 
   (* The pointer that's given to us must have been obtained from a
    * HeapValue.Ser. *)
-  let init_state _typ _oc p = (), p
+  let start _typ _oc p = (), p
+  let stop _oc () p = p
 
   type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
 
@@ -172,7 +177,7 @@ module SerSizer (Ser : SER) : sig
 struct
   module BE = Ser.BE
   
-  let t_pair_sizes = Types.(make (TTup [| make TSize ; make TSize |]))
+  let t_pair_sizes = Types.(make (TPair (make TSize, make TSize)))
 
   (* Returns a pair of size identifier holding the const and dyn size of
    * the heap value pointed by the pointer identifier [src].
@@ -182,19 +187,16 @@ struct
     let size_0 = BE.size_of_const oc 0 in
     let add_size sizes = function
       | ConstSize sz ->
-          BE.make_tuple oc t_pair_sizes
-            [| Identifier.to_any (
-                 BE.(size_add oc
-                   (size_of_const oc sz)
-                   (Identifier.size_of_any (tuple_get oc sizes 0)))) ;
-               BE.tuple_get oc sizes 1 |]
+          BE.make_pair oc t_pair_sizes
+            (BE.(size_add oc
+               (size_of_const oc sz)
+               (pair_fst oc sizes)))
+            (BE.pair_snd oc sizes)
       | DynSize sz ->
-          BE.make_tuple oc t_pair_sizes
-            [| BE.tuple_get oc sizes 0 ;
-               Identifier.to_any (
-                 BE.(size_add oc
-                   sz
-                   (Identifier.size_of_any (tuple_get oc sizes 1)))) |] in
+          BE.make_pair oc t_pair_sizes
+            (BE.pair_fst oc sizes)
+            (BE.(size_add oc
+               sz (pair_snd oc sizes))) in
     (* Add that value size to the passed size pair: *)
     let rec ssize_structure sizes oc frames v = function
       | Types.TFloat ->
@@ -264,10 +266,9 @@ struct
         ssize_structure sizes oc frames v typ.structure
   in
   let sizes =
-    BE.make_tuple oc t_pair_sizes
-      [| Identifier.to_any size_0 ; Identifier.to_any size_0 |] in
+    BE.make_pair oc t_pair_sizes size_0 size_0 in
   let sizes = sersize_ oc [ { typ ; index = 0 } ] src sizes in
   (* Returns the two sizes: *)
-  Identifier.size_of_any (BE.tuple_get oc sizes 0),
-  Identifier.size_of_any (BE.tuple_get oc sizes 1)
+  BE.pair_fst oc sizes,
+  BE.pair_snd oc sizes
 end

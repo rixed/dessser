@@ -1,8 +1,8 @@
-(* Manual variant without metaocaml: custom code type (hereafter named cod to
- * not conflict with MetaOCaml code type) *)
 open Batteries
 open Stdint
 open Dessser
+
+let preferred_file_extension = "cc"
 
 type output =
   { decl : string IO.output ;
@@ -11,6 +11,7 @@ type output =
     mutable entry_point : bool ;
     (* When building heap values, remember the base type name (for casts): *)
     mutable value_typname : string ;
+    (* name and definition: *)
     mutable funs : (string * string) list }
 
 (* Compound types have to be declared (once) *)
@@ -35,7 +36,8 @@ let rec c_type_of_scalar typ =
   | TU128 -> "uint128_t"
   (* Not scalars: *)
   | TTup _
-  | TRec _ -> assert false
+  | TRec _
+  | TPair _ -> assert false
   (* Treated as a scalar here: *)
   | TVec (dim, typ) ->
       Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar typ)
@@ -65,30 +67,30 @@ let dump oc lst =
     (List.print ~first:"" ~last:"" ~sep:" << " Identifier.print) lst
 
 (* TODO: *)
-let cppify s = s
+let make_valid_identifier s = s
 
 (* Returns the name and typ of that subfield: *)
 let subfield_info typ idx =
   match typ.Types.structure with
   | Types.TTup typs ->
-      "field_"^ string_of_int idx, typs.(idx)
+      "field_"^ string_of_int idx,
+      typs.(idx)
   | Types.TRec typs ->
-      cppify (fst typs.(idx)), snd typs.(idx)
+      make_valid_identifier (fst typs.(idx)),
+      snd typs.(idx)
   | Types.TVec (dim, typ) ->
       assert (idx < dim) ;
-      "["^ string_of_int idx ^"]", typ
+      "["^ string_of_int idx ^"]",
+      typ
   | _ ->
       (* Scalar types have no subfields: *)
       assert false
 
-let subfield_name typ idx =
-  fst (subfield_info typ idx)
-
 let rec print_type_decl oc id typ =
+  (* Beware that we might need to print recursively into oc.decl before
+   * we are ready to print this one *)
+  let s = IO.output_string () in
   let print_record typs =
-    (* Beware that we might need to print recursively into oc.decl before
-     * we are ready to print this one *)
-    let s = IO.output_string () in
     Printf.fprintf s "struct %s {\n" id ;
     Array.iteri (fun i subtyp ->
       let typ_id = find_or_define_type oc subtyp in
@@ -98,20 +100,21 @@ let rec print_type_decl oc id typ =
       else
         Printf.fprintf s "  %s %s;\n" typ_id fname
     ) typs ;
-    Printf.fprintf s "};\n\n" ;
-    String.print oc.decl (IO.close_out s)
+    Printf.fprintf s "};\n\n"
   in
-  match typ.Types.structure with
+  (match typ.Types.structure with
   | Types.TTup typs ->
       print_record typs
   | Types.TRec typs ->
       print_record (Array.map snd typs)
-  | Types.TVec (dim, typ) ->
-      let typ_id = find_or_define_type oc typ in
-      Printf.fprintf oc.decl "typedef %s[%d] %s;\n\n"
-        typ_id dim id
+  | Types.TPair (t1, t2) ->
+      Printf.fprintf s "typedef std::pair<%s, %s> %s;\n\n"
+        (find_or_define_type oc t1)
+        (find_or_define_type oc t2)
+        id
   | _ ->
-      ()
+      ()) ;
+  String.print oc.decl (IO.close_out s)
 
 (* Returns the name of the C type for typ: *)
 and find_or_define_type oc typ =
@@ -127,7 +130,8 @@ and find_or_define_type oc typ =
     in
     match typ.Types.structure with
     | Types.TTup _
-    | Types.TRec _ ->
+    | Types.TRec _
+    | Types.TPair _ ->
         do_decl ()
     | _ ->
         c_type_of_scalar typ
@@ -143,6 +147,7 @@ let make_output () =
     funs = [] }
 
 let print_output oc output =
+  Printf.fprintf oc "#include \"dessser/runtime.h\"" ;
   Printf.fprintf oc
     "/* Declarations */\n\n%s\n\n/* Functions */\n\n"
     (IO.close_out output.decl) ;
@@ -378,11 +383,14 @@ let emit_auto oc p =
     Identifier.print id p ;
   id
 
-let emit_pair typnames oc p =
+let emit_pair t1 t2 oc p =
   let id = Identifier.pair () in
-  Printf.fprintf oc.code "%sstd::pair<%s> %a(%t);\n" oc.indent
-    typnames Identifier.print id p ;
-  Identifier.cat id ".first", Identifier.cat id ".second"
+  let tname1 = find_or_define_type oc Types.(make t1) in
+  let tname2 = find_or_define_type oc Types.(make t2) in
+  Printf.fprintf oc.code "%sstd::pair<%s, %s> %a(%t);\n" oc.indent
+    tname1 tname2 Identifier.print id p ;
+  Identifier.(modify "" id ".first" |> of_any t1),
+  Identifier.(modify "" id ".second" |> of_any t2)
 
 let pointer_add oc p s =
   emit_pointer oc (fun oc ->
@@ -452,9 +460,6 @@ let bytes_append oc bs b =
       Identifier.print bs
       Identifier.print b)
 
-let make_bytes oc =
-  emit_bytes oc (fun _ -> ())
-
 let u8_of_byte oc b =
   emit_u8 oc (fun oc ->
     Printf.fprintf oc "%a.to_uint8()"
@@ -472,36 +477,36 @@ let test_bit oc p u =
       Identifier.print u)
 
 let read_byte oc p =
-  emit_pair "Byte, Pointer" oc (fun oc ->
+  emit_pair TByte TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readByte()"
       Identifier.print p)
 
 let read_word oc ?(be=false) p =
-  emit_pair "Word, Pointer" oc (fun oc ->
+  emit_pair TWord TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readWord%s()"
       Identifier.print p
       (if be then "Be" else "Le"))
 
 let read_dword oc ?(be=false) p =
-  emit_pair "DWord, Pointer" oc (fun oc ->
+  emit_pair TDWord TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readDWord%s()"
       Identifier.print p
       (if be then "Be" else "Le"))
 
 let read_qword oc ?(be=false) p =
-  emit_pair "QWord, Pointer" oc (fun oc ->
+  emit_pair TQWord TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readQWord%s()"
       Identifier.print p
       (if be then "Be" else "Le"))
 
 let read_oword oc ?(be=false) p =
-  emit_pair "OWord, Pointer" oc (fun oc ->
+  emit_pair TOWord TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readOWord%s()"
       Identifier.print p
       (if be then "Be" else "Le"))
 
 let read_bytes oc p sz =
-  emit_pair "Bytes, Pointer" oc (fun oc ->
+  emit_pair TBytes TPointer oc (fun oc ->
     Printf.fprintf oc "%a.readBytes(%a)"
       Identifier.print p
       Identifier.print sz)
@@ -761,40 +766,29 @@ let cat_string oc s1 s2 =
   emit_string oc (fun oc -> Printf.fprintf oc "%a + %a"
     Identifier.print s1 Identifier.print s2)
 
-let and_ oc b1 b2 =
-  emit_bool oc (fun oc -> Printf.fprintf oc "%a && %a"
-    Identifier.print b1 Identifier.print b2)
-
-let or_ oc b1 b2 =
-  emit_bool oc (fun oc -> Printf.fprintf oc "%a || %a"
-    Identifier.print b1 Identifier.print b2)
-
 let indent_more oc f =
   let cur_indent = oc.indent in
   oc.indent <- oc.indent ^ "  " ;
   f () ;
   oc.indent <- cur_indent
 
-let make_tuple oc typ fields =
-  let id = Identifier.tuple () in
+let make_pair oc typ id1 id2 =
+  let id = Identifier.pair () in
   (* Construct the type of the result: *)
   let typname = find_or_define_type oc typ in
-  Printf.fprintf oc.code "%s%s %a = {" oc.indent
-    typname Identifier.print id ;
-  indent_more oc (fun () ->
-    Array.iteri (fun i id ->
-      Printf.fprintf oc.code "%s\n%s%a"
-        (if i > 0 then "," else "")
-        oc.indent
-        Identifier.print id
-    ) fields) ;
-  Printf.fprintf oc.code "\n%s};\n" oc.indent ;
+  Printf.fprintf oc.code "%s%s %a = { %a, %a };\n" oc.indent
+    typname Identifier.print id
+    Identifier.print id1
+    Identifier.print id2 ;
   id
 
-let tuple_get oc id n =
+let pair_fst oc id =
   emit_auto oc (fun oc ->
-    Printf.fprintf oc "%a.field_%d"
-      Identifier.print id n)
+    Printf.fprintf oc "%a.first" Identifier.print id)
+
+let pair_snd oc id =
+  emit_auto oc (fun oc ->
+    Printf.fprintf oc "%a.second" Identifier.print id)
 
 let length_of_string oc s =
   emit_size oc (fun oc ->
@@ -918,23 +912,19 @@ let read_while oc ~cond ~reduce v0 p =
  *   and return the next value and condition value as a pair.
  * - [cond0] and [v0] are the initial values of those values.
  * Returns the aggregated [v0]. *)
-let do_while oc ~cond ~loop cond0 v0 =
+let do_while oc ~cond ~loop v0 =
   let id_res = Identifier.auto () in
   Printf.fprintf oc.code "%sauto %a = %a;\n" oc.indent
     Identifier.print id_res
     Identifier.print v0 ;
-  Printf.fprintf oc.code "%sauto cond0 = %a;\n" oc.indent
-    Identifier.print cond0 ;
-  Printf.fprintf oc.code "%swhile (%a(%a, cond0)) {\n" oc.indent
+  Printf.fprintf oc.code "%swhile (%a(%a)) {\n" oc.indent
     Identifier.print cond
     Identifier.print id_res ;
   indent_more oc (fun () ->
-    Printf.fprintf oc.code "%sauto loop_res = %a(%a, cond0);\n" oc.indent
+    Printf.fprintf oc.code "%s%a = %a(%a);\n" oc.indent
+      Identifier.print id_res
       Identifier.print loop
-      Identifier.print id_res ;
-    Printf.fprintf oc.code "%s%a = loop_res.first;\n" oc.indent
-      Identifier.print id_res ;
-    Printf.fprintf oc.code "%scond0 = loop_res.second;\n" oc.indent) ;
+      Identifier.print id_res) ;
   Printf.fprintf oc.code "%s};\n" oc.indent ;
   id_res
 
@@ -947,6 +937,9 @@ let alloc_value oc typ =
     Printf.fprintf oc' "std::shared_ptr<%s>(new %s)"
       oc.value_typname
       oc.value_typname)
+
+let subfield_name typ idx =
+  fst (subfield_info typ idx)
 
 (* Note: [p] despite being a Pointer identifier is actually the identifier of
  * the address of a value. *)
@@ -979,8 +972,7 @@ let set_field oc frames p v =
   let id = id_of_path oc frames p in
   Printf.fprintf oc.code "%s%s = %a;\n" oc.indent
     id
-    Identifier.print v ;
-  p
+    Identifier.print v
 
 let set_nullable_field oc typ idx v =
   match v with

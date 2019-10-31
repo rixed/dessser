@@ -100,8 +100,10 @@ LIBDIRECTDESSSER_SOURCES = \
 	direct/RowBinary.ml \
 	direct/DevNull.ml \
 	direct/BackEndCPP.ml \
+	direct/BackEndOCaml.ml \
 	direct/RamenRingBuffer.ml \
-	direct/HeapValue.ml
+	direct/HeapValue.ml \
+	direct/DessserOCamlBackendHelpers.ml
 
 EXAMPLES_SOURCES = \
 	examples/direct_hard_coded.ml \
@@ -191,7 +193,9 @@ META: Makefile
 
 # Tests
 
-check:
+check: examples/manual_codegen.opt
+	examples/manual_codegen.opt ocaml
+	examples/manual_codegen.opt c++
 
 # Installation
 
