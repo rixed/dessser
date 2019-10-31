@@ -342,7 +342,8 @@ sig
   val print_output : 'a IO.output -> output -> unit
 
   val ignore : output -> 'a id -> unit
-  val comment : output -> string -> unit
+  val comment : output -> ('a, string BatIO.output, unit, unit, unit, unit) format6 -> 'a
+
   val dump : output -> [`String] id list -> unit
 
   val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
@@ -568,9 +569,9 @@ struct
   let ds ser des oc frames sstate dstate src dst =
     let typ = (List.hd frames).typ in
     let what = IO.to_string Types.print typ in
-    BE.comment oc ("Desserialize a "^ what) ;
+    BE.comment oc "Desserialize a %s" what ;
     let v, src = des oc frames dstate src in
-    BE.comment oc ("Serialize a "^ what) ;
+    BE.comment oc "Serialize a %s" what ;
     let dst = ser oc frames sstate v dst in
     BE.make_tuple oc t_pair_ptrs
       [| Identifier.to_any src ; Identifier.to_any dst |]
@@ -606,7 +607,7 @@ struct
     let src, dst =
       BatArray.fold_lefti (fun (src, dst) i typ ->
         let subframes = { typ ; index = i } :: frames in
-        BE.comment oc ("DesSer tuple field "^ string_of_int i) ;
+        BE.comment oc "DesSer tuple field %d" i ;
         if i = 0 then
           desser_ oc subframes sstate dstate src dst
         else
@@ -625,7 +626,7 @@ struct
     let src, dst =
       BatArray.fold_lefti (fun (src, dst) i (fname, typ) ->
         let subframes = { typ ; index = i } :: frames in
-        BE.comment oc ("DesSer record field "^ fname) ;
+        BE.comment oc "DesSer record field %s" fname ;
         if i = 0 then
           desser_ oc subframes sstate dstate src dst
         else
@@ -650,7 +651,7 @@ struct
           Identifier.to_any (Ser.vec_cls oc frames sstate dst) |]
       else (
         let subframes = { typ ; index = i } :: frames in
-        BE.comment oc ("DesSer vector field "^ string_of_int i) ;
+        BE.comment oc "DesSer vector field %d" i ;
         if i = 0 then
           let src, dst = desser_ oc subframes sstate dstate src dst in
           loop src dst (i + 1)

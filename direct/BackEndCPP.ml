@@ -57,8 +57,8 @@ let ignore oc id =
   Printf.fprintf oc.code "%s(void)%a;\n" oc.indent
     Identifier.print id
 
-let comment oc s =
-  Printf.fprintf oc.code "%s/* %s */\n" oc.indent s
+let comment oc fmt =
+  Printf.fprintf oc.code ("%s/* " ^^ fmt ^^ " */\n") oc.indent
 
 let dump oc lst =
   Printf.fprintf oc.code "%sstd::cout << %a << std::endl;\n" oc.indent
