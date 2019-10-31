@@ -966,7 +966,9 @@ let id_of_path oc frames (p : [`Pointer] id) =
           | Types.TVec _ -> ""
           | _ -> assert false in
         let subfield = subfield_name parent.typ top.index in
-        (loop rest) ^ accessor ^ subfield
+        let denullify =
+          if parent.typ.Types.nullable then ".value()" else "" in
+        (loop rest) ^ denullify ^ accessor ^ subfield
   in
   loop frames
 
