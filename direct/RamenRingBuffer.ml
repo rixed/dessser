@@ -234,23 +234,22 @@ struct
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
   let or_private frames k =
-    let rec loop child_index = function
-      | [] ->
+    let rec loop = function
+      | [] | [ _ ] ->
           (* Reached the bottom of the stack without meeting a private field
            * name *)
           k ()
-      | frame :: rest ->
-          (match frame.typ.Types.structure with
+      | top_frame :: (parent_frame :: _ as tail) ->
+          (match parent_frame.typ.Types.structure with
           | TRec typs ->
-              let name, _ = typs.(child_index) in
+              let name, _ = typs.(top_frame.index) in
               if is_private name then
                 ConstSize 0
               else
-                loop frame.index rest
+                loop tail
           | _ ->
-              loop frame.index rest) in
-    (* Index should not be used with the top of stack, let's find out: *)
-    loop ~-1 frames
+              loop tail) in
+    loop frames
 
   let ssize_of_string oc frames id =
     or_private frames (fun () ->
