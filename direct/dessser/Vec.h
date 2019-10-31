@@ -1,13 +1,12 @@
 #ifndef VEC_H_191031
 #define VEC_H_191031
-
 /* A pre-scaled version of std::vector */
-template<class T, unsigned DIM>
-class Vec {
-  std::vector<T> v;
+#include <vector>
 
+template<unsigned DIM, class T>
+class Vec : public std::vector<T> {
   Vec() {
-    v.reserve(DIM);
+    this->reserve(DIM);
   }
 };
 

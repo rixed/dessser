@@ -38,7 +38,7 @@ let rec c_type_of_scalar typ =
   | TRec _ -> assert false
   (* Treated as a scalar here: *)
   | TVec (dim, typ) ->
-      Printf.sprintf "%s[%d]" (c_type_of_scalar typ) dim
+      Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar typ)
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allow to
    * combine freely actual serializers and value "reifiers".

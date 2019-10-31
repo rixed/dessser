@@ -37,7 +37,8 @@ INSTALLED_HEADERS = \
 	direct/dessser/runtime.h \
 	direct/dessser/typedefs.h \
 	direct/dessser/Pointer.h \
-	direct/dessser/Bytes.h
+	direct/dessser/Bytes.h \
+	direct/dessser/Vec.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \

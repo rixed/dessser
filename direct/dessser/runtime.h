@@ -6,4 +6,5 @@
 #include "dessser/typedefs.h"
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
+#include "dessser/Vec.h"
 #endif
