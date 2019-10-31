@@ -25,7 +25,7 @@ let compile_output optim output =
   let mode = [ `create ; `excl ; `text ] in
   let fname =
     File.with_temporary_out ~mode ~suffix:".cpp" (fun oc fname ->
-      Printf.fprintf oc "#include \"runtime.h\"\n\n" ;
+      Printf.fprintf oc "#include \"dessser/runtime.h\"\n\n" ;
       C.print_output oc output ;
       fname) in
   Printf.printf "Output in %s\n%!" fname ;

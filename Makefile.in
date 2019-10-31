@@ -34,10 +34,10 @@ INSTALLED_LIB = \
 	$(filter %.cmo, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo))
 
 INSTALLED_HEADERS = \
-	direct/runtime.h \
-	direct/typedefs.h \
-	direct/Pointer.h \
-	direct/Bytes.h
+	direct/dessser/runtime.h \
+	direct/dessser/typedefs.h \
+	direct/dessser/Pointer.h \
+	direct/dessser/Bytes.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \

@@ -3,8 +3,8 @@
 #include <cassert>
 #include <memory>
 #include <cstring>
-#include "Bytes.h"
-#include "typedefs.h"
+#include "dessser/Bytes.h"
+#include "dessser/typedefs.h"
 
 /* We have 2 types of pointers:
  * Pointers that point to a byte buffer used to (de)serialize values, and
