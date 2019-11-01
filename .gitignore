@@ -45,3 +45,5 @@ ber/IntReprOCaml.ml
 ber/IntRepr.ml
 *.gch
 examples/rowbinary2sexpr
+examples/example.cc
+examples/example.ml

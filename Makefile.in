@@ -2,10 +2,9 @@
 
 VERSION = @PACKAGE_VERSION@
 
-OCAMLFIND_COMMANDS = ocamlc=metaocamlc ocamlopt=metaocamlopt
-OCAMLOPT = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
-OCAMLC   = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlc
-OCAMLDEP = OCAMLFIND_COMMANDS='$(OCAMLFIND_COMMANDS)' OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
+OCAMLOPT = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
+OCAMLC   = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlc
+OCAMLDEP = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
 CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
@@ -29,16 +28,16 @@ INSTALLED_LIB = \
 	dessser.cmxa \
 	dessser.cma \
 	dessser.a \
-	$(filter %.cmi, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmi)) \
-	$(filter %.cmx, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmx)) \
-	$(filter %.cmo, $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo))
+	$(filter %.cmi, $(LIBDESSSER_SOURCES:.ml=.cmi)) \
+	$(filter %.cmx, $(LIBDESSSER_SOURCES:.ml=.cmx)) \
+	$(filter %.cmo, $(LIBDESSSER_SOURCES:.ml=.cmo))
 
 INSTALLED_HEADERS = \
-	direct/dessser/runtime.h \
-	direct/dessser/typedefs.h \
-	direct/dessser/Pointer.h \
-	direct/dessser/Bytes.h \
-	direct/dessser/Vec.h
+	src/dessser/runtime.h \
+	src/dessser/typedefs.h \
+	src/dessser/Pointer.h \
+	src/dessser/Bytes.h \
+	src/dessser/Vec.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \
@@ -83,37 +82,24 @@ all: $(INSTALLED) examples
 
 doc:
 
-LIBBERDESSSER_SOURCES = \
-	ber/Helpers.ml \
-	ber/MyLifts.ml \
-	ber/SerDataBytes0.ml \
-	ber/SerDataBytes.ml \
-	ber/IntRepr.ml \
-	ber/Dessser.ml \
-	ber/SExpr.ml \
-	ber/RowBinary.ml \
-	ber/DevNull.ml
-
-LIBDIRECTDESSSER_SOURCES = \
-	direct/Dessser.ml \
-	direct/SExpr.ml \
-	direct/RowBinary.ml \
-	direct/DevNull.ml \
-	direct/BackEndCPP.ml \
-	direct/BackEndOCaml.ml \
-	direct/RamenRingBuffer.ml \
-	direct/HeapValue.ml \
-	direct/DessserOCamlBackendHelpers.ml
+LIBDESSSER_SOURCES = \
+	src/Dessser.ml \
+	src/SExpr.ml \
+	src/RowBinary.ml \
+	src/DevNull.ml \
+	src/BackEndCPP.ml \
+	src/BackEndOCaml.ml \
+	src/RamenRingBuffer.ml \
+	src/HeapValue.ml \
+	src/DessserOCamlBackendHelpers.ml
 
 EXAMPLES_SOURCES = \
-	examples/direct_hard_coded.ml \
 	examples/manual_codegen.ml
 
 TESTONLY_SOURCES =
 
 SOURCES = $(sort \
-	$(LIBBERDESSSER_SOURCES) \
-	$(LIBDIRECTDESSSER_SOURCES) \
+	$(LIBDESSSER_SOURCES) \
 	$(EXAMPLES_SOURCES) \
 	$(TESTONLY_SOURCES) \
 )
@@ -125,37 +111,23 @@ dep:
 	@$(MAKE) .depend
 
 .depend: $(SOURCES)
-	@$(OCAMLDEP) -I ber -package '$(PACKAGES)' $(filter %.ml, $(LIBBERDESSSER_SOURCES)) $(filter %.mli, $(LIBBERDESSSER_SOURCES)) > $@
-	@$(OCAMLDEP) -I direct -package '$(PACKAGES)' $(filter %.ml, $(LIBDIRECTDESSSER_SOURCES)) $(filter %.mli, $(LIBDIRECTDESSSER_SOURCES)) >> $@
+	@$(OCAMLDEP) -I src -package '$(PACKAGES)' $(filter %.ml, $(LIBDESSSER_SOURCES)) $(filter %.mli, $(LIBDESSSER_SOURCES)) >> $@
 
 include .depend
 
 # Compile dessser lib
 
-ber/dessser.cmxa: $(LIBBERDESSSER_SOURCES:.ml=.cmx)
+src/dessser.cmxa: $(LIBDESSSER_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@ (native)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -a $(filter %.cmx, $^) -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -a $(filter %.cmx, $^) -o $@
 
-ber/dessser.cma: $(LIBBERDESSSER_SOURCES:.ml=.cmo)
+src/dessser.cma: $(LIBDESSSER_SOURCES:.ml=.cmo)
 	@echo 'Linking runtime library $@ (bytecode)'
-	$(OCAMLC) $(OCAMLCFLAGS) -I ber -a $(filter %.cmo, $^) -o $@
+	$(OCAMLC) $(OCAMLCFLAGS) -I src -a $(filter %.cmo, $^) -o $@
 
-ber/dessser.a: ber/dessser.cmxa
+src/dessser.a: src/dessser.cmxa
 
-ber/IntRepr.ml: ber/IntReprOCaml.ml
-	ln -f $< $@
-
-direct/dessser.cmxa: $(LIBDIRECTDESSSER_SOURCES:.ml=.cmx)
-	@echo 'Linking runtime library $@ (native)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -a $(filter %.cmx, $^) -o $@
-
-direct/dessser.cma: $(LIBDIRECTDESSSER_SOURCES:.ml=.cmo)
-	@echo 'Linking runtime library $@ (bytecode)'
-	$(OCAMLC) $(OCAMLCFLAGS) -I direct -a $(filter %.cmo, $^) -o $@
-
-direct/dessser.a: direct/dessser.cmxa
-
-INSTALLED_IMPL = direct
+INSTALLED_IMPL = src
 
 dessser.cmxa: $(INSTALLED_IMPL)/dessser.cmxa
 	@ln -f $< $@
@@ -170,16 +142,10 @@ dessser.a: $(INSTALLED_IMPL)/dessser.a
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
 
-examples/direct_hard_coded.opt: ber/dessser.cmxa examples/direct_hard_coded.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I ber -linkpkg -package '$(PACKAGES)' $^ -o $@
-
-examples/direct_hard_coded.byte: ber/dessser.cma examples/direct_hard_coded.ml
-	$(OCAMLC) $(OCAMLCFLAGS) -I ber -linkpkg -package '$(PACKAGES) dynlink' $^ -o $@
-
 # Compile another exxperiment
 
-examples/manual_codegen.opt: direct/dessser.cmxa examples/manual_codegen.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I direct -linkpkg -package '$(PACKAGES)' $^ -o $@
+examples/manual_codegen.opt: src/dessser.cmxa examples/manual_codegen.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 # Generated sources
 
@@ -213,14 +179,11 @@ reinstall: uninstall install
 
 clean:
 	@echo 'Cleaning'
-	@$(RM) ber/*.s ber/*.annot ber/*.cmt ber/*.cmti ber/*.o ber/*.opt ber/*.byte
-	@$(RM) ber/*.cmx ber/*.cmo ber/*.cmxa ber/*.cma ber/*.cmxs ber/*.cmi ber/*.a
-	@$(RM) direct/*.s direct/*.annot direct/*.cmt direct/*.cmti direct/*.o direct/*.opt direct/*.byte
-	@$(RM) direct/*.cmx direct/*.cmo direct/*.cmxa direct/*.cma direct/*.cmxs direct/*.cmi direct/*.a
+	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o src/*.opt src/*.byte
+	@$(RM) src/*.cmx src/*.cmo src/*.cmxa src/*.cma src/*.cmxs src/*.cmi src/*.a
 	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
 	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
 	@$(RM) *.opt perf.data* gmon.out
-	@$(RM) ber/IntRepr.ml ber/IntReprOCaml.ml
 
 distclean: clean
 	@echo 'Cleaning all build files'
