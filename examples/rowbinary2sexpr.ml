@@ -25,8 +25,8 @@ let () =
       let sz = 1024 in
       let dst = Pointer.make sz in
       let src, dst = Example.func2_0 src dst in
-      let b, o = dst in
-      assert (o < Bytes.length b) ;
+      let b, o, l = dst in
+      assert (o < l) ;
       String.print stdout (Bytes.sub_string b 0 o) ;
       Char.print stdout !delim ;
       loop src in

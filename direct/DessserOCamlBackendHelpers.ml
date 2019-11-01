@@ -1,5 +1,7 @@
 open Stdint
 
+let debug = false
+
 let option_get = function
   | Some x -> x
   | None -> invalid_arg "option_get"
@@ -41,30 +43,33 @@ end
 
 module Pointer =
 struct
-  type t = Bytes.t * int
+  type t = Bytes.t * int * int
 
   let make sz =
-    (Bytes.create sz, 0)
+    Bytes.create sz, 0, sz
 
-  let of_bytes b o = b, o
+  let of_bytes b o l = b, o, l
 
   let of_string s =
-    (Bytes.of_string s, 0)
+    Bytes.of_string s, 0, String.length s
 
-  let skip (b, o) n =
-    assert (o + n <= Bytes.length b) ;
-    (b, o + n)
+  let skip (b, o, l) n =
+    if debug then Printf.printf "Advance from %d to %d\n%!" o (o+n) ;
+    assert (o + n <= l) ;
+    (b, o + n, l)
 
-  let sub (b1, o1) (b2, o2) =
+  let sub (b1, o1, _) (b2, o2, _) =
     assert (b1 == b2) ;
     assert (o1 >= o2) ;
-    Size.of_int (o2 - o1)
+    Size.of_int (o1 - o2)
 
-  let remSize (b, o) =
-    Size.of_int (Bytes.length b - o)
+  let remSize (_, o, l) =
+    Size.of_int (l - o)
 
-  let peekByte (b, o) at =
+  let peekByte (b, o, l) at =
+    assert (o + at < l) ;
     let c = Bytes.get b (o + at) in
+    if debug then Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (o+at) ;
     Uint8.of_int (Char.code c)
 
   let peekWordLe p at =
@@ -110,12 +115,11 @@ struct
   let readOWordLe p =
     peekOWordLe p 0, skip p 16
 
-  let readBytes (b, o as p) l =
-    assert (Bytes.length b - o >= l) ;
-    Slice.make b o l,
-    skip p l
+  let readBytes (b, o, _ as p) sz =
+    Slice.make b o sz,
+    skip p sz
 
-  let pokeByte (b, o) at v =
+  let pokeByte (b, o, _) at v =
     Bytes.set b (o + at) (Uint8.to_int v |> Char.chr)
 
   let pokeWordLe p at v =
@@ -167,15 +171,15 @@ struct
     pokeOWordLe p 0 v ;
     skip p 16
 
-  let writeBytes (b, o as p) v =
+  let writeBytes (b, o, _ as p) v =
     let len = v.Slice.length in
     Bytes.blit v.bytes v.offset b o len ;
     skip p len
 
-  let blitBytes (b, o as p) v l =
+  let blitBytes (b, o, _ as p) v sz =
     let c = Char.chr (Uint8.to_int v) in
-    for i = o to o + l - 1 do
+    for i = o to o + sz - 1 do
       Bytes.set b i c
     done ;
-    skip p l
+    skip p sz
 end
