@@ -999,7 +999,7 @@ let rec print_default_value indent oc typ =
       | TVec (dim, t) ->
           Printf.fprintf oc "[| " ;
           for i = 0 to dim - 1 do
-            print_default_value (indent^"  ") oc t
+            Printf.fprintf oc "%a; " (print_default_value (indent^"  ")) t
           done ;
           Printf.fprintf oc "%s|]" indent
       | TPair (t1, t2) ->
