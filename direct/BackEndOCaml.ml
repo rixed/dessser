@@ -969,7 +969,10 @@ let do_while oc ~cond ~loop v0 =
 let rec print_default_value indent oc typ =
   let open Types in
   if typ.nullable then
-    String.print oc "None"
+    (* Unfortunately we cannot start with None as we want the whole tree
+     * of values to be populated. *)
+    Printf.fprintf oc "Some (%a)"
+      (print_default_value indent) ({ typ with nullable = false})
   else
     match typ.structure with
       | TFloat -> String.print oc "0."
@@ -1046,13 +1049,12 @@ let set_field oc frames p v =
     id
     Identifier.print v
 
-let set_nullable_field oc typ idx v =
+let set_nullable_field oc frames idx v =
   match v with
   | Some v ->
-      set_field oc typ idx (Identifier.modify "(Some " v ")")
+      set_field oc frames idx (Identifier.modify "(Some " v ")")
   | None ->
-      (* None is already the default value for all nullable fields *)
-      ()
+      set_field oc frames idx (Identifier.of_string "None")
 
 let get_field _oc frames p =
   let id = id_of_path frames p in
