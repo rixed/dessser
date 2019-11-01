@@ -415,10 +415,10 @@ let bit_of_const oc b =
   emit_bit oc (fun oc -> String.print oc (if b then "true" else "false"))
 
 let byte_of_const oc b =
-  emit_byte oc (fun oc -> Int.print oc b)
+  emit_byte oc (fun oc -> Printf.fprintf oc "Uint8.of_int %d" b)
 
 let size_of_const oc s =
-  emit_size oc (fun oc -> Int.print oc s)
+  emit_size oc (fun oc -> Printf.fprintf oc "Size.of_int %d" s)
 
 let size_of_u32 oc v =
   emit_size oc (fun oc ->
@@ -454,7 +454,7 @@ let byte_of_u8 oc u =
 
 let test_bit oc p u =
   emit_bit oc (fun oc ->
-    Printf.fprintf oc "Pointer.getBit %a %a"
+    Printf.fprintf oc "Pointer.getBit %a (Uint32.to_int %a)"
       Identifier.print p
       Identifier.print u)
 
@@ -495,7 +495,7 @@ let read_bytes oc p sz =
 
 let set_bit oc p u b =
   emit_unit oc (fun oc ->
-    Printf.fprintf oc "Pointer.setBit %a %a %a"
+    Printf.fprintf oc "Pointer.setBit %a (Uint32.to_int %a) %a"
       Identifier.print p
       Identifier.print u
       Identifier.print b)
@@ -649,7 +649,7 @@ struct
       mod_name Identifier.print b)
 
   let to_word oc b =
-    emit_word oc (fun oc -> Printf.fprintf oc "%s.to_uint8 %a"
+    emit_word oc (fun oc -> Printf.fprintf oc "%s.to_uint16 %a"
       mod_name print b)
 
   let of_dword oc b =
@@ -657,7 +657,7 @@ struct
       mod_name Identifier.print b)
 
   let to_dword oc b =
-    emit_dword oc (fun oc -> Printf.fprintf oc "%s.to_uint8 %a"
+    emit_dword oc (fun oc -> Printf.fprintf oc "%s.to_uint32 %a"
       mod_name print b)
 
   let of_qword oc b =
@@ -665,7 +665,7 @@ struct
       mod_name Identifier.print b)
 
   let to_qword oc b =
-    emit_qword oc (fun oc -> Printf.fprintf oc "%s.to_uint8 %a"
+    emit_qword oc (fun oc -> Printf.fprintf oc "%s.to_uint64 %a"
       mod_name print b)
 
   let of_oword oc b =
@@ -673,7 +673,7 @@ struct
       mod_name Identifier.print b)
 
   let to_oword oc b =
-    emit_oword oc (fun oc -> Printf.fprintf oc "%s.to_uint8 %a"
+    emit_oword oc (fun oc -> Printf.fprintf oc "%s.to_uint128 %a"
       mod_name print b)
 
   let to_string oc b =

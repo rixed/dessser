@@ -43,6 +43,14 @@ module Pointer =
 struct
   type t = Bytes.t * int
 
+  let make sz =
+    (Bytes.create sz, 0)
+
+  let of_bytes b o = b, o
+
+  let of_string s =
+    (Bytes.of_string s, 0)
+
   let skip (b, o) n =
     assert (o + n <= Bytes.length b) ;
     (b, o + n)
@@ -54,12 +62,6 @@ struct
 
   let remSize (b, o) =
     Size.of_int (Bytes.length b - o)
-
-  let of_string s =
-    (Bytes.of_string s, 0)
-
-  let make sz =
-    (Bytes.create sz, 0)
 
   let peekByte (b, o) at =
     let c = Bytes.get b (o + at) in
@@ -170,9 +172,10 @@ struct
     Bytes.blit v.bytes v.offset b o len ;
     skip p len
 
-  let blitBytes (b, o) v l =
+  let blitBytes (b, o as p) v l =
     let c = Char.chr (Uint8.to_int v) in
     for i = o to o + l - 1 do
       Bytes.set b i c
-    done
+    done ;
+    skip p l
 end
