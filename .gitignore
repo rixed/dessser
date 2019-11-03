@@ -31,7 +31,6 @@ TODO
 *.tgz
 autom4te.cache
 config.status
-configure
 META
 Makefile
 opam
