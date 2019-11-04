@@ -5,8 +5,7 @@ open Dessser
 let preferred_file_extension = "ml"
 
 type output =
-  { decl : string IO.output ;
-    mutable code : string IO.output ; (* current function body *)
+  { mutable code : string IO.output ; (* current function body *)
     mutable indent : string ; (* current line prefix *)
     (* When building heap values, remember the base type name (for casts): *)
     mutable value_typname : string ;
@@ -15,12 +14,12 @@ type output =
     (* While constructing a value the initialization of the fields is delayed
      * until the end of the function: *)
     mutable value_init : string IO.output ;
-    (* name and definition: *)
-    mutable funs : (string * string) list }
+    (* name and definition (order matter!): *)
+    mutable funs : (string * string) list ;
+    (* type names and declarations (order matters!): *)
+    mutable type_decls : (string * string) list }
 
 (* Compound types have to be declared (once) *)
-
-let type_decls = ref Set.String.empty
 
 let rec ml_type_of_scalar typ =
   let open Types in
@@ -62,20 +61,22 @@ let rec ml_type_of_scalar typ =
 (* Output: make, print... *)
 
 let make_output () =
-  { decl = IO.output_string () ;
-    code = IO.output_string () ;
+  { code = IO.output_string () ;
     indent = "" ;
     value_typname = "" ;
     value_last_frames = [] ;
     value_init = IO.output_string () ;
-    funs = [] }
+    funs = [] ;
+    type_decls = [] }
 
 let print_output oc output =
   Printf.fprintf oc "open Stdint\n" ;
   Printf.fprintf oc "open DessserOCamlBackendHelpers\n" ;
-  Printf.fprintf oc
-    "(* Declarations *)\n\n%s\n\n(* Functions *)\n\n"
-    (IO.close_out output.decl) ;
+  Printf.fprintf oc "\n(* Type Declarations *)\n\n" ;
+  List.rev output.type_decls |>
+  List.iter (fun (_type_id, str) ->
+    Printf.fprintf oc "%s\n" str) ;
+  Printf.fprintf oc "\n(* Functions *)\n\n" ;
   List.rev output.funs |>
   List.iter (fun (_fun_id, str) ->
     Printf.fprintf oc "%s\n" str)
@@ -100,14 +101,12 @@ let subfield_info typ idx =
       (* Scalar types have no subfields: *)
       assert false
 
-let rec print_type_decl oc id typ =
-  (* Beware that we might need to print recursively into oc.decl before
-   * we are ready to print this one *)
+let rec declare_type oc id typ =
   let s = IO.output_string () in
   let print_record typs =
     Printf.fprintf s "type %s = {\n" id ;
     Array.iteri (fun i subtyp ->
-      let typ_id = find_or_define_type oc subtyp in
+      let typ_id = find_or_declare_type oc subtyp in
       let fname, subtyp = subfield_info typ i in
       Printf.fprintf s "  mutable %s : %s%s;\n"
         fname typ_id
@@ -123,22 +122,21 @@ let rec print_type_decl oc id typ =
   | Types.TPair (t1, t2) ->
       Printf.fprintf s "type %s = %s * %s\n\n"
         id
-        (find_or_define_type oc t1)
-        (find_or_define_type oc t2)
+        (find_or_declare_type oc t1)
+        (find_or_declare_type oc t2)
   | _ ->
       ()) ;
-  String.print oc.decl (IO.close_out s)
+  oc.type_decls <- (id, IO.close_out s) :: oc.type_decls
 
 (* Returns the name of the C type for typ: *)
-and find_or_define_type oc typ =
+and find_or_declare_type oc typ =
   let uniq_id =
     Printf.sprintf "typ_%d" (Hashtbl.hash typ) in
-  if Set.String.mem uniq_id !type_decls then
+  if List.mem_assoc uniq_id oc.type_decls then
     uniq_id
   else
     let do_decl () =
-      print_type_decl oc uniq_id typ ;
-      type_decls := Set.String.add uniq_id !type_decls ;
+      declare_type oc uniq_id typ ;
       uniq_id
     in
     match typ.Types.structure with
@@ -154,7 +152,7 @@ and find_or_define_type oc typ =
  * Returns the function id. *)
 let print_function0 oc out_typ p =
   let fun_id = Identifier.func0 () in
-  let out_tname = find_or_define_type oc out_typ in
+  let out_tname = find_or_declare_type oc out_typ in
   let cur_code = oc.code and cur_indent = oc.indent in
   oc.code <- IO.output_string () ;
   oc.indent <- "  " ;
@@ -172,8 +170,8 @@ let print_function0 oc out_typ p =
   fun_id
 
 let print_function1 oc in_typ0 out_typ p =
-  let out_tname = find_or_define_type oc out_typ in
-  let in_tname0 = find_or_define_type oc in_typ0 in
+  let out_tname = find_or_declare_type oc out_typ in
+  let in_tname0 = find_or_declare_type oc in_typ0 in
   let param0 = Identifier.param 0 () in
   let cur_code = oc.code and cur_indent = oc.indent in
   oc.code <- IO.output_string () ;
@@ -196,9 +194,9 @@ let print_function1 oc in_typ0 out_typ p =
 
 let print_function2 oc in_typ0 in_typ1 out_typ p =
   let fun_id = Identifier.func2 () in
-  let out_tname = find_or_define_type oc out_typ in
-  let in_tname0 = find_or_define_type oc in_typ0 in
-  let in_tname1 = find_or_define_type oc in_typ1 in
+  let out_tname = find_or_declare_type oc out_typ in
+  let in_tname0 = find_or_declare_type oc in_typ0 in
+  let in_tname1 = find_or_declare_type oc in_typ1 in
   let param0 = Identifier.param 0 () in
   let param1 = Identifier.param 1 () in
   let cur_code = oc.code and cur_indent = oc.indent in
@@ -380,8 +378,8 @@ let emit_auto oc p =
 
 let emit_pair t1 t2 oc p =
   let id = Identifier.pair () in
-  let tname1 = find_or_define_type oc Types.(make t1) in
-  let tname2 = find_or_define_type oc Types.(make t2) in
+  let tname1 = find_or_declare_type oc Types.(make t1) in
+  let tname2 = find_or_declare_type oc Types.(make t2) in
   Printf.fprintf oc.code "%slet %a : (%s * %s) = %t in\n" oc.indent
     Identifier.print id tname1 tname2 p ;
   Identifier.(modify "(fst " id ")" |> of_any t1),
@@ -1016,7 +1014,7 @@ let rec print_default_value indent oc typ =
 (* For heap allocated values, all subtypes are unboxed so we can perform a
  * single allocation. *)
 let alloc_value oc typ =
-  oc.value_typname <- find_or_define_type oc typ ;
+  oc.value_typname <- find_or_declare_type oc typ ;
   emit_pointer oc (fun oc' ->
     (* Build the shared_ptr here that the type is known: *)
     Printf.fprintf oc' "(%a : %s)"

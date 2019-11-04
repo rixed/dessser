@@ -5,18 +5,15 @@ open Dessser
 let preferred_file_extension = "cc"
 
 type output =
-  { decl : string IO.output ;
-    mutable code : string IO.output ; (* current function body *)
+  { mutable code : string IO.output ; (* current function body *)
     mutable indent : string ; (* current line prefix *)
     mutable entry_point : bool ;
     (* When building heap values, remember the base type name (for casts): *)
     mutable value_typname : string ;
     (* name and definition: *)
-    mutable funs : (string * string) list }
-
-(* Compound types have to be declared (once) *)
-
-let type_decls = ref Set.String.empty
+    mutable funs : (string * string) list ;
+    (* type names and declarations: *)
+    mutable type_decls : (string * string) list }
 
 let rec c_type_of_scalar typ =
   let open Types in
@@ -86,14 +83,14 @@ let subfield_info typ idx =
       (* Scalar types have no subfields: *)
       assert false
 
-let rec print_type_decl oc id typ =
+let rec declare_type oc id typ =
   (* Beware that we might need to print recursively into oc.decl before
    * we are ready to print this one *)
   let s = IO.output_string () in
   let print_record typs =
     Printf.fprintf s "struct %s {\n" id ;
     Array.iteri (fun i subtyp ->
-      let typ_id = find_or_define_type oc subtyp in
+      let typ_id = find_or_declare_type oc subtyp in
       let fname, subtyp = subfield_info typ i in
       if subtyp.Types.nullable then
         Printf.fprintf s "  std::optional<%s> %s;\n" typ_id fname
@@ -109,23 +106,22 @@ let rec print_type_decl oc id typ =
       print_record (Array.map snd typs)
   | Types.TPair (t1, t2) ->
       Printf.fprintf s "typedef std::pair<%s, %s> %s;\n\n"
-        (find_or_define_type oc t1)
-        (find_or_define_type oc t2)
+        (find_or_declare_type oc t1)
+        (find_or_declare_type oc t2)
         id
   | _ ->
       ()) ;
-  String.print oc.decl (IO.close_out s)
+  oc.type_decls <- (id, IO.close_out s) :: oc.type_decls
 
 (* Returns the name of the C type for typ: *)
-and find_or_define_type oc typ =
+and find_or_declare_type oc typ =
   let uniq_id =
     Printf.sprintf "typ_%d" (Hashtbl.hash typ) in
-  if Set.String.mem uniq_id !type_decls then
+  if List.mem_assoc uniq_id oc.type_decls then
     uniq_id
   else
     let do_decl () =
-      print_type_decl oc uniq_id typ ;
-      type_decls := Set.String.add uniq_id !type_decls ;
+      declare_type oc uniq_id typ ;
       uniq_id
     in
     match typ.Types.structure with
@@ -139,18 +135,20 @@ and find_or_define_type oc typ =
 (* Output: make, print... *)
 
 let make_output () =
-  { decl = IO.output_string () ;
-    code = IO.output_string () ;
+  { code = IO.output_string () ;
     indent = "" ;
     entry_point = true ; (* First function emitted will be public *)
     value_typname = "" ;
-    funs = [] }
+    funs = [] ;
+    type_decls = [] }
 
 let print_output oc output =
   Printf.fprintf oc "#include \"dessser/runtime.h\"" ;
-  Printf.fprintf oc
-    "/* Declarations */\n\n%s\n\n/* Functions */\n\n"
-    (IO.close_out output.decl) ;
+  Printf.fprintf oc "\n/* Type Declarations */\n\n" ;
+  List.rev output.type_decls |>
+  List.iter (fun (_type_id, str) ->
+    Printf.fprintf oc "%s\n" str) ;
+  Printf.fprintf oc "\n/* Functions */\n\n" ;
   List.rev output.funs |>
   List.iter (fun (_fun_id, str) ->
     Printf.fprintf oc "%s\n" str)
@@ -160,7 +158,7 @@ let print_output oc output =
  * Returns the function id. *)
 let print_function0 oc out_typ p =
   let fun_id = Identifier.func0 () in
-  let out_tname = find_or_define_type oc out_typ in
+  let out_tname = find_or_declare_type oc out_typ in
   let cur_code = oc.code and cur_indent = oc.indent
   and cur_entry_point = oc.entry_point in
   oc.code <- IO.output_string () ;
@@ -182,8 +180,8 @@ let print_function0 oc out_typ p =
   fun_id
 
 let print_function1 oc in_typ0 out_typ p =
-  let out_tname = find_or_define_type oc out_typ in
-  let in_tname0 = find_or_define_type oc in_typ0 in
+  let out_tname = find_or_declare_type oc out_typ in
+  let in_tname0 = find_or_declare_type oc in_typ0 in
   let param0 = Identifier.param 0 () in
   let cur_code = oc.code and cur_indent = oc.indent
   and cur_entry_point = oc.entry_point in
@@ -210,9 +208,9 @@ let print_function1 oc in_typ0 out_typ p =
 
 let print_function2 oc in_typ0 in_typ1 out_typ p =
   let fun_id = Identifier.func2 () in
-  let out_tname = find_or_define_type oc out_typ in
-  let in_tname0 = find_or_define_type oc in_typ0 in
-  let in_tname1 = find_or_define_type oc in_typ1 in
+  let out_tname = find_or_declare_type oc out_typ in
+  let in_tname0 = find_or_declare_type oc in_typ0 in
+  let in_tname1 = find_or_declare_type oc in_typ1 in
   let param0 = Identifier.param 0 () in
   let param1 = Identifier.param 1 () in
   let cur_code = oc.code and cur_indent = oc.indent
@@ -385,8 +383,8 @@ let emit_auto oc p =
 
 let emit_pair t1 t2 oc p =
   let id = Identifier.pair () in
-  let tname1 = find_or_define_type oc Types.(make t1) in
-  let tname2 = find_or_define_type oc Types.(make t2) in
+  let tname1 = find_or_declare_type oc Types.(make t1) in
+  let tname2 = find_or_declare_type oc Types.(make t2) in
   Printf.fprintf oc.code "%sstd::pair<%s, %s> %a(%t);\n" oc.indent
     tname1 tname2 Identifier.print id p ;
   Identifier.(modify "" id ".first" |> of_any t1),
@@ -775,7 +773,7 @@ let indent_more oc f =
 let make_pair oc typ id1 id2 =
   let id = Identifier.pair () in
   (* Construct the type of the result: *)
-  let typname = find_or_define_type oc typ in
+  let typname = find_or_declare_type oc typ in
   Printf.fprintf oc.code "%s%s %a = { %a, %a };\n" oc.indent
     typname Identifier.print id
     Identifier.print id1
@@ -931,7 +929,7 @@ let do_while oc ~cond ~loop v0 =
 (* For heap allocated values, all subtypes are unboxed so we can perform a
  * single allocation. *)
 let alloc_value oc typ =
-  oc.value_typname <- find_or_define_type oc typ ;
+  oc.value_typname <- find_or_declare_type oc typ ;
   emit_pointer oc (fun oc' ->
     (* Build the shared_ptr here that the type is known: *)
     Printf.fprintf oc' "std::shared_ptr<%s>(new %s)"
