@@ -634,6 +634,11 @@ struct
     emit oc (fun oc -> Printf.fprintf oc "%s.of_int %d"
       mod_name d)
 
+  let to_string oc b =
+    emit_string oc (fun oc -> Printf.fprintf oc "%s.to_string %a"
+      mod_name print b)
+
+  (* Those functions are about _casting_ not converting: *)
   let of_byte oc b =
     emit oc (fun oc -> Printf.fprintf oc "%s.of_uint8 %a"
       mod_name Identifier.print b)
@@ -672,10 +677,6 @@ struct
 
   let to_oword oc b =
     emit_oword oc (fun oc -> Printf.fprintf oc "%s.to_uint128 %a"
-      mod_name print b)
-
-  let to_string oc b =
-    emit_string oc (fun oc -> Printf.fprintf oc "%s.to_string %a"
       mod_name print b)
 end
 
@@ -717,13 +718,28 @@ struct
       mod_name Identifier.print s)
 end
 
-module Float = MakeNum (
-  struct
-    type mid = [`Float] Identifier.t
-    let emit = emit_float
-    let print = Identifier.print
-    let mod_name = "Float"
-  end)
+module Float =
+struct
+  include MakeNum (
+    struct
+      type mid = [`Float] Identifier.t
+      let emit = emit_float
+      let print = Identifier.print
+      let mod_name = "Float"
+    end)
+
+  (* Casting in OCaml is not that simple: *)
+  let of_byte oc _ = emit oc (fun oc -> Printf.fprintf oc "raise (NotImplemented \"Float.of_byte\")")
+  let to_byte oc _ = emit_byte oc (fun oc -> Printf.fprintf oc "raise (NotImplemented \"Float.to_byte\")")
+  let of_word oc _ = emit oc (fun oc -> Printf.fprintf oc "raise (NotImplemented \"Float.of_word\")")
+  let to_word oc _ = emit_word oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.to_word\")")
+  let of_dword oc _ = emit oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.of_dword\")")
+  let to_dword oc _ = emit_dword oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.to_dword\")")
+  let of_qword oc _ = emit oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.of_qword\")")
+  let to_qword oc _ = emit_qword oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.to_qword\")")
+  let of_oword oc _ = emit oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.of_oword\")")
+  let to_oword oc _ = emit_oword oc (fun oc ->  Printf.fprintf oc "raise (NotImplemented \"Float.to_oword\")")
+end
 
 module U8 = MakeInt (struct let mod_name = "Uint8" type mid = [`U8] Identifier.t let emit = emit_u8 let print = Identifier.print end)
 module I8 = MakeInt (struct let mod_name = "Int8" type mid = [`I8] Identifier.t let emit = emit_i8 let print = Identifier.print end)

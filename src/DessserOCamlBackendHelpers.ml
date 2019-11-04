@@ -6,6 +6,8 @@ let option_get = function
   | Some x -> x
   | None -> invalid_arg "option_get"
 
+exception NotImplemented of string
+
 module Size =
 struct
   type t = int
