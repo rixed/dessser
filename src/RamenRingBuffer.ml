@@ -55,7 +55,7 @@ struct
   type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
   let sfloat oc _frames _st v p =
-    BE.write_dword oc p (BE.Float.to_dword oc v)
+    BE.write_qword oc p (BE.Float.to_qword oc v)
 
   let sstring oc _frames _st v p =
     let len = BE.length_of_string oc v in
