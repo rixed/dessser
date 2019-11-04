@@ -93,9 +93,9 @@ let () =
     BE.print_output oc output) ;
   let cmd =
     if BE.preferred_file_extension = "cc" then
-      Printf.sprintf "g++ -std=c++17 -g -O%d -W -Wall -I direct %s examples/rowbinary2sexpr.cpp -o examples/rowbinary2sexpr" optim fname
+      Printf.sprintf "g++ -std=c++17 -g -O%d -W -Wall -I src %s examples/rowbinary2sexpr.cpp -o examples/rowbinary2sexpr" optim fname
     else if BE.preferred_file_extension = "ml" then
-      Printf.sprintf "ocamlfind ocamlopt -g -annot -O%d -I direct -I examples -package stdint,batteries -linkpkg direct/dessser.cmxa %s examples/rowbinary2sexpr.ml -o examples/rowbinary2sexpr.opt" optim fname
+      Printf.sprintf "ocamlfind ocamlopt -g -annot -O%d -I src -I examples -package stdint,batteries -linkpkg src/dessser.cmxa %s examples/rowbinary2sexpr.ml -o examples/rowbinary2sexpr.opt" optim fname
     else
       "true"
     in
