@@ -21,6 +21,7 @@ let rec c_type_of_scalar typ =
   | TFloat -> "double"
   | TString -> "std::string"
   | TBool -> "bool"
+  | TChar -> "char"
   | TI8 -> "int8_t"
   | TU8 -> "uint8_t"
   | TI16 -> "int16_t"

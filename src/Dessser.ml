@@ -8,6 +8,7 @@ struct
     | TFloat
     | TString
     | TBool
+    | TChar
     | TU8 | TU16 | TU32 | TU64 | TU128
     | TI8 | TI16 | TI32 | TI64 | TI128
     | TVec of int * t
@@ -30,6 +31,7 @@ struct
     | TFloat -> String.print oc "Float"
     | TString -> String.print oc "String"
     | TBool -> String.print oc "Bool"
+    | TChar -> String.print oc "Char"
     | TU8 -> String.print oc "U8"
     | TU16 -> String.print oc "U16"
     | TU32 -> String.print oc "U32"
@@ -160,6 +162,7 @@ struct
   let float = make "flt"
   let string = make "str"
   let bool = make "bool"
+  let char = make "char"
   let i8 = make "i8"
   let u8 = make "u8"
   let i16 = make "i16"
@@ -197,6 +200,7 @@ struct
     | TFloat -> float ()
     | TString -> string ()
     | TBool -> bool ()
+    | TChar -> char ()
     | TU8 -> u8 ()
     | TU16 -> u16 ()
     | TU32 -> u32 ()
@@ -224,6 +228,7 @@ struct
   let float_of_any s = s
   let string_of_any s = s
   let bool_of_any s = s
+  let char_of_any s = s
   let u8_of_any s = s
   let u16_of_any s = s
   let u32_of_any s = s
@@ -254,6 +259,7 @@ struct
     | TFloat -> float_of_any s
     | TString -> string_of_any s
     | TBool -> bool_of_any s
+    | TChar -> char_of_any s
     | TU8 -> u8_of_any s
     | TU16 -> u16_of_any s
     | TU32 -> u32_of_any s
