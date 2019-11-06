@@ -39,6 +39,10 @@ struct
   let si64 _oc _frames () _v _p = assert false
   let si128 _oc _frames () _v _p = assert false
 
+  let schar oc _frames () v p =
+    let b = BE.byte_of_char oc v in
+    BE.write_byte oc p b
+
   let su8 oc _frames () v p =
     let str = BE.U8.to_string oc v in
     let bytes = BE.bytes_of_string oc str in
@@ -96,6 +100,7 @@ struct
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()
   let ssize_of_bool _ _ _ = todo_ssize ()
+  let ssize_of_char _ _ _ = todo_ssize ()
   let ssize_of_i8 _ _ _ = todo_ssize ()
   let ssize_of_i16 _ _ _ = todo_ssize ()
   let ssize_of_i32 _ _ _ = todo_ssize ()

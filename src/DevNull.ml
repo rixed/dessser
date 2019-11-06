@@ -23,6 +23,7 @@ struct
   let su64 oc _frames () v p = BE.ignore oc v ; p
   let si128 oc _frames () v p = BE.ignore oc v ; p
   let su128 oc _frames () v p = BE.ignore oc v ; p
+  let schar oc _frames () v p = BE.ignore oc v ; p
   let tup_opn _ _frames () p = p
   let tup_cls _ _frames () p = p
   let tup_sep _ _ _frames () p = p
@@ -40,6 +41,7 @@ struct
   let ssize_of_float _ _ _ = ConstSize 0
   let ssize_of_string _ _ _ = ConstSize 0
   let ssize_of_bool _ _ _ = ConstSize 0
+  let ssize_of_char _ _ _ = ConstSize 0
   let ssize_of_i8 _ _ _ = ConstSize 0
   let ssize_of_i16 _ _ _ = ConstSize 0
   let ssize_of_i32 _ _ _ = ConstSize 0

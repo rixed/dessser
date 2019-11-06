@@ -58,6 +58,7 @@ struct
   let su32 oc frames st id p = set_field oc frames st id p
   let su64 oc frames st id p = set_field oc frames st id p
   let su128 oc frames st id p = set_field oc frames st id p
+  let schar oc frames st id p = set_field oc frames st id p
 
   let tup_opn _oc _frames () p = p
 
@@ -90,6 +91,7 @@ struct
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()
   let ssize_of_bool _ _ _ = todo_ssize ()
+  let ssize_of_char _ _ _ = todo_ssize ()
   let ssize_of_i8 _ _ _ = todo_ssize ()
   let ssize_of_i16 _ _ _ = todo_ssize ()
   let ssize_of_i32 _ _ _ = todo_ssize ()
@@ -142,6 +144,7 @@ struct
   let du32 oc frames st p = get_field oc frames st p |> Identifier.u32_of_any, p
   let du64 oc frames st p = get_field oc frames st p |> Identifier.u64_of_any, p
   let du128 oc frames st p = get_field oc frames st p |> Identifier.u128_of_any, p
+  let dchar oc frames st p = get_field oc frames st p |> Identifier.char_of_any, p
 
   let tup_opn _oc _frames () p = p
 
@@ -205,6 +208,8 @@ struct
           Ser.ssize_of_string oc frames (Identifier.string_of_any v) |> add_size sizes
       | Types.TBool ->
           Ser.ssize_of_bool oc frames (Identifier.bool_of_any v) |> add_size sizes
+      | Types.TChar ->
+          Ser.ssize_of_char oc frames (Identifier.char_of_any v) |> add_size sizes
       | Types.TI8 ->
           Ser.ssize_of_i8 oc frames (Identifier.i8_of_any v) |> add_size sizes
       | Types.TI16 ->

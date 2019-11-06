@@ -290,6 +290,12 @@ let emit_bytes oc bs =
     Identifier.print id bs ;
   id
 
+let emit_char oc u =
+  let id = Identifier.char () in
+  Printf.fprintf oc.code "%slet %a : char = %t in\n" oc.indent
+    Identifier.print id u ;
+  id
+
 let emit_u8 oc u =
   let id = Identifier.u8 () in
   Printf.fprintf oc.code "%slet %a : Uint8.t = %t in\n" oc.indent
@@ -753,6 +759,14 @@ module I64 = MakeInt (struct let mod_name = "Int64" type mid = [`I64] Identifier
 module U128 = MakeInt (struct let mod_name = "Uint128" type mid = [`U128] Identifier.t let emit = emit_u128 let print = Identifier.print end)
 module I128 = MakeInt (struct let mod_name = "Int128" type mid = [`I128] Identifier.t let emit = emit_i128 let print = Identifier.print end)
 
+let char_of_byte oc b =
+  emit_char oc (fun oc ->
+    Printf.fprintf oc "Char.chr (Uint8.to_int %a)" Identifier.print b)
+
+let byte_of_char oc u =
+  emit_byte oc (fun oc ->
+    Printf.fprintf oc "Uint8.of_int (Char.code %a)" Identifier.print u)
+
 let float_of_i8 oc i =
   emit_float oc (fun oc ->
     Printf.fprintf oc "Uint8.to_float %a" Identifier.print i)
@@ -993,7 +1007,7 @@ let rec print_default_value indent oc typ =
       | TFloat -> String.print oc "0."
       | TString -> String.print oc "\"\""
       | TBool -> String.print oc "false"
-      | TChar -> String.print oc "''"
+      | TChar -> String.print oc "'\\000'"
       | TI8 -> String.print oc "Int8.zero"
       | TI16 -> String.print oc "Int16.zero"
       | TI32 -> String.print oc "Int32.zero"

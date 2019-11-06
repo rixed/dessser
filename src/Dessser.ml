@@ -8,7 +8,7 @@ struct
     | TFloat
     | TString
     | TBool
-    | TChar
+    | TChar (* Exact same values as U8 but different typing rules *)
     | TU8 | TU16 | TU32 | TU64 | TU128
     | TI8 | TI16 | TI32 | TI64 | TI128
     | TVec of int * t
@@ -84,6 +84,7 @@ module Identifier :
     val float : unit -> [`Float] t
     val string : unit -> [`String] t
     val bool : unit -> [`Bool] t
+    val char : unit -> [`Char] t
     val i8 : unit -> [`I8] t
     val u8 : unit -> [`U8] t
     val i16 : unit -> [`I16] t
@@ -120,6 +121,7 @@ module Identifier :
     val float_of_any : 'a t -> [`Float] t
     val string_of_any : 'a t -> [`String] t
     val bool_of_any : 'a t -> [`Bool] t
+    val char_of_any : 'a t -> [`Char] t
     val u8_of_any : 'a t -> [`U8] t
     val u16_of_any : 'a t -> [`U16] t
     val u32_of_any : 'a t -> [`U32] t
@@ -411,6 +413,8 @@ sig
   val bytes_of_float : output -> [`Float] id -> [`Bytes] id (* binary repr of the float *)
   val string_of_float : output -> [`Float] id -> [`String] id (* human readable *)
   val cat_string : output -> [`String] id -> [`String] id -> [`String] id
+  val byte_of_char : output -> [`Char] id -> [`Byte] id
+  val char_of_byte : output -> [`Byte] id -> [`Char] id
 
   (* Cast those from/into a common TupItem type? *)
   val make_pair : output -> Types.t -> 'a id -> 'b id -> ([`Pair] * 'a * 'b) id
@@ -486,6 +490,7 @@ sig
   val dfloat : [`Float] id des
   val dstring : [`String] id des
   val dbool : [`Bool] id des
+  val dchar : [`Char] id des
   val di8 : [`I8] id des
   val di16 : [`I16] id des
   val di32 : [`I32] id des
@@ -529,6 +534,7 @@ sig
   val sfloat : [`Float] id ser
   val sstring : [`String] id ser
   val sbool : [`Bool] id ser
+  val schar : [`Char] id ser
   val si8 : [`I8] id ser
   val si16 : [`I16] id ser
   val si32 : [`I32] id ser
@@ -560,6 +566,7 @@ sig
   val ssize_of_float : [`Float] id ssizer
   val ssize_of_string : [`String] id ssizer
   val ssize_of_bool : [`Bool] id ssizer
+  val ssize_of_char : [`Char] id ssizer
   val ssize_of_i8 : [`I8] id ssizer
   val ssize_of_i16 : [`I16] id ssizer
   val ssize_of_i32 : [`I32] id ssizer
@@ -596,6 +603,7 @@ struct
   let dsfloat = ds Ser.sfloat Des.dfloat
   let dsstring = ds Ser.sstring Des.dstring
   let dsbool = ds Ser.sbool Des.dbool
+  let dschar = ds Ser.schar Des.dchar
   let dsi8 = ds Ser.si8 Des.di8
   let dsi16 = ds Ser.si16 Des.di16
   let dsi32 = ds Ser.si32 Des.di32
@@ -687,6 +695,7 @@ struct
       | Types.TFloat -> dsfloat
       | Types.TString -> dsstring
       | Types.TBool -> dsbool
+      | Types.TChar -> dschar
       | Types.TI8 -> dsi8
       | Types.TI16 -> dsi16
       | Types.TI32 -> dsi32

@@ -69,6 +69,10 @@ struct
     let p = BE.write_byte oc p byte in
     align_const oc p 1
 
+  let schar oc _frames _st v p =
+    let p = BE.(write_byte oc p (byte_of_char oc v)) in
+    align_const oc p 1
+
   let si8 oc _frames _st v p =
     let p = BE.(write_byte oc p (I8.to_byte oc v)) in
     align_const oc p 1
@@ -269,6 +273,7 @@ struct
   let ssize_of_u32 _ frames _ = or_private frames (fun () -> round_up_const 4)
   let ssize_of_u64 _ frames _ = or_private frames (fun () -> round_up_const 8)
   let ssize_of_u128 _ frames _ = or_private frames (fun () -> round_up_const 16)
+  let ssize_of_char oc frames id = ssize_of_u8 oc frames id
 
   let ssize_of_tup _ frames _ =
     or_private frames (fun () ->

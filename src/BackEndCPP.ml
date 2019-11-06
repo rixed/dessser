@@ -295,6 +295,12 @@ let emit_bytes oc bs =
     Identifier.print id bs ;
   id
 
+let emit_char oc u =
+  let id = Identifier.char () in
+  Printf.fprintf oc.code "%suint8_t %a(%t);\n" oc.indent
+    Identifier.print id u ;
+  id
+
 let emit_u8 oc u =
   let id = Identifier.u8 () in
   Printf.fprintf oc.code "%suint8_t %a(%t);\n" oc.indent
@@ -747,6 +753,12 @@ module U64 = MakeInt (struct type mid = [`U64] Identifier.t let emit = emit_u64 
 module I64 = MakeInt (struct type mid = [`I64] Identifier.t let emit = emit_i64 let print = Identifier.print end)
 module U128 = MakeInt (struct type mid = [`U128] Identifier.t let emit = emit_u128 let print = Identifier.print end)
 module I128 = MakeInt (struct type mid = [`I128] Identifier.t let emit = emit_i128 let print = Identifier.print end)
+
+let char_of_byte oc b =
+  emit_char oc (fun oc -> Identifier.print oc b)
+
+let byte_of_char oc u =
+  emit_byte oc (fun oc -> Identifier.print oc u)
 
 let float_of_i8 oc i =
   emit_float oc (fun oc -> Identifier.print oc i)

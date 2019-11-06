@@ -60,6 +60,11 @@ struct
     BE.(bool_not oc U8.(eq oc (of_byte oc b) (of_const_int oc 0))),
     p
 
+  let dchar oc _frames () p =
+    let b, p = BE.read_byte oc p in
+    BE.char_of_byte oc b,
+    p
+
   let di8 oc _frames () p =
     let b, p = BE.read_byte oc p in
     BE.I8.of_byte oc b,
