@@ -33,11 +33,30 @@ struct
         (fun oc -> byte_of_char oc 'F') in
     BE.write_byte oc p byte
 
-  let si8 _oc _frames () _v _p = assert false
-  let si16 _oc _frames () _v _p = assert false
-  let si32 _oc _frames () _v _p = assert false
-  let si64 _oc _frames () _v _p = assert false
-  let si128 _oc _frames () _v _p = assert false
+  let si8 oc _frames () v p =
+    let str = BE.I8.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
+
+  let si16 oc _frames () v p =
+    let str = BE.I16.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
+
+  let si32 oc _frames () v p =
+    let str = BE.I32.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
+
+  let si64 oc _frames () v p =
+    let str = BE.I64.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
+
+  let si128 oc _frames () v p =
+    let str = BE.I128.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
 
   let schar oc _frames () v p =
     let b = BE.byte_of_char oc v in
@@ -63,7 +82,10 @@ struct
     let bytes = BE.bytes_of_string oc str in
     BE.write_bytes oc p bytes
 
-  let su128 _oc _frames () _v _p = assert false
+  let su128 oc _frames () v p =
+    let str = BE.U128.to_string oc v in
+    let bytes = BE.bytes_of_string oc str in
+    BE.write_bytes oc p bytes
 
   (* Could also write the field names with the value in a pair... *)
   let tup_opn oc _frames () p =
@@ -84,9 +106,14 @@ struct
   let rec_sep _idx oc _frames () p =
     BE.write_byte oc p (byte_of_char oc ' ')
 
-  let vec_opn _oc _frames () _p = assert false
-  let vec_cls _oc _frames () _p = assert false
-  let vec_sep _n _oc _frames () _p = assert false
+  let vec_opn oc _frames () p =
+    BE.write_byte oc p (byte_of_char oc '[')
+
+  let vec_cls oc _frames () p =
+    BE.write_byte oc p (byte_of_char oc ']')
+
+  let vec_sep _n oc _frames () p =
+    BE.write_byte oc p (byte_of_char oc ' ')
 
   let nullable _oc _frames () p = p
   let snull oc _frames () p =
