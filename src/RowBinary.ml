@@ -23,9 +23,11 @@ struct
     in
     let cond =
       BE.print_function1 oc t_byte t_bool (fun oc b ->
-        BE.U8.gt oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
+        BE.U8.ge oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
       BE.print_function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8 (fun oc leb_shft_tup byte ->
+        let byte =
+          BE.U8.(to_byte oc (log_and oc (of_byte oc byte) (of_const_int oc 127))) in
         let leb = Identifier.u32_of_any (BE.pair_fst oc leb_shft_tup)
         and shft = Identifier.u8_of_any (BE.pair_snd oc leb_shft_tup) in
         BE.make_pair oc t_pair_u32_u8
@@ -37,7 +39,7 @@ struct
     let init =
       BE.make_pair oc t_pair_u32_u8 u32_zero u8_zero in
     let leb_shft_tup, p = BE.read_while oc ~cond ~reduce init p in
-    (* Still have to add the last byte: *)
+    (* Still have to add the last byte (which is <128): *)
     let last_b, p = BE.read_byte oc p in
     let leb = BE.pair_fst oc leb_shft_tup
     and shft = BE.pair_snd oc leb_shft_tup in
