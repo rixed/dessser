@@ -431,13 +431,18 @@ let word_of_const oc w =
   emit_word oc (fun oc -> Int.print oc w)
 
 let dword_of_const oc w =
-  emit_dword oc (fun oc -> Uint32.to_string w |> String.print oc)
+  emit_dword oc (fun oc -> Printf.fprintf oc "%sU" (Uint32.to_string w))
 
 let qword_of_const oc w =
-  emit_qword oc (fun oc -> Uint64.to_string w |> String.print oc)
+  emit_qword oc (fun oc -> Printf.fprintf oc "%sUL" (Uint64.to_string w))
 
 let oword_of_const oc w =
-  emit_oword oc (fun oc -> Uint128.to_string w |> String.print oc)
+  let lo = Uint128.to_uint64 w
+  and hi = Uint128.(to_uint64 (shift_right_logical w 64)) in
+  emit_oword oc (fun oc ->
+    Printf.fprintf oc "((((uint128_t)%sULL) << 64U) | %sULL)"
+      (Uint64.to_string hi)
+      (Uint64.to_string lo))
 
 let size_of_const oc s =
   emit_size oc (fun oc -> Int.print oc s)
@@ -751,8 +756,22 @@ module U32 = MakeInt (struct type mid = [`U32] Identifier.t let emit = emit_u32 
 module I32 = MakeInt (struct type mid = [`I32] Identifier.t let emit = emit_i32 let print = Identifier.print end)
 module U64 = MakeInt (struct type mid = [`U64] Identifier.t let emit = emit_u64 let print = Identifier.print end)
 module I64 = MakeInt (struct type mid = [`I64] Identifier.t let emit = emit_i64 let print = Identifier.print end)
-module U128 = MakeInt (struct type mid = [`U128] Identifier.t let emit = emit_u128 let print = Identifier.print end)
-module I128 = MakeInt (struct type mid = [`I128] Identifier.t let emit = emit_i128 let print = Identifier.print end)
+
+module U128 =
+struct
+  include MakeInt (struct type mid = [`U128] Identifier.t let emit = emit_u128 let print = Identifier.print end)
+
+  let to_string oc _b =
+    emit_string oc (fun oc -> String.print oc "\"TODO: to_string(uint128)\"")
+end
+
+module I128 =
+struct
+  include MakeInt (struct type mid = [`I128] Identifier.t let emit = emit_i128 let print = Identifier.print end)
+
+  let to_string oc _b =
+    emit_string oc (fun oc -> String.print oc "\"TODO: to_string(int128)\"")
+end
 
 let char_of_byte oc b =
   emit_char oc (fun oc -> Identifier.print oc b)
