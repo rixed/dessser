@@ -1,41 +1,26 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ stdenv, fetchFromGitHub, ocaml, findlib, batteries, stdint }:
 
-let
-  ocamlPackages_ber = pkgs.ocamlPackages.overrideScope' (self: super: {
-    ocaml = pkgs.ber_metaocaml;
-  });
-  batteries_master =
-    pkgs.stdenv.mkDerivation {
-      name = "batteries-master";
-      src = pkgs.fetchFromGitHub {
-        owner = "ocaml-batteries-team";
-        repo = "batteries-included";
-        rev = "43068b3d3eea4354f8bcef3d7a042e7138e15edc";
-        sha256 = "1a868zmkdncqyq18a9x9cwha6w57hwbhwbh8i73w31a3p7f9zznm";
-      };
-      buildInputs = with pkgs; [
-        ber_metaocaml
-        ocamlPackages_ber.findlib
-        ocamlPackages_ber.ocamlbuild
-      ];
-      propagatedBuildInputs = [ ocamlPackages_ber.num ];
-      createFindlibDestdir = true;
-      meta = {
-        description = "OCaml Batteries Included (master branch)";
-      };
-    };
-  in
+stdenv.mkDerivation rec {
+  pname = "ocaml${ocaml.version}-dessser";
+  version = "0.0.5";
 
-pkgs.mkShell {
-  inputsFrom = [ pkgs.ber_metaocaml ];
-  buildInputs = with pkgs; [
-    ber_metaocaml
-    batteries_master
-    ocamlPackages_ber.findlib
-    ocamlPackages_ber.stdint
+  src = fetchFromGitHub {
+    owner = "rixed";
+    repo = "dessser";
+    rev = "v${version}";
+    sha256 = "1wxnw0jlpiax0407s7c5nln3l9npvf19i6z7rhgg3q8g9s0w7hhl";
+  };
+
+  buildInputs = [
+    ocaml findlib batteries stdint
   ];
-  # I like to know this to customize prompts etc:
-  shellHook = ''
-    export NIX_SHELL=1
-  '';
+
+  createFindlibDestdir = true;
+
+  meta = with stdenv.lib; {
+    homepage = https://github.com/rixed/dessser;
+    description = "(de)serializer generator";
+    platforms = ocaml.meta.platforms or [];
+    maintainers = [ maintainers.rixed ];
+  };
 }
