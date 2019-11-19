@@ -45,7 +45,7 @@ end
 
 module Pointer =
 struct
-  type t = Bytes.t * int * int
+  type t = Bytes.t * (* offset: *) int * (* length; *) int
 
   let make sz =
     Bytes.create sz, 0, sz

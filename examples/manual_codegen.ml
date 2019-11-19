@@ -16,46 +16,37 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let typ =
-    let nullable = true in
+  let nullable = true in
+  let m = Types.make in
+  let udp_typ =
     Types.(
-      make (TTup [|
-        make TString ;
-        make TU64 ;
-        make TU64 ;
-        make TU8 ;
-        make TString ;
-        make TU8 ;
-        make TString ;
-        make ~nullable TU32 ;
-        make ~nullable TU32 ;
-        make TU64 ;
-        make TU64 ;
-        make TU32 ;
-        make TU32 ;
-        make ~nullable TU32 ;
-        make ~nullable TString ;
-        make ~nullable TU32 ;
-        make ~nullable TString ;
-        make ~nullable TU32 ;
-        make ~nullable TString ;
-        make TU16 ;
-        make TU16 ;
-        make TU8 ;
-        make TU8 ;
-        make ~nullable TU32 ;
-        make ~nullable TU32 ;
-        make TU32 ;
-        make TString ;
-        make TU64 ;
-        make TU64 ;
-        make TU64 ;  (* Should be U32 *)
-        make TU64 ;  (* Should be U32 *)
-        make TU64 ;
-        make TU64 ;
-        make ~nullable TString
-      |])) in
-
+      m (TTup [|
+        m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; m ~nullable TU32 ;
+        m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; m ~nullable TU32 ; m ~nullable TString ; m ~nullable TU32 ;
+        m ~nullable TString ; m ~nullable TU32 ; m ~nullable TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; m ~nullable TU32 ;
+        m ~nullable TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ;  (* Should be U32 *) m TU64 ;  (* Should be U32 *) m TU64 ;
+        m TU64 ; m ~nullable TString
+      |]))
+  and _http_typ =
+    Types.(
+      m (TTup [|
+        m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
+        m ~nullable TU32 ; m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
+        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+        m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; m ~nullable TU128 ;
+        m TU8 ; m TU8 ; m TU8 ; m ~nullable TString ; m ~nullable TString ;
+        m ~nullable TString (* url *) ; m ~nullable TString ; m TU8 ; m TU8 ; m TU8 ;
+        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+        m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
+        m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
+        m ~nullable TU64 ; m ~nullable TU64 ; m ~nullable TU32 ;
+        m TU32 ; m TU32 ; m TU32 ;
+        m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
+        m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
+        m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
+        m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |])) in
+  let typ = udp_typ in
   let backend =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then (module BackEndOCaml : BACKEND)
     else if Array.length Sys.argv > 1 && Sys.argv.(1) = "c++" then (module BackEndCPP : BACKEND)
