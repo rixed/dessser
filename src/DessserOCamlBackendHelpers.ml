@@ -7,6 +7,8 @@ let option_get = function
   | None -> invalid_arg "option_get"
 
 exception NotImplemented of string
+(* Parameter is the minimum length of the missing part: *)
+exception NotEnoughInput of int
 
 module Size =
 struct
@@ -55,9 +57,12 @@ struct
   let of_string s =
     Bytes.of_string s, 0, String.length s
 
+  let check_input_length o l =
+    if o > l then raise (NotEnoughInput (o - l))
+
   let skip (b, o, l) n =
     if debug then Printf.printf "Advance from %d to %d\n%!" o (o+n) ;
-    assert (o + n <= l) ;
+    check_input_length (o + n) l ;
     (b, o + n, l)
 
   let sub (b1, o1, _) (b2, o2, _) =
@@ -69,7 +74,7 @@ struct
     Size.of_int (l - o)
 
   let peekByte (b, o, l) at =
-    assert (o + at < l) ;
+    check_input_length (o + at - 1) l ;
     let c = Bytes.get b (o + at) in
     if debug then Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (o+at) ;
     Uint8.of_int (Char.code c)

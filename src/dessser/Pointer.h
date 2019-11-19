@@ -65,9 +65,17 @@ struct Pointer {
     return (size - offset);
   }
 
+  void checkOffset(size_t offs) const
+  {
+    if (offs > size)
+      throw std::out_of_range(
+        std::to_string(size - offs) + " bytes short");
+  }
+
   Pointer skip(Size const &sz) const
   {
     Pointer ptr(*this);
+    ptr.checkOffset(ptr.offset + sz);
     ptr.offset += sz;
     return ptr;
   }
@@ -76,13 +84,13 @@ struct Pointer {
   {
     size_t const off = offset + b / 8;
     size_t const bit = b & 7;
-    assert( off < size);
+    checkOffset(off);
     return !!(buffer[off] & (1 << bit));
   }
 
   Byte peekByte(size_t at = 0) const
   {
-    assert(offset + at < size);
+    checkOffset(offset + at);
     return buffer[offset + at];
   }
 
@@ -94,7 +102,7 @@ struct Pointer {
 
   Word peekWordLe() const
   {
-    assert(offset + 2 <= size);
+    checkOffset(offset + 2);
     return (((Word)buffer[offset + 1]) << 8) |
            buffer[offset];
   }
@@ -107,7 +115,7 @@ struct Pointer {
 
   Word peekWordBe() const
   {
-    assert(offset + 2 <= size);
+    checkOffset(offset + 1);
     return (((Word)buffer[offset]) << 8) |
            buffer[offset + 1];
   }
@@ -120,7 +128,7 @@ struct Pointer {
 
   DWord peekDWordLe() const
   {
-    assert(offset + 4 <= size);
+    checkOffset(offset + 3);
     return (((DWord)buffer[offset + 3]) << 24) |
            (((DWord)buffer[offset + 2]) << 16) |
            (((DWord)buffer[offset + 1]) << 8) |
@@ -135,7 +143,7 @@ struct Pointer {
 
   QWord peekQWordLe() const
   {
-    assert(offset + 8 <= size);
+    checkOffset(offset + 7);
     return (((QWord)buffer[offset + 7]) << 56) |
            (((QWord)buffer[offset + 6]) << 48) |
            (((QWord)buffer[offset + 5]) << 40) |
@@ -154,7 +162,7 @@ struct Pointer {
 
   OWord peekOWordLe() const
   {
-    assert(offset + 16 <= size);
+    checkOffset(offset + 15);
     return (((OWord)buffer[offset + 15]) << 120) |
            (((OWord)buffer[offset + 14]) << 112) |
            (((OWord)buffer[offset + 13]) << 104) |
@@ -175,14 +183,14 @@ struct Pointer {
 
   std::pair<OWord, Pointer> readOWordLe() const
   {
-    assert(offset + 16 <= size);
+    checkOffset(offset + 15);
     return std::make_pair<OWord, Pointer>(
       peekOWordLe(), skip(16));
   }
 
   std::pair<Bytes, Pointer> readBytes(Size const &sz) const
   {
-    assert(offset + sz <= size);
+    checkOffset(offset + sz - 1);
     return std::make_pair<Bytes, Pointer>(
       Bytes(buffer, sz, offset),
       skip(sz));
@@ -192,7 +200,7 @@ struct Pointer {
   {
     size_t const off = offset + b / 8;
     size_t const bit = b & 7;
-    assert(off < size);
+    checkOffset(off);
     Byte const mask = 1 << bit;
     buffer[off] =
       v ? buffer[off] | mask :
@@ -201,7 +209,7 @@ struct Pointer {
 
   void pokeByte(Byte v)
   {
-    assert(offset < size);
+    checkOffset(offset);
     buffer[offset] = v;
   }
 
@@ -213,7 +221,7 @@ struct Pointer {
 
   Pointer writeWordLe(Word v)
   {
-    assert(offset + 2 <= size);
+    checkOffset(offset + 1);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     return (skip(2));
@@ -221,7 +229,7 @@ struct Pointer {
 
   Pointer writeDWordLe(DWord v)
   {
-    assert(offset + 4 <= size);
+    checkOffset(offset + 3);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -231,7 +239,7 @@ struct Pointer {
 
   Pointer writeQWordLe(QWord v)
   {
-    assert(offset + 8 <= size);
+    checkOffset(offset + 7);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -245,7 +253,7 @@ struct Pointer {
 
   Pointer writeOWordLe(OWord v)
   {
-    assert(offset + 16 <= size);
+    checkOffset(offset + 15);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -267,14 +275,14 @@ struct Pointer {
 
   Pointer writeBytes(Bytes const &v)
   {
-    assert(offset + v.size <= size);
+    checkOffset(offset + v.size - 1);
     memcpy(buffer.get() + offset, v.buffer.get() + v.offset, v.size);
     return skip(v.size);
   }
 
   Pointer blitBytes(Byte const b, Size const &sz)
   {
-    assert(offset + sz <= size);
+    checkOffset(offset + sz - 1);
     memset(buffer.get() + offset, b, sz);
     return skip(sz);
   }
