@@ -732,6 +732,12 @@ struct
   let of_string oc s =
     emit oc (fun oc -> Printf.fprintf oc "std::stoll(%a)"
       Identifier.print s)
+
+  let to_u8 oc t =
+    emit_u8 oc (fun oc -> Identifier.print oc t)
+
+  let of_u8 oc u8 =
+    emit oc (fun oc -> Identifier.print oc u8)
 end
 
 module Float =
@@ -783,10 +789,12 @@ let float_of_i8 oc i =
   emit_float oc (fun oc -> Identifier.print oc i)
 
 let float_of_qword oc w =
-  emit_float oc (fun oc -> Identifier.print oc w)
+  emit_float oc (fun oc ->
+    Printf.fprintf oc "floatOfQword(%a)" Identifier.print w)
 
-let bytes_of_float oc v =
-  emit_bytes oc (fun oc -> Identifier.print oc v)
+let qword_of_float oc v =
+  emit_qword oc (fun oc ->
+    Printf.fprintf oc "qwordOfFloat(%a)" Identifier.print v)
 
 let string_of_float oc v =
   emit_string oc (fun oc -> Printf.fprintf oc "std::to_string(%a)"
@@ -836,6 +844,17 @@ let string_of_const oc s =
 
 let bool_of_const oc b =
   emit_bool oc (fun oc -> Bool.print oc b)
+
+let print_float_literal oc v =
+  if v = infinity then
+    String.print oc "std::numeric_limits<double>::infinity"
+  else if v = neg_infinity then
+    String.print oc "-std::numeric_limits<double>::infinity"
+  else
+    Legacy.Printf.sprintf "%h" v |> String.print oc
+
+let float_of_const oc v =
+  emit_float oc (fun oc -> print_float_literal oc v)
 
 let u8_of_bool oc b =
   emit_u8 oc (fun oc -> Identifier.print oc b)
@@ -942,7 +961,7 @@ let read_while oc ~cond ~reduce v0 p =
  *   and return the next value and condition value as a pair.
  * - [cond0] and [v0] are the initial values of those values.
  * Returns the aggregated [v0]. *)
-let do_while oc ~cond ~loop v0 =
+let loop_while oc ~cond ~loop v0 =
   let id_res = Identifier.auto () in
   Printf.fprintf oc.code "%sauto %a = %a;\n" oc.indent
     Identifier.print id_res
@@ -956,6 +975,22 @@ let do_while oc ~cond ~loop v0 =
       Identifier.print loop
       Identifier.print id_res) ;
   Printf.fprintf oc.code "%s};\n" oc.indent ;
+  id_res
+
+let loop_until oc ~loop ~cond v0 =
+  let id_res = Identifier.auto () in
+  Printf.fprintf oc.code "%sauto %a = %a;\n" oc.indent
+    Identifier.print id_res
+    Identifier.print v0 ;
+  Printf.fprintf oc.code "%sdo {\n" oc.indent ;
+  indent_more oc (fun () ->
+    Printf.fprintf oc.code "%s%a = %a(%a);\n" oc.indent
+      Identifier.print id_res
+      Identifier.print loop
+      Identifier.print id_res) ;
+  Printf.fprintf oc.code "%s} while (%a(%a));\n" oc.indent
+    Identifier.print cond
+    Identifier.print id_res ;
   id_res
 
 (* For heap allocated values, all subtypes are unboxed so we can perform a

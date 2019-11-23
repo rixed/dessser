@@ -19,14 +19,6 @@ struct Bytes {
     offset(offset_)
   {}
 
-  Bytes(double v)
-  {
-    size = sizeof(double);
-    buffer = std::shared_ptr<Byte[]>(new Byte[size]);
-    offset = 0;
-    memcpy(buffer.get(), &v, size);
-  }
-
   Bytes(std::string s)
   {
     size = s.size();

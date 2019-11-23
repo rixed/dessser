@@ -235,14 +235,14 @@ struct
           let sizes =
             Ser.ssize_of_tup oc frames (Identifier.tup_of_any v) |> add_size sizes in
           Array.fold_lefti (fun sizes i typ ->
-            let subframes = { typ ; index = i } :: frames in
+            let subframes = { typ ; index = i ; name = "" } :: frames in
             sersize_ oc subframes src sizes
           ) sizes typs
       | Types.TRec typs ->
           let sizes =
             Ser.ssize_of_rec oc frames (Identifier.rec_of_any v) |> add_size sizes in
-          Array.fold_lefti (fun sizes i (_name, typ) ->
-            let subframes = { typ ; index = i } :: frames in
+          Array.fold_lefti (fun sizes i (name, typ) ->
+            let subframes = { typ ; index = i ; name } :: frames in
             sersize_ oc subframes src sizes
           ) sizes typs
       | Types.TVec (dim, typ) ->
@@ -250,7 +250,7 @@ struct
             Ser.ssize_of_vec oc frames (Identifier.vec_of_any v) |> add_size sizes in
           let rec loop sizes i =
             if i >= dim then sizes else
-            let subframes = { typ ; index = i } :: frames in
+            let subframes = { typ ; index = i ; name = "" } :: frames in
             let sizes = sersize_ oc subframes src sizes in
             loop sizes (i + 1) in
           loop sizes 0
@@ -272,7 +272,7 @@ struct
   in
   let sizes =
     BE.make_pair oc t_pair_sizes size_0 size_0 in
-  let sizes = sersize_ oc [ { typ ; index = 0 } ] src sizes in
+  let sizes = sersize_ oc [ { typ ; index = 0 ; name = "" } ] src sizes in
   (* Returns the two sizes: *)
   BE.pair_fst oc sizes,
   BE.pair_snd oc sizes

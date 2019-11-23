@@ -723,6 +723,14 @@ struct
   let of_string oc s =
     emit oc (fun oc -> Printf.fprintf oc "%s.of_string %a"
       mod_name Identifier.print s)
+
+  let to_u8 oc t =
+    emit_u8 oc (fun oc -> Printf.fprintf oc "%s.to_uint8 %a"
+      mod_name Identifier.print t)
+
+  let of_u8 oc u8 =
+    emit oc (fun oc -> Printf.fprintf oc "%s.of_uint8 %a"
+      mod_name Identifier.print u8)
 end
 
 module Float =
@@ -771,13 +779,17 @@ let float_of_i8 oc i =
   emit_float oc (fun oc ->
     Printf.fprintf oc "Uint8.to_float %a" Identifier.print i)
 
+(* Those functions encode the float as a qword for serialiation.
+ * This is not a conversion from float to integer. *)
 let float_of_qword oc w =
   emit_float oc (fun oc ->
-    Printf.fprintf oc "Uint64.to_float %a" Identifier.print w)
+    Printf.fprintf oc
+      "BatInt64.float_of_bits (Uint64.to_int64 %a)" Identifier.print w)
 
-let bytes_of_float oc _v =
-  emit_bytes oc (fun oc ->
-    Printf.fprintf oc "failwith \"TODO: bytes_of_float\"")
+let qword_of_float oc v =
+  emit_qword oc (fun oc ->
+    Printf.fprintf oc
+      "Uint64.of_int64 (BatInt64.bits_of_float %a)" Identifier.print v)
 
 let string_of_float oc v =
   emit_string oc (fun oc ->
@@ -832,6 +844,17 @@ let string_of_const oc s =
 
 let bool_of_const oc b =
   emit_bool oc (fun oc -> Bool.print oc b)
+
+let print_float_literal oc v =
+  (* printf "%F" would not work for infinity:
+   * https://caml.inria.fr/mantis/view.php?id=7685
+   * and "%h" not for neg_infinity. *)
+  if v = infinity then String.print oc "infinity"
+  else if v = neg_infinity then String.print oc "neg_infinity"
+  else Legacy.Printf.sprintf "%h" v |> String.print oc
+
+let float_of_const oc v =
+  emit_float oc (fun oc -> print_float_literal oc v)
 
 let u8_of_bool oc b =
   emit_u8 oc (fun oc ->
@@ -981,18 +1004,33 @@ let read_while oc ~cond ~reduce v0 p =
  * - [loop] is a function that takes the current value and returns the next.
  * - [v0] is the initial value.
  * Returns the last value. *)
-let do_while oc ~cond ~loop v0 =
+let loop_while oc ~cond ~loop v0 =
   let id_res = Identifier.auto () in
-  Printf.fprintf oc.code "%slet rec do_while_loop accum =\n" oc.indent ;
+  Printf.fprintf oc.code "%slet rec while_loop accum =\n" oc.indent ;
   indent_more oc (fun () ->
     Printf.fprintf oc.code "%sif not (%a accum) then accum else\n" oc.indent
       Identifier.print cond ;
     Printf.fprintf oc.code "%slet accum = %a accum in\n" oc.indent
       Identifier.print loop ;
-    Printf.fprintf oc.code "%sdo_while_loop accum in\n" oc.indent) ;
-  Printf.fprintf oc.code "%slet %a = do_while_loop %a in\n" oc.indent
+    Printf.fprintf oc.code "%swhile_loop accum in\n" oc.indent) ;
+  Printf.fprintf oc.code "%slet %a = while_loop %a in\n" oc.indent
       Identifier.print id_res
       Identifier.print v0 ;
+  id_res
+
+(* Same as while_ but check the condition only after the loop body: *)
+let loop_until oc ~loop ~cond v0 =
+  let id_res = Identifier.auto () in
+  Printf.fprintf oc.code "%slet rec until_loop accum =\n" oc.indent ;
+  indent_more oc (fun () ->
+    Printf.fprintf oc.code "%slet accum = %a accum in\n" oc.indent
+      Identifier.print loop ;
+    Printf.fprintf oc.code
+      "%sif %a accum then until_loop accum else accum in\n" oc.indent
+      Identifier.print cond ;
+  Printf.fprintf oc.code "%slet %a = until_loop %a in\n" oc.indent
+      Identifier.print id_res
+      Identifier.print v0) ;
   id_res
 
 let rec print_default_value indent oc typ =
