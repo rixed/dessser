@@ -10,6 +10,15 @@ exception NotImplemented of string
 (* Parameter is the minimum length of the missing part: *)
 exception NotEnoughInput of int
 
+let () =
+  Printexc.register_printer (function
+    | NotEnoughInput b ->
+        Some (
+          Printf.sprintf "NotEnoughInput: %d byte%s missing"
+            b (if b > 1 then "s" else ""))
+    | _ ->
+        None)
+
 module Size =
 struct
   type t = int
@@ -57,6 +66,7 @@ struct
   let of_string s =
     Bytes.of_string s, 0, String.length s
 
+  (* Check that the given offset is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput (o - l))
 

@@ -19,7 +19,7 @@ OCAMLOPTFLAGS += -g
 endif
 
 PACKAGES = \
-	batteries stdint
+	batteries,stdint
 
 META_REQUIRES = \
 	findlib $(PACKAGES)
@@ -141,8 +141,6 @@ dessser.a: $(INSTALLED_IMPL)/dessser.a
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
-
-# Compile another exxperiment
 
 examples/manual_codegen.opt: src/dessser.cmxa examples/manual_codegen.ml
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -linkpkg -package '$(PACKAGES)' $^ -o $@
