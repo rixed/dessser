@@ -44,13 +44,24 @@ struct
     else
       p
 
-  let zero_nullmask oc bits p =
+  (* Zero a nullmask known at compile time and advance the pointer *)
+  let zero_nullmask_const oc bits p =
     let sz = (bits + 7) / 8 in
     let p =
       BE.blit_bytes oc p
         BE.(byte_of_const oc 0)
         BE.(size_of_const oc sz) in
     align_const oc p sz
+
+  (* Zero the nullmask known only at runtime and advance the pointer *)
+  let zero_nullmask_dyn oc bits p =
+    let sz = BE.(U32.(shift_right oc (add oc bits (of_const_int oc 7))
+                                     (U8.of_const_int oc 3))) in
+    let p =
+      BE.blit_bytes oc p
+        BE.(byte_of_const oc 0)
+        BE.(size_of_u32 oc sz) in
+    align_dyn oc p sz
 
   type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
 
@@ -129,7 +140,7 @@ struct
       else
         Array.length typs in
     push_nullmask st p ;
-    zero_nullmask oc nullmask_bits p
+    zero_nullmask_const oc nullmask_bits p
 
   let tup_opn oc frames st p =
     let typs = get_tup_typs frames in
@@ -185,13 +196,36 @@ struct
       else
         dim in
     push_nullmask st p ;
-    zero_nullmask oc nullmask_bits p
+    zero_nullmask_const oc nullmask_bits p
 
   let vec_cls _oc _frames st p =
     pop_nullmask st ;
     p
 
   let vec_sep _idx _oc _frames _st p = p
+
+  let get_list_typs frames =
+    match frames with
+    | { typ = Types.{ structure = TList typ ; _ } ; _ } :: _ -> typ
+    | _ -> assert false
+
+  let list_opn oc frames st n p =
+    let typ = get_list_typs frames in
+    let outermost = st.nullmasks = [] in
+    let p = BE.write_dword oc p BE.U32.(to_dword oc n) in
+    let nullmask_bits =
+      if outermost then
+        if typ.Types.nullable then n else (BE.U32.of_const_int oc 0)
+      else
+        n in
+    push_nullmask st p ;
+    zero_nullmask_dyn oc nullmask_bits p
+
+  let list_cls _oc _frames st p =
+    pop_nullmask st ;
+    p
+
+  let list_sep _oc _frames _st p = p
 
   (* This is called before serializing the null/notnull, but that's
    * our best opportunity to increment the bit index: *)
@@ -256,10 +290,17 @@ struct
               loop tail) in
     loop frames
 
+  (* SerSize of the whole string: *)
   let ssize_of_string oc frames id =
     or_private frames (fun () ->
       let sz = BE.length_of_string oc id in
-      DynSize (round_up_dyn oc sz))
+      let headsz = BE.size_of_const oc !ringbuf_word_size in
+      DynSize (BE.size_add oc headsz (round_up_dyn oc sz)))
+
+  (* SerSize of the list header: *)
+  let ssize_of_list _oc frames _id =
+    or_private frames (fun () ->
+      ConstSize !ringbuf_word_size)
 
   let ssize_of_float _ frames _ = or_private frames (fun () -> round_up_const 8)
   let ssize_of_bool _ frames _ = or_private frames (fun () -> round_up_const 1)

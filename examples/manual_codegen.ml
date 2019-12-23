@@ -62,7 +62,7 @@ let () =
   let output = BE.make_output () in
   let _read_tuple =
     let tptr = Types.(make TPointer) in
-    BE.print_function2 output tptr tptr t_pair_ptrs (fun oc src dst ->
+    BE.function2 output tptr tptr Types.pair_ptrs (fun oc src dst ->
       BE.comment oc "Convert from RowBinary into a heap value:" ;
       let dummy = Identifier.pointer () in (* Will be ignored by HeapValue.Ser *)
       let src, heap_value = DS1.desser typ oc src dummy in
@@ -76,7 +76,7 @@ let () =
       BE.comment oc "Now convert the heap value into an SExpr:" ;
       let src', dst = DS2.desser typ oc heap_value dst in
       BE.ignore oc src' ;
-      BE.make_pair oc t_pair_ptrs src dst) in
+      BE.make_pair oc Types.pair_ptrs src dst) in
   let optim = 3 in
   let mode = [ `create ; `text ; `trunc ] in
   let fname = "examples/example."^ BE.preferred_file_extension in

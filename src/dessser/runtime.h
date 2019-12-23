@@ -9,6 +9,7 @@
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"
+#include "dessser/List.h"
 
 inline uint64_t qwordOfFloat(double v)
 {

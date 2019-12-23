@@ -33,6 +33,9 @@ struct
   let vec_opn _ _frames () p = p
   let vec_cls _ _frames () p = p
   let vec_sep _ _ _frames () p = p
+  let list_opn _ _frames () _ p = p
+  let list_cls _ _frames () p = p
+  let list_sep _ _frames () p = p
   let nullable _ _frames () p = p
   let snull _ _frames () p = p
   let snotnull _ _frames () p = p
@@ -55,5 +58,6 @@ struct
   let ssize_of_tup _ _ _ = ConstSize 0
   let ssize_of_rec _ _ _ = ConstSize 0
   let ssize_of_vec _ _ _ = ConstSize 0
+  let ssize_of_list _ _ _ = ConstSize 0
   let ssize_of_null _ _ = ConstSize 0
 end

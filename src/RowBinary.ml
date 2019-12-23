@@ -21,18 +21,18 @@ struct
     and t_byte = T.(make TByte)
     and t_bool = T.(make TBool) in
     let cond =
-      BE.print_function1 oc t_byte t_bool (fun oc b ->
+      BE.function1 oc t_byte t_bool (fun oc b ->
         BE.comment oc "Condition for read_leb128" ;
         BE.U8.ge oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
-      BE.print_function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8
+      BE.function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8
         (fun oc leb_shft_tup byte ->
           BE.comment oc "Reducer for read_leb128" ;
           let byte =
             let c127 = BE.U8.of_const_int oc 127 in
             BE.U8.(to_byte oc (log_and oc (of_byte oc byte) c127)) in
-          let leb = Identifier.u32_of_any (BE.pair_fst oc leb_shft_tup)
-          and shft = Identifier.u8_of_any (BE.pair_snd oc leb_shft_tup) in
+          let leb = Identifier.to_u32 (BE.pair_fst oc leb_shft_tup)
+          and shft = Identifier.to_u8 (BE.pair_snd oc leb_shft_tup) in
           BE.make_pair oc t_pair_u32_u8
             (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc byte) shft) leb)
             (BE.U8.add oc shft (BE.U8.of_const_int oc 7))) in
@@ -140,7 +140,12 @@ struct
   let vec_cls _oc _frames () p = p
   let vec_sep _n _oc _frames () p = p
 
-  (* TODO: lists *)
+  let list_opn oc _frames () p =
+    let dim, p = read_leb128 oc p in
+    BE.u32_of_size oc dim, p
+
+  let list_cls _oc _frames () p = p
+  let list_sep _oc _frames () p = p
 
   (* "For NULL support, an additional byte containing 1 or 0 is added before
    * each Nullable value. If 1, then the value is NULL and this byte is
@@ -185,12 +190,12 @@ struct
     let t_ptr_sz = T.(make (TPair (make TPointer, make TU32 (*TSize*)))) in
     (* loop until wlen is 0: *)
     let cond =
-      BE.print_function1 oc t_ptr_sz t_bool (fun oc p_wlen ->
+      BE.function1 oc t_ptr_sz t_bool (fun oc p_wlen ->
         BE.comment oc "Condition for write_leb128" ;
         let wlen = BE.pair_snd oc p_wlen in
         BE.U32.(gt oc wlen (of_const_int oc 0)))
     and loop =
-      BE.print_function1 oc t_ptr_sz t_ptr_sz (fun oc p_wlen ->
+      BE.function1 oc t_ptr_sz t_ptr_sz (fun oc p_wlen ->
         BE.comment oc "Loop for write_leb128" ;
         let p = BE.pair_fst oc p_wlen
         and wlen = BE.pair_snd oc p_wlen in
@@ -278,6 +283,13 @@ struct
   let vec_cls _oc _frames () p = p
   let vec_sep _idx _oc _frames () p = p
 
+  let list_opn oc _frames () n p =
+    let write_leb128 = write_leb128 oc in
+    let n = BE.size_of_u32 oc n in
+    write_leb128 p n
+  let list_cls _oc _frames () p = p
+  let list_sep _oc _frames () p = p
+
   let nullable _oc _frames () p = p
 
   let snull oc _frames () p =
@@ -305,34 +317,49 @@ struct
   let ssize_of_tup _oc _frames _ = ConstSize 0
   let ssize_of_rec _oc _frames _ = ConstSize 0
   let ssize_of_vec _oc _frames _ = ConstSize 0
+
+  let ssize_of_leb128 oc =
+    let t_pair_u32_u32 = T.(make (TPair (make TU32, make TU32))) in
+    let cond =
+      BE.function1 oc t_pair_u32_u32 t_bool (fun oc lebsz_n ->
+        BE.comment oc "Condition for ssize_of_leb128" ;
+        let lebsz = BE.pair_fst oc lebsz_n
+        and n = BE.pair_snd oc lebsz_n in
+        let max_len_for_lebsz =
+          BE.U32.shift_left oc lebsz (BE.U8.of_const_int oc 7) in
+        BE.U32.ge oc n max_len_for_lebsz)
+    and loop =
+      BE.function1 oc t_u32 t_u32 (fun oc lebsz_n ->
+        BE.comment oc "Loop for ssize_of_leb128" ;
+        let lebsz = BE.pair_fst oc lebsz_n
+        and n = BE.pair_snd oc lebsz_n in
+        let lebsz = BE.U32.(add oc lebsz (of_const_int oc 1)) in
+        BE.make_pair oc t_pair_u32_u32 lebsz n) in
+    fun n ->
+      let lebsz = BE.U32.of_const_int oc 1 in
+      let lebsz_n = BE.make_pair oc t_pair_u32_u32 lebsz n in
+      let lebsz_n = BE.loop_while oc cond loop lebsz_n in
+      BE.pair_fst oc lebsz_n
+
+  (* SerSize of a list is the size of the LEB128 prefix, same as for
+   * ssize_of_string below) *)
+  let ssize_of_list oc =
+    let ssize_of_leb128 = ssize_of_leb128 oc in
+    fun _frames lst ->
+      let n = BE.length_of_list oc lst in
+      let lebsz = ssize_of_leb128 n in
+      DynSize (BE.size_of_u32 oc lebsz)
+
   let ssize_of_null _oc _frames = ConstSize 1
 
   (* Size of a string is it's length in bytes + the size of the LEB128 prefix,
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string oc =
-    let t_pair_u32_u32 = T.(make (TPair (make TU32, make TU32))) in
-    let cond =
-      BE.print_function1 oc t_pair_u32_u32 t_bool (fun oc lebsz_wlen ->
-        BE.comment oc "Condition for ssize_of_string" ;
-        let lebsz = BE.pair_fst oc lebsz_wlen
-        and wlen = BE.pair_snd oc lebsz_wlen in
-        let max_len_for_lebsz =
-          BE.U32.shift_left oc lebsz (BE.U8.of_const_int oc 7) in
-        BE.U32.ge oc wlen max_len_for_lebsz)
-    and loop =
-      BE.print_function1 oc t_u32 t_u32 (fun oc lebsz_wlen ->
-        BE.comment oc "Loop for ssize_of_string" ;
-        let lebsz = BE.pair_fst oc lebsz_wlen
-        and wlen = BE.pair_snd oc lebsz_wlen in
-        let lebsz = BE.U32.(add oc lebsz (of_const_int oc 1)) in
-        BE.make_pair oc t_pair_u32_u32 lebsz wlen) in
+    let ssize_of_leb128 = ssize_of_leb128 oc in
     fun _frames v ->
       let len = BE.length_of_string oc v in
       let wlen = BE.u32_of_size oc len in
-      let lebsz = BE.U32.of_const_int oc 1 in
-      let lebsz_wlen = BE.make_pair oc t_pair_u32_u32 lebsz wlen in
-      let lebsz_wlen = BE.loop_while oc cond loop lebsz_wlen in
-      let lebsz = BE.pair_fst oc lebsz_wlen in
+      let lebsz = ssize_of_leb128 wlen in
       let totsz = BE.U32.add oc lebsz wlen in
       DynSize (BE.size_of_u32 oc totsz)
 end

@@ -78,6 +78,12 @@ struct
 
   let vec_sep _idx _oc _frames () p = p
 
+  let list_opn _oc _frames () _n p = p
+
+  let list_cls _oc _frames () p = p
+
+  let list_sep _oc _frames () p = p
+
   let nullable _oc _frames () p = p
 
   let snull oc frames () p =
@@ -105,6 +111,7 @@ struct
   let ssize_of_tup _ _ _ = todo_ssize ()
   let ssize_of_rec _ _ _ = todo_ssize ()
   let ssize_of_vec _ _ _ = todo_ssize ()
+  let ssize_of_list _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
 end
 
@@ -131,20 +138,20 @@ struct
     else
       BE.get_field oc frames p
 
-  let dfloat oc frames st p = get_field oc frames st p |> Identifier.float_of_any, p
-  let dstring oc frames st p = get_field oc frames st p |> Identifier.string_of_any, p
-  let dbool oc frames st p = get_field oc frames st p |> Identifier.bool_of_any, p
-  let di8 oc frames st p = get_field oc frames st p |> Identifier.i8_of_any, p
-  let di16 oc frames st p = get_field oc frames st p |> Identifier.i16_of_any, p
-  let di32 oc frames st p = get_field oc frames st p |> Identifier.i32_of_any, p
-  let di64 oc frames st p = get_field oc frames st p |> Identifier.i64_of_any, p
-  let di128 oc frames st p = get_field oc frames st p |> Identifier.i128_of_any, p
-  let du8 oc frames st p = get_field oc frames st p |> Identifier.u8_of_any, p
-  let du16 oc frames st p = get_field oc frames st p |> Identifier.u16_of_any, p
-  let du32 oc frames st p = get_field oc frames st p |> Identifier.u32_of_any, p
-  let du64 oc frames st p = get_field oc frames st p |> Identifier.u64_of_any, p
-  let du128 oc frames st p = get_field oc frames st p |> Identifier.u128_of_any, p
-  let dchar oc frames st p = get_field oc frames st p |> Identifier.char_of_any, p
+  let dfloat oc frames st p = get_field oc frames st p |> Identifier.to_float, p
+  let dstring oc frames st p = get_field oc frames st p |> Identifier.to_string, p
+  let dbool oc frames st p = get_field oc frames st p |> Identifier.to_bool, p
+  let di8 oc frames st p = get_field oc frames st p |> Identifier.to_i8, p
+  let di16 oc frames st p = get_field oc frames st p |> Identifier.to_i16, p
+  let di32 oc frames st p = get_field oc frames st p |> Identifier.to_i32, p
+  let di64 oc frames st p = get_field oc frames st p |> Identifier.to_i64, p
+  let di128 oc frames st p = get_field oc frames st p |> Identifier.to_i128, p
+  let du8 oc frames st p = get_field oc frames st p |> Identifier.to_u8, p
+  let du16 oc frames st p = get_field oc frames st p |> Identifier.to_u16, p
+  let du32 oc frames st p = get_field oc frames st p |> Identifier.to_u32, p
+  let du64 oc frames st p = get_field oc frames st p |> Identifier.to_u64, p
+  let du128 oc frames st p = get_field oc frames st p |> Identifier.to_u128, p
+  let dchar oc frames st p = get_field oc frames st p |> Identifier.to_char, p
 
   let tup_opn _oc _frames () p = p
 
@@ -163,6 +170,15 @@ struct
   let vec_cls _oc _frames () p = p
 
   let vec_sep _n _oc _frames () p = p
+
+  let list_opn oc frames () p =
+    let lst = get_field oc frames () p |>
+              Identifier.to_list in
+    BE.length_of_list oc lst, p
+
+  let list_cls _oc _frames () p = p
+
+  let list_sep _oc _frames () p = p
 
   (* Will be called before any attempt to deserialize the value *)
   let is_null oc frames () p =
@@ -203,51 +219,51 @@ struct
     (* Add that value size to the passed size pair: *)
     let rec ssize_structure sizes oc frames v = function
       | Types.TFloat ->
-          Ser.ssize_of_float oc frames (Identifier.float_of_any v) |> add_size sizes
+          Ser.ssize_of_float oc frames (Identifier.to_float v) |> add_size sizes
       | Types.TString ->
-          Ser.ssize_of_string oc frames (Identifier.string_of_any v) |> add_size sizes
+          Ser.ssize_of_string oc frames (Identifier.to_string v) |> add_size sizes
       | Types.TBool ->
-          Ser.ssize_of_bool oc frames (Identifier.bool_of_any v) |> add_size sizes
+          Ser.ssize_of_bool oc frames (Identifier.to_bool v) |> add_size sizes
       | Types.TChar ->
-          Ser.ssize_of_char oc frames (Identifier.char_of_any v) |> add_size sizes
+          Ser.ssize_of_char oc frames (Identifier.to_char v) |> add_size sizes
       | Types.TI8 ->
-          Ser.ssize_of_i8 oc frames (Identifier.i8_of_any v) |> add_size sizes
+          Ser.ssize_of_i8 oc frames (Identifier.to_i8 v) |> add_size sizes
       | Types.TI16 ->
-          Ser.ssize_of_i16 oc frames (Identifier.i16_of_any v) |> add_size sizes
+          Ser.ssize_of_i16 oc frames (Identifier.to_i16 v) |> add_size sizes
       | Types.TI32 ->
-          Ser.ssize_of_i32 oc frames (Identifier.i32_of_any v) |> add_size sizes
+          Ser.ssize_of_i32 oc frames (Identifier.to_i32 v) |> add_size sizes
       | Types.TI64 ->
-          Ser.ssize_of_i64 oc frames (Identifier.i64_of_any v) |> add_size sizes
+          Ser.ssize_of_i64 oc frames (Identifier.to_i64 v) |> add_size sizes
       | Types.TI128 ->
-          Ser.ssize_of_i128 oc frames (Identifier.i128_of_any v) |> add_size sizes
+          Ser.ssize_of_i128 oc frames (Identifier.to_i128 v) |> add_size sizes
       | Types.TU8 ->
-          Ser.ssize_of_u8 oc frames (Identifier.u8_of_any v) |> add_size sizes
+          Ser.ssize_of_u8 oc frames (Identifier.to_u8 v) |> add_size sizes
       | Types.TU16 ->
-          Ser.ssize_of_u16 oc frames (Identifier.u16_of_any v) |> add_size sizes
+          Ser.ssize_of_u16 oc frames (Identifier.to_u16 v) |> add_size sizes
       | Types.TU32 ->
-          Ser.ssize_of_u32 oc frames (Identifier.u32_of_any v) |> add_size sizes
+          Ser.ssize_of_u32 oc frames (Identifier.to_u32 v) |> add_size sizes
       | Types.TU64 ->
-          Ser.ssize_of_u64 oc frames (Identifier.u64_of_any v) |> add_size sizes
+          Ser.ssize_of_u64 oc frames (Identifier.to_u64 v) |> add_size sizes
       | Types.TU128 ->
-          Ser.ssize_of_u128 oc frames (Identifier.u128_of_any v) |> add_size sizes
+          Ser.ssize_of_u128 oc frames (Identifier.to_u128 v) |> add_size sizes
       (* Compound types require recursion: *)
       | Types.TTup typs ->
           let sizes =
-            Ser.ssize_of_tup oc frames (Identifier.tup_of_any v) |> add_size sizes in
+            Ser.ssize_of_tup oc frames (Identifier.to_tup v) |> add_size sizes in
           Array.fold_lefti (fun sizes i typ ->
             let subframes = { typ ; index = i ; name = "" } :: frames in
             sersize_ oc subframes src sizes
           ) sizes typs
       | Types.TRec typs ->
           let sizes =
-            Ser.ssize_of_rec oc frames (Identifier.rec_of_any v) |> add_size sizes in
+            Ser.ssize_of_rec oc frames (Identifier.to_rec v) |> add_size sizes in
           Array.fold_lefti (fun sizes i (name, typ) ->
             let subframes = { typ ; index = i ; name } :: frames in
             sersize_ oc subframes src sizes
           ) sizes typs
       | Types.TVec (dim, typ) ->
           let sizes =
-            Ser.ssize_of_vec oc frames (Identifier.vec_of_any v) |> add_size sizes in
+            Ser.ssize_of_vec oc frames (Identifier.to_vec v) |> add_size sizes in
           let rec loop sizes i =
             if i >= dim then sizes else
             let subframes = { typ ; index = i ; name = "" } :: frames in

@@ -115,6 +115,15 @@ struct
   let vec_sep _n oc _frames () p =
     BE.write_byte oc p (byte_of_char oc ' ')
 
+  let list_opn oc _frames () _n p =
+    BE.write_byte oc p (byte_of_char oc '[')
+
+  let list_cls oc _frames () p =
+    BE.write_byte oc p (byte_of_char oc ']')
+
+  let list_sep oc _frames () p =
+    BE.write_byte oc p (byte_of_char oc ' ')
+
   let nullable _oc _frames () p = p
   let snull oc _frames () p =
     let null = BE.dword_of_const oc (Uint32.of_int32 0x6c_6c_75_6el) in
@@ -141,5 +150,6 @@ struct
   let ssize_of_tup _ _ _ = todo_ssize ()
   let ssize_of_rec _ _ _ = todo_ssize ()
   let ssize_of_vec _ _ _ = todo_ssize ()
+  let ssize_of_list _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
 end

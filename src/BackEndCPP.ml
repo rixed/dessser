@@ -39,6 +39,8 @@ let rec c_type_of_scalar typ =
   (* Treated as a scalar here: *)
   | TVec (dim, typ) ->
       Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar typ)
+  | TList typ ->
+      Printf.sprintf "List<%s>" (c_type_of_scalar typ)
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allow to
    * combine freely actual serializers and value "reifiers".
@@ -157,7 +159,7 @@ let print_output oc output =
 (* - [p] is a printer that returns the id of the result;
  * - [typ] is the return type of that function.
  * Returns the function id. *)
-let print_function0 oc out_typ p =
+let function0 oc out_typ p =
   let fun_id = Identifier.func0 () in
   let out_tname = find_or_declare_type oc out_typ in
   let cur_code = oc.code and cur_indent = oc.indent
@@ -180,7 +182,7 @@ let print_function0 oc out_typ p =
   oc.entry_point <- cur_entry_point ;
   fun_id
 
-let print_function1 oc in_typ0 out_typ p =
+let function1 oc in_typ0 out_typ p =
   let out_tname = find_or_declare_type oc out_typ in
   let in_tname0 = find_or_declare_type oc in_typ0 in
   let param0 = Identifier.param 0 () in
@@ -207,7 +209,7 @@ let print_function1 oc in_typ0 out_typ p =
   oc.entry_point <- cur_entry_point ;
   fun_id
 
-let print_function2 oc in_typ0 in_typ1 out_typ p =
+let function2 oc in_typ0 in_typ1 out_typ p =
   let fun_id = Identifier.func2 () in
   let out_tname = find_or_declare_type oc out_typ in
   let in_tname0 = find_or_declare_type oc in_typ0 in
@@ -842,6 +844,11 @@ let bytes_of_string oc s =
 let string_of_const oc s =
   emit_string oc (fun oc -> String.print_quoted oc s)
 
+(* Lists are actually implemented as vectors: *)
+let length_of_list oc l =
+  emit_u32 oc (fun oc ->
+    Printf.fprintf oc "%a.size()" Identifier.print l)
+
 let bool_of_const oc b =
   emit_bool oc (fun oc -> Bool.print oc b)
 
@@ -870,6 +877,14 @@ let bool_or oc b1 b2 =
 let bool_not oc b =
   emit_bool oc (fun oc ->
     Printf.fprintf oc "!%a" Identifier.print b)
+
+let i32_of_u32 oc n =
+  emit_i32 oc (fun oc ->
+    Printf.fprintf oc "(int32_t)%a" Identifier.print n)
+
+let u32_of_i32 oc n =
+  emit_u32 oc (fun oc ->
+    Printf.fprintf oc "(uint32_t)%a" Identifier.print n)
 
 let u8_of_const oc v =
   emit_u8 oc (fun oc -> String.print oc (Uint8.to_string v))
@@ -991,6 +1006,22 @@ let loop_until oc ~loop ~cond v0 =
   Printf.fprintf oc.code "%s} while (%a(%a));\n" oc.indent
     Identifier.print cond
     Identifier.print id_res ;
+  id_res
+
+let loop_repeat oc ~from ~to_ ~loop v0 =
+  let id_res = Identifier.auto () in
+  Printf.fprintf oc.code "%sauto %a = %a;\n" oc.indent
+    Identifier.print id_res
+    Identifier.print v0 ;
+  Printf.fprintf oc.code "%sfor (auto n = %a; n < %a; n++) {\n" oc.indent
+    Identifier.print from
+    Identifier.print to_ ;
+  indent_more oc (fun () ->
+    Printf.fprintf oc.code "%s%a = %a(n, %a);\n" oc.indent
+      Identifier.print id_res
+      Identifier.print loop
+      Identifier.print id_res) ;
+  Printf.fprintf oc.code "%s};\n" oc.indent ;
   id_res
 
 (* For heap allocated values, all subtypes are unboxed so we can perform a

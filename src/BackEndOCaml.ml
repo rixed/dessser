@@ -45,6 +45,8 @@ let rec ml_type_of_scalar typ =
   (* Treated as a scalar here: *)
   | TVec (_dim, typ) ->
       Printf.sprintf "%s array" (ml_type_of_scalar typ)
+  | TList typ ->
+      Printf.sprintf "%s array" (ml_type_of_scalar typ)
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allow to
    * combine freely actual serializers and value "reifiers".
@@ -151,7 +153,7 @@ and find_or_declare_type oc typ =
 (* - [p] is a printer that returns the id of the result;
  * - [typ] is the return type of that function.
  * Returns the function id. *)
-let print_function0 oc out_typ p =
+let function0 oc out_typ p =
   let fun_id = Identifier.func0 () in
   let out_tname = find_or_declare_type oc out_typ in
   let cur_code = oc.code and cur_indent = oc.indent in
@@ -170,7 +172,7 @@ let print_function0 oc out_typ p =
   oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
-let print_function1 oc in_typ0 out_typ p =
+let function1 oc in_typ0 out_typ p =
   let out_tname = find_or_declare_type oc out_typ in
   let in_tname0 = find_or_declare_type oc in_typ0 in
   let param0 = Identifier.param 0 () in
@@ -193,7 +195,7 @@ let print_function1 oc in_typ0 out_typ p =
   oc.funs <- ((fun_id : _ Identifier.t :> string), str) :: oc.funs ;
   fun_id
 
-let print_function2 oc in_typ0 in_typ1 out_typ p =
+let function2 oc in_typ0 in_typ1 out_typ p =
   let fun_id = Identifier.func2 () in
   let out_tname = find_or_declare_type oc out_typ in
   let in_tname0 = find_or_declare_type oc in_typ0 in
@@ -842,6 +844,11 @@ let bytes_of_string oc s =
 let string_of_const oc s =
   emit_string oc (fun oc -> String.print_quoted oc s)
 
+(* Lists are actually implemented as vectors: *)
+let length_of_list oc l =
+  emit_u32 oc (fun oc ->
+    Printf.fprintf oc "Array.length %a" Identifier.print l)
+
 let bool_of_const oc b =
   emit_bool oc (fun oc -> Bool.print oc b)
 
@@ -871,6 +878,14 @@ let bool_or oc b1 b2 =
 let bool_not oc b =
   emit_bool oc (fun oc ->
     Printf.fprintf oc "not %a" Identifier.print b)
+
+let i32_of_u32 oc n =
+  emit_i32 oc (fun oc ->
+    Printf.fprintf oc "Uint32.to_int32 %a" Identifier.print n)
+
+let u32_of_i32 oc n =
+  emit_u32 oc (fun oc ->
+    Printf.fprintf oc "Int32.to_uint32 %a" Identifier.print n)
 
 let u8_of_const oc v =
   emit_u8 oc (fun oc ->
@@ -1027,10 +1042,25 @@ let loop_until oc ~loop ~cond v0 =
       Identifier.print loop ;
     Printf.fprintf oc.code
       "%sif %a accum then until_loop accum else accum in\n" oc.indent
-      Identifier.print cond ;
+      Identifier.print cond) ;
   Printf.fprintf oc.code "%slet %a = until_loop %a in\n" oc.indent
-      Identifier.print id_res
-      Identifier.print v0) ;
+    Identifier.print id_res
+    Identifier.print v0 ;
+  id_res
+
+let loop_repeat oc ~from ~to_ ~loop v0 =
+  let id_res = Identifier.auto () in
+  Printf.fprintf oc.code "%slet rec repeat_loop n accum =\n" oc.indent ;
+  indent_more oc (fun () ->
+    Printf.fprintf oc.code "%sif n >= %a then accum else\n" oc.indent
+      Identifier.print to_ ;
+    Printf.fprintf oc.code "%slet accum = %a accum in\n" oc.indent
+      Identifier.print loop ;
+    Printf.fprintf oc.code "%srepeat_loop (Int32.succ n) accum in\n" oc.indent) ;
+  Printf.fprintf oc.code "%slet %a = repeat_loop %a %a in\n" oc.indent
+    Identifier.print id_res
+    Identifier.print v0
+    Identifier.print from ;
   id_res
 
 let rec print_default_value indent oc typ =
@@ -1055,7 +1085,7 @@ let rec print_default_value indent oc typ =
       | TU16 -> String.print oc "Uint16.zero"
       | TU32 -> String.print oc "Uint32.zero"
       | TU64 -> String.print oc "Uint64.zero"
-      | TU128 ->String.print oc "Uint128.zero"
+      | TU128 -> String.print oc "Uint128.zero"
       | TTup typs ->
           Array.print ~first:("{\n"^indent) ~last:(indent^"}") ~sep:(";\n"^indent)
             (fun oc (idx, t) ->
@@ -1073,6 +1103,8 @@ let rec print_default_value indent oc typ =
             Printf.fprintf oc "%a; " (print_default_value (indent^"  ")) t
           done ;
           Printf.fprintf oc "%s|]" indent
+      | TList _ ->
+          String.print oc "[]"
       | TPair (t1, t2) ->
           Printf.fprintf oc "(%a, %a)"
             (print_default_value indent) t1
