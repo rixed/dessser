@@ -5,25 +5,43 @@ open Stdint
  * All of them can possibly be nullable. *)
 module ValueType =
 struct
-  type t = { nullable : bool ; structure : structure }
-
-  and structure =
-    | TFloat
-    | TString
-    | TBool
-    | TChar (* Exact same values as U8 but different typing rules *)
-    | TU8 | TU16 | TU32 | TU64 | TU128
-    | TI8 | TI16 | TI32 | TI64 | TI128
-    | TVec of int * t
-    | TList of t
-    | TTup of t array
+  type not_nullable =
+    | TFloat : not_nullable
+    | TString : not_nullable
+    | TBool : not_nullable
+    | TChar (* Exact same values as U8 but different typing rules *) : not_nullable
+    | TU8 : not_nullable
+    | TU16 : not_nullable
+    | TU32 : not_nullable
+    | TU64 : not_nullable
+    | TU128 : not_nullable
+    | TI8 : not_nullable
+    | TI16 : not_nullable
+    | TI32 : not_nullable
+    | TI64 : not_nullable
+    | TI128 : not_nullable
+    | TVec : int * t -> not_nullable
+    | TList : t -> not_nullable
+    | TTup : t array -> not_nullable
     (* Exact same as a tuple, but with field names that can be used as
      * accessors (also used to name actual fields in generated code): *)
-    | TRec of (string * t) array
+    | TRec : (string * t) array -> not_nullable
 
-  let make ?(nullable=false) structure = { nullable ; structure }
+  and t =
+    | Nullable : nullable -> t
+    | NotNullable : not_nullable -> t
 
-  let rec print_structure oc = function
+  and nullable = not_nullable
+
+  let is_nullable = function
+    | Nullable _ -> true
+    | NotNullable _ -> false
+
+  let to_not_nullable : t -> not_nullable = function
+    | Nullable t -> t
+    | NotNullable t -> t
+
+  let rec print_not_nullable oc = function
     | TFloat -> String.print oc "Float"
     | TString -> String.print oc "String"
     | TBool -> String.print oc "Bool"
@@ -52,10 +70,14 @@ struct
               Printf.fprintf oc "%s: %a" n print t)
           ) typs
 
-  and print oc t =
-    Printf.fprintf oc "%a%s"
-      print_structure t.structure
-      (if t.nullable then "?" else "")
+  and print_nullable oc t =
+    Printf.fprintf oc "%a?" print_not_nullable t
+
+  and print oc = function
+    | Nullable t ->
+        print_nullable oc t
+    | NotNullable t ->
+        print_not_nullable oc t
 end
 
 (* All types we can generate code for.
@@ -95,10 +117,10 @@ struct
 
   (* Many return values have the type of a pair or src*dst pointers: *)
   let pair_ptrs = TPair (TPointer, TPointer)
-  let bool = TValue (ValueType.make TBool)
-  let u8 = TValue (ValueType.make TU8)
-  let u32 = TValue (ValueType.make TU32)
-  let i32 = TValue (ValueType.make TI32)
+  let bool = TValue ValueType.(NotNullable TBool)
+  let u8 = TValue ValueType.(NotNullable TU8)
+  let u32 = TValue ValueType.(NotNullable TU32)
+  let i32 = TValue ValueType.(NotNullable TI32)
 end
 
 (* Every expression is bound to an identifier, and only identifiers are
@@ -228,24 +250,24 @@ struct
   let func3 = make "func3"
   let param n = make ("param"^ string_of_int n)
   let any = function
-    | Type.TValue ValueType.{ structure = TFloat ; _ } -> float ()
-    | Type.TValue ValueType.{ structure = TString ; _ } -> string ()
-    | Type.TValue ValueType.{ structure = TBool ; _ } -> bool ()
-    | Type.TValue ValueType.{ structure = TChar ; _ } -> char ()
-    | Type.TValue ValueType.{ structure = TU8 ; _ } -> u8 ()
-    | Type.TValue ValueType.{ structure = TU16 ; _ } -> u16 ()
-    | Type.TValue ValueType.{ structure = TU32 ; _ } -> u32 ()
-    | Type.TValue ValueType.{ structure = TU64 ; _ } -> u64 ()
-    | Type.TValue ValueType.{ structure = TU128 ; _ } -> u128 ()
-    | Type.TValue ValueType.{ structure = TI8 ; _ } -> i8 ()
-    | Type.TValue ValueType.{ structure = TI16 ; _ } -> i16 ()
-    | Type.TValue ValueType.{ structure = TI32 ; _ } -> i32 ()
-    | Type.TValue ValueType.{ structure = TI64 ; _ } -> i64 ()
-    | Type.TValue ValueType.{ structure = TI128 ; _ } -> i128 ()
-    | Type.TValue ValueType.{ structure = TVec _ ; _ } -> vector ()
-    | Type.TValue ValueType.{ structure = TList _ ; _ } -> list ()
-    | Type.TValue ValueType.{ structure = TTup _ ; _ } -> tuple ()
-    | Type.TValue ValueType.{ structure = TRec _ ; _ } -> record ()
+    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> float ()
+    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> string ()
+    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> bool ()
+    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> char ()
+    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> u8 ()
+    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> u16 ()
+    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> u32 ()
+    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> u64 ()
+    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> u128 ()
+    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> i8 ()
+    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> i16 ()
+    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> i32 ()
+    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> i64 ()
+    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> i128 ()
+    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> vector ()
+    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> list ()
+    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> tuple ()
+    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> record ()
     | Type.TPointer -> pointer ()
     | Type.TSize -> size ()
     | Type.TBit -> bit ()
@@ -288,24 +310,24 @@ struct
   let to_any s = s
   let of_any t s =
     match t with
-    | Type.TValue ValueType.{ structure = TFloat ; _ } -> to_float s
-    | Type.TValue ValueType.{ structure = TString ; _ } -> to_string s
-    | Type.TValue ValueType.{ structure = TBool ; _ } -> to_bool s
-    | Type.TValue ValueType.{ structure = TChar ; _ } -> to_char s
-    | Type.TValue ValueType.{ structure = TU8 ; _ } -> to_u8 s
-    | Type.TValue ValueType.{ structure = TU16 ; _ } -> to_u16 s
-    | Type.TValue ValueType.{ structure = TU32 ; _ } -> to_u32 s
-    | Type.TValue ValueType.{ structure = TU64 ; _ } -> to_u64 s
-    | Type.TValue ValueType.{ structure = TU128 ; _ } -> to_u128 s
-    | Type.TValue ValueType.{ structure = TI8 ; _ } -> to_i8 s
-    | Type.TValue ValueType.{ structure = TI16 ; _ } -> to_i16 s
-    | Type.TValue ValueType.{ structure = TI32 ; _ } -> to_i32 s
-    | Type.TValue ValueType.{ structure = TI64 ; _ } -> to_i64 s
-    | Type.TValue ValueType.{ structure = TI128 ; _ } -> to_i128 s
-    | Type.TValue ValueType.{ structure = TVec _ ; _ } -> to_vec s
-    | Type.TValue ValueType.{ structure = TList _ ; _ } -> to_list s
-    | Type.TValue ValueType.{ structure = TTup _ ; _ } -> to_tup s
-    | Type.TValue ValueType.{ structure = TRec _ ; _ } -> to_rec s
+    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> to_float s
+    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> to_string s
+    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> to_bool s
+    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> to_char s
+    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> to_u8 s
+    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> to_u16 s
+    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> to_u32 s
+    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> to_u64 s
+    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> to_u128 s
+    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> to_i8 s
+    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> to_i16 s
+    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> to_i32 s
+    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> to_i64 s
+    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> to_i128 s
+    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> to_vec s
+    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> to_list s
+    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> to_tup s
+    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> to_rec s
     | Type.TPointer -> to_pointer s
     | Type.TSize -> to_size s
     | Type.TBit -> to_bit s
@@ -820,20 +842,21 @@ struct
     fun frames sstate dstate src dst ->
       let typ = (List.hd frames).typ in
       let pair =
-        if typ.nullable then
-          let cond = Des.is_null oc frames dstate src in
-          (* Des can us [is_null] to prepare for a nullable, but Ser might also
-           * have some work to do: *)
-          let dst = Ser.nullable oc frames sstate dst in
-          BE.choose oc ~cond
-            (fun oc ->
-              let s, d = dsnull oc frames sstate dstate src dst in
-              BE.make_pair oc Type.pair_ptrs s d)
-            (fun oc ->
-              let s, d = dsnotnull oc frames sstate dstate src dst in
-              desser_structure typ.structure oc frames sstate dstate s d)
-        else
-          desser_structure typ.structure oc frames sstate dstate src dst in
+        match typ with
+        | Nullable t ->
+            let cond = Des.is_null oc frames dstate src in
+            (* Des can us [is_null] to prepare for a nullable, but Ser might also
+             * have some work to do: *)
+            let dst = Ser.nullable oc frames sstate dst in
+            BE.choose oc ~cond
+              (fun oc ->
+                let s, d = dsnull oc frames sstate dstate src dst in
+                BE.make_pair oc Type.pair_ptrs s d)
+              (fun oc ->
+                let s, d = dsnotnull oc frames sstate dstate src dst in
+                desser_structure t oc frames sstate dstate s d)
+        | NotNullable t ->
+            desser_structure t oc frames sstate dstate src dst in
       (* Returns src and dest: *)
       (BE.pair_fst oc pair),
       (BE.pair_snd oc pair)

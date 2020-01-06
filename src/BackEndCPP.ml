@@ -16,28 +16,28 @@ type output =
     mutable type_decls : (string * string) list }
 
 let rec c_type_of_scalar = function
-  | Type.TValue ValueType.{ structure = TFloat ; _ } -> "double"
-  | Type.TValue ValueType.{ structure = TString ; _ } -> "std::string"
-  | Type.TValue ValueType.{ structure = TBool ; _ } -> "bool"
-  | Type.TValue ValueType.{ structure = TChar ; _ } -> "char"
-  | Type.TValue ValueType.{ structure = TI8 ; _ } -> "int8_t"
-  | Type.TValue ValueType.{ structure = TU8 ; _ } -> "uint8_t"
-  | Type.TValue ValueType.{ structure = TI16 ; _ } -> "int16_t"
-  | Type.TValue ValueType.{ structure = TU16 ; _ } -> "uint16_t"
-  | Type.TValue ValueType.{ structure = TI32 ; _ } -> "int32_t"
-  | Type.TValue ValueType.{ structure = TU32 ; _ } -> "uint32_t"
-  | Type.TValue ValueType.{ structure = TI64 ; _ } -> "int64_t"
-  | Type.TValue ValueType.{ structure = TU64 ; _ } -> "uint64_t"
-  | Type.TValue ValueType.{ structure = TI128 ; _ } -> "int128_t"
-  | Type.TValue ValueType.{ structure = TU128 ; _ } -> "uint128_t"
+  | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> "double"
+  | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> "std::string"
+  | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> "bool"
+  | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> "char"
+  | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> "int8_t"
+  | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> "uint8_t"
+  | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> "int16_t"
+  | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> "uint16_t"
+  | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> "int32_t"
+  | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> "uint32_t"
+  | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> "int64_t"
+  | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> "uint64_t"
+  | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> "int128_t"
+  | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> "uint128_t"
   (* Not scalars: *)
-  | Type.TValue ValueType.{ structure = (TTup _ | TRec _) ; _ }
+  | Type.TValue ValueType.(NotNullable (TTup _ | TRec _) | Nullable (TTup _ | TRec _))
   | Type.TPair _ ->
       assert false
   (* Treated as a scalar here: *)
-  | Type.TValue ValueType.{ structure = TVec (dim, typ) ; _ } ->
+  | Type.TValue ValueType.(NotNullable TVec (dim, typ) | Nullable TVec (dim, typ)) ->
       Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar (Type.TValue typ))
-  | Type.TValue ValueType.{ structure = TList typ ; _ } ->
+  | Type.TValue ValueType.(NotNullable TList typ | Nullable TList typ) ->
       Printf.sprintf "List<%s>" (c_type_of_scalar (Type.TValue typ))
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allows to
@@ -69,14 +69,14 @@ let make_valid_identifier s = s
 
 (* Returns the name and valuetype of that subfield of the given valuetype: *)
 let subfield_info vtyp idx =
-  match vtyp.ValueType.structure with
-  | ValueType.TTup typs ->
+  match vtyp with
+  | ValueType.(Nullable (TTup typs) | NotNullable (TTup typs)) ->
       "field_"^ string_of_int idx,
       typs.(idx)
-  | ValueType.TRec typs ->
+  | ValueType.(Nullable (TRec typs) | NotNullable (TRec typs)) ->
       make_valid_identifier (fst typs.(idx)),
       snd typs.(idx)
-  | ValueType.TVec (dim, typ) ->
+  | ValueType.(Nullable (TVec (dim, typ)) | NotNullable (TVec (dim, typ))) ->
       assert (idx < dim) ;
       "["^ string_of_int idx ^"]",
       typ
@@ -93,7 +93,7 @@ let rec declare_type oc id typ =
     Array.iteri (fun i subtyp ->
       let typ_id = find_or_declare_type oc (Type.TValue subtyp) in
       let fname, subtyp = subfield_info vtyp i in
-      if subtyp.ValueType.nullable then
+      if ValueType.is_nullable subtyp then
         Printf.fprintf s "  std::optional<%s> %s;\n" typ_id fname
       else
         Printf.fprintf s "  %s %s;\n" typ_id fname
@@ -101,9 +101,9 @@ let rec declare_type oc id typ =
     Printf.fprintf s "};\n\n"
   in
   (match typ with
-  | Type.TValue (ValueType.{ structure = TTup vsubtyps ; _ } as vtyp) ->
+  | Type.TValue (ValueType.(NotNullable TTup vsubtyps | Nullable TTup vsubtyps) as vtyp) ->
       print_record vtyp vsubtyps
-  | Type.TValue (ValueType.{ structure = TRec vsubtyps ; _ } as vtyp) ->
+  | Type.TValue (ValueType.(NotNullable TRec vsubtyps | Nullable TRec vsubtyps) as vtyp) ->
       print_record vtyp (Array.map snd vsubtyps)
   | Type.TPair (t1, t2) ->
       Printf.fprintf s "typedef std::pair<%s, %s> %s;\n\n"
@@ -126,8 +126,8 @@ and find_or_declare_type oc typ =
       uniq_id
     in
     match typ with
-    | Type.TValue ValueType.{ structure = TTup _ ; _ }
-    | Type.TValue ValueType.{ structure = TRec _ ; _ }
+    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _)
+    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _)
     | Type.TPair _ ->
         do_decl ()
     | _ ->
@@ -1051,14 +1051,14 @@ let id_of_path oc frames (p : [`Pointer] id) =
     | top :: (parent :: _ as rest) ->
         (* Dereference parent: *)
         let accessor =
-          match parent.typ.ValueType.structure with
-          | ValueType.TTup _ -> "."
-          | ValueType.TRec _ -> "."
-          | ValueType.TVec _ -> ""
+          match parent.typ with
+          | ValueType.(Nullable (TTup _) | NotNullable (TTup _)) -> "."
+          | ValueType.(Nullable (TRec _) | NotNullable (TRec _)) -> "."
+          | ValueType.(Nullable (TVec _) | NotNullable (TVec _)) -> ""
           | _ -> assert false in
         let subfield = subfield_name parent.typ top.index in
         let denullify =
-          if parent.typ.ValueType.nullable then ".value()" else "" in
+          if ValueType.is_nullable parent.typ then ".value()" else "" in
         (loop rest) ^ denullify ^ accessor ^ subfield
   in
   loop frames

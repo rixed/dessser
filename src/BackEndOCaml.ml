@@ -22,28 +22,28 @@ type output =
 (* Compound types have to be declared (once) *)
 
 let rec ml_type_of_scalar = function
-  | Type.TValue ValueType.{ structure = TFloat ; _ } -> "float"
-  | Type.TValue ValueType.{ structure = TString ; _ } -> "string"
-  | Type.TValue ValueType.{ structure = TBool ; _ } -> "bool"
-  | Type.TValue ValueType.{ structure = TChar ; _ } -> "char"
-  | Type.TValue ValueType.{ structure = TI8 ; _ } -> "Int8.t"
-  | Type.TValue ValueType.{ structure = TU8 ; _ } -> "Uint8.t"
-  | Type.TValue ValueType.{ structure = TI16 ; _ } -> "Int16.t"
-  | Type.TValue ValueType.{ structure = TU16 ; _ } -> "Uint16.t"
-  | Type.TValue ValueType.{ structure = TI32 ; _ } -> "Int32.t"
-  | Type.TValue ValueType.{ structure = TU32 ; _ } -> "Uint32.t"
-  | Type.TValue ValueType.{ structure = TI64 ; _ } -> "Int64.t"
-  | Type.TValue ValueType.{ structure = TU64 ; _ } -> "Uint64.t"
-  | Type.TValue ValueType.{ structure = TI128 ; _ } -> "Int128.t"
-  | Type.TValue ValueType.{ structure = TU128 ; _ } -> "Uint128.t"
+  | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> "float"
+  | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> "string"
+  | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> "bool"
+  | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> "char"
+  | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> "Int8.t"
+  | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> "Uint8.t"
+  | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> "Int16.t"
+  | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> "Uint16.t"
+  | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> "Int32.t"
+  | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> "Uint32.t"
+  | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> "Int64.t"
+  | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> "Uint64.t"
+  | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> "Int128.t"
+  | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> "Uint128.t"
   (* Not scalars: *)
-  | Type.TValue ValueType.{ structure = (TTup _ | TRec _) ; _ }
+  | Type.TValue ValueType.(NotNullable (TTup _ | TRec _) | Nullable (TTup _ | TRec _))
   | Type.TPair _ ->
       assert false
   (* Treated as a scalar here: *)
-  | Type.TValue ValueType.{ structure = TVec (_dim, typ) ; _ } ->
+  | Type.TValue ValueType.(NotNullable TVec (_dim, typ) | Nullable TVec (_dim, typ)) ->
       Printf.sprintf "%s array" (ml_type_of_scalar (Type.TValue typ))
-  | Type.TValue ValueType.{ structure = TList typ ; _ } ->
+  | Type.TValue ValueType.(NotNullable TList typ | Nullable TList typ) ->
       Printf.sprintf "%s array" (ml_type_of_scalar (Type.TValue typ))
   (* The caller does not know if it's a pointer used for reading/writing bytes
    * or setting/getting subfields, which is a good thing as it allow to
@@ -78,14 +78,14 @@ let make_valid_identifier s = s
 
 (* Returns the name and valuetype of that subfield of the given valuetype: *)
 let subfield_info vtyp idx =
-  match vtyp.ValueType.structure with
-  | ValueType.TTup typs ->
+  match vtyp with
+  | ValueType.(Nullable (TTup typs) | NotNullable (TTup typs)) ->
       "field_"^ string_of_int idx,
       typs.(idx)
-  | ValueType.TRec typs ->
+  | ValueType.(Nullable (TRec typs) | NotNullable (TRec typs)) ->
       make_valid_identifier (fst typs.(idx)),
       snd typs.(idx)
-  | ValueType.TVec (dim, typ) ->
+  | ValueType.(Nullable (TVec (dim, typ)) | NotNullable (TVec (dim, typ))) ->
       assert (idx < dim) ;
       "("^ string_of_int idx ^")",
       typ
@@ -102,14 +102,14 @@ let rec declare_type oc id typ =
       let fname, subtyp = subfield_info vtyp i in
       Printf.fprintf s "  mutable %s : %s%s;\n"
         fname typ_id
-        (if subtyp.ValueType.nullable then " option" else "")
+        (if ValueType.is_nullable subtyp then " option" else "")
     ) vsubtyps ;
     Printf.fprintf s "}\n\n"
   in
   (match typ with
-  | Type.TValue (ValueType.{ structure = TTup vsubtyps ; _ } as vtyp) ->
+  | Type.TValue (ValueType.(NotNullable TTup vsubtyps | Nullable TTup vsubtyps) as vtyp) ->
       print_record vtyp vsubtyps
-  | Type.TValue (ValueType.{ structure = TRec vsubtyps ; _ } as vtyp) ->
+  | Type.TValue (ValueType.(NotNullable TRec vsubtyps | Nullable TRec vsubtyps) as vtyp) ->
       print_record vtyp (Array.map snd vsubtyps)
   | Type.TPair (t1, t2) ->
       Printf.fprintf s "type %s = %s * %s\n\n"
@@ -132,8 +132,8 @@ and find_or_declare_type oc typ =
       uniq_id
     in
     match typ with
-    | Type.TValue ValueType.{ structure = TTup _ ; _ }
-    | Type.TValue ValueType.{ structure = TRec _ ; _ }
+    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _)
+    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _)
     | Type.TPair _ ->
         do_decl ()
     | _ ->
@@ -1063,8 +1063,8 @@ let loop_repeat oc ~from ~to_ ~loop v0 =
 
 let rec print_default_value indent oc typ =
   let open Type in
-  let wrap_nullable nullable p x =
-    if nullable then
+  let wrap_nullable vtyp p x =
+    if ValueType.is_nullable vtyp then
       (* Unfortunately we cannot start with None as we want the whole tree
        * of values to be populated. *)
       Printf.fprintf oc "Some (%a)" p x
@@ -1072,59 +1072,59 @@ let rec print_default_value indent oc typ =
       p oc x
   in
   match typ with
-  | Type.TValue ValueType.{ structure = TFloat ; nullable } ->
-      wrap_nullable nullable String.print "0."
-  | Type.TValue ValueType.{ structure = TString ; nullable } ->
-      wrap_nullable nullable String.print "\"\""
-  | Type.TValue ValueType.{ structure = TBool ; nullable } ->
-      wrap_nullable nullable String.print "false"
-  | Type.TValue ValueType.{ structure = TChar ; nullable } ->
-      wrap_nullable nullable String.print "'\\000'"
-  | Type.TValue ValueType.{ structure = TI8 ; nullable } ->
-      wrap_nullable nullable String.print "Int8.zero"
-  | Type.TValue ValueType.{ structure = TI16 ; nullable } ->
-      wrap_nullable nullable String.print "Int16.zero"
-  | Type.TValue ValueType.{ structure = TI32 ; nullable } ->
-      wrap_nullable nullable String.print "Int32.zero"
-  | Type.TValue ValueType.{ structure = TI64 ; nullable } ->
-      wrap_nullable nullable String.print "Int64.zero"
-  | Type.TValue ValueType.{ structure = TI128 ; nullable } ->
-      wrap_nullable nullable String.print "Int128.zero"
-  | Type.TValue ValueType.{ structure = TU8 ; nullable } ->
-      wrap_nullable nullable String.print "Uint8.zero"
-  | Type.TValue ValueType.{ structure = TU16 ; nullable } ->
-      wrap_nullable nullable String.print "Uint16.zero"
-  | Type.TValue ValueType.{ structure = TU32 ; nullable } ->
-      wrap_nullable nullable String.print "Uint32.zero"
-  | Type.TValue ValueType.{ structure = TU64 ; nullable } ->
-      wrap_nullable nullable String.print "Uint64.zero"
-  | Type.TValue ValueType.{ structure = TU128 ; nullable } ->
-      wrap_nullable nullable String.print "Uint128.zero"
-  | Type.TValue (ValueType.{ structure = TTup typs ; nullable } as vtyp) ->
-      wrap_nullable nullable
+  | Type.TValue ValueType.((Nullable TFloat | NotNullable TFloat) as vtyp) ->
+      wrap_nullable vtyp String.print "0."
+  | Type.TValue ValueType.((Nullable TString | NotNullable TString) as vtyp) ->
+      wrap_nullable vtyp String.print "\"\""
+  | Type.TValue ValueType.((Nullable TBool | NotNullable TBool) as vtyp) ->
+      wrap_nullable vtyp String.print "false"
+  | Type.TValue ValueType.((Nullable TChar | NotNullable TChar) as vtyp) ->
+      wrap_nullable vtyp String.print "'\\000'"
+  | Type.TValue ValueType.((Nullable TI8 | NotNullable TI8) as vtyp) ->
+      wrap_nullable vtyp String.print "Int8.zero"
+  | Type.TValue ValueType.((Nullable TI16 | NotNullable TI16) as vtyp) ->
+      wrap_nullable vtyp String.print "Int16.zero"
+  | Type.TValue ValueType.((Nullable TI32 | NotNullable TI32) as vtyp) ->
+      wrap_nullable vtyp String.print "Int32.zero"
+  | Type.TValue ValueType.((Nullable TI64 | NotNullable TI64) as vtyp) ->
+      wrap_nullable vtyp String.print "Int64.zero"
+  | Type.TValue ValueType.((Nullable TI128 | NotNullable TI128) as vtyp) ->
+      wrap_nullable vtyp String.print "Int128.zero"
+  | Type.TValue ValueType.((Nullable TU8 | NotNullable TU8) as vtyp) ->
+      wrap_nullable vtyp String.print "Uint8.zero"
+  | Type.TValue ValueType.((Nullable TU16 | NotNullable TU16) as vtyp) ->
+      wrap_nullable vtyp String.print "Uint16.zero"
+  | Type.TValue ValueType.((Nullable TU32 | NotNullable TU32) as vtyp) ->
+      wrap_nullable vtyp String.print "Uint32.zero"
+  | Type.TValue ValueType.((Nullable TU64 | NotNullable TU64) as vtyp) ->
+      wrap_nullable vtyp String.print "Uint64.zero"
+  | Type.TValue ValueType.((Nullable TU128 | NotNullable TU128) as vtyp) ->
+      wrap_nullable vtyp String.print "Uint128.zero"
+  | Type.TValue ValueType.((Nullable (TTup typs) | NotNullable (TTup typs)) as vtyp) ->
+      wrap_nullable vtyp
         (Array.print ~first:("{\n"^indent) ~last:(indent^"}") ~sep:(";\n"^indent)
           (fun oc (i, t) ->
             let fname = subfield_name vtyp i in
             Printf.fprintf oc "%s=%a"
               fname (print_default_value (indent^"  ")) (Type.TValue t)))
         (Array.mapi (fun i t -> (i, t)) typs)
-  | Type.TValue ValueType.{ structure = TRec typs ; nullable } ->
-      wrap_nullable nullable
+  | Type.TValue ValueType.((Nullable (TRec typs) | NotNullable (TRec typs)) as vtyp) ->
+      wrap_nullable vtyp
         (Array.print ~first:("{\n"^indent) ~last:(indent^"}") ~sep:(";\n"^indent)
           (fun oc (fname, t) ->
             Printf.fprintf oc "%s=%a"
               fname (print_default_value (indent^"  ")) (Type.TValue t)))
         typs
-  | Type.TValue ValueType.{ structure = TVec (dim, t) ; nullable } ->
-      wrap_nullable nullable (fun oc () ->
+  | Type.TValue ValueType.((Nullable (TVec (dim, t)) | NotNullable (TVec (dim, t))) as vtyp) ->
+      wrap_nullable vtyp (fun oc () ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
           Printf.fprintf oc "%a; "
             (print_default_value (indent^"  ")) (Type.TValue t)
         done ;
         Printf.fprintf oc "%s|]" indent) ()
-  | Type.TValue ValueType.{ structure = TList _ ; nullable } ->
-      wrap_nullable nullable String.print "[]"
+  | Type.TValue ValueType.((Nullable (TList _) | NotNullable (TList _)) as vtyp) ->
+      wrap_nullable vtyp String.print "[]"
   | Type.TPair (t1, t2) ->
       Printf.fprintf oc "(%a, %a)"
         (print_default_value indent) t1
@@ -1156,7 +1156,7 @@ let id_of_path frames p =
         let subfield = subfield_name parent.typ top.index in
         let base = loop rest in
         let base =
-          if parent.typ.ValueType.nullable then
+          if ValueType.is_nullable parent.typ then
             "(option_get "^ base ^")"
           else
             base in

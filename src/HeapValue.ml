@@ -11,8 +11,7 @@ open Dessser
 
 let is_nullable = function
   | [] -> assert false
-  | frame :: _ ->
-      frame.typ.ValueType.nullable
+  | frame :: _ -> ValueType.is_nullable frame.typ
 
 module Ser (BE : BACKEND) : SER with module BE = BE =
 struct
@@ -274,17 +273,17 @@ struct
 
     and sersize_ oc frames src sizes =
       let typ = (List.hd frames).typ in
-      if typ.nullable then
+      if ValueType.is_nullable typ then
         let cond = BE.field_is_set oc frames src in
         BE.choose oc ~cond
           (fun oc ->
             let v = BE.get_nullable_field oc frames src in
-            ssize_structure sizes oc frames v typ.structure)
+            ssize_structure sizes oc frames v (ValueType.to_not_nullable typ))
           (fun oc ->
             add_size sizes (Ser.ssize_of_null oc frames))
       else
         let v = BE.get_field oc frames src in
-        ssize_structure sizes oc frames v typ.structure
+        ssize_structure sizes oc frames v (ValueType.to_not_nullable typ)
   in
   let sizes =
     BE.make_pair oc t_pair_sizes size_0 size_0 in

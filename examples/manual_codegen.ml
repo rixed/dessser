@@ -16,31 +16,31 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let nullable = true in
-  let m = ValueType.make in
+  let m x = ValueType.NotNullable x
+  and n x = ValueType.Nullable x in
   let udp_typ =
     m (TTup [|
-      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; m ~nullable TU32 ;
-      m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; m ~nullable TU32 ; m ~nullable TString ; m ~nullable TU32 ;
-      m ~nullable TString ; m ~nullable TU32 ; m ~nullable TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; m ~nullable TU32 ;
-      m ~nullable TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ;  (* Should be U32 *) m TU64 ;  (* Should be U32 *) m TU64 ;
-      m TU64 ; m ~nullable TString
+      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
+      n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
+      n TString ; n TU32 ; n TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; n TU32 ;
+      n TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ;  (* Should be U32 *) m TU64 ;  (* Should be U32 *) m TU64 ;
+      m TU64 ; n TString
     |])
   and _http_typ =
     m (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
-      m ~nullable TU32 ; m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
-      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
-      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
-      m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; m ~nullable TU128 ;
-      m TU8 ; m TU8 ; m TU8 ; m ~nullable TString ; m ~nullable TString ;
-      m ~nullable TString (* url *) ; m ~nullable TString ; m TU8 ; m TU8 ; m TU8 ;
-      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+      n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
+      n TU32 ; n (TVec (16, m TChar)) ;
+      n TU32 ; n (TVec (16, m TChar)) ;
+      m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; n TU128 ;
+      m TU8 ; m TU8 ; m TU8 ; n TString ; n TString ;
+      n TString (* url *) ; n TString ; m TU8 ; m TU8 ; m TU8 ;
+      n TU32 ; n (TVec (16, m TChar)) ;
       m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
-      m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
-      m ~nullable TU64 ; m ~nullable TU64 ; m ~nullable TU32 ;
+      n TString ; m TU32 ; m TU8 ; n TString ;
+      n TU64 ; n TU64 ; n TU32 ;
       m TU32 ; m TU32 ; m TU32 ;
-      m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
+      n TString ; m TU32 ; m TU8 ; n TString ;
       m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
       m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
       m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
