@@ -12,7 +12,7 @@ open Dessser
 let is_nullable = function
   | [] -> assert false
   | frame :: _ ->
-      frame.typ.Types.nullable
+      frame.typ.ValueType.nullable
 
 module Ser (BE : BACKEND) : SER with module BE = BE =
 struct
@@ -118,7 +118,6 @@ end
 module Des (BE : BACKEND) : DES with module BE = BE =
 struct
   module BE = BE
-  module T = Types
 
   type state = unit
 
@@ -190,13 +189,13 @@ end
 
 (* Module to compute the sersize of a heap value: *)
 module SerSizer (Ser : SER) : sig
-    val sersize : Types.t -> Ser.BE.output -> [`Pointer] id ->
+    val sersize : ValueType.t -> Ser.BE.output -> [`Pointer] id ->
                     ([`Size] id * [`Size] id)
   end =
 struct
   module BE = Ser.BE
   
-  let t_pair_sizes = Types.(make (TPair (make TSize, make TSize)))
+  let t_pair_sizes = Type.(TPair (TSize, TSize))
 
   (* Returns a pair of size identifier holding the const and dyn size of
    * the heap value pointed by the pointer identifier [src].
@@ -218,50 +217,50 @@ struct
                sz (pair_snd oc sizes))) in
     (* Add that value size to the passed size pair: *)
     let rec ssize_structure sizes oc frames v = function
-      | Types.TFloat ->
+      | ValueType.TFloat ->
           Ser.ssize_of_float oc frames (Identifier.to_float v) |> add_size sizes
-      | Types.TString ->
+      | ValueType.TString ->
           Ser.ssize_of_string oc frames (Identifier.to_string v) |> add_size sizes
-      | Types.TBool ->
+      | ValueType.TBool ->
           Ser.ssize_of_bool oc frames (Identifier.to_bool v) |> add_size sizes
-      | Types.TChar ->
+      | ValueType.TChar ->
           Ser.ssize_of_char oc frames (Identifier.to_char v) |> add_size sizes
-      | Types.TI8 ->
+      | ValueType.TI8 ->
           Ser.ssize_of_i8 oc frames (Identifier.to_i8 v) |> add_size sizes
-      | Types.TI16 ->
+      | ValueType.TI16 ->
           Ser.ssize_of_i16 oc frames (Identifier.to_i16 v) |> add_size sizes
-      | Types.TI32 ->
+      | ValueType.TI32 ->
           Ser.ssize_of_i32 oc frames (Identifier.to_i32 v) |> add_size sizes
-      | Types.TI64 ->
+      | ValueType.TI64 ->
           Ser.ssize_of_i64 oc frames (Identifier.to_i64 v) |> add_size sizes
-      | Types.TI128 ->
+      | ValueType.TI128 ->
           Ser.ssize_of_i128 oc frames (Identifier.to_i128 v) |> add_size sizes
-      | Types.TU8 ->
+      | ValueType.TU8 ->
           Ser.ssize_of_u8 oc frames (Identifier.to_u8 v) |> add_size sizes
-      | Types.TU16 ->
+      | ValueType.TU16 ->
           Ser.ssize_of_u16 oc frames (Identifier.to_u16 v) |> add_size sizes
-      | Types.TU32 ->
+      | ValueType.TU32 ->
           Ser.ssize_of_u32 oc frames (Identifier.to_u32 v) |> add_size sizes
-      | Types.TU64 ->
+      | ValueType.TU64 ->
           Ser.ssize_of_u64 oc frames (Identifier.to_u64 v) |> add_size sizes
-      | Types.TU128 ->
+      | ValueType.TU128 ->
           Ser.ssize_of_u128 oc frames (Identifier.to_u128 v) |> add_size sizes
       (* Compound types require recursion: *)
-      | Types.TTup typs ->
+      | ValueType.TTup vtyps ->
           let sizes =
             Ser.ssize_of_tup oc frames (Identifier.to_tup v) |> add_size sizes in
           Array.fold_lefti (fun sizes i typ ->
             let subframes = { typ ; index = i ; name = "" } :: frames in
             sersize_ oc subframes src sizes
-          ) sizes typs
-      | Types.TRec typs ->
+          ) sizes vtyps
+      | ValueType.TRec vtyps ->
           let sizes =
             Ser.ssize_of_rec oc frames (Identifier.to_rec v) |> add_size sizes in
           Array.fold_lefti (fun sizes i (name, typ) ->
             let subframes = { typ ; index = i ; name } :: frames in
             sersize_ oc subframes src sizes
-          ) sizes typs
-      | Types.TVec (dim, typ) ->
+          ) sizes vtyps
+      | ValueType.TVec (dim, typ) ->
           let sizes =
             Ser.ssize_of_vec oc frames (Identifier.to_vec v) |> add_size sizes in
           let rec loop sizes i =
@@ -270,8 +269,9 @@ struct
             let sizes = sersize_ oc subframes src sizes in
             loop sizes (i + 1) in
           loop sizes 0
-      | _ ->
+      | ValueType.TList _typ ->
           assert false
+
     and sersize_ oc frames src sizes =
       let typ = (List.hd frames).typ in
       if typ.nullable then

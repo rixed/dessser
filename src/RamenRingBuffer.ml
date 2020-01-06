@@ -126,7 +126,7 @@ struct
 
   let get_tup_typs frames =
     match frames with
-    | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ -> typs
+    | { typ = Type.{ structure = TTup typs ; _ } ; _ } :: _ -> typs
     | _ -> assert false
 
   let tup_opn_with_typs oc typs st p =
@@ -135,7 +135,7 @@ struct
     let nullmask_bits =
       if outermost then
         Array.fold_left (fun c typ ->
-          if typ.Types.nullable then c + 1 else c
+          if typ.ValueType.nullable then c + 1 else c
         ) 0 typs
       else
         Array.length typs in
@@ -168,7 +168,7 @@ struct
 
   let get_rec_typs frames =
     match frames with
-    | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ -> typs
+    | { typ = Type.{ structure = TRec typs ; _ } ; _ } :: _ -> typs
     | _ -> assert false
 
   let rec_opn oc frames st p =
@@ -184,7 +184,7 @@ struct
 
   let get_vec_typs frames =
     match frames with
-    | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ -> dim, typ
+    | { typ = Type.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ -> dim, typ
     | _ -> assert false
 
   let vec_opn oc frames st p =
@@ -192,7 +192,7 @@ struct
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
-        if typ.Types.nullable then dim else 0
+        if typ.ValueType.nullable then dim else 0
       else
         dim in
     push_nullmask st p ;
@@ -206,7 +206,7 @@ struct
 
   let get_list_typs frames =
     match frames with
-    | { typ = Types.{ structure = TList typ ; _ } ; _ } :: _ -> typ
+    | { typ = ValueType.{ structure = TList typ ; _ } ; _ } :: _ -> typ
     | _ -> assert false
 
   let list_opn oc frames st n p =
@@ -215,7 +215,7 @@ struct
     let p = BE.write_dword oc p BE.U32.(to_dword oc n) in
     let nullmask_bits =
       if outermost then
-        if typ.Types.nullable then n else (BE.U32.of_const_int oc 0)
+        if typ.ValueType.nullable then n else (BE.U32.of_const_int oc 0)
       else
         n in
     push_nullmask st p ;
@@ -279,7 +279,7 @@ struct
            * name *)
           k ()
       | top_frame :: (parent_frame :: _ as tail) ->
-          (match parent_frame.typ.Types.structure with
+          (match parent_frame.typ.ValueType.structure with
           | TRec typs ->
               let name, _ = typs.(top_frame.index) in
               if is_private name then
@@ -321,9 +321,9 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost, typs =
         match frames with
-        | [ { typ = Types.{ structure = TTup typs ; _ } ; _ } ] ->
+        | [ { typ = Type.{ structure = TTup typs ; _ } ; _ } ] ->
             true, typs
-        | { typ = Types.{ structure = TTup typs ; _ } ; _ } :: _ ->
+        | { typ = Type.{ structure = TTup typs ; _ } ; _ } :: _ ->
             false, typs
         | _ -> assert false in
       round_up_const_bits (
@@ -331,16 +331,16 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if typ.Types.nullable then c + 1 else c) 0 typs))
+            if typ.ValueType.nullable then c + 1 else c) 0 typs))
 
   let ssize_of_rec _ frames _ =
     or_private frames (fun () ->
       (* Just the additional bitmask: *)
       let is_outermost, typs =
         match frames with
-        | [ { typ = Types.{ structure = TRec typs ; _ } ; _ } ] ->
+        | [ { typ = ValueType.{ structure = TRec typs ; _ } ; _ } ] ->
             true, typs
-        | { typ = Types.{ structure = TRec typs ; _ } ; _ } :: _ ->
+        | { typ = ValueType.{ structure = TRec typs ; _ } ; _ } :: _ ->
             false, typs
         | _ -> assert false in
       let typs = Array.filter_map (fun (name, typ) ->
@@ -351,19 +351,19 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if typ.Types.nullable then c + 1 else c) 0 typs))
+            if typ.ValueType.nullable then c + 1 else c) 0 typs))
 
   let ssize_of_vec _ frames _ =
     or_private frames (fun () ->
       let is_outermost, dim, typ =
         match frames with
-        | [ { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } ] ->
+        | [ { typ = ValueType.{ structure = TVec (dim, typ) ; _ } ; _ } ] ->
             true, dim, typ
-        | { typ = Types.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ ->
+        | { typ = ValueType.{ structure = TVec (dim, typ) ; _ } ; _ } :: _ ->
             false, dim, typ
         | _ -> assert false in
       round_up_const_bits (
-        if is_outermost || typ.Types.nullable then dim else 0))
+        if is_outermost || typ.ValueType.nullable then dim else 0))
 
   let ssize_of_null _ frames =
     or_private frames (fun () -> ConstSize 0)

@@ -17,35 +17,33 @@ let run_cmd cmd =
 
 let () =
   let nullable = true in
-  let m = Types.make in
+  let m = ValueType.make in
   let udp_typ =
-    Types.(
-      m (TTup [|
-        m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; m ~nullable TU32 ;
-        m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; m ~nullable TU32 ; m ~nullable TString ; m ~nullable TU32 ;
-        m ~nullable TString ; m ~nullable TU32 ; m ~nullable TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; m ~nullable TU32 ;
-        m ~nullable TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ;  (* Should be U32 *) m TU64 ;  (* Should be U32 *) m TU64 ;
-        m TU64 ; m ~nullable TString
-      |]))
+    m (TTup [|
+      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; m ~nullable TU32 ;
+      m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; m ~nullable TU32 ; m ~nullable TString ; m ~nullable TU32 ;
+      m ~nullable TString ; m ~nullable TU32 ; m ~nullable TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; m ~nullable TU32 ;
+      m ~nullable TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ;  (* Should be U32 *) m TU64 ;  (* Should be U32 *) m TU64 ;
+      m TU64 ; m ~nullable TString
+    |])
   and _http_typ =
-    Types.(
-      m (TTup [|
-        m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
-        m ~nullable TU32 ; m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
-        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
-        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
-        m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; m ~nullable TU128 ;
-        m TU8 ; m TU8 ; m TU8 ; m ~nullable TString ; m ~nullable TString ;
-        m ~nullable TString (* url *) ; m ~nullable TString ; m TU8 ; m TU8 ; m TU8 ;
-        m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
-        m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
-        m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
-        m ~nullable TU64 ; m ~nullable TU64 ; m ~nullable TU32 ;
-        m TU32 ; m TU32 ; m TU32 ;
-        m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
-        m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
-        m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
-        m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |])) in
+    m (TTup [|
+      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
+      m ~nullable TU32 ; m ~nullable TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
+      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+      m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; m ~nullable TU128 ;
+      m TU8 ; m TU8 ; m TU8 ; m ~nullable TString ; m ~nullable TString ;
+      m ~nullable TString (* url *) ; m ~nullable TString ; m TU8 ; m TU8 ; m TU8 ;
+      m ~nullable TU32 ; m ~nullable (TVec (16, m TChar)) ;
+      m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
+      m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
+      m ~nullable TU64 ; m ~nullable TU64 ; m ~nullable TU32 ;
+      m TU32 ; m TU32 ; m TU32 ;
+      m ~nullable TString ; m TU32 ; m TU8 ; m ~nullable TString ;
+      m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
+      m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
+      m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
   let typ = udp_typ in
   let backend =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then (module BackEndOCaml : BACKEND)
@@ -61,8 +59,8 @@ let () =
 
   let output = BE.make_output () in
   let _read_tuple =
-    let tptr = Types.(make TPointer) in
-    BE.function2 output tptr tptr Types.pair_ptrs (fun oc src dst ->
+    let tptr = Type.TPointer in
+    BE.function2 output tptr tptr Type.pair_ptrs (fun oc src dst ->
       BE.comment oc "Convert from RowBinary into a heap value:" ;
       let dummy = Identifier.pointer () in (* Will be ignored by HeapValue.Ser *)
       let src, heap_value = DS1.desser typ oc src dummy in
@@ -76,7 +74,7 @@ let () =
       BE.comment oc "Now convert the heap value into an SExpr:" ;
       let src', dst = DS2.desser typ oc heap_value dst in
       BE.ignore oc src' ;
-      BE.make_pair oc Types.pair_ptrs src dst) in
+      BE.make_pair oc Type.pair_ptrs src dst) in
   let optim = 3 in
   let mode = [ `create ; `text ; `trunc ] in
   let fname = "examples/example."^ BE.preferred_file_extension in

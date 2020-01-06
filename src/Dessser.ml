@@ -1,7 +1,9 @@
 open Batteries
 open Stdint
 
-module Types =
+(* Those types describing values that can be (de)serialized.
+ * All of them can possibly be nullable. *)
+module ValueType =
 struct
   type t = { nullable : bool ; structure : structure }
 
@@ -18,14 +20,6 @@ struct
     (* Exact same as a tuple, but with field names that can be used as
      * accessors (also used to name actual fields in generated code): *)
     | TRec of (string * t) array
-    (* Special purpose for serialization: *)
-    | TPointer
-    | TSize
-    (* Data access, may be just pointer to the actual serialized object: *)
-    | TBit | TByte | TWord | TDWord | TQWord | TOWord | TBytes
-    (* Used only at the meta-level. Probably won't work for anything but
-     * non-null scalars: *)
-    | TPair of t * t
 
   let make ?(nullable=false) structure = { nullable ; structure }
 
@@ -57,6 +51,34 @@ struct
             (fun oc (n, t) ->
               Printf.fprintf oc "%s: %a" n print t)
           ) typs
+
+  and print oc t =
+    Printf.fprintf oc "%a%s"
+      print_structure t.structure
+      (if t.nullable then "?" else "")
+end
+
+(* All types we can generate code for.
+ * Include the types for serialized values and a few additional types used
+ * to manipulate them. *)
+module Type =
+struct
+  type t =
+    (* A ValueType: *)
+    | TValue of ValueType.t
+    (* Pointers are used to point into the stream of bytes that's being
+     * serialized into / deserialized from. So no need to attach the type
+     * of what it points to. *)
+    | TPointer
+    (* A size in byte. *)
+    | TSize
+    (* Data access, may be just pointer to the actual serialized object: *)
+    | TBit | TByte | TWord | TDWord | TQWord | TOWord | TBytes
+    (* Used only at the meta-level: *)
+    | TPair of t * t
+
+  let rec print oc = function
+    | TValue vt -> ValueType.print oc vt
     | TPointer -> String.print oc "Pointer"
     | TSize -> String.print oc "Size"
     | TBit -> String.print oc "Bit"
@@ -71,16 +93,12 @@ struct
           print t1
           print t2
 
-  and print oc t =
-    Printf.fprintf oc "%a%s"
-      print_structure t.structure
-      (if t.nullable then "?" else "")
-
   (* Many return values have the type of a pair or src*dst pointers: *)
-  let pair_ptrs = make (TPair (make TPointer, make TPointer))
-  let bool = make TBool
-  let u32 = make TU32
-  let i32 = make TI32
+  let pair_ptrs = TPair (TPointer, TPointer)
+  let bool = TValue (ValueType.make TBool)
+  let u8 = TValue (ValueType.make TU8)
+  let u32 = TValue (ValueType.make TU32)
+  let i32 = TValue (ValueType.make TI32)
 end
 
 (* Every expression is bound to an identifier, and only identifiers are
@@ -127,7 +145,7 @@ module Identifier :
     val func3 : unit -> ([`Function3] * 'a * 'b * 'c * 'd) t
     val param : int -> unit -> 'a t
 
-    val any : Types.structure -> 'a t
+    val any : Type.t -> 'a t
 
     val to_float : 'a t -> [`Float] t
     val to_string : 'a t -> [`String] t
@@ -158,7 +176,7 @@ module Identifier :
     val to_bytes : 'a t -> [`Bytes] t
 
     val to_any : 'a t -> [`Any] t
-    val of_any : Types.structure -> 'a t -> 'b t
+    val of_any : Type.t -> 'a t -> 'b t
 
     val of_string : string -> [`Any] t
 
@@ -209,36 +227,35 @@ struct
   let func2 = make "func2"
   let func3 = make "func3"
   let param n = make ("param"^ string_of_int n)
-  let any structure =
-    match structure with
-    | Types.TFloat -> float ()
-    | Types.TString -> string ()
-    | Types.TBool -> bool ()
-    | Types.TChar -> char ()
-    | Types.TU8 -> u8 ()
-    | Types.TU16 -> u16 ()
-    | Types.TU32 -> u32 ()
-    | Types.TU64 -> u64 ()
-    | Types.TU128 -> u128 ()
-    | Types.TI8 -> i8 ()
-    | Types.TI16 -> i16 ()
-    | Types.TI32 -> i32 ()
-    | Types.TI64 -> i64 ()
-    | Types.TI128 -> i128 ()
-    | Types.TVec _ -> vector ()
-    | Types.TList _ -> list ()
-    | Types.TTup _ -> tuple ()
-    | Types.TRec _ -> record ()
-    | Types.TPointer -> pointer ()
-    | Types.TSize -> size ()
-    | Types.TBit -> bit ()
-    | Types.TByte -> byte ()
-    | Types.TWord -> word ()
-    | Types.TDWord -> dword ()
-    | Types.TQWord -> qword ()
-    | Types.TOWord -> oword ()
-    | Types.TBytes -> bytes ()
-    | Types.TPair _ -> pair ()
+  let any = function
+    | Type.TValue ValueType.{ structure = TFloat ; _ } -> float ()
+    | Type.TValue ValueType.{ structure = TString ; _ } -> string ()
+    | Type.TValue ValueType.{ structure = TBool ; _ } -> bool ()
+    | Type.TValue ValueType.{ structure = TChar ; _ } -> char ()
+    | Type.TValue ValueType.{ structure = TU8 ; _ } -> u8 ()
+    | Type.TValue ValueType.{ structure = TU16 ; _ } -> u16 ()
+    | Type.TValue ValueType.{ structure = TU32 ; _ } -> u32 ()
+    | Type.TValue ValueType.{ structure = TU64 ; _ } -> u64 ()
+    | Type.TValue ValueType.{ structure = TU128 ; _ } -> u128 ()
+    | Type.TValue ValueType.{ structure = TI8 ; _ } -> i8 ()
+    | Type.TValue ValueType.{ structure = TI16 ; _ } -> i16 ()
+    | Type.TValue ValueType.{ structure = TI32 ; _ } -> i32 ()
+    | Type.TValue ValueType.{ structure = TI64 ; _ } -> i64 ()
+    | Type.TValue ValueType.{ structure = TI128 ; _ } -> i128 ()
+    | Type.TValue ValueType.{ structure = TVec _ ; _ } -> vector ()
+    | Type.TValue ValueType.{ structure = TList _ ; _ } -> list ()
+    | Type.TValue ValueType.{ structure = TTup _ ; _ } -> tuple ()
+    | Type.TValue ValueType.{ structure = TRec _ ; _ } -> record ()
+    | Type.TPointer -> pointer ()
+    | Type.TSize -> size ()
+    | Type.TBit -> bit ()
+    | Type.TByte -> byte ()
+    | Type.TWord -> word ()
+    | Type.TDWord -> dword ()
+    | Type.TQWord -> qword ()
+    | Type.TOWord -> oword ()
+    | Type.TBytes -> bytes ()
+    | Type.TPair _ -> pair ()
 
   let to_float s = s
   let to_string s = s
@@ -269,36 +286,36 @@ struct
   let to_bytes s = s
 
   let to_any s = s
-  let of_any structure s =
-    match structure with
-    | Types.TFloat -> to_float s
-    | Types.TString -> to_string s
-    | Types.TBool -> to_bool s
-    | Types.TChar -> to_char s
-    | Types.TU8 -> to_u8 s
-    | Types.TU16 -> to_u16 s
-    | Types.TU32 -> to_u32 s
-    | Types.TU64 -> to_u64 s
-    | Types.TU128 -> to_u128 s
-    | Types.TI8 -> to_i8 s
-    | Types.TI16 -> to_i16 s
-    | Types.TI32 -> to_i32 s
-    | Types.TI64 -> to_i64 s
-    | Types.TI128 -> to_i128 s
-    | Types.TVec _ -> to_vec s
-    | Types.TList _ -> to_list s
-    | Types.TTup _ -> to_tup s
-    | Types.TRec _ -> to_rec s
-    | Types.TPointer -> to_pointer s
-    | Types.TSize -> to_size s
-    | Types.TBit -> to_bit s
-    | Types.TByte -> to_byte s
-    | Types.TWord -> to_word s
-    | Types.TDWord -> to_dWord s
-    | Types.TQWord -> to_qWord s
-    | Types.TOWord -> to_oWord s
-    | Types.TBytes -> to_bytes s
-    | Types.TPair _ -> assert false (* get rid of Any! *)
+  let of_any t s =
+    match t with
+    | Type.TValue ValueType.{ structure = TFloat ; _ } -> to_float s
+    | Type.TValue ValueType.{ structure = TString ; _ } -> to_string s
+    | Type.TValue ValueType.{ structure = TBool ; _ } -> to_bool s
+    | Type.TValue ValueType.{ structure = TChar ; _ } -> to_char s
+    | Type.TValue ValueType.{ structure = TU8 ; _ } -> to_u8 s
+    | Type.TValue ValueType.{ structure = TU16 ; _ } -> to_u16 s
+    | Type.TValue ValueType.{ structure = TU32 ; _ } -> to_u32 s
+    | Type.TValue ValueType.{ structure = TU64 ; _ } -> to_u64 s
+    | Type.TValue ValueType.{ structure = TU128 ; _ } -> to_u128 s
+    | Type.TValue ValueType.{ structure = TI8 ; _ } -> to_i8 s
+    | Type.TValue ValueType.{ structure = TI16 ; _ } -> to_i16 s
+    | Type.TValue ValueType.{ structure = TI32 ; _ } -> to_i32 s
+    | Type.TValue ValueType.{ structure = TI64 ; _ } -> to_i64 s
+    | Type.TValue ValueType.{ structure = TI128 ; _ } -> to_i128 s
+    | Type.TValue ValueType.{ structure = TVec _ ; _ } -> to_vec s
+    | Type.TValue ValueType.{ structure = TList _ ; _ } -> to_list s
+    | Type.TValue ValueType.{ structure = TTup _ ; _ } -> to_tup s
+    | Type.TValue ValueType.{ structure = TRec _ ; _ } -> to_rec s
+    | Type.TPointer -> to_pointer s
+    | Type.TSize -> to_size s
+    | Type.TBit -> to_bit s
+    | Type.TByte -> to_byte s
+    | Type.TWord -> to_word s
+    | Type.TDWord -> to_dWord s
+    | Type.TQWord -> to_qWord s
+    | Type.TOWord -> to_oWord s
+    | Type.TBytes -> to_bytes s
+    | Type.TPair _ -> assert false (* get rid of Any! *)
 
   let of_string s = s
 
@@ -356,7 +373,7 @@ end
  * (de)constructing heap values but could help with some SER/DES as well: *)
 type frame =
   { (* The type of the topmost value: *)
-    typ : Types.t ;
+    typ : ValueType.t ;
     (* The index of this value within the parent compound type (or 0
      * if root) *)
     index : int ;
@@ -373,9 +390,9 @@ sig
   type output
   val make_output : unit -> output
   val print_output : 'a IO.output -> output -> unit
-  val function0 : output -> Types.t -> (output -> 'a id) -> ([`Function0] * 'a)  id
-  val function1 : output -> Types.t -> Types.t -> (output -> 'a id -> 'b id) -> ([`Function1] * 'a * 'b) id
-  val function2 : output -> Types.t -> Types.t -> Types.t -> (output -> 'a id -> 'b id -> 'c id) -> ([`Function2] * 'a * 'b * 'c) id
+  val function0 : output -> Type.t -> (output -> 'a id) -> ([`Function0] * 'a)  id
+  val function1 : output -> Type.t -> Type.t -> (output -> 'a id -> 'b id) -> ([`Function1] * 'a * 'b) id
+  val function2 : output -> Type.t -> Type.t -> Type.t -> (output -> 'a id -> 'b id -> 'c id) -> ([`Function2] * 'a * 'b * 'c) id
 
   val ignore : output -> 'a id -> unit
   val comment : output -> ('a, string BatIO.output, unit, unit, unit, unit) format6 -> 'a
@@ -435,7 +452,8 @@ sig
   val char_of_byte : output -> [`Byte] id -> [`Char] id
 
   (* Cast those from/into a common TupItem type? *)
-  val make_pair : output -> Types.t -> 'a id -> 'b id -> ([`Pair] * 'a * 'b) id
+  (* TODO: GADT to associate the output type with that of the output identifier *)
+  val make_pair : output -> Type.t -> 'a id -> 'b id -> ([`Pair] * 'a * 'b) id
   val pair_fst : output -> ([`Pair] * 'a * 'b) id -> 'a id
   val pair_snd : output -> ([`Pair] * 'a * 'b) id -> 'b id
 
@@ -517,7 +535,7 @@ sig
   module I128 : INTEGER with type output = output and type mid = [`I128] id
 
   (* Special needs for des/ser into/from a heap allocated value *)
-  val alloc_value : output -> Types.t -> [`Pointer] id
+  val alloc_value : output -> ValueType.t -> [`Pointer] id
   val set_field : output -> frame list -> [`Pointer] id -> 'a id -> unit
   val set_nullable_field : output -> frame list -> [`Pointer] id -> 'a id option -> unit
 
@@ -535,7 +553,7 @@ sig
 
   (* RW state passed to every deserialization operations *)
   type state
-  val start : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val start : ValueType.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
   val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
   type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
@@ -581,7 +599,7 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
-  val start : Types.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
+  val start : ValueType.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
   val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
 
   (* FIXME: make this type "private": *)
@@ -649,14 +667,14 @@ struct
   module BE = Des.BE
 
   let ds ser des transform oc frames sstate dstate src dst =
-    let typ = (List.hd frames).typ in
-    let what = IO.to_string Types.print typ in
+    let vtyp = (List.hd frames).typ in
+    let what = IO.to_string ValueType.print vtyp in
     BE.comment oc "Desserialize a %s" what ;
     let v, src = des oc frames dstate src in
     let v = transform oc frames v in
     BE.comment oc "Serialize a %s" what ;
     let dst = ser oc frames sstate v dst in
-    BE.make_pair oc Types.pair_ptrs src dst
+    BE.make_pair oc Type.pair_ptrs src dst
 
   let dsfloat = ds Ser.sfloat Des.dfloat
   let dsstring = ds Ser.sstring Des.dstring
@@ -698,7 +716,7 @@ struct
           and dst = Ser.tup_sep i oc frames sstate dst in
           desser_ transform oc subframes sstate dstate src dst
       ) (src, dst) typs in
-    BE.make_pair oc Types.pair_ptrs
+    BE.make_pair oc Type.pair_ptrs
       (Des.tup_cls oc frames dstate src)
       (Ser.tup_cls oc frames sstate dst)
 
@@ -717,7 +735,7 @@ struct
           and dst = Ser.rec_sep name oc frames sstate dst in
           desser_ transform oc subframes sstate dstate src dst
       ) (src, dst) typs in
-    BE.make_pair oc Types.pair_ptrs
+    BE.make_pair oc Type.pair_ptrs
       (Des.rec_cls oc frames dstate src)
       (Ser.rec_cls oc frames sstate dst)
 
@@ -729,7 +747,7 @@ struct
     and dst = Ser.vec_opn oc frames sstate dst in
     let rec loop src dst i =
       if i >= dim then
-        BE.make_pair oc Types.pair_ptrs
+        BE.make_pair oc Type.pair_ptrs
           (Des.vec_cls oc frames dstate src)
           (Ser.vec_cls oc frames sstate dst)
       else (
@@ -751,9 +769,9 @@ struct
     BE.comment oc "DesSer a List" ;
     let dim, src = Des.list_opn oc frames dstate src in
     let dst = Ser.list_opn oc frames sstate dim dst in
-    let src_dst = BE.make_pair oc Types.pair_ptrs src dst in
+    let src_dst = BE.make_pair oc Type.pair_ptrs src dst in
     let loop =
-      BE.function2 oc Types.i32 Types.pair_ptrs Types.bool (fun oc n src_dst ->
+      BE.function2 oc Type.i32 Type.pair_ptrs Type.bool (fun oc n src_dst ->
         BE.comment oc "DesSer a list item" ;
         let subframes = { typ ; index = -1 ; name = "" } :: frames in
         let src_dst =
@@ -762,17 +780,17 @@ struct
             (fun oc ->
               let src = Des.list_sep oc frames dstate (BE.pair_fst oc src_dst)
               and dst = Ser.list_sep oc frames sstate (BE.pair_snd oc src_dst) in
-              BE.make_pair oc Types.pair_ptrs src dst) in
+              BE.make_pair oc Type.pair_ptrs src dst) in
         let src, dst =
           desser_ transform oc subframes sstate dstate
                   (BE.pair_fst oc src_dst)
                   (BE.pair_snd oc src_dst) in
-        BE.make_pair oc Types.pair_ptrs src dst) in
+        BE.make_pair oc Type.pair_ptrs src dst) in
     let src_dst =
       let from = BE.I32.of_const_int oc 0
       and to_ = BE.i32_of_u32 oc dim in
       BE.loop_repeat oc ~from ~to_ ~loop src_dst in
-    BE.make_pair oc Types.pair_ptrs
+    BE.make_pair oc Type.pair_ptrs
       (Des.vec_cls oc frames dstate (BE.pair_fst oc src_dst))
       (Ser.vec_cls oc frames sstate (BE.pair_snd oc src_dst))
 
@@ -780,25 +798,24 @@ struct
     let spec_transf of_any =
       fun oc frames v -> of_any (transform oc frames (Identifier.to_any v)) in
     let desser_structure = function
-      | Types.TFloat -> dsfloat (spec_transf Identifier.to_float)
-      | Types.TString -> dsstring (spec_transf Identifier.to_string)
-      | Types.TBool -> dsbool (spec_transf Identifier.to_bool)
-      | Types.TChar -> dschar (spec_transf Identifier.to_char)
-      | Types.TI8 -> dsi8 (spec_transf Identifier.to_i8)
-      | Types.TI16 -> dsi16 (spec_transf Identifier.to_i16)
-      | Types.TI32 -> dsi32 (spec_transf Identifier.to_i32)
-      | Types.TI64 -> dsi64 (spec_transf Identifier.to_i64)
-      | Types.TI128 -> dsi128 (spec_transf Identifier.to_i128)
-      | Types.TU8 -> dsu8 (spec_transf Identifier.to_u8)
-      | Types.TU16 -> dsu16 (spec_transf Identifier.to_u16)
-      | Types.TU32 -> dsu32 (spec_transf Identifier.to_u32)
-      | Types.TU64 -> dsu64 (spec_transf Identifier.to_u64)
-      | Types.TU128 -> dsu128 (spec_transf Identifier.to_u128)
-      | Types.TTup typs -> dstup typs transform
-      | Types.TRec typs -> dsrec typs transform
-      | Types.TVec (dim, typ) -> dsvec dim typ transform
-      | Types.TList typ -> dslist typ transform
-      | _ -> assert false
+      | ValueType.TFloat -> dsfloat (spec_transf Identifier.to_float)
+      | ValueType.TString -> dsstring (spec_transf Identifier.to_string)
+      | ValueType.TBool -> dsbool (spec_transf Identifier.to_bool)
+      | ValueType.TChar -> dschar (spec_transf Identifier.to_char)
+      | ValueType.TI8 -> dsi8 (spec_transf Identifier.to_i8)
+      | ValueType.TI16 -> dsi16 (spec_transf Identifier.to_i16)
+      | ValueType.TI32 -> dsi32 (spec_transf Identifier.to_i32)
+      | ValueType.TI64 -> dsi64 (spec_transf Identifier.to_i64)
+      | ValueType.TI128 -> dsi128 (spec_transf Identifier.to_i128)
+      | ValueType.TU8 -> dsu8 (spec_transf Identifier.to_u8)
+      | ValueType.TU16 -> dsu16 (spec_transf Identifier.to_u16)
+      | ValueType.TU32 -> dsu32 (spec_transf Identifier.to_u32)
+      | ValueType.TU64 -> dsu64 (spec_transf Identifier.to_u64)
+      | ValueType.TU128 -> dsu128 (spec_transf Identifier.to_u128)
+      | ValueType.TTup typs -> dstup typs transform
+      | ValueType.TRec typs -> dsrec typs transform
+      | ValueType.TVec (dim, typ) -> dsvec dim typ transform
+      | ValueType.TList typ -> dslist typ transform
     in
     fun frames sstate dstate src dst ->
       let typ = (List.hd frames).typ in
@@ -811,7 +828,7 @@ struct
           BE.choose oc ~cond
             (fun oc ->
               let s, d = dsnull oc frames sstate dstate src dst in
-              BE.make_pair oc Types.pair_ptrs s d)
+              BE.make_pair oc Type.pair_ptrs s d)
             (fun oc ->
               let s, d = dsnotnull oc frames sstate dstate src dst in
               desser_structure typ.structure oc frames sstate dstate s d)

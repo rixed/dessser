@@ -4,7 +4,7 @@ open Dessser
 module Des (BE : BACKEND) : DES with module BE = BE =
 struct
   module BE = BE
-  module T = Types
+  module T = Type
 
   type state = unit
   let start _typ _oc p = (), p
@@ -17,15 +17,13 @@ struct
     BE.float_of_qword oc w, p
 
   let read_leb128 oc =
-    let t_pair_u32_u8 = T.(make (TPair (make TU32, make TU8)))
-    and t_byte = T.(make TByte)
-    and t_bool = T.(make TBool) in
+    let t_pair_u32_u8 = T.(TPair (u32, u8)) in
     let cond =
-      BE.function1 oc t_byte t_bool (fun oc b ->
+      BE.function1 oc T.TByte T.bool (fun oc b ->
         BE.comment oc "Condition for read_leb128" ;
         BE.U8.ge oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
     and reduce =
-      BE.function2 oc t_pair_u32_u8 t_byte t_pair_u32_u8
+      BE.function2 oc t_pair_u32_u8 T.TByte t_pair_u32_u8
         (fun oc leb_shft_tup byte ->
           BE.comment oc "Reducer for read_leb128" ;
           let byte =
@@ -164,7 +162,7 @@ end
 module Ser (BE : BACKEND) : SER with module BE = BE =
 struct
   module BE = BE
-  module T = Types
+  module T = Type
 
   type state = unit
   let start _typ _oc p = (), p
@@ -176,9 +174,6 @@ struct
     let w = BE.qword_of_float oc v in
     BE.write_qword oc p w
 
-  let t_u32 = T.(make TU32)
-  let t_bool = T.(make TBool)
-
   (* Note: Reuse the same cond and loop functions from call to call *)
   let write_leb128 oc =
     (* Here, using TSize instead of TU32 would crash at runtime.
@@ -187,10 +182,10 @@ struct
      * This would be easier to unify those types if we used the actual
      * types as type parameters for identifiers: have, say, TU8 Identifier.t
      * instead of [`U8] Identifier. *)
-    let t_ptr_sz = T.(make (TPair (make TPointer, make TU32 (*TSize*)))) in
+    let t_ptr_sz = T.(TPair (TPointer, u32 (*TSize*))) in
     (* loop until wlen is 0: *)
     let cond =
-      BE.function1 oc t_ptr_sz t_bool (fun oc p_wlen ->
+      BE.function1 oc t_ptr_sz T.bool (fun oc p_wlen ->
         BE.comment oc "Condition for write_leb128" ;
         let wlen = BE.pair_snd oc p_wlen in
         BE.U32.(gt oc wlen (of_const_int oc 0)))
@@ -319,9 +314,9 @@ struct
   let ssize_of_vec _oc _frames _ = ConstSize 0
 
   let ssize_of_leb128 oc =
-    let t_pair_u32_u32 = T.(make (TPair (make TU32, make TU32))) in
+    let t_pair_u32_u32 = T.(TPair (u32, u32)) in
     let cond =
-      BE.function1 oc t_pair_u32_u32 t_bool (fun oc lebsz_n ->
+      BE.function1 oc t_pair_u32_u32 T.bool (fun oc lebsz_n ->
         BE.comment oc "Condition for ssize_of_leb128" ;
         let lebsz = BE.pair_fst oc lebsz_n
         and n = BE.pair_snd oc lebsz_n in
@@ -329,7 +324,7 @@ struct
           BE.U32.shift_left oc lebsz (BE.U8.of_const_int oc 7) in
         BE.U32.ge oc n max_len_for_lebsz)
     and loop =
-      BE.function1 oc t_u32 t_u32 (fun oc lebsz_n ->
+      BE.function1 oc T.u32 T.u32 (fun oc lebsz_n ->
         BE.comment oc "Loop for ssize_of_leb128" ;
         let lebsz = BE.pair_fst oc lebsz_n
         and n = BE.pair_snd oc lebsz_n in

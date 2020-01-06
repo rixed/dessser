@@ -15,45 +15,43 @@ type output =
     (* type names and declarations: *)
     mutable type_decls : (string * string) list }
 
-let rec c_type_of_scalar typ =
-  let open Types in
-  match typ.structure with
-  | TFloat -> "double"
-  | TString -> "std::string"
-  | TBool -> "bool"
-  | TChar -> "char"
-  | TI8 -> "int8_t"
-  | TU8 -> "uint8_t"
-  | TI16 -> "int16_t"
-  | TU16 -> "uint16_t"
-  | TI32 -> "int32_t"
-  | TU32 -> "uint32_t"
-  | TI64 -> "int64_t"
-  | TU64 -> "uint64_t"
-  | TI128 -> "int128_t"
-  | TU128 -> "uint128_t"
+let rec c_type_of_scalar = function
+  | Type.TValue ValueType.{ structure = TFloat ; _ } -> "double"
+  | Type.TValue ValueType.{ structure = TString ; _ } -> "std::string"
+  | Type.TValue ValueType.{ structure = TBool ; _ } -> "bool"
+  | Type.TValue ValueType.{ structure = TChar ; _ } -> "char"
+  | Type.TValue ValueType.{ structure = TI8 ; _ } -> "int8_t"
+  | Type.TValue ValueType.{ structure = TU8 ; _ } -> "uint8_t"
+  | Type.TValue ValueType.{ structure = TI16 ; _ } -> "int16_t"
+  | Type.TValue ValueType.{ structure = TU16 ; _ } -> "uint16_t"
+  | Type.TValue ValueType.{ structure = TI32 ; _ } -> "int32_t"
+  | Type.TValue ValueType.{ structure = TU32 ; _ } -> "uint32_t"
+  | Type.TValue ValueType.{ structure = TI64 ; _ } -> "int64_t"
+  | Type.TValue ValueType.{ structure = TU64 ; _ } -> "uint64_t"
+  | Type.TValue ValueType.{ structure = TI128 ; _ } -> "int128_t"
+  | Type.TValue ValueType.{ structure = TU128 ; _ } -> "uint128_t"
   (* Not scalars: *)
-  | TTup _
-  | TRec _
-  | TPair _ -> assert false
+  | Type.TValue ValueType.{ structure = (TTup _ | TRec _) ; _ }
+  | Type.TPair _ ->
+      assert false
   (* Treated as a scalar here: *)
-  | TVec (dim, typ) ->
-      Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar typ)
-  | TList typ ->
-      Printf.sprintf "List<%s>" (c_type_of_scalar typ)
+  | Type.TValue ValueType.{ structure = TVec (dim, typ) ; _ } ->
+      Printf.sprintf "Vec<%d, %s>" dim (c_type_of_scalar (Type.TValue typ))
+  | Type.TValue ValueType.{ structure = TList typ ; _ } ->
+      Printf.sprintf "List<%s>" (c_type_of_scalar (Type.TValue typ))
   (* The caller does not know if it's a pointer used for reading/writing bytes
-   * or setting/getting subfields, which is a good thing as it allow to
+   * or setting/getting subfields, which is a good thing as it allows to
    * combine freely actual serializers and value "reifiers".
    * So here both types of pointer should be allowed.  *)
-  | TPointer -> "Pointer"
-  | TSize -> "Size"
-  | TBit -> "bool"
-  | TByte -> "uint8_t"
-  | TWord -> "uint16_t"
-  | TDWord -> "uint32_t"
-  | TQWord -> "uint64_t"
-  | TOWord -> "uint128_t"
-  | TBytes -> "Bytes"
+  | Type.TPointer -> "Pointer"
+  | Type.TSize -> "Size"
+  | Type.TBit -> "bool"
+  | Type.TByte -> "uint8_t"
+  | Type.TWord -> "uint16_t"
+  | Type.TDWord -> "uint32_t"
+  | Type.TQWord -> "uint64_t"
+  | Type.TOWord -> "uint128_t"
+  | Type.TBytes -> "Bytes"
 
 let ignore oc id =
   Printf.fprintf oc.code "%s(void)%a;\n" oc.indent
@@ -69,16 +67,16 @@ let dump oc lst =
 (* TODO: *)
 let make_valid_identifier s = s
 
-(* Returns the name and typ of that subfield: *)
-let subfield_info typ idx =
-  match typ.Types.structure with
-  | Types.TTup typs ->
+(* Returns the name and valuetype of that subfield of the given valuetype: *)
+let subfield_info vtyp idx =
+  match vtyp.ValueType.structure with
+  | ValueType.TTup typs ->
       "field_"^ string_of_int idx,
       typs.(idx)
-  | Types.TRec typs ->
+  | ValueType.TRec typs ->
       make_valid_identifier (fst typs.(idx)),
       snd typs.(idx)
-  | Types.TVec (dim, typ) ->
+  | ValueType.TVec (dim, typ) ->
       assert (idx < dim) ;
       "["^ string_of_int idx ^"]",
       typ
@@ -90,24 +88,24 @@ let rec declare_type oc id typ =
   (* Beware that we might need to print recursively into oc.decl before
    * we are ready to print this one *)
   let s = IO.output_string () in
-  let print_record typs =
+  let print_record vtyp vsubtyps =
     Printf.fprintf s "struct %s {\n" id ;
     Array.iteri (fun i subtyp ->
-      let typ_id = find_or_declare_type oc subtyp in
-      let fname, subtyp = subfield_info typ i in
-      if subtyp.Types.nullable then
+      let typ_id = find_or_declare_type oc (Type.TValue subtyp) in
+      let fname, subtyp = subfield_info vtyp i in
+      if subtyp.ValueType.nullable then
         Printf.fprintf s "  std::optional<%s> %s;\n" typ_id fname
       else
         Printf.fprintf s "  %s %s;\n" typ_id fname
-    ) typs ;
+    ) vsubtyps ;
     Printf.fprintf s "};\n\n"
   in
-  (match typ.Types.structure with
-  | Types.TTup typs ->
-      print_record typs
-  | Types.TRec typs ->
-      print_record (Array.map snd typs)
-  | Types.TPair (t1, t2) ->
+  (match typ with
+  | Type.TValue (ValueType.{ structure = TTup vsubtyps ; _ } as vtyp) ->
+      print_record vtyp vsubtyps
+  | Type.TValue (ValueType.{ structure = TRec vsubtyps ; _ } as vtyp) ->
+      print_record vtyp (Array.map snd vsubtyps)
+  | Type.TPair (t1, t2) ->
       Printf.fprintf s "typedef std::pair<%s, %s> %s;\n\n"
         (find_or_declare_type oc t1)
         (find_or_declare_type oc t2)
@@ -127,10 +125,10 @@ and find_or_declare_type oc typ =
       declare_type oc uniq_id typ ;
       uniq_id
     in
-    match typ.Types.structure with
-    | Types.TTup _
-    | Types.TRec _
-    | Types.TPair _ ->
+    match typ with
+    | Type.TValue ValueType.{ structure = TTup _ ; _ }
+    | Type.TValue ValueType.{ structure = TRec _ ; _ }
+    | Type.TPair _ ->
         do_decl ()
     | _ ->
         c_type_of_scalar typ
@@ -392,8 +390,8 @@ let emit_auto oc p =
 
 let emit_pair t1 t2 oc p =
   let id = Identifier.pair () in
-  let tname1 = find_or_declare_type oc Types.(make t1) in
-  let tname2 = find_or_declare_type oc Types.(make t2) in
+  let tname1 = find_or_declare_type oc t1 in
+  let tname2 = find_or_declare_type oc t2 in
   Printf.fprintf oc.code "%sstd::pair<%s, %s> %a(%t);\n" oc.indent
     tname1 tname2 Identifier.print id p ;
   Identifier.(modify "" id ".first" |> of_any t1),
@@ -1026,7 +1024,8 @@ let loop_repeat oc ~from ~to_ ~loop v0 =
 
 (* For heap allocated values, all subtypes are unboxed so we can perform a
  * single allocation. *)
-let alloc_value oc typ =
+let alloc_value oc vtyp =
+  let typ = Type.TValue vtyp in
   oc.value_typname <- find_or_declare_type oc typ ;
   emit_pointer oc (fun oc' ->
     (* Build the shared_ptr here that the type is known: *)
@@ -1052,14 +1051,14 @@ let id_of_path oc frames (p : [`Pointer] id) =
     | top :: (parent :: _ as rest) ->
         (* Dereference parent: *)
         let accessor =
-          match parent.typ.Types.structure with
-          | Types.TTup _ -> "."
-          | Types.TRec _ -> "."
-          | Types.TVec _ -> ""
+          match parent.typ.ValueType.structure with
+          | ValueType.TTup _ -> "."
+          | ValueType.TRec _ -> "."
+          | ValueType.TVec _ -> ""
           | _ -> assert false in
         let subfield = subfield_name parent.typ top.index in
         let denullify =
-          if parent.typ.Types.nullable then ".value()" else "" in
+          if parent.typ.ValueType.nullable then ".value()" else "" in
         (loop rest) ^ denullify ^ accessor ^ subfield
   in
   loop frames
