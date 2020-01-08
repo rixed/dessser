@@ -75,7 +75,7 @@ let dump oc lst =
     Printf.fprintf oc.code "%sprint_string %a;\n" oc.indent
       Identifier.print id
   ) lst ;
-  Printf.fprintf oc.code "%sprint_newline ();" oc.indent
+  Printf.fprintf oc.code "%sprint_newline ();\n" oc.indent
 
 (* TODO: *)
 let make_valid_identifier s = s
