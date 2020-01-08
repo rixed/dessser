@@ -98,6 +98,10 @@ struct
     | TBit | TByte | TWord | TDWord | TQWord | TOWord | TBytes
     (* Used only at the meta-level: *)
     | TPair of t * t
+    | TFunction0 of (* result: *) t
+    | TFunction1 of t * (* result: *) t
+    | TFunction2 of t * t * (* result: *) t
+    | TFunction3 of t * t * t * (* result: *) t
 
   let rec print oc = function
     | TValue vt -> ValueType.print oc vt
@@ -114,6 +118,14 @@ struct
         Printf.fprintf oc "Pair(%a, %a)"
           print t1
           print t2
+    | TFunction0 (t1) ->
+        Printf.fprintf oc "(unit->%a)" print t1
+    | TFunction1 (t1, t2) ->
+        Printf.fprintf oc "(%a->%a)" print t1 print t2
+    | TFunction2 (t1, t2, t3) ->
+        Printf.fprintf oc "(%a->%a->%a)" print t1 print t2 print t3
+    | TFunction3 (t1, t2, t3, t4) ->
+        Printf.fprintf oc "(%a->%a->%a->%a)" print t1 print t2 print t3 print t4
 
   (* Many return values have the type of a pair or src*dst pointers: *)
   let pair_ptrs = TPair (TPointer, TPointer)
@@ -163,8 +175,8 @@ module Identifier :
     (* FunctionX * param1 * param2 * ... * returned type *)
     val func0 : unit -> ([`Function0] * 'a) t
     val func1 : 'a t -> 'b t -> ([`Function1] * 'a * 'b) t
-    val func2 : unit -> ([`Function2] * 'a * 'b * 'c) t
-    val func3 : unit -> ([`Function3] * 'a * 'b * 'c * 'd) t
+    val func2 : 'a t -> 'b t -> 'c t -> ([`Function2] * 'a * 'b * 'c) t
+    val func3 : 'a t -> 'b t -> 'c t -> 'd t -> ([`Function3] * 'a * 'b * 'c * 'd) t
     val param : int -> unit -> 'a t
 
     val any : Type.t -> 'a t
@@ -243,41 +255,16 @@ struct
   let pair = make "pair"
   let auto = make "auto"
   let func0 = make "func0"
-  let func1 : 'a t -> 'a t -> ([`Function1] * 'a * 'b) t =
+  let func1 : 'a t -> 'b t -> ([`Function1] * 'a * 'b) t =
     let maker = make "func1" in
     fun _ _ -> maker ()
-  let func2 = make "func2"
-  let func3 = make "func3"
+  let func2 : 'a t -> 'b t -> 'c t -> ([`Function2] * 'a * 'b * 'c) t =
+    let maker = make "func2" in
+    fun _ _ _ -> maker ()
+  let func3 : 'a t -> 'b t -> 'c t -> 'd t -> ([`Function3] * 'a * 'b * 'c * 'd) t =
+    let maker = make "func3" in
+    fun _ _ _ _ -> maker ()
   let param n = make ("param"^ string_of_int n)
-  let any = function
-    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> float ()
-    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> string ()
-    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> bool ()
-    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> char ()
-    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> u8 ()
-    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> u16 ()
-    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> u32 ()
-    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> u64 ()
-    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> u128 ()
-    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> i8 ()
-    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> i16 ()
-    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> i32 ()
-    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> i64 ()
-    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> i128 ()
-    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> vector ()
-    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> list ()
-    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> tuple ()
-    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> record ()
-    | Type.TPointer -> pointer ()
-    | Type.TSize -> size ()
-    | Type.TBit -> bit ()
-    | Type.TByte -> byte ()
-    | Type.TWord -> word ()
-    | Type.TDWord -> dword ()
-    | Type.TQWord -> qword ()
-    | Type.TOWord -> oword ()
-    | Type.TBytes -> bytes ()
-    | Type.TPair _ -> pair ()
 
   let to_float s = s
   let to_string s = s
@@ -308,6 +295,8 @@ struct
   let to_bytes s = s
 
   let to_any s = s
+  let of_string s = s
+
   let of_any t s =
     match t with
     | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> to_float s
@@ -337,9 +326,49 @@ struct
     | Type.TQWord -> to_qWord s
     | Type.TOWord -> to_oWord s
     | Type.TBytes -> to_bytes s
-    | Type.TPair _ -> assert false (* get rid of Any! *)
+    | Type.TPair _
+    | Type.TFunction0  _
+    | Type.TFunction1  _
+    | Type.TFunction2  _
+    | Type.TFunction3  _ -> assert false (* get rid of Any! *)
 
-  let of_string s = s
+  let any = function
+    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> float ()
+    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> string ()
+    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> bool ()
+    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> char ()
+    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> u8 ()
+    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> u16 ()
+    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> u32 ()
+    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> u64 ()
+    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> u128 ()
+    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> i8 ()
+    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> i16 ()
+    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> i32 ()
+    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> i64 ()
+    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> i128 ()
+    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> vector ()
+    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> list ()
+    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> tuple ()
+    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> record ()
+    | Type.TPointer -> pointer ()
+    | Type.TSize -> size ()
+    | Type.TBit -> bit ()
+    | Type.TByte -> byte ()
+    | Type.TWord -> word ()
+    | Type.TDWord -> dword ()
+    | Type.TQWord -> qword ()
+    | Type.TOWord -> oword ()
+    | Type.TBytes -> bytes ()
+    | Type.TPair _ -> pair ()
+    | Type.TFunction0 _ -> func0 ()
+    | Type.TFunction1 (t1, t2) ->
+        (* Only cares about the type of identifier not its name: *)
+        func1 (of_any t1 "a") (of_any t2 "b")
+    | Type.TFunction2 (t1, t2, t3) ->
+        func2 (of_any t1 "a") (of_any t2 "b") (of_any t3 "c")
+    | Type.TFunction3 (t1, t2, t3, t4) ->
+        func3 (of_any t1 "a") (of_any t2 "b") (of_any t3 "c") (of_any t4 "d")
 
   let print : 'a BatIO.output -> 'b t -> unit = String.print
 

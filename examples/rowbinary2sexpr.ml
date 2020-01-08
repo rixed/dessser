@@ -24,7 +24,8 @@ let () =
     if Pointer.remSize src <= 0 then src else
       let sz = 1024 in
       let dst = Pointer.make sz in
-      let src, dst = Example.func2_0 src dst in
+      (* FIXME: do not guess the name of that entry point *)
+      let src, dst = Example.func2_8 src dst in
       let b, o, l = dst in
       assert (o < l) ;
       String.print stdout (Bytes.sub_string b 0 o) ;

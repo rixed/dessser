@@ -38,7 +38,11 @@ let rec ml_type_of_scalar = function
   | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> "Uint128.t"
   (* Not scalars: *)
   | Type.TValue ValueType.(NotNullable (TTup _ | TRec _) | Nullable (TTup _ | TRec _))
-  | Type.TPair _ ->
+  | Type.TPair _
+  | Type.TFunction0 _
+  | Type.TFunction1 _
+  | Type.TFunction2 _
+  | Type.TFunction3 _ ->
       assert false
   (* Treated as a scalar here: *)
   | Type.TValue ValueType.(NotNullable TVec (_dim, typ) | Nullable TVec (_dim, typ)) ->
@@ -208,7 +212,6 @@ let function1 oc in_typ0 out_typ p =
   fun_id
 
 let function2 oc in_typ0 in_typ1 out_typ p =
-  let fun_id = Identifier.func2 () in
   let out_tname = find_or_declare_type oc out_typ in
   let in_tname0 = find_or_declare_type oc in_typ0 in
   let in_tname1 = find_or_declare_type oc in_typ1 in
@@ -218,6 +221,7 @@ let function2 oc in_typ0 in_typ1 out_typ p =
   oc.code <- IO.output_string () ;
   oc.indent <- "  " ;
   let res_id = p oc param0 param1 in
+  let fun_id = Identifier.func2 param0 param1 res_id in
   let str =
     Printf.sprintf2 "let %a (%a : %s) (%a : %s) : %s =\n%s%s%a\n"
       Identifier.print fun_id
@@ -1130,7 +1134,8 @@ let rec print_default_value indent oc typ =
         (print_default_value indent) t1
         (print_default_value indent) t2
   | Type.TPointer | Type.TSize | Type.TBit | Type.TByte | Type.TWord
-  | Type.TDWord | Type.TQWord | Type.TOWord | Type.TBytes ->
+  | Type.TDWord | Type.TQWord | Type.TOWord | Type.TBytes
+  | Type.TFunction0 _ | Type.TFunction1 _ | Type.TFunction2 _ | Type.TFunction3 _ ->
       assert false
 
 (* For heap allocated values, all subtypes are unboxed so we can perform a
