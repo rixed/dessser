@@ -1,137 +1,97 @@
 open Stdint
 open Dessser
 
-module Ser (BE : BACKEND) : SER with module BE = BE =
+module Ser : SER =
 struct
-  module BE = BE
 
   type state = unit
-  let start _typ _oc p = (), p
-  let stop _oc () p = p
+  let ptr _vtyp = dataptr
 
-  type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
+  let start _v p = (), p
+  let stop () p = p
 
-  let sfloat oc _frames () v p =
-    let str = BE.string_of_float oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  type ser = state -> e -> e -> e
 
-  let byte_of_char oc c =
-    BE.U8.(to_byte oc (of_const_int oc (Char.code c)))
+  open Expression
 
-  let sstring oc _frames () v p =
-    let quo = byte_of_char oc '"' in
-    let p = BE.write_byte oc p quo in
-    let v = BE.bytes_of_string oc v in
-    let p = BE.write_bytes oc p v in
-    BE.write_byte oc p quo
+  let sfloat () v p =
+    WriteBytes (p, BytesOfString (StringOfFloat v))
 
-  let sbool oc _frames () v p =
-    let byte =
-      BE.choose oc ~cond:v
-        (fun oc -> byte_of_char oc 'T')
-        (fun oc -> byte_of_char oc 'F') in
-    BE.write_byte oc p byte
+  let byte_of_char c =
+    ByteOfU8 (U8OfChar (Char c))
 
-  let si8 oc _frames () v p =
-    let str = BE.I8.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  let sstring () v p =
+    let quo = byte_of_char '"' in
+    let p = WriteByte (p, quo) in
+    let v = BytesOfString v in
+    let p = WriteBytes (p, v) in
+    WriteByte (p, quo)
 
-  let si16 oc _frames () v p =
-    let str = BE.I16.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  let sbool () v p =
+    WriteByte (p, Choose (v, byte_of_char 'T', byte_of_char 'F'))
 
-  let si32 oc _frames () v p =
-    let str = BE.I32.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  let si () v p =
+    WriteBytes (p, BytesOfString (StringOfInt v))
 
-  let si64 oc _frames () v p =
-    let str = BE.I64.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  let si8 = si
+  let si16 = si
+  let si32 = si
+  let si64 = si
+  let si128 = si
+  let su8 = si
+  let su16 = si
+  let su32 = si
+  let su64 = si
+  let su128 = si
 
-  let si128 oc _frames () v p =
-    let str = BE.I128.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
-
-  let schar oc _frames () v p =
-    let b = BE.byte_of_char oc v in
-    BE.write_byte oc p b
-
-  let su8 oc _frames () v p =
-    let str = BE.U8.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
-
-  let su16 oc _frames () v p =
-    let str = BE.U16.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
-
-  let su32 oc _frames () v p =
-    let str = BE.U32.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
-
-  let su64 oc _frames () v p =
-    let str = BE.U64.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
-
-  let su128 oc _frames () v p =
-    let str = BE.U128.to_string oc v in
-    let bytes = BE.bytes_of_string oc str in
-    BE.write_bytes oc p bytes
+  let schar () v p =
+    WriteByte (p, ByteOfU8 (U8OfChar v))
 
   (* Could also write the field names with the value in a pair... *)
-  let tup_opn oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc '(')
+  let tup_opn () _ p =
+    WriteByte (p, byte_of_char '(')
 
-  let tup_cls oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ')')
+  let tup_cls () p =
+    WriteByte (p, byte_of_char ')')
 
-  let tup_sep _idx oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ' ')
+  let tup_sep _idx () p =
+    WriteByte (p, byte_of_char ' ')
 
-  let rec_opn oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc '(')
+  let rec_opn () _ p =
+    WriteByte (p, byte_of_char '(')
 
-  let rec_cls oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ')')
+  let rec_cls () p =
+    WriteByte (p, byte_of_char ')')
 
-  let rec_sep _idx oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ' ')
+  let rec_sep _idx () p =
+    WriteByte (p, byte_of_char ' ')
 
-  let vec_opn oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc '[')
+  let vec_opn () _ _ p =
+    WriteByte (p, byte_of_char '[')
 
-  let vec_cls oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ']')
+  let vec_cls () p =
+    WriteByte (p, byte_of_char ']')
 
-  let vec_sep _n oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ' ')
+  let vec_sep _n () p =
+    WriteByte (p, byte_of_char ' ')
 
-  let list_opn oc _frames () _n p =
-    BE.write_byte oc p (byte_of_char oc '[')
+  let list_opn () _ _n p =
+    WriteByte (p, byte_of_char '[')
 
-  let list_cls oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ']')
+  let list_cls () p =
+    WriteByte (p, byte_of_char ']')
 
-  let list_sep oc _frames () p =
-    BE.write_byte oc p (byte_of_char oc ' ')
+  let list_sep () p =
+    WriteByte (p, byte_of_char ' ')
 
-  let nullable _oc _frames () p = p
-  let snull oc _frames () p =
-    let null = BE.dword_of_const oc (Uint32.of_int32 0x6c_6c_75_6el) in
-    BE.write_dword oc p null
+  let nullable () p = p
 
-  let snotnull _oc _frames () p = p
+  let snull _t () p =
+    WriteDWord (LittleEndian, p, DWord (Uint32.of_int32 0x6c_6c_75_6el))
 
-  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  let snotnull _t () p = p
+
+  type ssizer = vtyp -> path -> e -> ssize
   let todo_ssize () = failwith "TODO: ssize for SExpr"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()

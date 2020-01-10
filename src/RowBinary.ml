@@ -1,360 +1,289 @@
 open Batteries
+open Stdint
 open Dessser
 
-module Des (BE : BACKEND) : DES with module BE = BE =
+module Des : DES =
 struct
-  module BE = BE
-  module T = Type
-
   type state = unit
-  let start _typ _oc p = (), p
-  let stop _oc () p = p
+  let ptr _vtyp = dataptr
 
-  type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
+  let start _vtyp p = (), p
+  let stop () p = p
+  type des = state -> e -> e
 
-  let dfloat oc _frames () p =
-    let w, p = BE.read_qword oc p in
-    BE.float_of_qword oc w, p
+  open Expression
 
-  let read_leb128 oc =
-    let t_pair_u32_u8 = T.(TPair (u32, u8)) in
-    let cond =
-      BE.function1 oc T.TByte T.bool (fun oc b ->
-        BE.comment oc "Condition for read_leb128" ;
-        BE.U8.ge oc (BE.U8.of_byte oc b) (BE.U8.of_const_int oc 128))
-    and reduce =
-      BE.function2 oc t_pair_u32_u8 T.TByte t_pair_u32_u8
-        (fun oc leb_shft_tup byte ->
-          BE.comment oc "Reducer for read_leb128" ;
-          let byte =
-            let c127 = BE.U8.of_const_int oc 127 in
-            BE.U8.(to_byte oc (log_and oc (of_byte oc byte) c127)) in
-          let leb = Identifier.to_u32 (BE.pair_fst oc leb_shft_tup)
-          and shft = Identifier.to_u8 (BE.pair_snd oc leb_shft_tup) in
-          BE.make_pair oc t_pair_u32_u8
-            (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc byte) shft) leb)
-            (BE.U8.add oc shft (BE.U8.of_const_int oc 7))) in
-    fun p ->
-      let u32_zero = BE.U32.of_const_int oc 0
-      and u8_zero = BE.U8.of_const_int oc 0 in
-      let init =
-        BE.make_pair oc t_pair_u32_u8 u32_zero u8_zero in
-      let leb_shft_tup, p = BE.read_while oc ~cond ~reduce init p in
+  let dfloat () p =
+    let w_p = ReadQWord (LittleEndian, p) in
+    MapPair (w_p,
+      func [qword; dataptr] (fun fid ->
+        Pair (FloatOfQWord (Param (fid, 0)), (Param (fid, 1)))))
+
+  let read_leb128 p =
+    let t_u32_u8 = Type.Pair (u32, u8) in
+    Let (
+      "leb_shft_ptr", ReadWhile (
+        Comment ("Condition for read_leb128",
+          func [byte] (fun fid -> Ge (Param (fid, 0), Byte 128))),
+        Comment ("Reducer for read_leb128",
+          func [t_u32_u8; byte] (fun fid ->
+            let byte = LogAnd (U8OfByte (Param (fid, 1)), U8 127) in
+            let leb = Fst (Param (fid, 0))
+            and shft = Snd (Param (fid, 0)) in
+            Pair (Add (LeftShift (ToU32 byte, shft), leb),
+                  Add (shft, U8 7)))),
+        Pair (U32 Uint32.zero, U8 0),
+        p),
       (* Still have to add the last byte (which is <128): *)
-      let last_b, p = BE.read_byte oc p in
-      let leb = BE.pair_fst oc leb_shft_tup
-      and shft = BE.pair_snd oc leb_shft_tup in
-      BE.size_of_u32 oc (BE.U32.add oc (BE.U32.shift_left oc (BE.U32.of_byte oc last_b) shft) leb),
-      p
+      Comment ("Last byte from read_leb128",
+        with_sploded_pair "leb128" (Identifier "leb_shft_ptr") (fun leb_shft ptr ->
+          with_sploded_pair "leb128" (ReadByte ptr) (fun last_b ptr ->
+            Pair (
+              SizeOfU32 (Add (LeftShift (ToU32 (U8OfByte last_b),
+                                        (Snd leb_shft)),
+                              Fst leb_shft)),
+              ptr)))))
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
    * a size, and deserialize a RowBinary tuple into a non-nullable value of
    * TTup type: *)
   let des typ = ignore typ
 
-  let dstring oc =
-    let read_leb128 = read_leb128 oc in
-    fun _frames () p ->
-      let len, p = read_leb128 p in
-      let bs, p = BE.read_bytes oc p len in
-      BE.string_of_bytes oc bs,
-      p
+  let dstring () p =
+    with_sploded_pair "dstring" (read_leb128 p) (fun len p ->
+      with_sploded_pair "dstring" (ReadBytes (p, len)) (fun bs p ->
+        Pair (StringOfBytes bs, p)))
 
-  let dbool oc _frames () p =
-    let b, p = BE.read_byte oc p in
-    BE.(bool_not oc U8.(eq oc (of_byte oc b) (of_const_int oc 0))),
-    p
+  let dbool () p =
+    with_sploded_pair "dbool" (ReadByte p) (fun b p ->
+      Pair (Not (Eq (U8OfByte b, U8 0)), p))
 
-  let dchar oc _frames () p =
-    let b, p = BE.read_byte oc p in
-    BE.char_of_byte oc b,
-    p
+  let dchar () p =
+    with_sploded_pair "dchar" (ReadByte p) (fun b p ->
+      Pair (CharOfU8 (U8OfByte b), p))
 
-  let di8 oc _frames () p =
-    let b, p = BE.read_byte oc p in
-    BE.I8.of_byte oc b,
-    p
+  let di8 () p =
+    with_sploded_pair "di8" (ReadByte p) (fun b p ->
+      Pair (ToI8 (U8OfByte b), p))
 
-  let du8 oc _frames () p =
-    let b, p = BE.read_byte oc p in
-    BE.U8.of_byte oc b,
-    p
+  let du8 () p =
+    with_sploded_pair "du8" (ReadByte p) (fun b p ->
+      Pair (U8OfByte b, p))
 
-  let di16 oc _frames () p =
-    let w, p = BE.read_word oc p in
-    BE.I16.of_word oc w,
-    p
+  let di16 () p =
+    with_sploded_pair "di16" (ReadWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI16 (U16OfWord w), p))
 
-  let du16 oc _frames () p =
-    let w, p = BE.read_word oc p in
-    BE.U16.of_word oc w,
-    p
+  let du16 () p =
+    with_sploded_pair "du16" (ReadWord (LittleEndian, p)) (fun w p ->
+      Pair (U16OfWord w, p))
 
-  let di32 oc _frames () p =
-    let w, p = BE.read_dword oc p in
-    BE.I32.of_dword oc w,
-    p
+  let di32 () p =
+    with_sploded_pair "di32" (ReadDWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI32 (U32OfDWord w), p))
 
-  let du32 oc _frames () p =
-    let w, p = BE.read_dword oc p in
-    BE.U32.of_dword oc w,
-    p
+  let du32 () p =
+    with_sploded_pair "du32" (ReadDWord (LittleEndian, p)) (fun w p ->
+      Pair (U32OfDWord w, p))
 
-  let di64 oc _frames () p =
-    let w, p = BE.read_qword oc p in
-    BE.I64.of_qword oc w,
-    p
+  let di64 () p =
+    with_sploded_pair "di64" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI64 (U64OfQWord w), p))
 
-  let du64 oc _frames () p =
-    let w, p = BE.read_qword oc p in
-    BE.U64.of_qword oc w,
-    p
+  let du64 () p =
+    with_sploded_pair "du64" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (U64OfQWord w, p))
 
-  let di128 oc _frames () p =
-    let w, p = BE.read_oword oc p in
-    BE.I128.of_oword oc w,
-    p
+  let di128 () p =
+    with_sploded_pair "di128" (ReadOWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI128 (U128OfOWord w), p))
 
-  let du128 oc _frames () p =
-    let w, p = BE.read_oword oc p in
-    BE.U128.of_oword oc w,
-    p
+  let du128 () p =
+    with_sploded_pair "di128" (ReadOWord (LittleEndian, p)) (fun w p ->
+      Pair (U128OfOWord w, p))
 
   (* Items of a tuples are just concatenated together: *)
-  let tup_opn _oc _frames () p = p
-  let tup_cls _oc _frames () p = p
-  let tup_sep _n _oc _frames () p = p
+  let tup_opn () _ p = p
+  let tup_cls () p = p
+  let tup_sep _n () p = p
 
-  let rec_opn _oc _frames () p = p
-  let rec_cls _oc _frames () p = p
-  let rec_sep _n _oc _frames () p = p
+  let rec_opn () _ p = p
+  let rec_cls () p = p
+  let rec_sep _n () p = p
 
   (* Vectors: ClickHouse does not distinguish between vectors (of known
    * dimension) and lists (of variable length). But it has varchars, which
    * are close to our vectors, and that come without any length on the wire.
    * So we assume vectors are not prefixed by any length, and our lists are
    * what ClickHouse refers to as arrays. *)
-  let vec_opn _oc _frames () p = p
-  let vec_cls _oc _frames () p = p
-  let vec_sep _n _oc _frames () p = p
+  let vec_opn () _ _ p = p
+  let vec_cls () p = p
+  let vec_sep _n () p = p
 
-  let list_opn oc _frames () p =
-    let dim, p = read_leb128 oc p in
-    BE.u32_of_size oc dim, p
+  let list_opn () _ p =
+    with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
+      Pair (U32OfSize dim, p))
 
-  let list_cls _oc _frames () p = p
-  let list_sep _oc _frames () p = p
+  let list_cls () p = p
+  let list_sep () p = p
 
   (* "For NULL support, an additional byte containing 1 or 0 is added before
    * each Nullable value. If 1, then the value is NULL and this byte is
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
-  let is_null oc _frames () p =
-    let b = BE.peek_byte oc p in
-    BE.U8.(eq oc (of_byte oc b) (of_const_int oc 1))
+  let is_null () p =
+    Eq (PeekByte (p, Size 0), Byte 1)
 
-  let dnull oc _frames () p =
-    BE.pointer_add oc p (BE.size_of_const oc 1)
+  let dnull _t () p =
+    DataPtrAdd (p, Size 1)
 
   let dnotnull = dnull
 end
 
-module Ser (BE : BACKEND) : SER with module BE = BE =
+module Ser : SER =
 struct
-  module BE = BE
-  module T = Type
-
   type state = unit
-  let start _typ _oc p = (), p
-  let stop _oc () p = p
+  let ptr _vtyp = dataptr
 
-  type 'a ser = BE.output -> frame list -> state -> 'a ->  [`Pointer] id -> [`Pointer] id
+  let start _vtyp p = (), p
+  let stop () p = p
+  type ser = state -> e -> e -> e
 
-  let sfloat oc _frames () v p =
-    let w = BE.qword_of_float oc v in
-    BE.write_qword oc p w
+  open Expression
 
-  (* Note: Reuse the same cond and loop functions from call to call *)
-  let write_leb128 oc =
-    (* Here, using TSize instead of TU32 would crash at runtime.
-     * There is actually no connection between this type t_ptr_sz et the
-     * parameters used by make_pair.
-     * This would be easier to unify those types if we used the actual
-     * types as type parameters for identifiers: have, say, TU8 Identifier.t
-     * instead of [`U8] Identifier. *)
-    let t_ptr_sz = T.(TPair (TPointer, u32 (*TSize*))) in
-    (* loop until wlen is 0: *)
-    let cond =
-      BE.function1 oc t_ptr_sz T.bool (fun oc p_wlen ->
-        BE.comment oc "Condition for write_leb128" ;
-        let wlen = BE.pair_snd oc p_wlen in
-        BE.U32.(gt oc wlen (of_const_int oc 0)))
-    and loop =
-      BE.function1 oc t_ptr_sz t_ptr_sz (fun oc p_wlen ->
-        BE.comment oc "Loop for write_leb128" ;
-        let p = BE.pair_fst oc p_wlen
-        and wlen = BE.pair_snd oc p_wlen in
-        let is_last = BE.U32.(gt oc (of_const_int oc 128) wlen) in
-        let b = BE.U32.to_u8 oc wlen in
-        let b =
-          BE.choose oc is_last
-            (fun oc -> BE.U8.(log_and oc b (of_const_int oc 127)))
-            (fun oc -> BE.U8.(log_or oc b (of_const_int oc 128))) in
-        let p = BE.(write_byte oc p (U8.to_byte oc b)) in
-        let wlen = BE.(U32.shift_right oc wlen (U8.of_const_int oc 7)) in
-        BE.make_pair oc t_ptr_sz p wlen) in
-    fun p v ->
-      let wlen = BE.u32_of_size oc v in
-      let p_wlen = BE.make_pair oc t_ptr_sz p wlen in
-      let p_wlen = BE.loop_until oc ~loop ~cond p_wlen in
-      BE.pair_fst oc p_wlen
+  let sfloat () v p =
+    WriteQWord (LittleEndian, p, QWordOfFloat v)
 
-  let sstring oc =
-    let write_leb128 = write_leb128 oc in
-    fun _frames () v p ->
-      let len = BE.length_of_string oc v in
-      let p = write_leb128 p len in
-      let v = BE.bytes_of_string oc v in
-      BE.write_bytes oc p v
+  let write_leb128 p v =
+    let t_ptr_sz = Type.(Pair (DataPtr, u32)) in
+    Fst (
+      LoopUntil (
+        Comment ("Loop body for write_leb128",
+          func [t_ptr_sz] (fun fid ->
+            with_sploded_pair "write_leb128" (Param (fid, 0)) (fun p wlen ->
+              let b =
+                Choose (Gt (U32 (Uint32.of_int 128), wlen),
+                  LogAnd (ToU8 wlen, U8 127),
+                  LogOr (ToU8 wlen, U8 128)) in
+              Pair (
+                WriteByte (p, b),
+                RightShift (wlen, U8 7))))),
+        Comment ("Condition for write_leb128 (until wlen is 0)",
+          func [t_ptr_sz] (fun fid -> Gt (Snd (Param (fid, 0)), U32 Uint32.zero))),
+        Pair (p, U32OfSize v)))
 
-  let sbool oc _frames () v p =
-    let u8 = BE.u8_of_bool oc v in
-    let b = BE.byte_of_u8 oc u8 in
-    BE.write_byte oc p b
+  let sstring () v p =
+    let p = write_leb128 p (StringLength v) in
+    WriteBytes (p, BytesOfString v)
 
-  let schar oc _frames () v p =
-    let b = BE.byte_of_char oc v in
-    BE.write_byte oc p b
+  let sbool () v p =
+    WriteByte (p, ByteOfU8 (U8OfBool v))
 
-  let si8 oc _frames () v p =
-    let b = BE.I8.to_byte oc v in
-    BE.write_byte oc p b
+  let schar () v p =
+    WriteByte (p, ByteOfU8 (U8OfChar v))
 
-  let si16 oc _frames () v p =
-    let w = BE.I16.to_word oc v in
-    BE.write_word oc p w
+  let si8 () v p =
+    WriteByte (p, ByteOfU8 (ToU8 v))
 
-  let si32 oc _frames () v p =
-    let w = BE.I32.to_dword oc v in
-    BE.write_dword oc p w
+  let si16 () v p =
+    WriteWord (LittleEndian, p, WordOfU16 (ToU16 v))
 
-  let si64 oc _frames () v p =
-    let w = BE.I64.to_qword oc v in
-    BE.write_qword oc p w
+  let si32 () v p =
+    WriteDWord (LittleEndian, p, DWordOfU32 (ToU32 v))
 
-  let si128 oc _frames () v p =
-    let w = BE.I128.to_oword oc v in
-    BE.write_oword oc p w
+  let si64 () v p =
+    WriteQWord (LittleEndian, p, QWordOfU64 (ToU64 v))
 
-  let su8 oc _frames () v p =
-    let b = BE.U8.to_byte oc v in
-    BE.write_byte oc p b
+  let si128 () v p =
+    WriteOWord (LittleEndian, p, OWordOfU128 (ToU128 v))
 
-  let su16 oc _frames () v p =
-    let w = BE.U16.to_word oc v in
-    BE.write_word oc p w
+  let su8 () v p =
+    WriteByte (p, ByteOfU8 v)
 
-  let su32 oc _frames () v p =
-    let w = BE.U32.to_dword oc v in
-    BE.write_dword oc p w
+  let su16 () v p =
+    WriteWord (LittleEndian, p, WordOfU16 v)
 
-  let su64 oc _frames () v p =
-    let w = BE.U64.to_qword oc v in
-    BE.write_qword oc p w
+  let su32 () v p =
+    WriteDWord (LittleEndian, p, DWordOfU32 v)
 
-  let su128 oc _frames () v p =
-    let w = BE.U128.to_oword oc v in
-    BE.write_oword oc p w
+  let su64 () v p =
+    WriteQWord (LittleEndian, p, QWordOfU64 v)
 
-  let tup_opn _oc _frames () p = p
-  let tup_cls _oc _frames () p = p
-  let tup_sep _idx _oc _frames () p = p
+  let su128 () v p =
+    WriteOWord (LittleEndian, p, OWordOfU128 v)
 
-  let rec_opn _oc _frames () p = p
-  let rec_cls _oc _frames () p = p
-  let rec_sep _idx _oc _frames () p = p
+  let tup_opn () _ p = p
+  let tup_cls () p = p
+  let tup_sep _idx () p = p
 
-  let vec_opn _oc _frames () p = p
-  let vec_cls _oc _frames () p = p
-  let vec_sep _idx _oc _frames () p = p
+  let rec_opn () _ p = p
+  let rec_cls () p = p
+  let rec_sep _idx () p = p
 
-  let list_opn oc _frames () n p =
-    let write_leb128 = write_leb128 oc in
-    let n = BE.size_of_u32 oc n in
-    write_leb128 p n
-  let list_cls _oc _frames () p = p
-  let list_sep _oc _frames () p = p
+  let vec_opn () _ _  p = p
+  let vec_cls () p = p
+  let vec_sep _idx () p = p
 
-  let nullable _oc _frames () p = p
+  let list_opn () _ n p =
+    write_leb128 p (SizeOfU32 n)
 
-  let snull oc _frames () p =
-    BE.write_byte oc p (BE.byte_of_const oc 1)
+  let list_cls () p = p
+  let list_sep () p = p
 
-  let snotnull oc _frames () p =
-    BE.write_byte oc p (BE.byte_of_const oc 0)
+  let nullable () p = p
 
-  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  let snull _t () p =
+    WriteByte (p, Byte 1)
 
-  let ssize_of_float _oc _frames _ = ConstSize 8
-  let ssize_of_bool _oc _frames _ = ConstSize 1
-  let ssize_of_char _oc _frames _ = ConstSize 1
-  let ssize_of_i8 _oc _frames _ = ConstSize 1
-  let ssize_of_u8 _oc _frames _ = ConstSize 1
-  let ssize_of_i16 _oc _frames _ = ConstSize 2
-  let ssize_of_u16 _oc _frames _ = ConstSize 2
-  let ssize_of_i32 _oc _frames _ = ConstSize 4
-  let ssize_of_u32 _oc _frames _ = ConstSize 4
-  let ssize_of_i64 _oc _frames _ = ConstSize 8
-  let ssize_of_u64 _oc _frames _ = ConstSize 8
-  let ssize_of_i128 _oc _frames _ = ConstSize 16
-  let ssize_of_u128 _oc _frames _ = ConstSize 16
+  let snotnull _t () p =
+    WriteByte (p, Byte 0)
 
-  let ssize_of_tup _oc _frames _ = ConstSize 0
-  let ssize_of_rec _oc _frames _ = ConstSize 0
-  let ssize_of_vec _oc _frames _ = ConstSize 0
+  type ssizer = vtyp -> path -> e -> ssize
 
-  let ssize_of_leb128 oc =
-    let t_pair_u32_u32 = T.(TPair (u32, u32)) in
-    let cond =
-      BE.function1 oc t_pair_u32_u32 T.bool (fun oc lebsz_n ->
-        BE.comment oc "Condition for ssize_of_leb128" ;
-        let lebsz = BE.pair_fst oc lebsz_n
-        and n = BE.pair_snd oc lebsz_n in
-        let max_len_for_lebsz =
-          BE.U32.shift_left oc lebsz (BE.U8.of_const_int oc 7) in
-        BE.U32.ge oc n max_len_for_lebsz)
-    and loop =
-      BE.function1 oc T.u32 T.u32 (fun oc lebsz_n ->
-        BE.comment oc "Loop for ssize_of_leb128" ;
-        let lebsz = BE.pair_fst oc lebsz_n
-        and n = BE.pair_snd oc lebsz_n in
-        let lebsz = BE.U32.(add oc lebsz (of_const_int oc 1)) in
-        BE.make_pair oc t_pair_u32_u32 lebsz n) in
-    fun n ->
-      let lebsz = BE.U32.of_const_int oc 1 in
-      let lebsz_n = BE.make_pair oc t_pair_u32_u32 lebsz n in
-      let lebsz_n = BE.loop_while oc cond loop lebsz_n in
-      BE.pair_fst oc lebsz_n
+  let ssize_of_float _ _ _ = ConstSize 8
+  let ssize_of_bool _ _ _ = ConstSize 1
+  let ssize_of_char _ _ _ = ConstSize 1
+  let ssize_of_i8 _ _ _ = ConstSize 1
+  let ssize_of_u8 _ _ _ = ConstSize 1
+  let ssize_of_i16 _ _ _ = ConstSize 2
+  let ssize_of_u16 _ _ _ = ConstSize 2
+  let ssize_of_i32 _ _ _ = ConstSize 4
+  let ssize_of_u32 _ _ _ = ConstSize 4
+  let ssize_of_i64 _ _ _ = ConstSize 8
+  let ssize_of_u64 _ _ _ = ConstSize 8
+  let ssize_of_i128 _ _ _ = ConstSize 16
+  let ssize_of_u128 _ _ _ = ConstSize 16
+
+  let ssize_of_tup _ _ _ = ConstSize 0
+  let ssize_of_rec _ _ _ = ConstSize 0
+  let ssize_of_vec _ _ _ = ConstSize 0
+
+  let ssize_of_leb128 n =
+    let t_u32_u32 = Type.(Pair (u32, u32)) in
+    SizeOfU32 (Fst (
+      LoopWhile (
+        Comment ("Condition for ssize_of_leb128",
+          func [t_u32_u32] (fun fid ->
+            with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
+              let max_len_for_lebsz = LeftShift (lebsz, U8 7) in
+              Ge (n, max_len_for_lebsz)))),
+        Comment ("Loop for ssize_of_leb128",
+          func [t_u32_u32] (fun fid ->
+            with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
+              Pair (Add (lebsz, U32 Uint32.one), n)))),
+        Pair (U32 Uint32.one, n))))
 
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
-  let ssize_of_list oc =
-    let ssize_of_leb128 = ssize_of_leb128 oc in
-    fun _frames lst ->
-      let n = BE.length_of_list oc lst in
-      let lebsz = ssize_of_leb128 n in
-      DynSize (BE.size_of_u32 oc lebsz)
+  let ssize_of_list _ _ lst =
+    DynSize (ssize_of_leb128 (ListLength lst))
 
-  let ssize_of_null _oc _frames = ConstSize 1
+  let ssize_of_null _ _ = ConstSize 1
 
   (* Size of a string is it's length in bytes + the size of the LEB128 prefix,
    * which size is 1 bytes per group of 7 bits. *)
-  let ssize_of_string oc =
-    let ssize_of_leb128 = ssize_of_leb128 oc in
-    fun _frames v ->
-      let len = BE.length_of_string oc v in
-      let wlen = BE.u32_of_size oc len in
-      let lebsz = ssize_of_leb128 wlen in
-      let totsz = BE.U32.add oc lebsz wlen in
-      DynSize (BE.size_of_u32 oc totsz)
+  let ssize_of_string _ _ v =
+    DynSize (
+      Let ("wlen", U32OfSize (StringLength v),
+        Add (ssize_of_leb128 (Identifier "wlen"), (Identifier "wlen"))))
 end

@@ -1,35 +1,44 @@
 open Batteries
 open Stdint
 
+let pp = Printf.fprintf
+
 (* Those types describing values that can be (de)serialized.
- * All of them can possibly be nullable. *)
+ * All of them can possibly be nullable.
+ * In what follows, only the types used by the code generator
+ * itself are type-checked.
+ * There is no type-checking whatsoever for value-types: it is
+ * assumed that all operations involving values have been type
+ * checked already. So that we avoid GADT in this module. *)
 module ValueType =
 struct
+  (*$< ValueType *)
+
   type not_nullable =
-    | TFloat : not_nullable
-    | TString : not_nullable
-    | TBool : not_nullable
-    | TChar (* Exact same values as U8 but different typing rules *) : not_nullable
-    | TU8 : not_nullable
-    | TU16 : not_nullable
-    | TU32 : not_nullable
-    | TU64 : not_nullable
-    | TU128 : not_nullable
-    | TI8 : not_nullable
-    | TI16 : not_nullable
-    | TI32 : not_nullable
-    | TI64 : not_nullable
-    | TI128 : not_nullable
-    | TVec : int * t -> not_nullable
-    | TList : t -> not_nullable
-    | TTup : t array -> not_nullable
+    | Float
+    | String
+    | Bool
+    | Char (* Exact same values as U8 but different typing rules *)
+    | U8
+    | U16
+    | U32
+    | U64
+    | U128
+    | I8
+    | I16
+    | I32
+    | I64
+    | I128
+    | Vec of int * t
+    | List of t
+    | Tup of t array
     (* Exact same as a tuple, but with field names that can be used as
      * accessors (also used to name actual fields in generated code): *)
-    | TRec : (string * t) array -> not_nullable
+    | Rec of (string * t) array
 
   and t =
-    | Nullable : nullable -> t
-    | NotNullable : not_nullable -> t
+    | Nullable of nullable
+    | NotNullable of not_nullable
 
   and nullable = not_nullable
 
@@ -37,47 +46,93 @@ struct
     | Nullable _ -> true
     | NotNullable _ -> false
 
-  let to_not_nullable : t -> not_nullable = function
+  let to_not_nullable = function
     | Nullable t -> t
     | NotNullable t -> t
 
   let rec print_not_nullable oc = function
-    | TFloat -> String.print oc "Float"
-    | TString -> String.print oc "String"
-    | TBool -> String.print oc "Bool"
-    | TChar -> String.print oc "Char"
-    | TU8 -> String.print oc "U8"
-    | TU16 -> String.print oc "U16"
-    | TU32 -> String.print oc "U32"
-    | TU64 -> String.print oc "U64"
-    | TU128 -> String.print oc "U128"
-    | TI8 -> String.print oc "I8"
-    | TI16 -> String.print oc "I16"
-    | TI32 -> String.print oc "I32"
-    | TI64 -> String.print oc "I64"
-    | TI128 -> String.print oc "I128"
-    | TVec (dim, typ) ->
-        Printf.fprintf oc "%a[%d]" print typ dim
-    | TList typ ->
-        Printf.fprintf oc "%a[]" print typ
-    | TTup typs ->
-        Printf.fprintf oc "%a"
-          (Array.print ~first:"(" ~last:")" ~sep:";" print) typs
-    | TRec typs ->
-        Printf.fprintf oc "%a"
+    | Float -> String.print oc "Float"
+    | String -> String.print oc "String"
+    | Bool -> String.print oc "Bool"
+    | Char -> String.print oc "Char"
+    | U8 -> String.print oc "U8"
+    | U16 -> String.print oc "U16"
+    | U32 -> String.print oc "U32"
+    | U64 -> String.print oc "U64"
+    | U128 -> String.print oc "U128"
+    | I8 -> String.print oc "I8"
+    | I16 -> String.print oc "I16"
+    | I32 -> String.print oc "I32"
+    | I64 -> String.print oc "I64"
+    | I128 -> String.print oc "I128"
+    | Vec (dim, vt) ->
+        pp oc "%a[%d]" print vt dim
+    | List vt ->
+        pp oc "%a[]" print vt
+    | Tup vts ->
+        pp oc "%a"
+          (Array.print ~first:"(" ~last:")" ~sep:";" print) vts
+    | Rec vts ->
+        pp oc "%a"
           (Array.print ~first:"{" ~last:"}" ~sep:";"
             (fun oc (n, t) ->
-              Printf.fprintf oc "%s: %a" n print t)
-          ) typs
+              pp oc "%s: %a" n print t)
+          ) vts
 
   and print_nullable oc t =
-    Printf.fprintf oc "%a?" print_not_nullable t
+    pp oc "%a?" print_not_nullable t
 
   and print oc = function
     | Nullable t ->
         print_nullable oc t
     | NotNullable t ->
         print_not_nullable oc t
+
+  (* Locate subfields within a compound ValueType.t: *)
+  type path = int list
+
+  let print_path oc p =
+    List.print ~first:"" ~last:"" ~sep:"/" Int.print oc p
+
+  let to_nullable = function
+    | NotNullable t -> Nullable t
+    | Nullable _ as x -> x
+
+  let rec type_of_path t path =
+    match path with
+    | [] -> t
+    | i :: path ->
+        let rec type_of_not_nullable = function
+          | NotNullable (Float | String | Bool | Char |
+                         U8 | U16 | U32 | U64 | U128 |
+                         I8 | I16 | I32 | I64 | I128) ->
+              assert false
+          | NotNullable (Vec (dim, vt)) ->
+              assert (i < dim) ;
+              type_of_path vt path
+          | NotNullable (List vt) ->
+              type_of_path vt path
+          | NotNullable (Tup vts) ->
+              assert (i < Array.length vts) ;
+              type_of_path vts.(i) path
+          | NotNullable (Rec vts) ->
+              assert (i < Array.length vts) ;
+              type_of_path (snd vts.(i)) path
+          | Nullable x ->
+              type_of_not_nullable (NotNullable x) |>
+              to_nullable in
+        type_of_not_nullable t
+
+  (*$inject
+     let test_t = NotNullable (Tup [| NotNullable U8 ; Nullable String |])
+  *)
+
+  (*$= type_of_path & ~printer:(BatIO.to_string print)
+    test_t (type_of_path test_t [])
+    (NotNullable U8) (type_of_path test_t [0])
+    (Nullable String) (type_of_path test_t [1])
+  *)
+  (*$>*)
 end
 
 (* All types we can generate code for.
@@ -86,820 +141,1725 @@ end
 module Type =
 struct
   type t =
-    (* A ValueType: *)
-    | TValue of ValueType.t
-    (* Pointers are used to point into the stream of bytes that's being
-     * serialized into / deserialized from. So no need to attach the type
-     * of what it points to. *)
-    | TPointer
+    | Value of ValueType.t
+    | Void
+    (* DataPtr are used to point into the stream of bytes that's being
+     * serialized into / deserialized from. The type of the value that's
+     * being (de)serialized is kept nonetheless. *)
+    | DataPtr
+    (* ValuePtr are used to point at heap allocated values of a given type.
+     * The "offset" is then the location in that data structure, and it is
+     * "advanced" by hopping from subfield to subfields, traversing the
+     * structure depth first. The path is thus merely an integer, but the
+     * backend has to know how to locate each addressable leaves. *)
+    | ValuePtr of ValueType.t
     (* A size in byte. *)
-    | TSize
+    | Size
     (* Data access, may be just pointer to the actual serialized object: *)
-    | TBit | TByte | TWord | TDWord | TQWord | TOWord | TBytes
-    (* Used only at the meta-level: *)
-    | TPair of t * t
-    | TFunction0 of (* result: *) t
-    | TFunction1 of t * (* result: *) t
-    | TFunction2 of t * t * (* result: *) t
-    | TFunction3 of t * t * t * (* result: *) t
+    | Bit
+    | Byte
+    | Word
+    | DWord
+    | QWord
+    | OWord
+    | Bytes
+    | Pair of t * t
+    | Function0 of (* result: *) t
+    | Function1 of t * (* result: *) t
+    | Function2 of t * t * (* result: *) t
 
   let rec print oc = function
-    | TValue vt -> ValueType.print oc vt
-    | TPointer -> String.print oc "Pointer"
-    | TSize -> String.print oc "Size"
-    | TBit -> String.print oc "Bit"
-    | TByte -> String.print oc "Byte"
-    | TWord -> String.print oc "Word"
-    | TDWord -> String.print oc "DWord"
-    | TQWord -> String.print oc "QWord"
-    | TOWord -> String.print oc "OWord"
-    | TBytes -> String.print oc "Bytes"
-    | TPair (t1, t2) ->
-        Printf.fprintf oc "Pair(%a, %a)"
+    | Value vt ->
+        ValueType.print oc vt
+    | Void -> String.print oc "Void"
+    | DataPtr -> String.print oc "DataPtr"
+    | ValuePtr t ->
+        pp oc "ValuePtr(%a)"
+          ValueType.print t
+    | Size -> String.print oc "Size"
+    | Bit -> String.print oc "Bit"
+    | Byte -> String.print oc "Byte"
+    | Word -> String.print oc "Word"
+    | DWord -> String.print oc "DWord"
+    | QWord -> String.print oc "QWord"
+    | OWord -> String.print oc "OWord"
+    | Bytes -> String.print oc "Bytes"
+    | Pair (t1, t2) ->
+        pp oc "Pair(%a, %a)"
           print t1
           print t2
-    | TFunction0 (t1) ->
-        Printf.fprintf oc "(unit->%a)" print t1
-    | TFunction1 (t1, t2) ->
-        Printf.fprintf oc "(%a->%a)" print t1 print t2
-    | TFunction2 (t1, t2, t3) ->
-        Printf.fprintf oc "(%a->%a->%a)" print t1 print t2 print t3
-    | TFunction3 (t1, t2, t3, t4) ->
-        Printf.fprintf oc "(%a->%a->%a->%a)" print t1 print t2 print t3 print t4
+    | Function0 t1 ->
+        pp oc "(unit->%a)" print t1
+    | Function1 (t1, t2) ->
+        pp oc "(%a->%a)" print t1 print t2
+    | Function2 (t1, t2, t3) ->
+        pp oc "(%a->%a->%a)" print t1 print t2 print t3
 
-  (* Many return values have the type of a pair or src*dst pointers: *)
-  let pair_ptrs = TPair (TPointer, TPointer)
-  let bool = TValue ValueType.(NotNullable TBool)
-  let u8 = TValue ValueType.(NotNullable TU8)
-  let u32 = TValue ValueType.(NotNullable TU32)
-  let i32 = TValue ValueType.(NotNullable TI32)
+  let to_nullable = function
+    | Value ValueType.(NotNullable t) -> Value ValueType.(Nullable t)
+    | t ->
+        Printf.eprintf "Cannot turn type %a into nullable\n%!"
+          print t ;
+        assert false
+
+  let to_not_nullable = function
+    | Value ValueType.(Nullable t) -> Value ValueType.(NotNullable t)
+    | t ->
+        Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
+          print t ;
+        assert false
 end
 
-(* Every expression is bound to an identifier, and only identifiers are
- * passed around, thus limiting module recursion and linearising the
- * generated code (FWIW). *)
-module Identifier :
-  sig
-    type +'a t = private string
-    val print : 'a IO.output -> 'b t -> unit
+type typ = Type.t
+type vtyp = ValueType.t
+type path = ValueType.path
 
-    val float : unit -> [`Float] t
-    val string : unit -> [`String] t
-    val bool : unit -> [`Bool] t
-    val char : unit -> [`Char] t
-    val i8 : unit -> [`I8] t
-    val u8 : unit -> [`U8] t
-    val i16 : unit -> [`I16] t
-    val u16 : unit -> [`U16] t
-    val u32 : unit -> [`U32] t
-    val i32 : unit -> [`I32] t
-    val u64 : unit -> [`U64] t
-    val i64 : unit -> [`I64] t
-    val u128 : unit -> [`U128] t
-    val i128 : unit -> [`I128] t
-    val tuple : unit -> [`Tup] t
-    val record : unit -> [`Rec] t
-    val vector : unit -> [`Vec] t
-    val list : unit -> [`List] t
-    val pointer : unit -> [`Pointer] t
-    val size : unit -> [`Size] t
-    val bit : unit -> [`Bit] t
-    val byte : unit -> [`Byte] t
-    val word : unit -> [`Word] t
-    val dword : unit -> [`DWord] t
-    val qword : unit -> [`QWord] t
-    val oword : unit -> [`OWord] t
-    val bytes : unit -> [`Bytes] t
-    val pair : unit -> ([`Pair] * 'a * 'b) t
-    val auto : unit -> 'a t
-    (* FunctionX * param1 * param2 * ... * returned type *)
-    val func0 : unit -> ([`Function0] * 'a) t
-    val func1 : 'a t -> 'b t -> ([`Function1] * 'a * 'b) t
-    val func2 : 'a t -> 'b t -> 'c t -> ([`Function2] * 'a * 'b * 'c) t
-    val func3 : 'a t -> 'b t -> 'c t -> 'd t -> ([`Function3] * 'a * 'b * 'c * 'd) t
-    val param : int -> unit -> 'a t
+let bool = Type.Value ValueType.(NotNullable Bool)
+let char = Type.Value ValueType.(NotNullable Char)
+let nstring = Type.Value ValueType.(Nullable String)
+let string = Type.Value ValueType.(NotNullable String)
+let float = Type.Value ValueType.(NotNullable Float)
+let u8 = Type.Value ValueType.(NotNullable U8)
+let u16 = Type.Value ValueType.(NotNullable U16)
+let u32 = Type.Value ValueType.(NotNullable U32)
+let u64 = Type.Value ValueType.(NotNullable U64)
+let u128 = Type.Value ValueType.(NotNullable U128)
+let i8 = Type.Value ValueType.(NotNullable I8)
+let i16 = Type.Value ValueType.(NotNullable I16)
+let i32 = Type.Value ValueType.(NotNullable I32)
+let i64 = Type.Value ValueType.(NotNullable I64)
+let i128 = Type.Value ValueType.(NotNullable I128)
+let void = Type.Void
+let bit = Type.Bit
+let byte = Type.Byte
+let size = Type.Size
+let word = Type.Word
+let dword = Type.DWord
+let qword = Type.QWord
+let oword = Type.OWord
+let bytes = Type.Bytes
+let dataptr = Type.DataPtr
+let valueptr t = Type.ValuePtr t
+let pair t1 t2 = Type.Pair (t1, t2)
 
-    val any : Type.t -> 'a t
-
-    val to_float : 'a t -> [`Float] t
-    val to_string : 'a t -> [`String] t
-    val to_bool : 'a t -> [`Bool] t
-    val to_char : 'a t -> [`Char] t
-    val to_u8 : 'a t -> [`U8] t
-    val to_u16 : 'a t -> [`U16] t
-    val to_u32 : 'a t -> [`U32] t
-    val to_u64 : 'a t -> [`U64] t
-    val to_u128 : 'a t -> [`U128] t
-    val to_i8 : 'a t -> [`I8] t
-    val to_i16 : 'a t -> [`I16] t
-    val to_i32 : 'a t -> [`I32] t
-    val to_i64 : 'a t -> [`I64] t
-    val to_i128 : 'a t -> [`I128] t
-    val to_vec : 'a t -> [`Vec] t
-    val to_list : 'a t -> [`List] t
-    val to_tup : 'a t -> [`Tup] t
-    val to_rec : 'a t -> [`Rec] t
-    val to_pointer : 'a t -> [`Pointer] t
-    val to_size : 'a t -> [`Size] t
-    val to_bit : 'a t -> [`Bit] t
-    val to_byte : 'a t -> [`Byte] t
-    val to_word : 'a t -> [`Word] t
-    val to_dWord : 'a t -> [`DWord] t
-    val to_qWord : 'a t -> [`QWord] t
-    val to_oWord : 'a t -> [`OWord] t
-    val to_bytes : 'a t -> [`Bytes] t
-
-    val to_any : 'a t -> [`Any] t
-    val of_any : Type.t -> 'a t -> 'b t
-
-    val of_string : string -> [`Any] t
-
-    val modify : string -> 'a t -> string -> 'a t
-  end =
+module Expression =
 struct
-  type 'a t = string
+  (*$< Expression *)
+  type endianness = LittleEndian | BigEndian
 
-  let make pref =
+  let print_endianness oc = function
+    | LittleEndian -> String.print oc "little-endian"
+    | BigEndian -> String.print oc "big-endian"
+
+  type e =
+    | Comment of string * e
+    | Dump of e
+    | Seq of e list
+    | IsNull of e
+    | Coalesce of e * e
+    (* Turn e into a nullable: *)
+    | Nullable of e
+    (* Turn e into a not-nullable: *)
+    | NotNullable of e
+    | Null of ValueType.not_nullable
+    | Float of float
+    | String of string
+    | Bool of bool
+    | Char of char
+    | U8 of int
+    | U16 of int
+    | U32 of Uint32.t
+    | U64 of Uint64.t
+    | U128 of Uint128.t
+    | I8 of int
+    | I16 of int
+    | I32 of Int32.t
+    | I64 of Int64.t
+    | I128 of Int128.t
+    | Bit of bool
+    | Size of int
+    | Byte of int
+    | Word of int
+    | DWord of Uint32.t
+    | QWord of Uint64.t
+    | OWord of Uint128.t
+    | Gt of e * e
+    (* Convert from/to string for all base value types: *)
+    | StringOfFloat of e
+    | StringOfChar of e
+    | StringOfInt of e
+    | FloatOfString of e
+    | CharOfString of e
+    | U8OfString of e
+    | U16OfString of e
+    | U32OfString of e
+    | U64OfString of e
+    | U128OfString of e
+    | I8OfString of e
+    | I16OfString of e
+    | I32OfString of e
+    | I64OfString of e
+    | I128OfString of e
+    (* Integers can be casted upon others regardless of sign and width: *)
+    | ToU8 of e
+    | ToU16 of e
+    | ToU32 of e
+    | ToU64 of e
+    | ToU128 of e
+    | ToI8 of e
+    | ToI16 of e
+    | ToI32 of e
+    | ToI64 of e
+    | ToI128 of e
+    (* Comparators: *)
+    | Ge of e * e
+    | Eq of e * e
+    | Ne of e * e
+    | Add of e * e
+    | Sub of e * e
+    | Mul of e * e
+    | Div of e * e
+    | Rem of e * e
+    | LogAnd of e * e
+    | LogOr of e * e
+    | LogXor of e * e
+    | LogNot of e
+    | LeftShift of e * e
+    | RightShift of e * e
+    | FloatOfQWord of e
+    | QWordOfFloat of e
+    | U8OfByte of e
+    | ByteOfU8 of e
+    | U16OfWord of e
+    | WordOfU16 of e
+    | U32OfDWord of e
+    | DWordOfU32 of e
+    | U64OfQWord of e
+    | QWordOfU64 of e
+    | U128OfOWord of e
+    | OWordOfU128 of e
+    | U8OfChar of e
+    | CharOfU8 of e
+    | SizeOfU32 of e
+    | U32OfSize of e
+    | BitOfBool of e
+    | BoolOfBit of e
+    (* à la C: *)
+    | U8OfBool of e
+    | BoolOfU8 of e
+    | AppendBytes of e * e
+    | AppendString of e * e
+    | StringLength of e
+    | StringOfBytes of e
+    | BytesOfString of e
+    | ListLength of e
+    | DataPtrOfString of string
+    | TestBit of e * e
+    | SetBit of e * e * e
+    | ReadByte of e
+    | ReadWord of endianness * e
+    | ReadDWord of endianness * e
+    | ReadQWord of endianness * e
+    | ReadOWord of endianness * e
+    | ReadBytes of e * e
+    | PeekByte of e * e
+    | PeekWord of endianness * e * e
+    | PeekDWord of endianness * e * e
+    | PeekQWord of endianness * e * e
+    | PeekOWord of endianness * e * e
+    | WriteByte of e * e
+    | WriteWord of endianness * e * e
+    | WriteDWord of endianness * e * e
+    | WriteQWord of endianness * e * e
+    | WriteOWord of endianness * e * e
+    | WriteBytes of e * e
+    | PokeByte of e * e
+    | BlitBytes of e * e * e
+    | DataPtrAdd of e * e
+    | DataPtrSub of e * e
+    | RemSize of e
+    | And of e * e
+    | Or of e * e
+    | Not of e
+    (* To build heap values: *)
+    (* Allocate a default values value.
+     * For backends that can alloc uninitialized values:
+     *   Will define the type, then alloc an uninitialized value of that
+     *   type and return an identifier for it. Fields will be initialized
+     *   as serialization progresses.
+     * For backends that can not alloc uninitialized values:
+     *   Will define the type, then make up a name and return it. Construction
+     *   and allocation will happen as the serialize progresses. *)
+    | AllocValue of vtyp
+    (* Get the value pointed by a valueptr: *)
+    | DerefValuePtr of e
+    (* Set a field. There is no control that the field type match the type at
+     * this location. *)
+    | SetField of path * e * e
+    | FieldIsNull of path * e
+    | GetField of path * e
+    | Pair of e * e
+    (* WARNING: never use Fst and Snd on the same expression or that expression
+     * will be computed twice!
+     * Instead, use MapPair or Let *)
+    | Fst of e
+    | Snd of e
+    | MapPair of (* the pair: *) e * (* the function2: *) e
+    (* Identifier are set with `Let` expressions, or obtained from the code
+     * generators in exchange for an expression: *)
+    | Identifier of string
+    | Let of string * e * e
+    | Function0 of (*function id*) int * (* body: *) e
+    | Function1 of (*function id*) int * typ * (* body: *) e
+    | Function2 of (*function id*) int * typ * typ * (* body: *) e
+    | Param of (*function id*) int * (*param no*) int
+    | Choose :
+        (* Condition: *) e * (* Consequent: *) e * (* Alternative: *) e -> e
+    | ReadWhile :
+        (* Condition (byte->bool): *) e *
+        (* Reducer ('a->byte->'a): *) e *
+        (* Initial value: *) e *
+        (* Starting position: *) e ->
+        (* Result ('a * ptr): *) e
+    | LoopWhile :
+        (* Condition ('a->bool): *) e *
+        (* Loop body ('a->'a): *) e *
+        (* Initial value: *) e -> e
+    | LoopUntil :
+        (* Loop body ('a->'a): *) e *
+        (* Condition ('a->bool): *) e *
+        (* Initial value: *) e -> e
+    | Repeat :
+        (* From: *) e * (* To: *) e *
+        (* Loop body (idx->'a->'a): *) e *
+        (* Initial value: *) e -> e
+
+  (* Create a function expression and return its id: *)
+  let func =
+    let next_id = ref (0) in
+    fun typs f ->
+      let id = !next_id in
+      incr next_id ;
+      match typs with
+      | [] -> Function0 (id, f id)
+      | [t1] -> Function1 (id, t1, f id)
+      | [t1; t2] -> Function2 (id, t1, t2, f id)
+      | _ -> assert false
+
+  let rec print ?max_depth oc e =
+    if Option.map_default (fun m -> m <= 0) false max_depth then
+      pp oc "…"
+    else
+      let max_depth = Option.map pred max_depth in
+      let p = print ?max_depth in
+      match e with
+      | Comment (str, e) ->
+          pp oc "(Comment %S %a)" str p e
+      | Dump e1 ->
+          pp oc "(Dump %a)" p e1
+      | Seq es ->
+          pp oc "(Seq %a)" (List.print ~first:"" ~last:"" ~sep:" " p) es
+      | IsNull e ->
+          pp oc "(IsNull %a)" p e
+      | Coalesce (e1, e2) ->
+          pp oc "(Coalesce %a %a)" p e1 p e2
+      | Nullable e ->
+          pp oc "(Nullable %a)" p e
+      | NotNullable e ->
+          pp oc "(NotNullable %a)" p e
+      | Null t ->
+          pp oc "(Null %a)" ValueType.print_not_nullable t
+      | Float f ->
+          pp oc "(Float %f)" f
+      | String s ->
+          pp oc "(String %S)" s
+      | Bool b ->
+          pp oc "(Bool %b)" b
+      | Char c ->
+          pp oc "(Char %c)" c
+      | U8 i ->
+          pp oc "(U8 %d)" i
+      | U16 i ->
+          pp oc "(U16 %d)" i
+      | U32 u ->
+          pp oc "(U32 %s)" (Uint32.to_string u)
+      | U64 u ->
+          pp oc "(U64 %s)" (Uint64.to_string u)
+      | U128 u ->
+          pp oc "(U128 %s)" (Uint128.to_string u)
+      | I8 i ->
+          pp oc "(I8 %d)" i
+      | I16 i ->
+          pp oc "(I16 %d)" i
+      | I32 i ->
+          pp oc "(I32 %ld)" i
+      | I64 i ->
+          pp oc "(I64 %Ld)" i
+      | I128 u ->
+          pp oc "(I128 %s)" (Int128.to_string u)
+      | Bit b ->
+          pp oc "(Bit %b)" b
+      | Size i ->
+          pp oc "(Size %d)" i
+      | Byte i ->
+          pp oc "(Byte %d)" i
+      | Word i ->
+          pp oc "(Word %d)" i
+      | DWord u ->
+          pp oc "(DWord %s)" (Uint32.to_string u)
+      | QWord u ->
+          pp oc "(QWord %s)" (Uint64.to_string u)
+      | OWord u ->
+          pp oc "(OWord %s)" (Uint128.to_string u)
+      | Gt (e1, e2) ->
+          pp oc "(Gt %a %a)" p e1 p e2
+      | Ge (e1, e2) ->
+          pp oc "(Ge %a %a)" p e1 p e2
+      | Eq (e1, e2) ->
+          pp oc "(Eq %a %a)" p e1 p e2
+      | Ne (e1, e2) ->
+          pp oc "(Ne %a %a)" p e1 p e2
+      | Add (e1, e2) ->
+          pp oc "(Add %a %a)" p e1 p e2
+      | Sub (e1, e2) ->
+          pp oc "(Sub %a %a)" p e1 p e2
+      | Mul (e1, e2) ->
+          pp oc "(Mul %a %a)" p e1 p e2
+      | Div (e1, e2) ->
+          pp oc "(Div %a %a)" p e1 p e2
+      | Rem (e1, e2) ->
+          pp oc "(Rem %a %a)" p e1 p e2
+      | LogAnd (e1, e2) ->
+          pp oc "(LogAnd %a %a)" p e1 p e2
+      | LogOr (e1, e2) ->
+          pp oc "(LogOr %a %a)" p e1 p e2
+      | LogXor (e1, e2) ->
+          pp oc "(LogXor %a %a)" p e1 p e2
+      | LeftShift (e1, e2) ->
+          pp oc "(LeftShift %a %a)" p e1 p e2
+      | RightShift (e1, e2) ->
+          pp oc "(RightShift %a %a)" p e1 p e2
+      | LogNot e ->
+          pp oc "(LogNot %a)" p e
+      | StringOfInt e ->
+          pp oc "(StringOfInt %a)" p e
+      | StringOfChar e ->
+          pp oc "(StringOfChar %a)" p e
+      | StringOfFloat e ->
+          pp oc "(StringOfFloat %a)" p e
+      | FloatOfQWord e ->
+          pp oc "(FloatOfQWord %a)" p e
+      | QWordOfFloat e ->
+          pp oc "(QWordOfFloat %a)" p e
+      | FloatOfString e ->
+          pp oc "(FloatOfString %a)" p e
+      | CharOfString e ->
+          pp oc "(CharOfString %a)" p e
+      | U8OfString e ->
+          pp oc "(U8OfString %a)" p e
+      | U16OfString e ->
+          pp oc "(U16OfString %a)" p e
+      | U32OfString e ->
+          pp oc "(U32OfString %a)" p e
+      | U64OfString e ->
+          pp oc "(U64OfString %a)" p e
+      | U128OfString e ->
+          pp oc "(U128OfString %a)" p e
+      | I8OfString e ->
+          pp oc "(I8OfString %a)" p e
+      | I16OfString e ->
+          pp oc "(I16OfString %a)" p e
+      | I32OfString e ->
+          pp oc "(I32OfString %a)" p e
+      | I64OfString e ->
+          pp oc "(I64OfString %a)" p e
+      | I128OfString e ->
+          pp oc "(I128OfString %a)" p e
+      | U8OfByte e ->
+          pp oc "(U8OfByte %a)" p e
+      | ByteOfU8 e ->
+          pp oc "(ByteOfU8 %a)" p e
+      | U16OfWord e ->
+          pp oc "(U16OfWord %a)" p e
+      | WordOfU16 e ->
+          pp oc "(WordOfU16 %a)" p e
+      | U32OfDWord e ->
+          pp oc "(U32OfDWord %a)" p e
+      | DWordOfU32 e ->
+          pp oc "(DWordOfU32 %a)" p e
+      | U64OfQWord e ->
+          pp oc "(U64OfQWord %a)" p e
+      | QWordOfU64 e ->
+          pp oc "(QWordOfU64 %a)" p e
+      | U128OfOWord e ->
+          pp oc "(U128OfOWord %a)" p e
+      | OWordOfU128 e ->
+          pp oc "(OWordOfU128 %a)" p e
+      | U8OfChar e ->
+          pp oc "(U8OfChar %a)" p e
+      | CharOfU8 e ->
+          pp oc "(CharOfU8 %a)" p e
+      | SizeOfU32 e ->
+          pp oc "(SizeOfU32 %a)" p e
+      | U32OfSize e ->
+          pp oc "(U32OfSize %a)" p e
+      | BitOfBool e ->
+          pp oc "(BitOfBool %a)" p e
+      | BoolOfBit e ->
+          pp oc "(BoolOfBit %a)" p e
+      | U8OfBool e ->
+          pp oc "(U8OfBool %a)" p e
+      | BoolOfU8 e ->
+          pp oc "(BoolOfU8 %a)" p e
+      | AppendBytes (e1, e2) ->
+          pp oc "(AppendBytes %a %a)" p e1 p e2
+      | AppendString (e1, e2) ->
+          pp oc "(AppendString %a %a)" p e1 p e2
+      | StringLength e ->
+          pp oc "(StringLength %a)" p e
+      | StringOfBytes e ->
+          pp oc "(StringOfBytes %a)" p e
+      | BytesOfString e ->
+          pp oc "(BytesOfString %a)" p e
+      | ListLength e ->
+          pp oc "(ListLength %a)" p e
+      | DataPtrOfString s ->
+          pp oc "(DataPtrOfString %S)" s
+      | TestBit (e1, e2) ->
+          pp oc "(TestBit %a %a)" p e1 p e2
+      | SetBit (e1, e2, e3) ->
+          pp oc "(SetBit %a %a %a)" p e1 p e2 p e3
+      | ReadByte e ->
+          pp oc "(ReadByte %a)" p e
+      | ReadWord (e1, e2) ->
+          pp oc "(ReadWord %a %a)" print_endianness e1 p e2
+      | ReadDWord (e1, e2) ->
+          pp oc "(ReadDWord %a %a)" print_endianness e1 p e2
+      | ReadQWord (e1, e2) ->
+          pp oc "(ReadQWord %a %a)" print_endianness e1 p e2
+      | ReadOWord (e1, e2) ->
+          pp oc "(ReadOWord %a %a)" print_endianness e1 p e2
+      | ReadBytes (e1, e2) ->
+          pp oc "(ReadBytes %a %a)" p e1 p e2
+      | PeekByte (e1, e2) ->
+          pp oc "(PeekByte %a %a)" p e1 p e2
+      | PeekWord (e1, e2, e3) ->
+          pp oc "(PeekWord %a %a %a)" print_endianness e1 p e2 p e3
+      | PeekDWord (e1, e2, e3) ->
+          pp oc "(PeekDWord %a %a %a)" print_endianness e1 p e2 p e3
+      | PeekQWord (e1, e2, e3) ->
+          pp oc "(PeekQWord %a %a %a)" print_endianness e1 p e2 p e3
+      | PeekOWord (e1, e2, e3) ->
+          pp oc "(PeekOWord %a %a %a)" print_endianness e1 p e2 p e3
+      | WriteByte (e1, e2) ->
+          pp oc "(WriteByte %a %a)" p e1 p e2
+      | WriteWord (e1, e2, e3) ->
+          pp oc "(WriteWord %a %a %a)" print_endianness e1 p e2 p e3
+      | WriteDWord (e1, e2, e3) ->
+          pp oc "(WriteDWord %a %a %a)" print_endianness e1 p e2 p e3
+      | WriteQWord (e1, e2, e3) ->
+          pp oc "(WriteQWord %a %a %a)" print_endianness e1 p e2 p e3
+      | WriteOWord (e1, e2, e3) ->
+          pp oc "(WriteOWord %a %a %a)" print_endianness e1 p e2 p e3
+      | WriteBytes (e1, e2) ->
+          pp oc "(WriteBytes %a %a)" p e1 p e2
+      | PokeByte (e1, e2) ->
+          pp oc "(PokeByte %a %a)" p e1 p e2
+      | BlitBytes (e1, e2, e3) ->
+          pp oc "(BlitBytes %a %a %a)" p e1 p e2 p e3
+      | DataPtrAdd (e1, e2) ->
+          pp oc "(DataPtrAdd %a %a)" p e1 p e2
+      | DataPtrSub (e1, e2) ->
+          pp oc "(DataPtrSub %a %a)" p e1 p e2
+      | RemSize e ->
+          pp oc "(RemSize %a)" p e
+      | And (e1, e2) ->
+          pp oc "(And %a %a)" p e1 p e2
+      | Or (e1, e2) ->
+          pp oc "(Or %a %a)" p e1 p e2
+      | Not e ->
+          pp oc "(Not %a)" p e
+      | ToU8 e ->
+          pp oc "(ToU8%a)" p e
+      | ToI8 e ->
+          pp oc "(ToI8 %a)" p e
+      | ToU16 e ->
+          pp oc "(ToU16 %a)" p e
+      | ToI16 e ->
+          pp oc "(ToI16 %a)" p e
+      | ToU32 e ->
+          pp oc "(ToU32 %a)" p e
+      | ToI32 e ->
+          pp oc "(ToI32 %a)" p e
+      | ToU64 e ->
+          pp oc "(ToU64 %a)" p e
+      | ToI64 e ->
+          pp oc "(ToI64 %a)" p e
+      | ToU128 e ->
+          pp oc "(ToU128 %a)" p e
+      | ToI128 e ->
+          pp oc "(ToI128 %a)" p e
+      | AllocValue vtyp ->
+          pp oc "(AllocValue %a)" ValueType.print vtyp
+      | DerefValuePtr e ->
+          pp oc "(DerefValuePtr %a)" p e
+      | SetField (path, e1, e2) ->
+          pp oc "(SetField %a %a %a)" ValueType.print_path path p e1 p e2
+      | FieldIsNull (path, e) ->
+          pp oc "(FieldIsNull %a %a)" ValueType.print_path path p e
+      | GetField (path, e) ->
+          pp oc "(GetField %a %a)" ValueType.print_path path p e
+      | Pair (e1, e2) ->
+          pp oc "(Pair %a %a)" p e1 p e2
+      | Fst e ->
+          pp oc "(Fst %a)" p e
+      | Snd e ->
+          pp oc "(Snd %a)" p e
+      | MapPair (e1, e2) ->
+          pp oc "(MapPair %a %a)" p e1 p e2
+      | Identifier n ->
+          (* Do not repeat the expression, that we keep only for knowing the type of this expression: *)
+          pp oc "(Identifier %s)" n
+      | Let (n, e1, e2) ->
+          pp oc "(Let %s %a %a)" n p e1 p e2
+      | Function0 (id, e) ->
+          pp oc "(Function0 %d %a)" id p e
+      | Function1 (id, t, e) ->
+          pp oc "(Function1 %d %a %a)" id Type.print t p e
+      | Function2 (id, t1, t2, e) ->
+          pp oc "(Function2 %d %a %a %a)" id Type.print t1 Type.print t2 p e
+      | Param (fid, n) ->
+          pp oc "(Param %d %d)" fid n
+      | Choose (e1, e2, e3) ->
+          pp oc "(Choose %a %a %a)" p e1 p e2 p e3
+      | ReadWhile (e1, e2, e3, e4) ->
+          pp oc "(ReadWord %a %a %a %a)" p e1 p e2 p e3 p e4
+      | LoopWhile (e1, e2, e3) ->
+          pp oc "(LoopWhile %a %a %a)" p e1 p e2 p e3
+      | LoopUntil (e1, e2, e3) ->
+          pp oc "(LoopUntil %a %a %a)" p e1 p e2 p e3
+      | Repeat (e1, e2, e3, e4) ->
+          pp oc "(Repeat %a %a %a %a)" p e1 p e2 p e3 p e4
+
+  exception Type_error of e * e * typ * string
+  exception Type_error_param of e * e * int * typ * string
+  exception Type_error_path of e * e * path * string
+
+  let rec vtype_of_valueptr e0 l e =
+    match type_of l e with
+    | Type.ValuePtr vt -> vt
+    | t -> raise (Type_error (e0, e, t, "be a ValuePtr"))
+
+  (* [e] must have been type checked already: *)
+  and type_of l e0 =
+    match e0 with
+    | Dump _
+    | Seq [] ->
+        void
+    | Seq es ->
+        type_of l (List.last es)
+    | Comment (_, e)
+    | Coalesce (_, e)
+    | Add (e, _)
+    | Sub (e, _)
+    | Mul (e, _)
+    | Div (e, _)
+    | Rem (e, _)
+    | LogAnd (e, _)
+    | LogOr (e, _)
+    | LogXor (e, _)
+    | LeftShift (e, _)
+    | RightShift (e, _)
+    | LogNot e ->
+        type_of l e
+    | Nullable e ->
+        Type.to_nullable (type_of l e)
+    | NotNullable e ->
+        Type.to_not_nullable (type_of l e)
+    | IsNull _ -> bool
+    | Null t -> Value (Nullable t)
+    | Float _ -> float
+    | String _ -> string
+    | Bool _ -> bool
+    | Char _ -> char
+    | U8 _ -> u8
+    | U16 _ -> u16
+    | U32 _ -> u32
+    | U64 _ -> u64
+    | U128 _ -> u128
+    | I8 _ -> i8
+    | I16 _ -> i16
+    | I32 _ -> i32
+    | I64 _ -> i64
+    | I128 _ -> i128
+    | Bit _ -> bit
+    | Size _ -> size
+    | Byte _ -> byte
+    | Word _ -> word
+    | DWord _ -> dword
+    | QWord _ -> qword
+    | OWord _ -> oword
+    | Gt _ -> bool
+    | Ge _ -> bool
+    | Eq _ -> bool
+    | Ne _ -> bool
+    | StringOfFloat _
+    | StringOfChar _
+    | StringOfInt _ -> string
+    | CharOfString _ -> char
+    | FloatOfString _ -> float
+    | U8OfString _ -> u8
+    | U16OfString _ -> u16
+    | U32OfString _ -> u32
+    | U64OfString _ -> u64
+    | U128OfString _ -> u128
+    | I8OfString _ -> i8
+    | I16OfString _ -> i16
+    | I32OfString _ -> i32
+    | I64OfString _ -> i64
+    | I128OfString _ -> i128
+    | FloatOfQWord _ -> float
+    | QWordOfFloat _ -> qword
+    | U8OfByte _ -> u8
+    | ByteOfU8 _ -> byte
+    | U16OfWord _ -> u16
+    | WordOfU16 _ -> word
+    | U32OfDWord _ -> u32
+    | DWordOfU32 _ -> dword
+    | U64OfQWord _ -> u64
+    | QWordOfU64 _ -> qword
+    | U128OfOWord _ -> u128
+    | OWordOfU128 _ -> oword
+    | U8OfChar _ -> u8
+    | CharOfU8 _ -> char
+    | SizeOfU32 _ -> size
+    | U32OfSize _ -> u32
+    | BitOfBool _ -> bit
+    | BoolOfBit _ -> bool
+    | U8OfBool _ -> u8
+    | BoolOfU8 _ -> bool
+    | AppendBytes _ -> bytes
+    | AppendString _ -> string
+    | StringLength _ -> u32
+    | StringOfBytes _ -> string
+    | BytesOfString _ -> bytes
+    | ListLength _ -> u32
+    | DataPtrOfString _ -> dataptr
+    | TestBit _ -> bit
+    | SetBit _ -> dataptr
+    | ReadByte _ -> pair byte dataptr
+    | ReadWord _ -> pair word dataptr
+    | ReadDWord _ -> pair dword dataptr
+    | ReadQWord _ -> pair qword dataptr
+    | ReadOWord _ -> pair oword dataptr
+    | ReadBytes _ -> pair bytes dataptr
+    | PeekByte _ -> byte
+    | PeekWord _ -> word
+    | PeekDWord _ -> dword
+    | PeekQWord _ -> qword
+    | PeekOWord _ -> oword
+    | WriteByte _ -> dataptr
+    | WriteWord _ -> dataptr
+    | WriteDWord _ -> dataptr
+    | WriteQWord _ -> dataptr
+    | WriteOWord _ -> dataptr
+    | WriteBytes _ -> dataptr
+    | PokeByte _ -> dataptr
+    | BlitBytes _ -> dataptr
+    | DataPtrAdd _ -> dataptr
+    | DataPtrSub _ -> size
+    | RemSize _ -> size
+    | And _ -> bool
+    | Or _ -> bool
+    | Not _ -> bool
+    | ToU8 _ -> i8
+    | ToI8 _ -> u8
+    | ToU16 _ -> u16
+    | ToI16 _ -> i16
+    | ToU32 _ -> u32
+    | ToI32 _ -> i32
+    | ToU64 _ -> u64
+    | ToI64 _ -> i64
+    | ToU128 _ -> u128
+    | ToI128 _ -> i128
+    | AllocValue vtyp -> valueptr vtyp
+    | DerefValuePtr e ->
+        Type.Value (vtype_of_valueptr e0 l e)
+    | SetField (_, e1, _) -> type_of l e1
+    | FieldIsNull _ -> bool
+    | GetField (path, e) ->
+        let vt = vtype_of_valueptr e0 l e in
+        Type.Value (ValueType.type_of_path vt path)
+    | Pair (e1, e2) ->
+        pair (type_of l e1) (type_of l e2)
+    | Fst e ->
+        (match type_of l e with
+        | Type.Pair (t, _) -> t
+        | t -> raise (Type_error (e0, e, t, "be a pair")))
+    | Snd e ->
+        (match type_of l e with
+        | Type.Pair (_, t) -> t
+        | t -> raise (Type_error (e0, e, t, "be a pair")))
+    | MapPair (_, e) ->
+        (match type_of l e with
+        | Function2 (_, _, t) -> t
+        | t -> raise (Type_error (e0, e, t, "be a pair")))
+    | Identifier n as e ->
+        (try List.assoc e l
+        with Not_found ->
+            Printf.eprintf "Cannot find identifier %S in %a\n%!"
+              n (List.print (fun oc (e, _) -> print oc e)) l ;
+            raise Not_found)
+    | Let (n, e1, e2) ->
+        type_of ((Identifier n, (type_of l e1))::l) e2
+    | Function0 (_fid, e) ->
+        Type.Function0 (type_of l e)
+    | Function1 (fid, t, e) ->
+        let l = (Param (fid, 0), t)::l in
+        Type.Function1 (t, type_of l e)
+    | Function2 (fid, t1, t2, e) ->
+        let l = (Param (fid, 0), t1)::(Param (fid, 1), t2)::l in
+        Type.Function2 (t1, t2, type_of l e)
+    | Param (_, n) as e ->
+        (try List.assoc e l
+        with Not_found ->
+            Printf.eprintf "Cannot find parameter %d in %a\n%!"
+              n (List.print (fun oc (e, _) -> print oc e)) l ;
+            raise Not_found)
+    | Choose (_, e, _) -> type_of l e
+    | ReadWhile (_, _, e, _) -> pair (type_of l e) dataptr
+    | LoopWhile (_, _, e) -> type_of l e
+    | LoopUntil (_, _, e) -> type_of l e
+    | Repeat (_, _, _, e) -> type_of l e
+
+  (* depth last, pass the list of bound identifiers along the way: *)
+  let rec fold u l f e =
+    let u = f u l e in
+    match e with
+    | Null _
+    | Float _
+    | String _
+    | Bool _
+    | Char _
+    | U8 _
+    | U16 _
+    | U32 _
+    | U64 _
+    | U128 _
+    | I8 _
+    | I16 _
+    | I32 _
+    | I64 _
+    | I128 _
+    | Bit _
+    | Size _
+    | Byte _
+    | Word _
+    | DWord _
+    | QWord _
+    | OWord _
+    | Param _
+    | DataPtrOfString _
+    | AllocValue _
+    | Identifier _ ->
+        u
+    | Dump e
+    | DerefValuePtr e
+    | Comment (_, e)
+    | IsNull e
+    | Nullable e
+    | NotNullable e
+    | LogNot e
+    | StringOfInt e
+    | StringOfChar e
+    | FloatOfQWord e
+    | QWordOfFloat e
+    | StringOfFloat e
+    | FloatOfString e
+    | CharOfString e
+    | U8OfString e
+    | U16OfString e
+    | U32OfString e
+    | U64OfString e
+    | U128OfString e
+    | I8OfString e
+    | I16OfString e
+    | I32OfString e
+    | I64OfString e
+    | I128OfString e
+    | U8OfByte e
+    | ByteOfU8 e
+    | U16OfWord e
+    | WordOfU16 e
+    | U32OfDWord e
+    | DWordOfU32 e
+    | U64OfQWord e
+    | QWordOfU64 e
+    | U128OfOWord e
+    | OWordOfU128 e
+    | U8OfChar e
+    | CharOfU8 e
+    | SizeOfU32 e
+    | U32OfSize e
+    | BitOfBool e
+    | BoolOfBit e
+    | U8OfBool e
+    | BoolOfU8 e
+    | StringLength e
+    | StringOfBytes e
+    | BytesOfString e
+    | ListLength e
+    | ReadByte e
+    | ReadWord (_, e)
+    | ReadDWord (_, e)
+    | ReadQWord (_, e)
+    | ReadOWord (_, e)
+    | RemSize e
+    | Not e
+    | ToU8 e
+    | ToI8 e
+    | ToU16 e
+    | ToI16 e
+    | ToU32 e
+    | ToI32 e
+    | ToU64 e
+    | ToI64 e
+    | ToU128 e
+    | ToI128 e
+    | FieldIsNull (_, e)
+    | GetField (_, e)
+    | Fst e
+    | Snd e
+    | Function0 (_, e) ->
+        fold u l f e
+    | Function1 (id, t1, e) ->
+        fold u ((Param (id, 0), t1)::l) f e
+    | Function2 (id, t1, t2, e) ->
+        fold u ((Param (id, 0), t1)::(Param (id, 1), t2)::l) f e
+    | Coalesce (e1, e2)
+    | Gt (e1, e2)
+    | Ge (e1, e2)
+    | Eq (e1, e2)
+    | Ne (e1, e2)
+    | Add (e1, e2)
+    | Sub (e1, e2)
+    | Mul (e1, e2)
+    | Div (e1, e2)
+    | Rem (e1, e2)
+    | LogAnd (e1, e2)
+    | LogOr (e1, e2)
+    | LogXor (e1, e2)
+    | LeftShift (e1, e2)
+    | RightShift (e1, e2)
+    | AppendBytes (e1, e2)
+    | AppendString (e1, e2)
+    | TestBit (e1, e2)
+    | ReadBytes (e1, e2)
+    | PeekByte (e1, e2)
+    | WriteByte (e1, e2)
+    | PeekWord (_, e1, e2)
+    | PeekDWord (_, e1, e2)
+    | PeekQWord (_, e1, e2)
+    | PeekOWord (_, e1, e2)
+    | WriteWord (_, e1, e2)
+    | WriteDWord (_, e1, e2)
+    | WriteQWord (_, e1, e2)
+    | WriteOWord (_, e1, e2)
+    | WriteBytes (e1, e2)
+    | PokeByte (e1, e2)
+    | DataPtrAdd (e1, e2)
+    | DataPtrSub (e1, e2)
+    | And (e1, e2)
+    | Or (e1, e2)
+    | SetField (_, e1, e2)
+    | Pair (e1, e2)
+    | MapPair (e1, e2) ->
+        fold (fold u l f e1) l f e2
+    | Let (s, e1, e2) ->
+        fold (fold u l f e1) ((Identifier s, type_of l e1)::l) f e2
+    | SetBit (e1, e2, e3)
+    | BlitBytes (e1, e2, e3)
+    | Choose (e1, e2, e3)
+    | LoopWhile (e1, e2, e3)
+    | LoopUntil (e1, e2, e3) ->
+        fold (fold (fold u l f e1) l f e2) l f e3
+    | ReadWhile (e1, e2, e3, e4)
+    | Repeat (e1, e2, e3, e4) ->
+        fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
+    | Seq es ->
+        List.fold_left (fun u e -> fold u l f e) u es
+
+  let rec type_check l e =
+    fold () l (fun () l e0 ->
+      let check_void l e =
+        match type_of l e with
+        | Type.Void -> ()
+        | t -> raise (Type_error (e0, e, t, "be Void")) in
+      let check_nullable l e =
+        match type_of l e with
+        | Type.Value ValueType.(Nullable _) -> ()
+        | t -> raise (Type_error (e0, e, t, "be nullable")) in
+      let check_not_nullable l e =
+        match type_of l e with
+        | Type.Value ValueType.(NotNullable _) -> ()
+        | t -> raise (Type_error (e0, e, t, "not be nullable")) in
+      let check_comparable l e =
+        match type_of l e with
+        | Type.Size | Byte | Word | DWord | QWord | OWord
+        | Value ValueType.(NotNullable (Float | String | Char |
+            U8 | U16 | U32 | U64 | U128 | I8 | I16 | I32 | I64 | I128)) -> ()
+        | t -> raise (Type_error (e0, e, t, "be comparable")) in
+      let check_numeric l e =
+        match type_of l e with
+        | Type.Size | Byte | Word | DWord | QWord | OWord
+        | Value ValueType.(NotNullable (Float | Char |
+            U8 | U16 | U32 | U64 | U128 | I8 | I16 | I32 | I64 | I128)) -> ()
+        | t -> raise (Type_error (e0, e, t, "be numeric")) in
+      let check_integer l e =
+        match type_of l e with
+        | Type.Size | Byte | Word | DWord | QWord | OWord
+        | Value ValueType.(NotNullable (
+            U8 | U16 | U32 | U64 | U128 | I8 | I16 | I32 | I64 | I128)) -> ()
+        | t -> raise (Type_error (e0, e, t, "be an integer")) in
+      let check_param fe n act exp =
+        if act <> exp then
+          let expected = IO.to_string Type.print act in
+          raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
+      let check_eq l e exp =
+        let act = type_of l e in
+        if act <> exp then
+          let expected = IO.to_string Type.print exp in
+          raise (Type_error (e0, e, act, "be a "^ expected)) in
+      let check_same_types l e1 e2 =
+        let t1 = type_of l e1 in
+        check_eq l e2 t1 in
+      let check_list l e =
+        match type_of l e with
+        | Type.Value ValueType.(NotNullable List _) -> ()
+        | t -> raise (Type_error (e0, e, t, "be a list")) in
+      let check_pair l e =
+        match type_of l e with
+        | Type.Pair _ -> ()
+        | t -> raise (Type_error (e0, e, t, "be a pair")) in
+      let check_function2 l e =
+        match type_of l e with
+        | Type.Function2 _ -> ()
+        | t -> raise (Type_error (e0, e, t, "be a function2")) in
+      let check_params1 l e f =
+        match type_of l e with
+        | Type.Function1 (t1, t2) -> f t1 t2
+        | t -> raise (Type_error (e0, e, t, "be a function1")) in
+      let check_params2 l e f =
+        match type_of l e with
+        | Type.Function2 (t1, t2, t3) -> f t1 t2 t3
+        | t -> raise (Type_error (e0, e, t, "be a function2")) in
+      let check_valueptr l e  =
+        match type_of l e with
+        | Type.ValuePtr _ -> ()
+        | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
+      let check_valueptr_path_same_types l e1 path e2 =
+        match type_of l e1 with
+        | Type.ValuePtr vt ->
+            let exp = Type.Value (ValueType.type_of_path vt path) in
+            check_eq l e2 exp
+        | t -> raise (Type_error (e0, e1, t, "be a ValuePtr")) in
+      let check_valueptr_path l e path =
+        match type_of l e with
+        | Type.ValuePtr vt ->
+            (try ignore (ValueType.type_of_path vt path)
+            with _ ->
+              let s = IO.to_string ValueType.print vt in
+              raise (Type_error_path (e0, e, path, "stay within "^ s)))
+        | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
+      let check_valueptr_path_nullable l e path nullable =
+        match type_of l e with
+        | Type.ValuePtr vt ->
+            let vt = ValueType.type_of_path vt path in
+            let act = ValueType.is_nullable vt in
+            if act <> nullable then
+              let expected = (if nullable then "" else "not") ^" nullable" in
+              raise (Type_error_path (e0, e, path, "be "^ expected))
+        | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
+      match e0 with
+      | Comment _
+      | Dump _
+      | Null _
+      | Float _
+      | String _
+      | Bool _
+      | Char _
+      | U8 _
+      | U16 _
+      | U32 _
+      | U64 _
+      | U128 _
+      | I8 _
+      | I16 _
+      | I32 _
+      | I64 _
+      | I128 _
+      | Bit _
+      | Size _
+      | Byte _
+      | Word _
+      | DWord _
+      | QWord _
+      | OWord _
+      | DataPtrOfString _
+      | AllocValue _
+      | Pair _
+      | Identifier _
+      | Let _
+      | Param _
+      | Function0 _
+      | Function1 _
+      | Function2 _ ->
+          ()
+      | Seq es ->
+          let rec loop = function
+            | [] | [_] -> ()
+            | e::es -> check_void l e ; loop es in
+          loop es
+      | IsNull e ->
+          check_nullable l e
+      | Coalesce (e1, e2) ->
+          check_nullable l e1 ;
+          check_not_nullable l e2
+      | Nullable e ->
+          check_not_nullable l e
+      | NotNullable e ->
+          check_nullable l e
+      | Gt (e1, e2)
+      | Ge (e1, e2)
+      | Eq (e1, e2)
+      | Ne (e1, e2) ->
+          check_comparable l e1 ;
+          check_same_types l e1 e2
+      | Add (e1, e2)
+      | Sub (e1, e2)
+      | Mul (e1, e2)
+      | Div (e1, e2)
+      | Rem (e1, e2) ->
+          check_numeric l e1 ;
+          check_same_types l e1 e2
+      | LogAnd (e1, e2)
+      | LogOr (e1, e2)
+      | LogXor (e1, e2) ->
+          check_integer l e1 ;
+          check_same_types l e1 e2
+      | LeftShift (e1, e2)
+      | RightShift (e1, e2) ->
+          check_integer l e1 ;
+          check_eq l e2 u8
+      | LogNot e
+      | StringOfInt e ->
+          check_integer l e
+      | StringOfChar e
+      | U8OfChar e ->
+          check_eq l e char
+      | FloatOfString e
+      | CharOfString e
+      | U8OfString e
+      | U16OfString e
+      | U32OfString e
+      | U64OfString e
+      | U128OfString e
+      | I8OfString e
+      | I16OfString e
+      | I32OfString e
+      | I64OfString e
+      | I128OfString e
+      | StringLength e
+      | BytesOfString e ->
+          check_eq l e string
+      | FloatOfQWord e
+      | U64OfQWord e ->
+          check_eq l e qword
+      | QWordOfFloat e
+      | StringOfFloat e ->
+          check_eq l e float
+      | U8OfByte e ->
+          check_eq l e byte
+      | CharOfU8 e
+      | ByteOfU8 e
+      | BoolOfU8 e ->
+          check_eq l e u8
+      | ToU8 e
+      | ToI8 e
+      | ToI16 e
+      | ToU16 e
+      | ToI32 e
+      | ToU32 e
+      | ToI64 e
+      | ToU64 e
+      | ToI128 e
+      | ToU128 e ->
+          check_integer l e
+      | U16OfWord e ->
+          check_eq l e word
+      | WordOfU16 e ->
+          check_eq l e u16
+      | U32OfDWord e ->
+          check_eq l e dword
+      | DWordOfU32 e
+      | SizeOfU32 e ->
+          check_eq l e u32
+      | QWordOfU64 e ->
+          check_eq l e i64
+      | OWordOfU128 e ->
+          check_eq l e u128
+      | U128OfOWord e ->
+          check_eq l e oword
+      | U32OfSize e ->
+          check_eq l e size
+      | BitOfBool e
+      | U8OfBool e
+      | Not e ->
+          check_eq l e bool
+      | BoolOfBit e ->
+          check_eq l e bit
+      | AppendBytes (e1, e2) ->
+          check_eq l e1 bytes ;
+          check_eq l e2 bytes
+      | AppendString (e1, e2) ->
+          check_eq l e1 string ;
+          check_eq l e2 string
+      | StringOfBytes e ->
+          check_eq l e bytes
+      | ListLength e ->
+          check_list l e
+      | TestBit (e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 size
+      | SetBit (e1, e2, e3) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 u32 ;
+          check_eq l e3 bit
+      | ReadByte e
+      | ReadWord (_, e)
+      | ReadDWord (_, e)
+      | ReadQWord (_, e)
+      | ReadOWord (_, e) ->
+          check_eq l e dataptr
+      | ReadBytes (e1, e2)
+      | PeekByte (e1, e2)
+      | PeekWord (_, e1, e2)
+      | PeekDWord (_, e1, e2)
+      | PeekQWord (_, e1, e2)
+      | PeekOWord (_, e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 size
+      | WriteByte (e1, e2)
+      | PokeByte (e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 byte
+      | WriteWord (_, e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 word
+      | WriteDWord (_, e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 dword
+      | WriteQWord (_, e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 qword
+      | WriteOWord (_, e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 oword
+      | WriteBytes (e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 bytes
+      | BlitBytes (e1, e2, e3) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 bytes ;
+          check_eq l e3 size
+      | DataPtrAdd (e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 size
+      | DataPtrSub (e1, e2) ->
+          check_eq l e1 dataptr ;
+          check_eq l e2 dataptr
+      | RemSize e ->
+          check_eq l e dataptr ;
+      | And (e1, e2)
+      | Or (e1, e2) ->
+          check_eq l e1 bool ;
+          check_eq l e2 bool
+      | DerefValuePtr e1 ->
+          check_valueptr l e1
+      | SetField (path, e1, e2) ->
+          check_valueptr_path_same_types l e1 path e2
+      | FieldIsNull (path, e) ->
+          check_valueptr_path_nullable l e path true
+      | GetField (path, e) ->
+          check_valueptr_path l e path
+      | Fst e ->
+          check_pair l e
+      | Snd e ->
+          check_pair l e
+      | MapPair (e1, e2) ->
+          check_pair l e1 ;
+          check_function2 l e2
+      | Choose (e1, e2, e3) ->
+          check_eq l e1 bool ;
+          check_same_types l e2 e3
+      | ReadWhile (e1, e2, e3, e4) ->
+          check_params1 l e1 (fun t1 t2 ->
+            check_param e1 0 t1 byte ;
+            check_param e1 1 t2 bool) ;
+          check_params2 l e2 (fun t1 t2 t3 ->
+            check_eq l e3 t1 ;
+            check_param e2 1 t2 byte ;
+            check_eq l e3 t3) ;
+          check_eq l e4 dataptr
+      | LoopWhile (e1, e2, e3) ->
+          check_params1 l e1 (fun t1 t2 ->
+            check_eq l e3 t1 ;
+            check_param e1 1 t2 bool) ;
+          check_params1 l e2 (fun t1 t2 ->
+            check_eq l e3 t1 ;
+            check_eq l e3 t2)
+      | LoopUntil (e1, e2, e3) ->
+          check_params1 l e1 (fun t1 t2 ->
+            check_eq l e3 t1 ;
+            check_eq l e3 t2) ;
+          check_params1 l e2 (fun t1 t2 ->
+            check_eq l e3 t1 ;
+            check_param e2 1 t2 bool) ;
+      | Repeat (e1, e2, e3, e4) ->
+          check_eq l e1 i32 ;
+          check_eq l e2 i32 ;
+          check_params2 l e3 (fun t1 t2 t3 ->
+            check_param e3 0 t1 i32 ;
+            check_eq l e4 t2 ;
+            check_eq l e4 t3)
+    ) e
+
+  let () =
+    let max_depth = 3 in
+    Printexc.register_printer (function
+      | Type_error (e0, e, t, s) ->
+          Some (
+            Printf.sprintf2
+              "Type Error: In expression %a, expression %a should %s but is a %a"
+              (print ~max_depth) e0 (print ~max_depth) e s Type.print t)
+      | Type_error_param (e0, e, n, t, s) ->
+          Some (
+            Printf.sprintf2
+              "Type Error: In expression %a, parameter %d of expression %a \
+               should %s but is a %a"
+              (print ~max_depth) e0 n (print ~max_depth) e s Type.print t)
+      | Type_error_path (e0, e, path, s) ->
+          Some (
+            Printf.sprintf2
+              "Type Error: In expression %a, path %a of expression %a should %s"
+              (print ~max_depth) e0 ValueType.print_path path (print ~max_depth) e s)
+      | _ ->
+          None)
+
+  (*
+   * Some helpers to deal with expressions:
+   *)
+
+  let gen_id =
     let seq = ref (-1) in
     fun () ->
       incr seq ;
-      pref ^ "_" ^ string_of_int !seq
+      "gen"^ string_of_int !seq
 
-  let float = make "flt"
-  let string = make "str"
-  let bool = make "bool"
-  let char = make "char"
-  let i8 = make "i8"
-  let u8 = make "u8"
-  let i16 = make "i16"
-  let u16 = make "u16"
-  let u32 = make "u32"
-  let i32 = make "i32"
-  let u64 = make "u64"
-  let i64 = make "i64"
-  let u128 = make "u128"
-  let i128 = make "i128"
-  let tuple = make "tup"
-  let record = make "rec"
-  let vector = make "vec"
-  let list = make "list"
-  let pointer = make "ptr"
-  let size = make "sz"
-  let bit = make "bit"
-  let byte = make "byte"
-  let word = make "word"
-  let dword = make "dword"
-  let qword = make "qword"
-  let oword = make "oword"
-  let bytes = make "bytes"
-  let pair = make "pair"
-  let auto = make "auto"
-  let func0 = make "func0"
-  let func1 : 'a t -> 'b t -> ([`Function1] * 'a * 'b) t =
-    let maker = make "func1" in
-    fun _ _ -> maker ()
-  let func2 : 'a t -> 'b t -> 'c t -> ([`Function2] * 'a * 'b * 'c) t =
-    let maker = make "func2" in
-    fun _ _ _ -> maker ()
-  let func3 : 'a t -> 'b t -> 'c t -> 'd t -> ([`Function3] * 'a * 'b * 'c * 'd) t =
-    let maker = make "func3" in
-    fun _ _ _ _ -> maker ()
-  let param n = make ("param"^ string_of_int n)
+  let with_sploded_pair what e f =
+    let pair_id = gen_id () ^"_"^ what in
+    let n1 = pair_id ^"_0"
+    and n2 = pair_id ^"_1" in
+    Let (pair_id, e,
+      Let (n1, Fst (Identifier pair_id),
+        Let (n2, Snd (Identifier pair_id),
+          f (Identifier n1) (Identifier n2))))
 
-  let to_float s = s
-  let to_string s = s
-  let to_bool s = s
-  let to_char s = s
-  let to_u8 s = s
-  let to_u16 s = s
-  let to_u32 s = s
-  let to_u64 s = s
-  let to_u128 s = s
-  let to_i8 s = s
-  let to_i16 s = s
-  let to_i32 s = s
-  let to_i64 s = s
-  let to_i128 s = s
-  let to_vec s = s
-  let to_list s = s
-  let to_tup s = s
-  let to_rec s = s
-  let to_pointer s = s
-  let to_size s = s
-  let to_bit s = s
-  let to_byte s = s
-  let to_word s = s
-  let to_dWord s = s
-  let to_qWord s = s
-  let to_oWord s = s
-  let to_bytes s = s
+  (*$inject
+    let vptr = Type.ValuePtr ValueType.(Nullable String)
+    let func2 =
+      Function2 (14, vptr, DataPtr,
+        Let ("gen9_ds", Pair (GetField ([], Param (14, 0)),
+                              Param (14, 0)),
+          Let ("gen9_ds_0", Fst (Identifier "gen9_ds"),
+            Let ("gen9_ds_1", Snd (Identifier "gen9_ds"),
+              Pair (Identifier "gen9_ds_1",
+                    Comment ("Serialize a String",
+                      WriteByte (
+                        WriteBytes (
+                          WriteByte (Param (14, 1), ByteOfU8 (U8OfChar (Char '"'))),
+                          BytesOfString (NotNullable (Identifier "gen9_ds_0"))),
+                        ByteOfU8 (U8OfChar (Char '"')))))))))
+  *)
+  (*$= type_of & ~printer:(BatIO.to_string Type.print)
+    (Function2 (vptr, DataPtr, Pair (vptr, DataPtr))) (type_of [] func2)
+  *)
 
-  let to_any s = s
-  let of_string s = s
-
-  let of_any t s =
-    match t with
-    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> to_float s
-    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> to_string s
-    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> to_bool s
-    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> to_char s
-    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> to_u8 s
-    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> to_u16 s
-    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> to_u32 s
-    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> to_u64 s
-    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> to_u128 s
-    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> to_i8 s
-    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> to_i16 s
-    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> to_i32 s
-    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> to_i64 s
-    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> to_i128 s
-    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> to_vec s
-    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> to_list s
-    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> to_tup s
-    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> to_rec s
-    | Type.TPointer -> to_pointer s
-    | Type.TSize -> to_size s
-    | Type.TBit -> to_bit s
-    | Type.TByte -> to_byte s
-    | Type.TWord -> to_word s
-    | Type.TDWord -> to_dWord s
-    | Type.TQWord -> to_qWord s
-    | Type.TOWord -> to_oWord s
-    | Type.TBytes -> to_bytes s
-    | Type.TPair _
-    | Type.TFunction0  _
-    | Type.TFunction1  _
-    | Type.TFunction2  _
-    | Type.TFunction3  _ -> assert false (* get rid of Any! *)
-
-  let any = function
-    | Type.TValue ValueType.(NotNullable TFloat | Nullable TFloat) -> float ()
-    | Type.TValue ValueType.(NotNullable TString | Nullable TString) -> string ()
-    | Type.TValue ValueType.(NotNullable TBool | Nullable TBool) -> bool ()
-    | Type.TValue ValueType.(NotNullable TChar | Nullable TChar) -> char ()
-    | Type.TValue ValueType.(NotNullable TU8 | Nullable TU8) -> u8 ()
-    | Type.TValue ValueType.(NotNullable TU16 | Nullable TU16) -> u16 ()
-    | Type.TValue ValueType.(NotNullable TU32 | Nullable TU32) -> u32 ()
-    | Type.TValue ValueType.(NotNullable TU64 | Nullable TU64) -> u64 ()
-    | Type.TValue ValueType.(NotNullable TU128 | Nullable TU128) -> u128 ()
-    | Type.TValue ValueType.(NotNullable TI8 | Nullable TI8) -> i8 ()
-    | Type.TValue ValueType.(NotNullable TI16 | Nullable TI16) -> i16 ()
-    | Type.TValue ValueType.(NotNullable TI32 | Nullable TI32) -> i32 ()
-    | Type.TValue ValueType.(NotNullable TI64 | Nullable TI64) -> i64 ()
-    | Type.TValue ValueType.(NotNullable TI128 | Nullable TI128) -> i128 ()
-    | Type.TValue ValueType.(NotNullable TVec _ | Nullable TVec _) -> vector ()
-    | Type.TValue ValueType.(NotNullable TList _ | Nullable TList _) -> list ()
-    | Type.TValue ValueType.(NotNullable TTup _ | Nullable TTup _) -> tuple ()
-    | Type.TValue ValueType.(NotNullable TRec _ | Nullable TRec _) -> record ()
-    | Type.TPointer -> pointer ()
-    | Type.TSize -> size ()
-    | Type.TBit -> bit ()
-    | Type.TByte -> byte ()
-    | Type.TWord -> word ()
-    | Type.TDWord -> dword ()
-    | Type.TQWord -> qword ()
-    | Type.TOWord -> oword ()
-    | Type.TBytes -> bytes ()
-    | Type.TPair _ -> pair ()
-    | Type.TFunction0 _ -> func0 ()
-    | Type.TFunction1 (t1, t2) ->
-        (* Only cares about the type of identifier not its name: *)
-        func1 (of_any t1 "a") (of_any t2 "b")
-    | Type.TFunction2 (t1, t2, t3) ->
-        func2 (of_any t1 "a") (of_any t2 "b") (of_any t3 "c")
-    | Type.TFunction3 (t1, t2, t3, t4) ->
-        func3 (of_any t1 "a") (of_any t2 "b") (of_any t3 "c") (of_any t4 "d")
-
-  let print : 'a BatIO.output -> 'b t -> unit = String.print
-
-  let modify p id s = p ^ id ^ s
+  (*$>*)
 end
 
-type 'a id = 'a Identifier.t
+type e = Expression.e
 
-module type NUMERIC =
-sig
-  type output
-  type mid
-  val eq : output -> mid -> mid -> [`Bool] id
-  val ne : output -> mid -> mid -> [`Bool] id
-  val gt : output -> mid -> mid -> [`Bool] id
-  val ge : output -> mid -> mid -> [`Bool] id
-  val add : output -> mid -> mid -> mid
-  val sub : output -> mid -> mid -> mid
-  val mul : output -> mid -> mid -> mid
-  val div : output -> mid -> mid -> mid
-
-  val of_const_int : output -> int -> mid
-  val of_byte : output -> [`Byte] id -> mid
-  val to_byte : output -> mid -> [`Byte] id
-  val of_word : output -> [`Word] id -> mid
-  val to_word : output -> mid -> [`Word] id
-  val of_dword : output -> [`DWord] id -> mid
-  val to_dword : output -> mid -> [`DWord] id
-  val of_qword : output -> [`QWord] id -> mid
-  val to_qword : output -> mid -> [`QWord] id
-  val of_oword : output -> [`OWord] id -> mid
-  val to_oword : output -> mid -> [`OWord] id
-  val to_string : output -> mid -> [`String] id
-end
-
-module type INTEGER =
-sig
-  include NUMERIC
-
-  val rem : output -> mid -> mid -> mid
-  val log_and : output -> mid -> mid -> mid
-  val log_or : output -> mid -> mid -> mid
-  val log_xor : output -> mid -> mid -> mid
-  val log_not : output -> mid -> mid
-  val shift_left : output -> mid -> [`U8] id -> mid
-  val shift_right : output -> mid -> [`U8] id -> mid
-  val of_string : output -> [`String] id -> mid
-  val of_u8 : output -> [`U8] id -> mid
-  val to_u8 : output -> mid -> [`U8] id
-end
-
-(* Dessser provides the SER/DES with a frame stack (esp. useful when
- * (de)constructing heap values but could help with some SER/DES as well: *)
-type frame =
-  { (* The type of the topmost value: *)
-    typ : ValueType.t ;
-    (* The index of this value within the parent compound type (or 0
-     * if root) *)
-    index : int ;
-    (* Optionally, if the parent type is a record: *)
-    name : string }
-
-module type BACKEND =
-sig
-  val preferred_file_extension : string
-  (* Depending on the back-end, one might want to write in several sections
-   * at the same time and combine them together at the end. For instance,
-   * a section for global definitions, for local definitions, and for the
-   * code proper. *)
-  type output
-  val make_output : unit -> output
-  val print_output : 'a IO.output -> output -> unit
-  val function0 : output -> Type.t -> (output -> 'a id) -> ([`Function0] * 'a)  id
-  val function1 : output -> Type.t -> Type.t -> (output -> 'a id -> 'b id) -> ([`Function1] * 'a * 'b) id
-  val function2 : output -> Type.t -> Type.t -> Type.t -> (output -> 'a id -> 'b id -> 'c id) -> ([`Function2] * 'a * 'b * 'c) id
-
-  val ignore : output -> 'a id -> unit
-  val comment : output -> ('a, string BatIO.output, unit, unit, unit, unit) format6 -> 'a
-
-  val dump : output -> [`String] id list -> unit
-
-  val dword_eq : output -> [`DWord] id -> [`DWord] id -> [`Bool] id
-  val size_ge : output -> [`Size] id -> [`Size] id -> [`Bool] id
-  val bytes_append : output -> [`Bytes] id -> [`Bytes] id -> [`Bytes] id
-  val u8_of_byte : output -> [`Byte] id -> [`U8] id
-  val byte_of_u8 : output -> [`U8] id -> [`Byte] id
-  val test_bit : output -> [`Pointer] id -> [`U32] id -> [`Bit] id
-  (* Also works for bits located further away from the pointed byte (when >= 8) *)
-  val set_bit : output -> [`Pointer] id -> [`U32] id -> [`Bit] id -> unit
-  val read_byte : output -> [`Pointer] id -> ([`Byte] id * [`Pointer] id)
-  val read_word : output -> ?be:bool -> [`Pointer] id -> ([`Word] id * [`Pointer] id)
-  val read_dword : output -> ?be:bool -> [`Pointer] id -> ([`DWord] id * [`Pointer] id)
-  val read_qword : output -> ?be:bool -> [`Pointer] id -> ([`QWord] id * [`Pointer] id)
-  val read_oword : output -> ?be:bool -> [`Pointer] id -> ([`OWord] id * [`Pointer] id)
-  val read_bytes : output -> [`Pointer] id -> [`Size] id -> ([`Bytes] id * [`Pointer] id)
-  val write_byte : output -> [`Pointer] id -> [`Byte] id -> [`Pointer] id
-  val write_word : output -> ?be:bool -> [`Pointer] id -> [`Word] id -> [`Pointer] id
-  val write_dword : output -> ?be:bool -> [`Pointer] id -> [`DWord] id -> [`Pointer] id
-  val write_qword : output -> ?be:bool -> [`Pointer] id -> [`QWord] id -> [`Pointer] id
-  val write_oword : output -> ?be:bool -> [`Pointer] id -> [`OWord] id -> [`Pointer] id
-  val write_bytes : output -> [`Pointer] id -> [`Bytes] id -> [`Pointer] id
-  val blit_bytes : output -> [`Pointer] id -> [`Byte] id -> [`Size] id -> [`Pointer] id
-  val peek_byte : output -> ?at:[`Size] id -> [`Pointer] id -> [`Byte] id
-  val peek_word : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`Word] id
-  val peek_dword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`DWord] id
-  val peek_qword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`QWord] id
-  val peek_oword : output -> ?be:bool -> ?at:[`Size] id -> [`Pointer] id -> [`OWord] id
-  val poke_byte : output -> [`Pointer] id -> [`Byte] id -> unit
-
-  val pointer_add : output -> [`Pointer] id -> [`Size] id -> [`Pointer] id
-  val pointer_sub : output -> [`Pointer] id -> [`Pointer] id -> [`Size] id
-  val size_add : output -> [`Size] id -> [`Size] id -> [`Size] id
-  val size_to_string : output -> [`Size] id -> [`String] id
-  val rem_size : output -> [`Pointer] id -> [`Size] id
-  val bit_of_const : output -> bool -> [`Bit] id
-  val byte_of_const : output -> int -> [`Byte] id
-  val word_of_const : output -> int -> [`Word] id
-  val dword_of_const : output -> Uint32.t -> [`DWord] id
-  val qword_of_const : output -> Uint64.t -> [`QWord] id
-  val oword_of_const : output -> Uint128.t -> [`OWord] id
-  val size_of_const : output -> int -> [`Size] id
-  val size_of_u32 : output -> [`U32] id -> [`Size] id
-  val u32_of_size : output -> [`Size] id -> [`U32] id
-  (* Build a pointer from a const string *)
-  val pointer_of_string : output -> string -> [`Pointer] id
-  val float_of_i8 : output -> [`I8] id -> [`Float] id
-  val float_of_qword : output -> [`QWord] id -> [`Float] id
-  val qword_of_float : output -> [`Float] id -> [`QWord] id
-  val string_of_float : output -> [`Float] id -> [`String] id (* human readable *)
-  val cat_string : output -> [`String] id -> [`String] id -> [`String] id
-  val byte_of_char : output -> [`Char] id -> [`Byte] id
-  val char_of_byte : output -> [`Byte] id -> [`Char] id
-
-  (* Cast those from/into a common TupItem type? *)
-  (* TODO: GADT to associate the output type with that of the output identifier *)
-  val make_pair : output -> Type.t -> 'a id -> 'b id -> ([`Pair] * 'a * 'b) id
-  val pair_fst : output -> ([`Pair] * 'a * 'b) id -> 'a id
-  val pair_snd : output -> ([`Pair] * 'a * 'b) id -> 'b id
-
-  val length_of_string : output -> [`String] id -> [`Size] id
-  val string_of_bytes : output -> [`Bytes] id -> [`String] id
-  val bytes_of_string : output -> [`String] id -> [`Bytes] id
-
-  (* Returns the number of elements in the given list *)
-  val length_of_list : output -> [`List] id -> [`U32] id
-
-  val string_of_const : output -> string -> [`String] id
-  val bool_of_const : output -> bool -> [`Bool] id
-  val float_of_const : output -> float -> [`Float] id
-  val u8_of_bool : output -> [`Bool] id -> [`U8] id
-  val bool_and : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
-  val bool_or : output -> [`Bool] id -> [`Bool] id -> [`Bool] id
-  val bool_not : output -> [`Bool] id -> [`Bool] id
-
-  val i32_of_u32 : output -> [`U32] id -> [`I32] id
-  val u32_of_i32 : output -> [`I32] id -> [`U32] id
-
-  val u8_of_const : output -> Uint8.t -> [`U8] id
-  val u16_of_const : output -> Uint16.t -> [`U16] id
-  val u32_of_const : output -> Uint32.t -> [`U32] id
-  val u64_of_const : output -> Uint64.t -> [`U64] id
-  val u128_of_const : output -> Uint128.t -> [`U128] id
-  val i8_of_const : output -> Int8.t -> [`I8] id
-  val i16_of_const : output -> Int16.t -> [`I16] id
-  val i32_of_const : output -> Int32.t -> [`I32] id
-  val i64_of_const : output -> Int64.t -> [`I64] id
-  val i128_of_const : output -> Int128.t -> [`I128] id
-
-  val choose :
-    output -> cond:[`Bool] id -> (output -> 'a id) -> (output -> 'a id) -> 'a id
-
-  (* [cond] must be a function from byte to bool.
-   * [reduce] must be a function from any value and byte into any value. *)
-  (* TODO: an id type for pair of 'a * 'b *)
-  val read_while :
-    output ->
-    cond:([`Function1] * [`Byte] * [`Bool]) id ->
-    reduce:([`Function2] * 'a * [`Byte] * 'a) id ->
-    'a id ->
-    [`Pointer] id ->
-      'a id * [`Pointer] id
-
-  val loop_while :
-    output ->
-    cond:([`Function1] * 'res * [`Bool]) id ->
-    loop:([`Function1] * 'res * 'res) id ->
-    'res id ->
-      'res id
-
-  val loop_until :
-    output ->
-    loop:([`Function1] * 'res * 'res) id ->
-    cond:([`Function1] * 'res * [`Bool]) id ->
-    'res id ->
-      'res id
-
-  val loop_repeat :
-    output ->
-    from:[`I32] id ->
-    to_:[`I32] id ->
-    loop:([`Function2] * [`I32] * 'res * 'res) id ->
-    'res id ->
-      'res id
-
-  module Float : NUMERIC with type output = output and type mid = [`Float] id
-  module U8 : INTEGER with type output = output and type mid = [`U8] id
-  module I8 : INTEGER with type output = output and type mid = [`I8] id
-  module U16 : INTEGER with type output = output and type mid = [`U16] id
-  module I16 : INTEGER with type output = output and type mid = [`I16] id
-  module U32 : INTEGER with type output = output and type mid = [`U32] id
-  module I32 : INTEGER with type output = output and type mid = [`I32] id
-  module U64 : INTEGER with type output = output and type mid = [`U64] id
-  module I64 : INTEGER with type output = output and type mid = [`I64] id
-  module U128 : INTEGER with type output = output and type mid = [`U128] id
-  module I128 : INTEGER with type output = output and type mid = [`I128] id
-
-  (* Special needs for des/ser into/from a heap allocated value *)
-  val alloc_value : output -> ValueType.t -> [`Pointer] id
-  val set_field : output -> frame list -> [`Pointer] id -> 'a id -> unit
-  val set_nullable_field : output -> frame list -> [`Pointer] id -> 'a id option -> unit
-
-  (* Return an id of the field pointed at the frame stack, from the given
-   * "pointer" identifier (that actually identify a value on the heap rather
-   * than a proper pointer object) *)
-  val get_field : output -> frame list -> [`Pointer] id -> [`Any] id
-  val get_nullable_field : output -> frame list -> [`Pointer] id -> [`Any] id
-  val field_is_set : output -> frame list -> [`Pointer] id -> [`Bool] id
-end
-
+(* Given the above we can built interesting expressions.
+ * A DES(serializer) is a module that implements a particular serialization
+ * format in such a way that it provides simple expressions for the basic
+ * types that can then be assembled to build either a deserializer from
+ * DataPtr to a heap value, or a converter between two formats. *)
 module type DES =
 sig
-  module BE : BACKEND
-
+  (* No need for a backend (BE) since we merely compute expressions *)
   (* RW state passed to every deserialization operations *)
   type state
-  val start : ValueType.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
-  val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val ptr : ValueType.t -> Type.t (* either dataptr or valueptr *)
 
-  type 'a des = BE.output -> frame list -> state -> [`Pointer] id -> 'a * [`Pointer] id
+  val start : vtyp -> (*ptr*) e -> state * (*ptr*) e
+  val stop : state -> (*ptr*) e -> (*ptr*) e
 
-  val dfloat : [`Float] id des
-  val dstring : [`String] id des
-  val dbool : [`Bool] id des
-  val dchar : [`Char] id des
-  val di8 : [`I8] id des
-  val di16 : [`I16] id des
-  val di32 : [`I32] id des
-  val di64 : [`I64] id des
-  val di128 : [`I128] id des
-  val du8 : [`U8] id des
-  val du16 : [`U16] id des
-  val du32 : [`U32] id des
-  val du64 : [`U64] id des
-  val du128 : [`U128] id des
+  (* A basic value deserializer takes a state, an expression
+   * yielding a pointer (either a CodePtr pointing at a byte stream or a
+   * ValuePtr pointing at a heap value of type ['b]), and returns two
+   * expressions: one yielding the advanced pointer (of the exact same type) and
+   * one yielding the value that's been deserialized from the given location: *)
+  (* FIXME: make this type "private": *)
+  type des = state -> (*ptr*) e -> (* (nn * ptr) *) e
 
-  val tup_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_sep : string (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val list_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`U32] id * [`Pointer] id
-  val list_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val list_sep : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val dfloat : des
+  val dstring : des
+  val dbool : des
+  val dchar : des
+  val di8 : des
+  val di16 : des
+  val di32 : des
+  val di64 : des
+  val di128 : des
+  val du8 : des
+  val du16 : des
+  val du32 : des
+  val du64 : des
+  val du128 : des
 
-  val is_null : BE.output -> frame list -> state -> [`Pointer] id -> [`Bool] id
-  val dnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val dnotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : state -> vtyp array -> (*ptr*) e -> (*ptr*) e
+  val tup_cls : state -> (*ptr*) e -> (*ptr*) e
+  val tup_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val rec_opn : state -> (string * vtyp) array -> (*ptr*) e -> (*ptr*) e
+  val rec_cls : state -> (*ptr*) e -> (*ptr*) e
+  val rec_sep : string (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val vec_opn : state -> (*dim*) int -> vtyp -> (*ptr*) e -> (*ptr*) e
+  val vec_cls : state -> (*ptr*) e -> (*ptr*) e
+  val vec_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val list_opn : state -> vtyp -> (*ptr*) e -> (* (nn * ptr) *) e
+  val list_cls : state -> (*ptr*) e -> (*ptr*) e
+  val list_sep : state -> (*ptr*) e -> (*ptr*) e
+
+  val is_null : state -> (*ptr*) e -> (*bool*) e
+  val dnull : ValueType.not_nullable -> state -> (*ptr*) e -> (*ptr*) e
+  val dnotnull : ValueType.not_nullable -> state -> (*ptr*) e -> (*ptr*) e
 end
 
-type ssize = ConstSize of int | DynSize of [`Size] id
+(* Same goes for SER(rializers), with the addition that it is also possible to
+ * "serialize" into a heap value instead of a data stream:
+ * (note: "ssize" stands for "serialized size") *)
+type ssize = ConstSize of int | DynSize of (*size*) e
 
 module type SER =
 sig
-  module BE : BACKEND
-
   (* RW state passed to every serialization operations *)
   type state
-  val start : ValueType.t -> BE.output -> [`Pointer] id -> state * [`Pointer] id
-  val stop : BE.output -> state -> [`Pointer] id -> [`Pointer] id
+  val ptr : ValueType.t -> Type.t (* either dataptr or valueptr *)
+
+  val start : vtyp -> (*ptr*) e -> state * (*ptr*) e
+  val stop : state -> (*ptr*) e -> (*ptr*) e
 
   (* FIXME: make this type "private": *)
-  type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
+  type ser = state -> (*nn*) e -> (*ptr*) e -> (*ptr*) e
 
-  val sfloat : [`Float] id ser
-  val sstring : [`String] id ser
-  val sbool : [`Bool] id ser
-  val schar : [`Char] id ser
-  val si8 : [`I8] id ser
-  val si16 : [`I16] id ser
-  val si32 : [`I32] id ser
-  val si64 : [`I64] id ser
-  val si128 : [`I128] id ser
-  val su8 : [`U8] id ser
-  val su16 : [`U16] id ser
-  val su32 : [`U32] id ser
-  val su64 : [`U64] id ser
-  val su128 : [`U128] id ser
+  val sfloat : ser
+  val sstring : ser
+  val sbool : ser
+  val schar : ser
+  val si8 : ser
+  val si16 : ser
+  val si32 : ser
+  val si64 : ser
+  val si128 : ser
+  val su8 : ser
+  val su16 : ser
+  val su32 : ser
+  val su64 : ser
+  val su128 : ser
 
-  val tup_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val tup_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val rec_sep : string (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_opn : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val vec_sep : int (* before *) -> BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val list_opn : BE.output -> frame list -> state -> [`U32] id -> [`Pointer] id -> [`Pointer] id
-  val list_cls : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val list_sep : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val tup_opn : state -> vtyp array -> (*ptr*) e -> (*ptr*) e
+  val tup_cls : state -> (*ptr*) e -> (*ptr*) e
+  val tup_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val rec_opn : state -> (string * vtyp) array -> (*ptr*) e -> (*ptr*) e
+  val rec_cls : state -> (*ptr*) e -> (*ptr*) e
+  val rec_sep : string (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val vec_opn : state -> (*dim*) int -> vtyp -> (*ptr*) e -> (*ptr*) e
+  val vec_cls : state -> (*ptr*) e -> (*ptr*) e
+  val vec_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
+  val list_opn : state -> vtyp -> (*ptr*) e -> (*nn*) e -> (*ptr*) e
+  val list_cls : state -> (*ptr*) e -> (*ptr*) e
+  val list_sep : state -> (*ptr*) e -> (*ptr*) e
 
-  val nullable : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val snull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
-  val snotnull : BE.output -> frame list -> state -> [`Pointer] id -> [`Pointer] id
+  val nullable : state -> (*ptr*) e -> (*ptr*) e
+  val snull : ValueType.not_nullable -> state -> (*ptr*) e -> (*ptr*) e
+  val snotnull : ValueType.not_nullable -> state -> (*ptr*) e -> (*ptr*) e
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
-   * going to be. Value must have been deserialized already. *)
-  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
-  val ssize_of_float : [`Float] id ssizer
-  val ssize_of_string : [`String] id ssizer
-  val ssize_of_bool : [`Bool] id ssizer
-  val ssize_of_char : [`Char] id ssizer
-  val ssize_of_i8 : [`I8] id ssizer
-  val ssize_of_i16 : [`I16] id ssizer
-  val ssize_of_i32 : [`I32] id ssizer
-  val ssize_of_i64 : [`I64] id ssizer
-  val ssize_of_i128 : [`I128] id ssizer
-  val ssize_of_u8 : [`U8] id ssizer
-  val ssize_of_u16 : [`U16] id ssizer
-  val ssize_of_u32 : [`U32] id ssizer
-  val ssize_of_u64 : [`U64] id ssizer
-  val ssize_of_u128 : [`U128] id ssizer
+   * going to be. Value must have been deserialized into a heap value. *)
+  type ssizer = vtyp -> path -> (*value*) e -> ssize
+  val ssize_of_float : ssizer
+  val ssize_of_string : ssizer
+  val ssize_of_bool : ssizer
+  val ssize_of_char : ssizer
+  val ssize_of_i8 : ssizer
+  val ssize_of_i16 : ssizer
+  val ssize_of_i32 : ssizer
+  val ssize_of_i64 : ssizer
+  val ssize_of_i128 : ssizer
+  val ssize_of_u8 : ssizer
+  val ssize_of_u16 : ssizer
+  val ssize_of_u32 : ssizer
+  val ssize_of_u64 : ssizer
+  val ssize_of_u128 : ssizer
   (* Specifically for the compound, excluding the size of the parts: *)
-  val ssize_of_tup : [`Tup] id ssizer
-  val ssize_of_rec : [`Rec] id ssizer
-  val ssize_of_vec : [`Vec] id ssizer
-  val ssize_of_list : [`List] id ssizer
-  val ssize_of_null : BE.output -> frame list -> ssize
+  val ssize_of_tup : ssizer
+  val ssize_of_rec : ssizer
+  val ssize_of_vec : ssizer
+  val ssize_of_list : ssizer
+  val ssize_of_null : vtyp -> path -> ssize
 end
 
-module DesSer (Des : DES) (Ser : SER with module BE = Des.BE) =
+(* Now we can combine a DES and a SER to create a converter from one format
+ * into another (including heap values, with some trickery) *)
+module DesSer (Des : DES) (Ser : SER) =
 struct
-  module BE = Des.BE
+  open Expression
 
-  let ds ser des transform oc frames sstate dstate src dst =
-    let vtyp = (List.hd frames).typ in
-    let what = IO.to_string ValueType.print vtyp in
-    BE.comment oc "Desserialize a %s" what ;
-    let v, src = des oc frames dstate src in
-    let v = transform oc frames v in
-    BE.comment oc "Serialize a %s" what ;
-    let dst = ser oc frames sstate v dst in
-    BE.make_pair oc Type.pair_ptrs src dst
+  (* Most of the functions below return the src and dst pointers advanced to
+   * point to the next value to read/write.
+   * [vtyp] denotes the ValueType.t of the current subfields, whereas
+   * [vtyp0] denotes the ValueType.t of the whole value. *)
+  let ds ser des typ sstate dstate vtyp0 src_dst =
+    let what = IO.to_string Type.print typ in
+    let src_dst = Comment ("Desserialize a "^ what, src_dst) in
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+        let v_src = des dstate (Param (fid, 0)) in
+        let dst = Param (fid, 1) in
+        with_sploded_pair "ds" v_src (fun v src ->
+          (* dessser handle nulls itself, so that DES/SER implementations
+           * do not have to care for nullability. NotNullable is just a cast
+           * and has no other effect outside of type_check. *)
+          Pair (
+            src,
+            Comment ("Serialize a "^ what, ser sstate v dst)))))
 
-  let dsfloat = ds Ser.sfloat Des.dfloat
-  let dsstring = ds Ser.sstring Des.dstring
-  let dsbool = ds Ser.sbool Des.dbool
-  let dschar = ds Ser.schar Des.dchar
-  let dsi8 = ds Ser.si8 Des.di8
-  let dsi16 = ds Ser.si16 Des.di16
-  let dsi32 = ds Ser.si32 Des.di32
-  let dsi64 = ds Ser.si64 Des.di64
-  let dsi128 = ds Ser.si128 Des.di128
-  let dsu8 = ds Ser.su8 Des.du8
-  let dsu16 = ds Ser.su16 Des.du16
-  let dsu32 = ds Ser.su32 Des.du32
-  let dsu64 = ds Ser.su64 Des.du64
-  let dsu128 = ds Ser.su128 Des.du128
+  let dsfloat = ds Ser.sfloat Des.dfloat float
+  let dsstring = ds Ser.sstring Des.dstring string
+  let dsbool = ds Ser.sbool Des.dbool bool
+  let dschar = ds Ser.schar Des.dchar char
+  let dsi8 = ds Ser.si8 Des.di8 i8
+  let dsi16 = ds Ser.si16 Des.di16 i16
+  let dsi32 = ds Ser.si32 Des.di32 i32
+  let dsi64 = ds Ser.si64 Des.di64 i64
+  let dsi128 = ds Ser.si128 Des.di128 i128
+  let dsu8 = ds Ser.su8 Des.du8 u8
+  let dsu16 = ds Ser.su16 Des.du16 u16
+  let dsu32 = ds Ser.su32 Des.du32 u32
+  let dsu64 = ds Ser.su64 Des.du64 u64
+  let dsu128 = ds Ser.su128 Des.du128 u128
 
-  let dsnull oc frames sstate dstate src dst =
-    BE.comment oc "NULL" ;
-    Des.dnull oc frames dstate src,
-    Ser.snull oc frames sstate dst
+  let dsnull t sstate dstate vtyp0 src_dst =
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        Comment ("Desserialize NULL", Des.dnull t dstate (Param (fid, 0))),
+        Comment ("Serialize NULL", Ser.snull t sstate (Param (fid, 1))))))
 
-  let dsnotnull oc frames sstate dstate src dst =
-    BE.comment oc "NOT NULL" ;
-    Des.dnotnull oc frames dstate src,
-    Ser.snotnull oc frames sstate dst
+  let dsnotnull t sstate dstate vtyp0 src_dst =
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        Comment ("Desserialize NonNull", Des.dnotnull t dstate (Param (fid, 0))),
+        Comment ("Serialize NonNull", Ser.snotnull t sstate (Param (fid, 1))))))
 
-  let rec dstup typs transform oc frames sstate dstate src dst =
-    BE.comment oc "DesSer a Tuple" ;
-    let src = Des.tup_opn oc frames dstate src
-    and dst = Ser.tup_opn oc frames sstate dst in
-    let src, dst =
-      BatArray.fold_lefti (fun (src, dst) i typ ->
-        let subframes = { typ ; index = i ; name = "" } :: frames in
-        BE.comment oc "DesSer tuple field %d" i ;
+  let rec dstup vtyps sstate dstate vtyp0 src_dst =
+    let src_dst = Comment ("Convert a Tuple",
+      MapPair (src_dst,
+        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+          Des.tup_opn dstate vtyps (Param (fid, 0)),
+          Ser.tup_opn sstate vtyps (Param (fid, 1)))))) in
+    let src_dst =
+      BatArray.fold_lefti (fun src_dst i vtyp ->
+        let src_dst = Comment ("Convert tuple field "^ string_of_int i, src_dst) in
         if i = 0 then
-          desser_ transform oc subframes sstate dstate src dst
+          desser_ vtyp sstate dstate vtyp0 src_dst
         else
-          let src = Des.tup_sep i oc frames dstate src
-          and dst = Ser.tup_sep i oc frames sstate dst in
-          desser_ transform oc subframes sstate dstate src dst
-      ) (src, dst) typs in
-    BE.make_pair oc Type.pair_ptrs
-      (Des.tup_cls oc frames dstate src)
-      (Ser.tup_cls oc frames sstate dst)
+          let src_dst = MapPair (src_dst,
+            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+              Pair (
+                Des.tup_sep i dstate (Param (fid, 0)),
+                Ser.tup_sep i sstate (Param (fid, 1))))) in
+          desser_ vtyp sstate dstate vtyp0 src_dst
+      ) src_dst vtyps in
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        Des.tup_cls dstate (Param (fid, 0)),
+        Ser.tup_cls sstate (Param (fid, 1)))))
 
-  and dsrec typs transform oc frames sstate dstate src dst =
-    BE.comment oc "DesSer a Record" ;
-    let src = Des.rec_opn oc frames dstate src
-    and dst = Ser.rec_opn oc frames sstate dst in
-    let src, dst =
-      BatArray.fold_lefti (fun (src, dst) i (name, typ) ->
-        let subframes = { typ ; index = i ; name } :: frames in
-        BE.comment oc "DesSer record field %s" name ;
+  and dsrec vtyps sstate dstate vtyp0 src_dst =
+    let src_dst = Comment ("Convert a Record",
+      MapPair (src_dst,
+        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+          Des.rec_opn dstate vtyps (Param (fid, 0)),
+          Ser.rec_opn sstate vtyps (Param (fid, 1)))))) in
+    let src_dst =
+      BatArray.fold_lefti (fun src_dst i (name, vtyp) ->
+        let src_dst = Comment ("Convert record field "^ name, src_dst) in
         if i = 0 then
-          desser_ transform oc subframes sstate dstate src dst
+          desser_ vtyp sstate dstate vtyp0 src_dst
         else
-          let src = Des.rec_sep name oc frames dstate src
-          and dst = Ser.rec_sep name oc frames sstate dst in
-          desser_ transform oc subframes sstate dstate src dst
-      ) (src, dst) typs in
-    BE.make_pair oc Type.pair_ptrs
-      (Des.rec_cls oc frames dstate src)
-      (Ser.rec_cls oc frames sstate dst)
+          let src_dst = MapPair (src_dst,
+            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+              Pair (
+                Des.rec_sep name dstate (Param (fid, 0)),
+                Ser.rec_sep name sstate (Param (fid, 1))))) in
+          desser_ vtyp sstate dstate vtyp0 src_dst
+      ) src_dst vtyps in
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        Des.rec_cls dstate (Param (fid, 0)),
+        Ser.rec_cls sstate (Param (fid, 1)))))
 
   (* This will generates a long linear code with one block per array
-   * item. Maybe have a BE.loop instead? *)
-  and dsvec dim typ transform oc frames sstate dstate src dst =
-    BE.comment oc "DesSer a Vector" ;
-    let src = Des.vec_opn oc frames dstate src
-    and dst = Ser.vec_opn oc frames sstate dst in
-    let rec loop src dst i =
+   * item, which should be ok since vector dimension is expected to be small.
+   * TODO: use one of the loop expressions instead if the dimension is large *)
+  and dsvec dim vtyp sstate dstate vtyp0 src_dst =
+    let src_dst = Comment ("Convert a Vector",
+      MapPair (src_dst,
+        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+          Des.vec_opn dstate dim vtyp (Param (fid, 0)),
+          Ser.vec_opn sstate dim vtyp (Param (fid, 1)))))) in
+    let rec loop src_dst i =
       if i >= dim then
-        BE.make_pair oc Type.pair_ptrs
-          (Des.vec_cls oc frames dstate src)
-          (Ser.vec_cls oc frames sstate dst)
+        MapPair (src_dst,
+          func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+            Des.vec_cls dstate (Param (fid, 0)),
+            Ser.vec_cls sstate (Param (fid, 1)))))
       else (
-        BE.comment oc "DesSer vector field %d" i ;
-        let subframes = { typ ; index = i ; name = "" } :: frames in
-        if i = 0 then
-          let src, dst = desser_ transform oc subframes sstate dstate src dst in
-          loop src dst (i + 1)
-        else
-          let src = Des.vec_sep i oc frames dstate src
-          and dst = Ser.vec_sep i oc frames sstate dst in
-          let src, dst = desser_ transform oc subframes sstate dstate src dst in
-          loop src dst (i + 1)
+        let src_dst = Comment ("Convert vector field "^ string_of_int i, src_dst) in
+        if i = 0 then (
+          let src_dst = desser_ vtyp sstate dstate vtyp0 src_dst in
+          loop src_dst (i + 1)
+        ) else (
+          let src_dst = MapPair (src_dst,
+            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+              Des.vec_sep i dstate (Param (fid, 0)),
+              Ser.vec_sep i sstate (Param (fid, 1))))) in
+          let src_dst = desser_ vtyp sstate dstate vtyp0 src_dst in
+          loop src_dst (i + 1)
+        )
       )
     in
-    loop src dst 0
+    loop src_dst 0
 
-  and dslist typ transform oc frames sstate dstate src dst =
-    BE.comment oc "DesSer a List" ;
-    let dim, src = Des.list_opn oc frames dstate src in
-    let dst = Ser.list_opn oc frames sstate dim dst in
-    let src_dst = BE.make_pair oc Type.pair_ptrs src dst in
-    let loop =
-      BE.function2 oc Type.i32 Type.pair_ptrs Type.bool (fun oc n src_dst ->
-        BE.comment oc "DesSer a list item" ;
-        let subframes = { typ ; index = -1 ; name = "" } :: frames in
-        let src_dst =
-          BE.choose oc ~cond:(BE.I32.(eq oc n (of_const_int oc 0)))
-            (fun _oc -> src_dst)
-            (fun oc ->
-              let src = Des.list_sep oc frames dstate (BE.pair_fst oc src_dst)
-              and dst = Ser.list_sep oc frames sstate (BE.pair_snd oc src_dst) in
-              BE.make_pair oc Type.pair_ptrs src dst) in
-        let src, dst =
-          desser_ transform oc subframes sstate dstate
-                  (BE.pair_fst oc src_dst)
-                  (BE.pair_snd oc src_dst) in
-        BE.make_pair oc Type.pair_ptrs src dst) in
-    let src_dst =
-      let from = BE.I32.of_const_int oc 0
-      and to_ = BE.i32_of_u32 oc dim in
-      BE.loop_repeat oc ~from ~to_ ~loop src_dst in
-    BE.make_pair oc Type.pair_ptrs
-      (Des.vec_cls oc frames dstate (BE.pair_fst oc src_dst))
-      (Ser.vec_cls oc frames sstate (BE.pair_snd oc src_dst))
+  and dslist vtyp sstate dstate vtyp0 src_dst =
+    let pair_ptrs = Type.Pair (Des.ptr vtyp0, Ser.ptr vtyp0) in
+    Comment ("Convert a List",
+      with_sploded_pair "dslist1" src_dst (fun src dst ->
+        let dim_src = Des.list_opn dstate vtyp src in
+        with_sploded_pair "dslist2" dim_src (fun dim src ->
+          let dst = Ser.list_opn sstate vtyp dst dim in
+          let src_dst =
+            Repeat (I32 0l, ToI32 dim,
+              Comment ("Convert a list item",
+                func [i32; pair_ptrs] (fun fid -> (
+                  let param_n = Param (fid, 0) (*i32*) in
+                  let param_src_dst = Param (fid, 1) (*pair_ptrs*) in
+                  let src_dst =
+                    Choose (Eq (param_n, I32 0l),
+                      param_src_dst,
+                      MapPair (param_src_dst,
+                        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+                          Des.list_sep dstate (Param (fid, 0)),
+                          Ser.list_sep sstate (Param (fid, 1)))))) in
+                  desser_ vtyp sstate dstate vtyp0 src_dst))),
+                Pair (src, dst)) in
+          MapPair (src_dst,
+            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+              Des.vec_cls dstate (Param (fid, 0)),
+              Ser.vec_cls sstate (Param (fid, 1))))))))
 
-  and desser_ transform oc =
-    let spec_transf of_any =
-      fun oc frames v -> of_any (transform oc frames (Identifier.to_any v)) in
-    let desser_structure = function
-      | ValueType.TFloat -> dsfloat (spec_transf Identifier.to_float)
-      | ValueType.TString -> dsstring (spec_transf Identifier.to_string)
-      | ValueType.TBool -> dsbool (spec_transf Identifier.to_bool)
-      | ValueType.TChar -> dschar (spec_transf Identifier.to_char)
-      | ValueType.TI8 -> dsi8 (spec_transf Identifier.to_i8)
-      | ValueType.TI16 -> dsi16 (spec_transf Identifier.to_i16)
-      | ValueType.TI32 -> dsi32 (spec_transf Identifier.to_i32)
-      | ValueType.TI64 -> dsi64 (spec_transf Identifier.to_i64)
-      | ValueType.TI128 -> dsi128 (spec_transf Identifier.to_i128)
-      | ValueType.TU8 -> dsu8 (spec_transf Identifier.to_u8)
-      | ValueType.TU16 -> dsu16 (spec_transf Identifier.to_u16)
-      | ValueType.TU32 -> dsu32 (spec_transf Identifier.to_u32)
-      | ValueType.TU64 -> dsu64 (spec_transf Identifier.to_u64)
-      | ValueType.TU128 -> dsu128 (spec_transf Identifier.to_u128)
-      | ValueType.TTup typs -> dstup typs transform
-      | ValueType.TRec typs -> dsrec typs transform
-      | ValueType.TVec (dim, typ) -> dsvec dim typ transform
-      | ValueType.TList typ -> dslist typ transform
-    in
-    fun frames sstate dstate src dst ->
-      let typ = (List.hd frames).typ in
-      let pair =
-        match typ with
-        | Nullable t ->
-            let cond = Des.is_null oc frames dstate src in
-            (* Des can us [is_null] to prepare for a nullable, but Ser might also
-             * have some work to do: *)
-            let dst = Ser.nullable oc frames sstate dst in
-            BE.choose oc ~cond
-              (fun oc ->
-                let s, d = dsnull oc frames sstate dstate src dst in
-                BE.make_pair oc Type.pair_ptrs s d)
-              (fun oc ->
-                let s, d = dsnotnull oc frames sstate dstate src dst in
-                desser_structure t oc frames sstate dstate s d)
-        | NotNullable t ->
-            desser_structure t oc frames sstate dstate src dst in
-      (* Returns src and dest: *)
-      (BE.pair_fst oc pair),
-      (BE.pair_snd oc pair)
+  and desser_not_nullable = function
+    | ValueType.Float -> dsfloat
+    | String -> dsstring
+    | Bool -> dsbool
+    | Char -> dschar
+    | I8 -> dsi8
+    | I16 -> dsi16
+    | I32 -> dsi32
+    | I64 -> dsi64
+    | I128 -> dsi128
+    | U8 -> dsu8
+    | U16 -> dsu16
+    | U32 -> dsu32
+    | U64 -> dsu64
+    | U128 -> dsu128
+    | Tup vtyps -> dstup vtyps
+    | Rec vtyps -> dsrec vtyps
+    | Vec (dim, vtyp) -> dsvec dim vtyp
+    | List vtyp -> dslist vtyp
 
-  let desser typ ?transform oc =
-    let no_transform _oc _frames v = v in
-    let transform = transform |? no_transform in
-    let desser_ = desser_ transform oc in
-    fun src dst ->
-      let sstate, dst = Ser.start typ oc dst
-      and dstate, src = Des.start typ oc src in
-      let src, dst =
-        desser_ [ { typ ; index = 0 ; name = "" } ] sstate dstate src dst in
-      let dst = Ser.stop oc sstate dst
-      and src = Des.stop oc dstate src in
-      src, dst
+  and desser_ vtyp sstate dstate vtyp0 src_dst =
+    match vtyp with
+    | Nullable t ->
+        with_sploded_pair "desser_" src_dst (fun src dst ->
+          let cond = Des.is_null dstate src in
+          (* Des can use [is_null] to prepare for a nullable, but Ser might also
+           * have some work to do: *)
+          let dst = Ser.nullable sstate dst in
+          let src_dst = Pair (src, dst) in
+          (* XXX WARNING XXX
+           * if any of dnull/snull/snotnull/etc update the state, they will
+           * do so in both branches of this alternative. *)
+          Choose (cond,
+            dsnull t sstate dstate vtyp0 src_dst,
+            (
+              let src_dst = dsnotnull t sstate dstate vtyp0 src_dst in
+              desser_not_nullable t sstate dstate vtyp0 src_dst
+            )))
+    | NotNullable t ->
+        desser_not_nullable t sstate dstate vtyp0 src_dst
+
+  let desser vtyp0 src dst =
+    let sstate, dst = Ser.start vtyp0 dst
+    and dstate, src = Des.start vtyp0 src in
+    let src_dst = Pair (src, dst) in
+    let src_dst = desser_ vtyp0 sstate dstate vtyp0 src_dst in
+    MapPair (src_dst,
+      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        Des.stop dstate (Param (fid, 0)),
+        Ser.stop sstate (Param (fid, 1)))))
+end
+
+(*
+ * Now let's move on to code generators.
+ *
+ * The idea is that a code generator receives its state, an expression and an
+ * optional name for it, and returns an identifier alongside a new state.
+ *
+ * This state has all defined identifiers.
+ *
+ * Eventually, the state can be turned into a source file. Unused identifiers
+ * may not be included unless they are non-anonymous functions.
+ *)
+
+module type BACKEND =
+sig
+  type state
+  val make_state : unit -> state
+  val print_source : state -> 'a IO.output -> unit
+  (* Returns the new state, the Identifier expression to use in new expressions,
+   * and the identifier name in the source code: *)
+  val identifier_of_expression : state -> ?name:string -> e -> (state * e * string)
+  val preferred_file_extension : string
 end

@@ -60,6 +60,9 @@ struct Pointer {
     value(value_)
   {}
 
+  /* Default constructor for uninitialized objects: */
+  Pointer() {}
+
   Size rem() const
   {
     return (size - offset);
@@ -294,5 +297,34 @@ struct Pointer {
     return Size(offset - that.offset);
   }
 };
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cctype>
+
+static inline std::string printable_string_of_byte(Byte const b)
+{
+  std::stringstream stream;
+  if (isprint(b)) stream << (char)b;
+  else stream << "\\x" << std::hex << std::setw(2) << std::setfill('0') << (int)b;
+  return stream.str();
+}
+
+static inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
+{
+  if (p.buffer) {
+    os << '"';
+    for (unsigned i = 0; i < p.offset; i++)
+      os << printable_string_of_byte(p.buffer[i]);
+    os << '|';
+    for (unsigned i = p.offset ; i < p.size; i++)
+      os << printable_string_of_byte(p.buffer[i]);
+    os << '"' << " (offset=" << p.offset << ")";
+  } else {
+    os << "<empty>";
+  }
+  return os;
+}
 
 #endif

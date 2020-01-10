@@ -55,7 +55,7 @@ all: $(INSTALLED) examples
 .SUFFIXES: .ml .mli .mlo .cmi .cmx .cmo .cmt .html .adoc
 .PHONY: \
   clean distclean all dep doc examples \
-  check unit-check \
+  check unit-check examples-check \
   install uninstall reinstall
 
 %.cmi: %.mli
@@ -84,9 +84,11 @@ doc:
 
 LIBDESSSER_SOURCES = \
 	src/Dessser.ml \
+	src/DessserTools.ml \
 	src/SExpr.ml \
 	src/RowBinary.ml \
 	src/DevNull.ml \
+	src/BackEndCLike.ml \
 	src/BackEndCPP.ml \
 	src/BackEndOCaml.ml \
 	src/RamenRingBuffer.ml \
@@ -94,6 +96,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserOCamlBackendHelpers.ml
 
 EXAMPLES_SOURCES = \
+	examples/simplest.ml \
 	examples/manual_codegen.ml
 
 TESTONLY_SOURCES =
@@ -138,9 +141,15 @@ dessser.cma: $(INSTALLED_IMPL)/dessser.cma
 dessser.a: $(INSTALLED_IMPL)/dessser.a
 	@ln -f $< $@
 
+src/dessser.opt: src/Dessser.cmx
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -linkpkg -package '$(PACKAGES)' $^ -o $@
+
 # Compile examples
 
 examples: $(EXAMPLES_SOURCES:%.ml=%.opt)
+
+examples/simplest.opt: src/dessser.cmxa examples/simplest.ml
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -linkpkg -package '$(PACKAGES)' $^ -o $@
 
 examples/manual_codegen.opt: src/dessser.cmxa examples/manual_codegen.ml
 	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -linkpkg -package '$(PACKAGES)' $^ -o $@
@@ -157,9 +166,34 @@ META: Makefile
 
 # Tests
 
-check: examples/manual_codegen.opt
-	examples/manual_codegen.opt ocaml
-	examples/manual_codegen.opt c++
+TESTABLE_SOURCES = \
+	src/Dessser.ml
+
+LINKED_FOR_TESTS = \
+	src/Dessser.ml
+
+src/all_tests.ml: $(TESTABLE_SOURCES)
+	@echo 'Generating unit tests into $@'
+	$(QTEST) --shuffle -o $@ extract $^
+
+all_tests.opt: \
+		$(filter %.cmx,$(LINKED_FOR_TESTS:.ml=.cmx)) \
+		src/all_tests.ml
+	@echo 'Building unit tests into $@'
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkpkg -package $(PACKAGES) -package qcheck -I src $(filter %.cmx, $^) $(filter %.ml, $^) -o $@
+
+unit-check: all_tests.opt
+	@echo 'Running unit tests...'
+	@TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
+
+examples-check: examples/simplest.opt examples/manual_codegen.opt
+	@examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK"
+	@examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK"
+	@examples/manual_codegen.opt ocaml && examples/rowbinary2sexpr.opt udp_v30.chb > examples/rowbinary2sexpr.opt.out && diff examples/rowbinary2sexpr.opt.out examples/rowbinary2sexpr.expected && echo "manual_codegen ocaml OK"
+	@examples/manual_codegen.opt c++ && examples/rowbinary2sexpr.exe udp_v30.chb > examples/rowbinary2sexpr.exe.out && diff examples/rowbinary2sexpr.exe.out examples/rowbinary2sexpr.expected && echo "manual_codegen c++ OK"
+	@echo SUCCESS
+
+check: unit-check examples-check
 
 # Installation
 
@@ -181,6 +215,7 @@ clean:
 	@$(RM) src/*.cmx src/*.cmo src/*.cmxa src/*.cma src/*.cmxs src/*.cmi src/*.a
 	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
 	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
+	@$(RM) all_tests.* src/all_tests.ml
 	@$(RM) *.opt perf.data* gmon.out
 
 distclean: clean

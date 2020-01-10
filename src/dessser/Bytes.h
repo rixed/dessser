@@ -27,6 +27,8 @@ struct Bytes {
     memcpy(buffer.get(), s.c_str(), size);
   }
 
+  /* TODO: used for append: Bytes(Bytes const &b1, Bytes const &b2) */
+
   std::string toString() const
   {
     return std::string((char const *)(buffer.get() + offset), size);

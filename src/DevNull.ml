@@ -1,46 +1,46 @@
 open Dessser
 
-module Ser (BE : BACKEND) : SER with module BE = BE =
+module Ser : SER =
 struct
-  module BE = BE
-
   type state = unit
-  let start _typ _oc p = (), p
-  let stop _oc () p = p
+  let ptr _vtyp = dataptr
 
-  type 'a ser = BE.output -> frame list -> state -> 'a -> [`Pointer] id -> [`Pointer] id
+  let start _vtyp p = (), p
+  let stop () p = p
 
-  let sfloat oc _frames () v p = BE.ignore oc v ; p
-  let sstring oc _frames () v p = BE.ignore oc v ; p
-  let sbool oc _frames () v p = BE.ignore oc v ; p
-  let si8 oc _frames () v p = BE.ignore oc v ; p
-  let su8 oc _frames () v p = BE.ignore oc v ; p
-  let si16 oc _frames () v p = BE.ignore oc v ; p
-  let su16 oc _frames () v p = BE.ignore oc v ; p
-  let si32 oc _frames () v p = BE.ignore oc v ; p
-  let su32 oc _frames () v p = BE.ignore oc v ; p
-  let si64 oc _frames () v p = BE.ignore oc v ; p
-  let su64 oc _frames () v p = BE.ignore oc v ; p
-  let si128 oc _frames () v p = BE.ignore oc v ; p
-  let su128 oc _frames () v p = BE.ignore oc v ; p
-  let schar oc _frames () v p = BE.ignore oc v ; p
-  let tup_opn _ _frames () p = p
-  let tup_cls _ _frames () p = p
-  let tup_sep _ _ _frames () p = p
-  let rec_opn _ _frames () p = p
-  let rec_cls _ _frames () p = p
-  let rec_sep _ _ _frames () p = p
-  let vec_opn _ _frames () p = p
-  let vec_cls _ _frames () p = p
-  let vec_sep _ _ _frames () p = p
-  let list_opn _ _frames () _ p = p
-  let list_cls _ _frames () p = p
-  let list_sep _ _frames () p = p
-  let nullable _ _frames () p = p
-  let snull _ _frames () p = p
-  let snotnull _ _frames () p = p
+  type ser = state -> e -> e -> e
 
-  type 'a ssizer = BE.output -> frame list -> 'a -> ssize
+  let sfloat () _v p = p
+  let sstring () _v p = p
+  let sbool () _v p = p
+  let si8 () _v p = p
+  let su8 () _v p = p
+  let si16 () _v p = p
+  let su16 () _v p = p
+  let si32 () _v p = p
+  let su32 () _v p = p
+  let si64 () _v p = p
+  let su64 () _v p = p
+  let si128 () _v p = p
+  let su128 () _v p = p
+  let schar () _v p = p
+  let tup_opn () _ p = p
+  let tup_cls () p = p
+  let tup_sep _ () p = p
+  let rec_opn () _ p = p
+  let rec_cls () p = p
+  let rec_sep _ () p = p
+  let vec_opn () _ _ p = p
+  let vec_cls () p = p
+  let vec_sep _ () p = p
+  let list_opn () _ _ p = p
+  let list_cls () p = p
+  let list_sep () p = p
+  let nullable () p = p
+  let snull _t () p = p
+  let snotnull _t () p = p
+
+  type ssizer = vtyp -> path -> e -> ssize
   let ssize_of_float _ _ _ = ConstSize 0
   let ssize_of_string _ _ _ = ConstSize 0
   let ssize_of_bool _ _ _ = ConstSize 0

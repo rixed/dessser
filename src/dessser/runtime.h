@@ -27,4 +27,15 @@ inline double floatOfQword(uint64_t v)
   return res;
 }
 
+/* Pretty printers for everything so that Dump can rely on the '<<' operator: */
+
+#include <iostream>
+
+template <typename T1, typename T2>
+std::ostream &operator<<(std::ostream &os, std::pair<T1,T2> const &p)
+{
+  os << '<' << p.first << ", " << p.second << ">\n";
+  return os;
+}
+
 #endif

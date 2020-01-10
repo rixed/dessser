@@ -25,8 +25,20 @@ struct
 
   let of_int v = v
   let to_int v = v
-  let add = (+)
   let to_string = string_of_int
+
+  let add = (+)
+  let sub = (-)
+  let mul = ( * )
+  let div = (/)
+  let rem a b = a mod b
+
+  let logand v1 v2 = v1 land v2
+  let logor v1 v2 = v1 lor v2
+  let logxor v1 v2 = v1 lxor v2
+  let lognot b = lnot b
+  let shift_left v1 s = v1 lsl s
+  let shift_right_logical v1 s = v1 lsr s
 end
 
 module Slice =
