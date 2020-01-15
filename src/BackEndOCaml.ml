@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 open Dessser
 open BackEndCLike
+open DessserTools
 
 module Config =
 struct
@@ -63,12 +64,13 @@ struct
     | Bytes -> "Slice.t"
     | Pair (t1, t2) ->
         "("^ type_identifier p t1 ^" * "^ type_identifier p t2 ^")"
-    | Function0 t ->
+    | Function ([||], t) ->
         "(() -> "^ type_identifier p t ^")"
-    | Function1 (t1, t2) ->
-        "("^ type_identifier p t1 ^" -> "^ type_identifier p t2 ^")"
-    | Function2 (t1, t2, t3) ->
-        "("^ type_identifier p t1 ^" -> "^ type_identifier p t2 ^" -> "^ type_identifier p t3 ^")"
+    | Function (args, ret) ->
+        "("^ IO.to_string (
+          Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
+            String.print oc (type_identifier p t))
+        ) args ^" -> "^ type_identifier p ret ^")"
 
   let mod_name = function
     | Type.Value ValueType.(NotNullable Char) -> "Char"
@@ -546,24 +548,21 @@ struct
         ppi p.def "let %s : %s = %s in" (valid_identifier n) tn n1 ;
         let l = (Expression.Identifier n, t) :: l in
         print emit p l e2
-    | Function0 (_fid, e1) ->
+    | Function (_fid, [||], e1) ->
         emit p l e (fun oc ->
           pp oc "(fun () ->\n" ;
           indent_more p (fun () ->
             let n = print emit p l e1 in
             pp oc "%s%s)" p.indent n))
-    | Function1 (fid, t1, e1) ->
+    | Function (fid, ts, e1) ->
         emit p l e (fun oc ->
-          pp oc "(fun %s ->\n" (param fid 0) ;
-          let l = (Expression.Param (fid, 0), t1) :: l in
-          indent_more p (fun () ->
-            let n = print emit p l e1 in
-            pp oc "%s%s)" p.indent n))
-    | Function2 (fid, t1, t2, e1) ->
-        emit p l e (fun oc ->
-          pp oc "(fun %s %s ->\n" (param fid 0) (param fid 1) ;
-          let l = (Expression.Param (fid, 0), t1) ::
-                  (Expression.Param (fid, 1), t2) :: l in
+          array_print_i ~first:"(fun " ~last:" ->\n" ~sep:" "
+            (fun i oc _t -> String.print oc (param fid i))
+            oc ts ;
+          let l =
+            Array.fold_lefti (fun l i t ->
+              (Expression.Param (fid, i), t) :: l
+            ) l ts in
           indent_more p (fun () ->
             let n = print emit p l e1 in
             pp oc "%s%s)" p.indent n))

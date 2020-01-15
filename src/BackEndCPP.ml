@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 open Dessser
 open BackEndCLike
+open DessserTools
 
 module Config =
 struct
@@ -50,12 +51,12 @@ struct
         Printf.sprintf "List<%s>" (type_identifier p (Value typ))
     | Pair (t1, t2) ->
         "std::pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
-    | Function0 t ->
-        "std::function<"^ type_identifier p t ^"()>"
-    | Function1 (t1, t2) ->
-        "std::function<"^ type_identifier p t2 ^"("^ type_identifier p t1 ^")>"
-    | Function2 (t1, t2, t3) ->
-        "std::function<"^ type_identifier p t3 ^"("^ type_identifier p t1 ^","^ type_identifier p t2 ^")>"
+    | Function (args, ret) ->
+        "std::function<"^ type_identifier p ret ^
+          IO.to_string (
+            Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
+              String.print oc (type_identifier p t))
+          ) args ^">"
     | Void -> "void"
     | DataPtr -> "Pointer"
     | ValuePtr vt -> type_identifier p (Value vt) ^"*"
@@ -397,28 +398,16 @@ struct
           ppi p.def "%s = %s;" res tmp) ;
         ppi p.def "}" ;
         res
-    | Function0 (_fid, e1) ->
+    | Function (fid, ts, e1) ->
         emit p l e (fun oc ->
-          pp oc "[&]() {\n" ;
-          indent_more p (fun () ->
-            let n = print emit p l e1 in
-            ppi oc "return %s; }" n) ;
-          pp oc "%s" p.indent)
-    | Function1 (fid, t1, e1) ->
-        emit p l e (fun oc ->
-          pp oc "[&](%s %s) {\n" (type_identifier p t1) (param fid 0) ;
-          let l = (Expression.Param (fid, 0), t1) :: l in
-          indent_more p (fun () ->
-            let n = print emit p l e1 in
-            ppi oc "return %s; }" n) ;
-          pp oc "%s" p.indent)
-    | Function2 (fid, t1, t2, e1) ->
-        emit p l e (fun oc ->
-          pp oc "[&](%s %s, %s %s) {\n"
-            (type_identifier p t1) (param fid 0)
-            (type_identifier p t2) (param fid 1) ;
-          let l = (Expression.Param (fid, 0), t1) ::
-                  (Expression.Param (fid, 1), t2) :: l in
+          array_print_i ~first:"[&](" ~last:") {\n" ~sep:", "
+            (fun i oc t -> Printf.fprintf oc "%s %s"
+              (type_identifier p t) (param fid i))
+            oc ts ;
+          let l =
+            Array.fold_lefti (fun l i t ->
+              (Expression.Param (fid, i), t) :: l
+            ) l ts in
           indent_more p (fun () ->
             let n = print emit p l e1 in
             ppi oc "return %s; }" n) ;

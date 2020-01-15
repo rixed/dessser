@@ -164,9 +164,7 @@ struct
     | OWord
     | Bytes
     | Pair of t * t
-    | Function0 of (* result: *) t
-    | Function1 of t * (* result: *) t
-    | Function2 of t * t * (* result: *) t
+    | Function of t array * (* result: *) t
 
   let rec print oc = function
     | Value vt ->
@@ -188,12 +186,12 @@ struct
         pp oc "Pair(%a, %a)"
           print t1
           print t2
-    | Function0 t1 ->
+    | Function ([||], t1) ->
         pp oc "(unit->%a)" print t1
-    | Function1 (t1, t2) ->
-        pp oc "(%a->%a)" print t1 print t2
-    | Function2 (t1, t2, t3) ->
-        pp oc "(%a->%a->%a)" print t1 print t2 print t3
+    | Function (ts, t2) ->
+        pp oc "(%a->%a)"
+          (Array.print ~first:"" ~last:"" ~sep:"->" print) ts
+          print t2
 
   let to_nullable = function
     | Value ValueType.(NotNullable t) -> Value ValueType.(Nullable t)
@@ -409,9 +407,7 @@ struct
      * generators in exchange for an expression: *)
     | Identifier of string
     | Let of string * e * e
-    | Function0 of (*function id*) int * (* body: *) e
-    | Function1 of (*function id*) int * typ * (* body: *) e
-    | Function2 of (*function id*) int * typ * typ * (* body: *) e
+    | Function of (*function id*) int * (*args*) typ array * (* body: *) e
     | Param of (*function id*) int * (*param no*) int
     | Choose :
         (* Condition: *) e * (* Consequent: *) e * (* Alternative: *) e -> e
@@ -440,11 +436,7 @@ struct
     fun typs f ->
       let id = !next_id in
       incr next_id ;
-      match typs with
-      | [] -> Function0 (id, f id)
-      | [t1] -> Function1 (id, t1, f id)
-      | [t1; t2] -> Function2 (id, t1, t2, f id)
-      | _ -> assert false
+      Function (id, typs, f id)
 
   let rec print ?max_depth oc e =
     if Option.map_default (fun m -> m <= 0) false max_depth then
@@ -722,12 +714,9 @@ struct
           pp oc "(Identifier %s)" n
       | Let (n, e1, e2) ->
           pp oc "(Let %s %a %a)" n p e1 p e2
-      | Function0 (id, e) ->
-          pp oc "(Function0 %d %a)" id p e
-      | Function1 (id, t, e) ->
-          pp oc "(Function1 %d %a %a)" id Type.print t p e
-      | Function2 (id, t1, t2, e) ->
-          pp oc "(Function2 %d %a %a %a)" id Type.print t1 Type.print t2 p e
+      | Function (id, ts, e) ->
+          pp oc "(Function %d %a %a)"
+            id (Array.print ~first:"" ~last:"" ~sep:" " Type.print) ts p e
       | Param (fid, n) ->
           pp oc "(Param %d %d)" fid n
       | Choose (e1, e2, e3) ->
@@ -902,8 +891,8 @@ struct
         | t -> raise (Type_error (e0, e, t, "be a pair")))
     | MapPair (_, e) ->
         (match type_of l e with
-        | Function2 (_, _, t) -> t
-        | t -> raise (Type_error (e0, e, t, "be a pair")))
+        | Function (_, t) -> t
+        | t -> raise (Type_error (e0, e, t, "be a function")))
     | Identifier n as e ->
         (try List.assoc e l
         with Not_found ->
@@ -912,14 +901,9 @@ struct
             raise Not_found)
     | Let (n, e1, e2) ->
         type_of ((Identifier n, (type_of l e1))::l) e2
-    | Function0 (_fid, e) ->
-        Type.Function0 (type_of l e)
-    | Function1 (fid, t, e) ->
-        let l = (Param (fid, 0), t)::l in
-        Type.Function1 (t, type_of l e)
-    | Function2 (fid, t1, t2, e) ->
-        let l = (Param (fid, 0), t1)::(Param (fid, 1), t2)::l in
-        Type.Function2 (t1, t2, type_of l e)
+    | Function (fid, ts, e) ->
+        let l = Array.fold_lefti (fun l i t -> (Param (fid, i), t)::l) l ts in
+        Type.Function (ts, type_of l e)
     | Param (_, n) as e ->
         (try List.assoc e l
         with Not_found ->
@@ -1029,13 +1013,8 @@ struct
     | FieldIsNull (_, e)
     | GetField (_, e)
     | Fst e
-    | Snd e
-    | Function0 (_, e) ->
+    | Snd e ->
         fold u l f e
-    | Function1 (id, t1, e) ->
-        fold u ((Param (id, 0), t1)::l) f e
-    | Function2 (id, t1, t2, e) ->
-        fold u ((Param (id, 0), t1)::(Param (id, 1), t2)::l) f e
     | Coalesce (e1, e2)
     | Gt (e1, e2)
     | Ge (e1, e2)
@@ -1088,6 +1067,9 @@ struct
         fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
     | Seq es ->
         List.fold_left (fun u e -> fold u l f e) u es
+    | Function (id, ts, e) ->
+        let l = Array.fold_lefti (fun l i t -> (Param (id, i), t)::l) l ts in
+        fold u l f e
 
   let rec type_check l e =
     fold () l (fun () l e0 ->
@@ -1141,18 +1123,22 @@ struct
         match type_of l e with
         | Type.Pair _ -> ()
         | t -> raise (Type_error (e0, e, t, "be a pair")) in
-      let check_function2 l e =
+      let bad_arity expected e t =
+        let s = Printf.sprintf "be a function of %d parameters" expected in
+        raise (Type_error (e0, e, t, s)) in
+      let check_function arity l e =
         match type_of l e with
-        | Type.Function2 _ -> ()
-        | t -> raise (Type_error (e0, e, t, "be a function2")) in
+        | Type.Function (ts, _) as t ->
+            if Array.length ts <> arity then bad_arity arity e t
+        | t -> raise (Type_error (e0, e, t, "be a function")) in
       let check_params1 l e f =
         match type_of l e with
-        | Type.Function1 (t1, t2) -> f t1 t2
-        | t -> raise (Type_error (e0, e, t, "be a function1")) in
+        | Type.Function ([|t1|], t2) -> f t1 t2
+        | t -> bad_arity 1 e t in
       let check_params2 l e f =
         match type_of l e with
-        | Type.Function2 (t1, t2, t3) -> f t1 t2 t3
-        | t -> raise (Type_error (e0, e, t, "be a function2")) in
+        | Type.Function ([|t1; t2|], t3) -> f t1 t2 t3
+        | t -> bad_arity 2 e t in
       let check_valueptr l e  =
         match type_of l e with
         | Type.ValuePtr _ -> ()
@@ -1211,9 +1197,7 @@ struct
       | Identifier _
       | Let _
       | Param _
-      | Function0 _
-      | Function1 _
-      | Function2 _ ->
+      | Function _ ->
           ()
       | Seq es ->
           let rec loop = function
@@ -1398,7 +1382,7 @@ struct
           check_pair l e
       | MapPair (e1, e2) ->
           check_pair l e1 ;
-          check_function2 l e2
+          check_function 2 l e2
       | Choose (e1, e2, e3) ->
           check_eq l e1 bool ;
           check_same_types l e2 e3
@@ -1478,7 +1462,7 @@ struct
   (*$inject
     let vptr = Type.ValuePtr ValueType.(Nullable String)
     let func2 =
-      Function2 (14, vptr, DataPtr,
+      Function (14, [|vptr; DataPtr|],
         Let ("gen9_ds", Pair (GetField ([], Param (14, 0)),
                               Param (14, 0)),
           Let ("gen9_ds_0", Fst (Identifier "gen9_ds"),
@@ -1492,7 +1476,7 @@ struct
                         ByteOfU8 (U8OfChar (Char '"')))))))))
   *)
   (*$= type_of & ~printer:(BatIO.to_string Type.print)
-    (Function2 (vptr, DataPtr, Pair (vptr, DataPtr))) (type_of [] func2)
+    (Function ([|vptr; DataPtr|], Pair (vptr, DataPtr))) (type_of [] func2)
   *)
 
   (*$>*)
@@ -1644,7 +1628,7 @@ struct
     let what = IO.to_string Type.print typ in
     let src_dst = Comment ("Desserialize a "^ what, src_dst) in
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid ->
         let v_src = des dstate (Param (fid, 0)) in
         let dst = Param (fid, 1) in
         with_sploded_pair "ds" v_src (fun v src ->
@@ -1672,20 +1656,20 @@ struct
 
   let dsnull t sstate dstate vtyp0 src_dst =
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
         Comment ("Desserialize NULL", Des.dnull t dstate (Param (fid, 0))),
         Comment ("Serialize NULL", Ser.snull t sstate (Param (fid, 1))))))
 
   let dsnotnull t sstate dstate vtyp0 src_dst =
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
         Comment ("Desserialize NonNull", Des.dnotnull t dstate (Param (fid, 0))),
         Comment ("Serialize NonNull", Ser.snotnull t sstate (Param (fid, 1))))))
 
   let rec dstup vtyps sstate dstate vtyp0 src_dst =
     let src_dst = Comment ("Convert a Tuple",
       MapPair (src_dst,
-        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
           Des.tup_opn dstate vtyps (Param (fid, 0)),
           Ser.tup_opn sstate vtyps (Param (fid, 1)))))) in
     let src_dst =
@@ -1695,21 +1679,21 @@ struct
           desser_ vtyp sstate dstate vtyp0 src_dst
         else
           let src_dst = MapPair (src_dst,
-            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+            func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid ->
               Pair (
                 Des.tup_sep i dstate (Param (fid, 0)),
                 Ser.tup_sep i sstate (Param (fid, 1))))) in
           desser_ vtyp sstate dstate vtyp0 src_dst
       ) src_dst vtyps in
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
         Des.tup_cls dstate (Param (fid, 0)),
         Ser.tup_cls sstate (Param (fid, 1)))))
 
   and dsrec vtyps sstate dstate vtyp0 src_dst =
     let src_dst = Comment ("Convert a Record",
       MapPair (src_dst,
-        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
           Des.rec_opn dstate vtyps (Param (fid, 0)),
           Ser.rec_opn sstate vtyps (Param (fid, 1)))))) in
     let src_dst =
@@ -1719,14 +1703,14 @@ struct
           desser_ vtyp sstate dstate vtyp0 src_dst
         else
           let src_dst = MapPair (src_dst,
-            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid ->
+            func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid ->
               Pair (
                 Des.rec_sep name dstate (Param (fid, 0)),
                 Ser.rec_sep name sstate (Param (fid, 1))))) in
           desser_ vtyp sstate dstate vtyp0 src_dst
       ) src_dst vtyps in
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
         Des.rec_cls dstate (Param (fid, 0)),
         Ser.rec_cls sstate (Param (fid, 1)))))
 
@@ -1736,13 +1720,13 @@ struct
   and dsvec dim vtyp sstate dstate vtyp0 src_dst =
     let src_dst = Comment ("Convert a Vector",
       MapPair (src_dst,
-        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+        func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
           Des.vec_opn dstate dim vtyp (Param (fid, 0)),
           Ser.vec_opn sstate dim vtyp (Param (fid, 1)))))) in
     let rec loop src_dst i =
       if i >= dim then
         MapPair (src_dst,
-          func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+          func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
             Des.vec_cls dstate (Param (fid, 0)),
             Ser.vec_cls sstate (Param (fid, 1)))))
       else (
@@ -1752,7 +1736,7 @@ struct
           loop src_dst (i + 1)
         ) else (
           let src_dst = MapPair (src_dst,
-            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+            func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
               Des.vec_sep i dstate (Param (fid, 0)),
               Ser.vec_sep i sstate (Param (fid, 1))))) in
           let src_dst = desser_ vtyp sstate dstate vtyp0 src_dst in
@@ -1772,20 +1756,20 @@ struct
           let src_dst =
             Repeat (I32 0l, ToI32 dim,
               Comment ("Convert a list item",
-                func [i32; pair_ptrs] (fun fid -> (
+                func [|i32; pair_ptrs|] (fun fid -> (
                   let param_n = Param (fid, 0) (*i32*) in
                   let param_src_dst = Param (fid, 1) (*pair_ptrs*) in
                   let src_dst =
                     Choose (Eq (param_n, I32 0l),
                       param_src_dst,
                       MapPair (param_src_dst,
-                        func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+                        func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
                           Des.list_sep dstate (Param (fid, 0)),
                           Ser.list_sep sstate (Param (fid, 1)))))) in
                   desser_ vtyp sstate dstate vtyp0 src_dst))),
                 Pair (src, dst)) in
           MapPair (src_dst,
-            func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+            func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
               Des.vec_cls dstate (Param (fid, 0)),
               Ser.vec_cls sstate (Param (fid, 1))))))))
 
@@ -1836,7 +1820,7 @@ struct
     let src_dst = Pair (src, dst) in
     let src_dst = desser_ vtyp0 sstate dstate vtyp0 src_dst in
     MapPair (src_dst,
-      func [Des.ptr vtyp0; Ser.ptr vtyp0] (fun fid -> Pair (
+      func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
         Des.stop dstate (Param (fid, 0)),
         Ser.stop sstate (Param (fid, 1)))))
 end

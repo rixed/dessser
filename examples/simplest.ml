@@ -19,7 +19,7 @@ struct
     fun src ->
       let b_src = ReadByte src in
       MapPair (b_src,
-        func [byte; dataptr] (fun fid ->
+        func [|byte; dataptr|] (fun fid ->
           Pair (
             Choose (BoolOfU8 (U8OfByte (Param (fid, 0))), v1, v2),
             Param (fid, 1))))
@@ -29,7 +29,7 @@ struct
   let dbool () = from_byte (Bool true) (Bool false)
   let dchar () src =
     MapPair (ReadByte src,
-      func [byte; dataptr] (fun fid ->
+      func [|byte; dataptr|] (fun fid ->
         Pair (CharOfU8 (U8OfByte (Param (fid, 0))), Param (fid, 1))))
   let di8 () = from_byte (I8 1) (I8 0)
   let di16 () = from_byte (I16 1) (I16 0)
@@ -53,7 +53,7 @@ struct
   let list_opn () _ src =
     let b_src = ReadByte src in
     MapPair (b_src,
-      func [byte; dataptr] (fun fid ->
+      func [|byte; dataptr|] (fun fid ->
         Pair (
           ToU32 (U8OfByte (Param (fid, 0))),
           Param (fid, 1))))

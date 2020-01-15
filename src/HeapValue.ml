@@ -214,7 +214,7 @@ struct
   let sersize vtyp src =
     let add_size sizes sz =
       MapPair (sizes,
-        func [size; size] (fun fid ->
+        func [|size; size|] (fun fid ->
           match sz with
           | ConstSize s ->
               Pair (Add (Size s, Param (fid, 0)), Param (fid, 1))

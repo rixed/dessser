@@ -63,7 +63,7 @@ let () =
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
       let tptr = Type.DataPtr in
       let open Expression in
-      func [tptr; tptr] (fun fid ->
+      func [|tptr; tptr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into S-Expression:",
           DS.desser typ src dst))
@@ -76,7 +76,7 @@ let () =
 
       let tptr = Type.DataPtr in
       let open Expression in
-      func [tptr; tptr] (fun fid ->
+      func [|tptr; tptr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into a heap value:",
           let vptr = AllocValue typ in

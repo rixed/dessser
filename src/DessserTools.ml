@@ -38,3 +38,8 @@ let compile ?(optim=3) ?src_fname preferred_file_extension dest_fname f =
     in
   run_cmd cmd ;
   Printf.printf "output produced in %s\n" dest_fname
+
+let array_print_i ?first ?last ?sep p oc a =
+  let i = ref 0 in
+  Array.print ?first ?last ?sep (fun oc x ->
+    p !i oc x ; incr i) oc a

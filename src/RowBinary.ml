@@ -16,7 +16,7 @@ struct
   let dfloat () p =
     let w_p = ReadQWord (LittleEndian, p) in
     MapPair (w_p,
-      func [qword; dataptr] (fun fid ->
+      func [|qword; dataptr|] (fun fid ->
         Pair (FloatOfQWord (Param (fid, 0)), (Param (fid, 1)))))
 
   let read_leb128 p =
@@ -24,9 +24,9 @@ struct
     Let (
       "leb_shft_ptr", ReadWhile (
         Comment ("Condition for read_leb128",
-          func [byte] (fun fid -> Ge (Param (fid, 0), Byte 128))),
+          func [|byte|] (fun fid -> Ge (Param (fid, 0), Byte 128))),
         Comment ("Reducer for read_leb128",
-          func [t_u32_u8; byte] (fun fid ->
+          func [|t_u32_u8; byte|] (fun fid ->
             let byte = LogAnd (U8OfByte (Param (fid, 1)), U8 127) in
             let leb = Fst (Param (fid, 0))
             and shft = Snd (Param (fid, 0)) in
@@ -159,7 +159,7 @@ struct
     Fst (
       LoopUntil (
         Comment ("Loop body for write_leb128",
-          func [t_ptr_sz] (fun fid ->
+          func [|t_ptr_sz|] (fun fid ->
             with_sploded_pair "write_leb128" (Param (fid, 0)) (fun p wlen ->
               let b =
                 Choose (Gt (U32 (Uint32.of_int 128), wlen),
@@ -169,7 +169,7 @@ struct
                 WriteByte (p, b),
                 RightShift (wlen, U8 7))))),
         Comment ("Condition for write_leb128 (until wlen is 0)",
-          func [t_ptr_sz] (fun fid -> Gt (Snd (Param (fid, 0)), U32 Uint32.zero))),
+          func [|t_ptr_sz|] (fun fid -> Gt (Snd (Param (fid, 0)), U32 Uint32.zero))),
         Pair (p, U32OfSize v)))
 
   let sstring () v p =
@@ -263,12 +263,12 @@ struct
     SizeOfU32 (Fst (
       LoopWhile (
         Comment ("Condition for ssize_of_leb128",
-          func [t_u32_u32] (fun fid ->
+          func [|t_u32_u32|] (fun fid ->
             with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
               let max_len_for_lebsz = LeftShift (lebsz, U8 7) in
               Ge (n, max_len_for_lebsz)))),
         Comment ("Loop for ssize_of_leb128",
-          func [t_u32_u32] (fun fid ->
+          func [|t_u32_u32|] (fun fid ->
             with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
               Pair (Add (lebsz, U32 Uint32.one), n)))),
         Pair (U32 Uint32.one, n))))
