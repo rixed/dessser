@@ -46,6 +46,8 @@ struct
     | NotNullable (Rec vts) as t ->
         declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
         valid_identifier
+    | NotNullable (Map _) ->
+        assert false (* no value of map type *)
     | Nullable t ->
         value_type_identifier p (NotNullable t) ^" option"
 
@@ -154,6 +156,8 @@ struct
         Printf.fprintf oc "%s|]" indent
     | NotNullable (List _) ->
         String.print oc "[]"
+    | NotNullable (Map _) ->
+        assert false (* no value of map type *)
     | Nullable t ->
         (* Unfortunately we cannot start with None as we want the whole tree
          * of values to be populated. *)
@@ -205,7 +209,7 @@ struct
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (Float | String | Bool | Char |
+            | NotNullable (Float | String | Bool | Char | Map _ |
                            U8 | U16 | U32 | U64 | U128 |
                            I8 | I16 | I32 | I64 | I128) ->
                 assert false

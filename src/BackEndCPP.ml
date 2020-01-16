@@ -49,6 +49,8 @@ struct
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
     | Value (NotNullable List typ) ->
         Printf.sprintf "List<%s>" (type_identifier p (Value typ))
+    | Value (NotNullable Map _) ->
+        assert false (* No value of map type *)
     | Pair (t1, t2) ->
         "std::pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
     | Function (args, ret) ->
@@ -84,7 +86,7 @@ struct
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (Float | String | Bool | Char |
+            | NotNullable (Float | String | Bool | Char | Map _ |
                            U8 | U16 | U32 | U64 | U128 |
                            I8 | I16 | I32 | I64 | I128) ->
                 assert false

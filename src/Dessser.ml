@@ -35,6 +35,12 @@ struct
     (* Exact same as a tuple, but with field names that can be used as
      * accessors (also used to name actual fields in generated code): *)
     | Rec of (string * t) array
+    (* The type for maps exist because there will be some operations using
+     * that type indirectly (such as fetching from a DB by key, or describing
+     * a key->value mapping in a type expression). But there is no value of
+     * that type, ever. From a (de)serialized point of view, maps are
+     * equivalent to association lists. *)
+    | Map of t * t
 
   and t =
     | Nullable of nullable
@@ -78,6 +84,8 @@ struct
             (fun oc (n, t) ->
               pp oc "%s: %a" n print t)
           ) vts
+    | Map (k, v) ->
+        pp oc "%a{%a}" print v print k
 
   and print_nullable oc t =
     pp oc "%a?" print_not_nullable t
@@ -103,7 +111,7 @@ struct
     | [] -> t
     | i :: path ->
         let rec type_of_not_nullable = function
-          | NotNullable (Float | String | Bool | Char |
+          | NotNullable (Float | String | Bool | Char | Map _ |
                          U8 | U16 | U32 | U64 | U128 |
                          I8 | I16 | I32 | I64 | I128) ->
               assert false
@@ -1792,6 +1800,7 @@ struct
     | Rec vtyps -> dsrec vtyps
     | Vec (dim, vtyp) -> dsvec dim vtyp
     | List vtyp -> dslist vtyp
+    | Map _ -> assert false (* No value of map type *)
 
   and desser_ vtyp sstate dstate vtyp0 src_dst =
     match vtyp with

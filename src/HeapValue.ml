@@ -276,6 +276,8 @@ struct
           loop sizes 0
       | List _typ ->
           assert false
+      | Map _ ->
+          assert false (* no value of map type *)
 
     and sersize_ path src sizes =
       let sub_vtyp = ValueType.type_of_path vtyp path in
