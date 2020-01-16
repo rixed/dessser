@@ -94,7 +94,8 @@ struct
             | NotNullable (Tup vts) ->
                 loop (field_accessor ^ tuple_field_name i) "." vts.(i) path
             | NotNullable (Rec vts) ->
-                loop (field_accessor ^ (fst vts.(i))) "." (snd vts.(i)) path
+                let name = valid_identifier (fst vts.(i)) in
+                loop (field_accessor ^ name) "." (snd vts.(i)) path
             | Nullable x -> accessor_of_not_nullable (NotNullable x) in
           accessor_of_not_nullable vt in
     loop "" "->" vt path

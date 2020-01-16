@@ -75,7 +75,7 @@ struct
   let vec_sep _n () p =
     WriteByte (p, byte_of_char ' ')
 
-  let list_opn () _ _n p =
+  let list_opn () _ p _n =
     WriteByte (p, byte_of_char '[')
 
   let list_cls () p =

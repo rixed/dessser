@@ -1767,7 +1767,7 @@ struct
                           Des.list_sep dstate (Param (fid, 0)),
                           Ser.list_sep sstate (Param (fid, 1)))))) in
                   desser_ vtyp sstate dstate vtyp0 src_dst))),
-                Pair (src, dst)) in
+              Pair (src, dst)) in
           MapPair (src_dst,
             func [|Des.ptr vtyp0; Ser.ptr vtyp0|] (fun fid -> Pair (
               Des.vec_cls dstate (Param (fid, 0)),

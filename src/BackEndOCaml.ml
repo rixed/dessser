@@ -213,9 +213,10 @@ struct
             | NotNullable (List vt) ->
                 loop (".("^ string_of_int i ^")") vt path
             | NotNullable (Tup vts) ->
-                loop (".field_"^ string_of_int i) vts.(i) path
+                loop ("."^ tuple_field_name i) vts.(i) path
             | NotNullable (Rec vts) ->
-                loop ("."^ (fst vts.(i))) (snd vts.(i)) path
+                let name = valid_identifier (fst vts.(i)) in
+                loop ("."^ name) (snd vts.(i)) path
             | Nullable x -> accessor_of_not_nullable (NotNullable x) in
           accessor_of_not_nullable vt in
     loop "" vt path

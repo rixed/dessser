@@ -75,6 +75,9 @@ struct
 
   let rec_sep _n (path, _) p = next path ; p
 
+  (* FIXME: vectors/lists/maps: in order to be convertible to/from a heap value
+   * they must be also entered/left. *)
+
   let vec_opn _st _ _ p = p
 
   let vec_cls _st p = p
