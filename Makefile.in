@@ -216,7 +216,7 @@ clean:
 	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
 	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
 	@$(RM) all_tests.* src/all_tests.ml
-	@$(RM) *.opt perf.data* gmon.out
+	@$(RM) *.opt perf.data* gmon.out .depend
 
 distclean: clean
 	@echo 'Cleaning all build files'
