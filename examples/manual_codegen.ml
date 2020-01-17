@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 open DessserTools
 
 let run_cmd cmd =
@@ -17,34 +19,34 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = ValueType.NotNullable x
-  and n x = ValueType.Nullable x in
+  let m x = NotNullable (Mac x)
+  and n x = Nullable (Mac x) in
   let udp_typ =
-    m (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
-      n U32 ; m U64 ; m U64 ; m U32 ; m U32 ; n U32 ; n String ; n U32 ;
-      n String ; n U32 ; n String ; m U16 ; m U16 ; m U8 ; m U8 ; n U32 ;
-      n U32 ; m U32 ; m String ; m U64 ; m U64 ; m U64 ; (* Should be U32 *) m U64 ;
-      (* Should be U32 *) m U64 ; m U64 ; n String
+    NotNullable (TTup [|
+      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
+      n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
+      n TString ; n TU32 ; n TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; n TU32 ;
+      n TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ; (* Should be U32 *)
+      m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
     |])
   and _http_typ =
-    m (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ;
-      n U32 ; n U32 ; m U64 ; m U64 ; m U32 ; m U32 ;
-      n U32 ; n (Vec (16, m Char)) ;
-      n U32 ; n (Vec (16, m Char)) ;
-      m U16 ; m U16 ; m U128 ; m U128 ; m U128 ; n U128 ;
-      m U8 ; m U8 ; m U8 ; n String ; n String ;
-      n String (* url *) ; n String ; m U8 ; m U8 ; m U8 ;
-      n U32 ; n (Vec (16, m Char)) ;
-      m U8 ; m U8 ; m U64 ; m U64 ; m U8 ; m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      n U64 ; n U64 ; n U32 ;
-      m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      m U32 ; m U32 ; m U16 ; m U16 ; m U16 ;
-      m U64 ; m U64 ; m U64 ; m Float ; m U8 ; m I64 ; m Float ;
-      m I64 ; m Float ; m I64 ; m Float ; m U32 |]) in
+    NotNullable (TTup [|
+      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
+      n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
+      n TU32 ; Nullable (TVec (16, m TChar)) ;
+      n TU32 ; Nullable (TVec (16, m TChar)) ;
+      m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; n TU128 ;
+      m TU8 ; m TU8 ; m TU8 ; n TString ; n TString ;
+      n TString (* url *) ; n TString ; m TU8 ; m TU8 ; m TU8 ;
+      n TU32 ; Nullable (TVec (16, m TChar)) ;
+      m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
+      n TString ; m TU32 ; m TU8 ; n TString ;
+      n TU64 ; n TU64 ; n TU32 ;
+      m TU32 ; m TU32 ; m TU32 ;
+      n TString ; m TU32 ; m TU8 ; n TString ;
+      m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
+      m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
+      m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
   let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
@@ -61,8 +63,7 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
-      let tptr = Type.DataPtr in
-      let open Expression in
+      let tptr = TDataPtr in
       func [|tptr; tptr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into S-Expression:",
@@ -74,8 +75,7 @@ let () =
       let module DS2 = DesSer (HeapValue.Des) (SExpr.Ser) (*(RamenRingBuffer.Ser (BE))*) in
       let module Sizer = HeapValue.SerSizer (RamenRingBuffer.Ser) in
 
-      let tptr = Type.DataPtr in
-      let open Expression in
+      let tptr = TDataPtr in
       func [|tptr; tptr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into a heap value:",
@@ -95,8 +95,8 @@ let () =
                     let src_dst' = DS2.desser typ valueptr dst in
                     Pair (src, Snd (src_dst'))) ])))))
     ) in
-  Printf.printf "convert = %a\n%!" (Expression.print ?max_depth:None) convert ;
-  Expression.type_check [] convert ;
+  Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;
+  type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, entry_point =
     BE.identifier_of_expression state ~name:"convert" convert in

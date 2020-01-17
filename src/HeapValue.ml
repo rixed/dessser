@@ -8,6 +8,8 @@
  * serialization/deserialization are unused. *)
 open Batteries
 open Dessser
+open DessserTypes
+open DessserExpressions
 
 type heapvalue_state = path ref
 
@@ -27,12 +29,10 @@ let leave st =
 module Ser : SER =
 struct
   type state = heapvalue_state * (* next ser value is nullable: *) bool ref
-  let ptr vtyp = valueptr vtyp
-
-  open Expression
+  let ptr mtyp = valueptr mtyp
 
   (* [p] must ben a ValuePtr. *)
-  let start _vtyp p =
+  let start _mtyp p =
     (* Note: nullability will be set before the first value is serialized *)
     (ref [], ref false), p
 
@@ -44,7 +44,7 @@ struct
 
   let set_field (path_ref, nullable_ref) v p =
     let path = !path_ref in
-    let v = if !nullable_ref then Nullable v else v in
+    let v = if !nullable_ref then ToNullable v else v in
     nullable_ref := false ;
     SetField (path, p, v)
 
@@ -109,7 +109,7 @@ struct
 
   let snotnull _t _st p = p
 
-  type ssizer = vtyp -> path -> e -> ssize
+  type ssizer = maybe_nullable -> path -> e -> ssize
   let todo_ssize () = failwith "TODO: ssize for HeapValue"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()
@@ -143,13 +143,11 @@ end
 module Des : DES =
 struct
   type state = heapvalue_state * bool ref
-  let ptr vtyp = valueptr vtyp
-
-  open Expression
+  let ptr mtyp = valueptr mtyp
 
   (* The pointer that's given to us must have been obtained from a
    * HeapValue.Ser. *)
-  let start _vtyp p =
+  let start _mtyp p =
     (ref [], ref false), p
 
   let stop (path, _) p =
@@ -162,7 +160,7 @@ struct
   let get_field (path_ref, nullable_ref) p =
     let path = !path_ref in
     let v = GetField (path, p) in
-    let v = if !nullable_ref then NotNullable v else v in
+    let v = if !nullable_ref then ToNotNullable v else v in
     nullable_ref := false ;
     Pair (v, p)
 
@@ -229,16 +227,14 @@ end
 
 (* Module to compute the sersize of a heap value: *)
 module SerSizer (Ser : SER) : sig
-    val sersize : ValueType.t -> (*dataptr*) e -> (*size*size*) e
+    val sersize : maybe_nullable -> (*dataptr*) e -> (*size*size*) e
   end =
 struct
-  open Expression
-
   (* Returns a pair of size identifier holding the const and dyn size of
    * the heap value pointed by the pointer identifier [src].
    * [src] must be a pointer to a heap value, as returned by the above
    * Ser module. *)
-  let sersize vtyp src =
+  let sersize mtyp src =
     let add_size sizes sz =
       MapPair (sizes,
         func [|size; size|] (fun fid ->
@@ -248,90 +244,92 @@ struct
           | DynSize s ->
               Pair (Param (fid, 0), Add (s, Param (fid, 1))))) in
     (* Add that value size to the passed size pair: *)
-    let rec ssize_vtype path sizes v = function
-      | ValueType.Float ->
-          Ser.ssize_of_float vtyp path v |> add_size sizes
-      | String ->
-          Ser.ssize_of_string vtyp path v |> add_size sizes
-      | Bool ->
-          Ser.ssize_of_bool vtyp path v |> add_size sizes
-      | Char ->
-          Ser.ssize_of_char vtyp path v |> add_size sizes
-      | I8 ->
-          Ser.ssize_of_i8 vtyp path v |> add_size sizes
-      | I16 ->
-          Ser.ssize_of_i16 vtyp path v |> add_size sizes
-      | I24 ->
-          Ser.ssize_of_i24 vtyp path v |> add_size sizes
-      | I32 ->
-          Ser.ssize_of_i32 vtyp path v |> add_size sizes
-      | I40 ->
-          Ser.ssize_of_i40 vtyp path v |> add_size sizes
-      | I48 ->
-          Ser.ssize_of_i48 vtyp path v |> add_size sizes
-      | I56 ->
-          Ser.ssize_of_i56 vtyp path v |> add_size sizes
-      | I64 ->
-          Ser.ssize_of_i64 vtyp path v |> add_size sizes
-      | I128 ->
-          Ser.ssize_of_i128 vtyp path v |> add_size sizes
-      | U8 ->
-          Ser.ssize_of_u8 vtyp path v |> add_size sizes
-      | U16 ->
-          Ser.ssize_of_u16 vtyp path v |> add_size sizes
-      | U24 ->
-          Ser.ssize_of_u24 vtyp path v |> add_size sizes
-      | U32 ->
-          Ser.ssize_of_u32 vtyp path v |> add_size sizes
-      | U40 ->
-          Ser.ssize_of_u40 vtyp path v |> add_size sizes
-      | U48 ->
-          Ser.ssize_of_u48 vtyp path v |> add_size sizes
-      | U56 ->
-          Ser.ssize_of_u56 vtyp path v |> add_size sizes
-      | U64 ->
-          Ser.ssize_of_u64 vtyp path v |> add_size sizes
-      | U128 ->
-          Ser.ssize_of_u128 vtyp path v |> add_size sizes
+    let rec ssize_mtype path sizes v = function
+      | Mac TFloat ->
+          Ser.ssize_of_float mtyp path v |> add_size sizes
+      | Mac TString ->
+          Ser.ssize_of_string mtyp path v |> add_size sizes
+      | Mac TBool ->
+          Ser.ssize_of_bool mtyp path v |> add_size sizes
+      | Mac TChar ->
+          Ser.ssize_of_char mtyp path v |> add_size sizes
+      | Mac TI8 ->
+          Ser.ssize_of_i8 mtyp path v |> add_size sizes
+      | Mac TI16 ->
+          Ser.ssize_of_i16 mtyp path v |> add_size sizes
+      | Mac TI24 ->
+          Ser.ssize_of_i24 mtyp path v |> add_size sizes
+      | Mac TI32 ->
+          Ser.ssize_of_i32 mtyp path v |> add_size sizes
+      | Mac TI40 ->
+          Ser.ssize_of_i40 mtyp path v |> add_size sizes
+      | Mac TI48 ->
+          Ser.ssize_of_i48 mtyp path v |> add_size sizes
+      | Mac TI56 ->
+          Ser.ssize_of_i56 mtyp path v |> add_size sizes
+      | Mac TI64 ->
+          Ser.ssize_of_i64 mtyp path v |> add_size sizes
+      | Mac TI128 ->
+          Ser.ssize_of_i128 mtyp path v |> add_size sizes
+      | Mac TU8 ->
+          Ser.ssize_of_u8 mtyp path v |> add_size sizes
+      | Mac TU16 ->
+          Ser.ssize_of_u16 mtyp path v |> add_size sizes
+      | Mac TU24 ->
+          Ser.ssize_of_u24 mtyp path v |> add_size sizes
+      | Mac TU32 ->
+          Ser.ssize_of_u32 mtyp path v |> add_size sizes
+      | Mac TU40 ->
+          Ser.ssize_of_u40 mtyp path v |> add_size sizes
+      | Mac TU48 ->
+          Ser.ssize_of_u48 mtyp path v |> add_size sizes
+      | Mac TU56 ->
+          Ser.ssize_of_u56 mtyp path v |> add_size sizes
+      | Mac TU64 ->
+          Ser.ssize_of_u64 mtyp path v |> add_size sizes
+      | Mac TU128 ->
+          Ser.ssize_of_u128 mtyp path v |> add_size sizes
+      | Usr t ->
+          ssize_mtype path sizes v t.def
       (* Compound types require recursion: *)
-      | Tup vtyps ->
+      | TTup mtyps ->
           let sizes =
-            Ser.ssize_of_tup vtyp path v |> add_size sizes in
+            Ser.ssize_of_tup mtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
             Let ("sizes", sizes, sersize_ (i::path) src (Identifier "sizes"))
-          ) sizes vtyps
-      | Rec vtyps ->
+          ) sizes mtyps
+      | TRec mtyps ->
           let sizes =
-            Ser.ssize_of_rec vtyp path v |> add_size sizes in
+            Ser.ssize_of_rec mtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
             sersize_ (i::path) src sizes
-          ) sizes vtyps
-      | Vec (dim, _) ->
+          ) sizes mtyps
+      | TVec (dim, _) ->
           let sizes =
-            Ser.ssize_of_vec vtyp path v |> add_size sizes in
+            Ser.ssize_of_vec mtyp path v |> add_size sizes in
           let rec loop sizes i =
             if i >= dim then sizes else
             let sizes = sersize_ (i::path) src sizes in
             loop sizes (i + 1) in
           loop sizes 0
-      | List _typ ->
+      | TList _typ ->
           assert false
-      | Map _ ->
+      | TMap _ ->
           assert false (* no value of map type *)
 
     and sersize_ path src sizes =
-      let sub_vtyp = ValueType.type_of_path vtyp path in
-      if ValueType.is_nullable sub_vtyp then
+      let sub_mtyp = type_of_path mtyp path in
+      if is_nullable sub_mtyp then
         let comment =
-          Printf.sprintf2 "sersize of path %a" ValueType.print_path path in
+          Printf.sprintf2 "sersize of path %a" print_path path in
         Comment (comment,
           Choose (FieldIsNull (path, src),
-            add_size sizes (Ser.ssize_of_null sub_vtyp path),
-            let sub_vtyp' = ValueType.to_not_nullable sub_vtyp in
-            ssize_vtype path sizes (NotNullable (GetField (path, src))) sub_vtyp'))
+            add_size sizes (Ser.ssize_of_null sub_mtyp path),
+            let sub_mtyp' = to_value_type sub_mtyp in
+            ssize_mtype path sizes (ToNotNullable (GetField (path, src))) sub_mtyp'))
       else
-        let sub_vtyp' = ValueType.to_not_nullable sub_vtyp in
-        ssize_vtype path sizes (GetField (path, src)) sub_vtyp'
+        let sub_mtyp' = to_value_type sub_mtyp in
+        ssize_mtype path sizes (GetField (path, src)) sub_mtyp'
     in
     let sizes = Pair (Size 0, Size 0) in
     sersize_ [] src sizes

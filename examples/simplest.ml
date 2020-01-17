@@ -1,19 +1,19 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 open DessserTools
 
 (* The simplest possible deserializer *)
 module TestDes : DES =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _mtyp = dataptr
 
-  let start _vtyp src = (), src
+  let start _mtyp src = (), src
   let stop () src = src
   type des = state -> (*dataptr*) e -> (* (nn * dataptr) *) e
-
-  open Expression
 
   let from_byte v1 v2 =
     fun src ->
@@ -77,13 +77,11 @@ end
 module TestSer : SER =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _mtyp = dataptr
 
   let start _v dst = (), dst
   let stop () dst = dst
   type ser = state -> (*nn*) e -> (*dataptr*) e -> (*dataptr*) e
-
-  open Expression
 
   let from_bool b dst =
     WriteByte (dst, ByteOfU8 (U8OfBool b))
@@ -127,7 +125,7 @@ struct
   let snull _t () dst = WriteByte (dst, Byte 1)
   let snotnull _t () dst = WriteByte (dst, Byte 0)
 
-  type ssizer = vtyp -> path -> (*valueptr*) e -> ssize
+  type ssizer = maybe_nullable -> path -> (*valueptr*) e -> ssize
   let ssize_of_float _ _ _ = ConstSize 1
   let ssize_of_string _ _ _ = ConstSize 1
   let ssize_of_bool _ _ _ = ConstSize 1
@@ -161,11 +159,11 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let open Expression in
-  let vtyp = ValueType.NotNullable (Tup [| Nullable U8 ; NotNullable Char |]) in
+  let mtyp = NotNullable (TTup [| Nullable (Mac TU8) ;
+                                  NotNullable (Mac TChar) |]) in
   let src = DataPtrOfString "\001X"
   and dst = DataPtrOfString "_____" in
-  Let ("e", TestDesSer.desser vtyp src dst,
+  Let ("e", TestDesSer.desser mtyp src dst,
          Seq [
           Dump (Identifier "e") ;
           Identifier "e" ])
@@ -173,7 +171,7 @@ let test_desser () =
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =
   let e = test_desser () in
-  Expression.type_check [] e ;
+  type_check [] e ;
   let backend, exe_ext, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module BackEndOCaml : BACKEND), ".opt", ""

@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 
 module Des : DES =
 struct
@@ -11,8 +13,6 @@ struct
   let stop () p = p
   type des = state -> e -> e
 
-  open Expression
-
   let dfloat () p =
     let w_p = ReadQWord (LittleEndian, p) in
     MapPair (w_p,
@@ -20,7 +20,7 @@ struct
         Pair (FloatOfQWord (Param (fid, 0)), (Param (fid, 1)))))
 
   let read_leb128 p =
-    let t_u32_u8 = Type.Pair (u32, u8) in
+    let t_u32_u8 = TPair (u32, u8) in
     Let (
       "leb_shft_ptr", ReadWhile (
         Comment ("Condition for read_leb128",
@@ -181,13 +181,11 @@ struct
   let stop () p = p
   type ser = state -> e -> e -> e
 
-  open Expression
-
   let sfloat () v p =
     WriteQWord (LittleEndian, p, QWordOfFloat v)
 
   let write_leb128 p v =
-    let t_ptr_sz = Type.(Pair (DataPtr, u32)) in
+    let t_ptr_sz = TPair (TDataPtr, u32) in
     Fst (
       LoopUntil (
         Comment ("Loop body for write_leb128",
@@ -286,7 +284,7 @@ struct
   let snotnull _t () p =
     WriteByte (p, Byte 0)
 
-  type ssizer = vtyp -> path -> e -> ssize
+  type ssizer = maybe_nullable -> path -> e -> ssize
 
   let ssize_of_float _ _ _ = ConstSize 8
   let ssize_of_bool _ _ _ = ConstSize 1
@@ -315,7 +313,7 @@ struct
   let ssize_of_vec _ _ _ = ConstSize 0
 
   let ssize_of_leb128 n =
-    let t_u32_u32 = Type.(Pair (u32, u32)) in
+    let t_u32_u32 = TPair (u32, u32) in
     SizeOfU32 (Fst (
       LoopWhile (
         Comment ("Condition for ssize_of_leb128",

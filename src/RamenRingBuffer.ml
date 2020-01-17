@@ -1,14 +1,14 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
 let ringbuf_word_size = ref 4
 
 module Ser : SER =
 struct
-  open Expression
-
   type state =
     (* That int count the nullable fields (ie. bit index of the next nullable
      * in the nullmask) *)
@@ -136,7 +136,7 @@ struct
     let nullmask_bits =
       if outermost then
         Array.fold_left (fun c typ ->
-          if ValueType.is_nullable typ then c + 1 else c
+          if is_nullable typ then c + 1 else c
         ) 0 vtyps
       else
         Array.length vtyps in
@@ -180,7 +180,7 @@ struct
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
-        if ValueType.is_nullable vtyp then dim else 0
+        if is_nullable vtyp then dim else 0
       else
         dim in
     push_nullmask st p ;
@@ -197,7 +197,7 @@ struct
     let p = WriteDWord (LittleEndian, p, DWordOfU32 n) in
     let nullmask_bits =
       if outermost then
-        if ValueType.is_nullable vtyp then n else U32 Uint32.zero
+        if is_nullable vtyp then n else U32 Uint32.zero
       else
         n in
     push_nullmask st p ;
@@ -230,7 +230,7 @@ struct
         Comment ("Set the nullmask bit",
           SetBit (p, U32 (Uint32.of_int (bi-1)), Bit true))
 
-  type ssizer = vtyp -> path -> e -> ssize
+  type ssizer = maybe_nullable -> path -> e -> ssize
 
   let round_up_const n =
     ConstSize (
@@ -256,8 +256,9 @@ struct
            * name *)
           k ()
       | idx :: path ->
-        (match ValueType.type_of_path vtyp path with
-        | Nullable (Rec typs) | NotNullable (Rec typs) ->
+        (match type_of_path vtyp path with
+        | Nullable (TRec typs)
+        | NotNullable (TRec typs) ->
             let name, _ = typs.(idx) in
             if is_private name then
               ConstSize 0
@@ -306,8 +307,9 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match ValueType.type_of_path vtyp path with
-        | ValueType.(Nullable (Tup typs) | NotNullable (Tup typs)) ->
+        match type_of_path vtyp path with
+        | Nullable (TTup typs)
+        | NotNullable (TTup typs) ->
             typs
         | _ -> assert false in
       round_up_const_bits (
@@ -315,7 +317,7 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if ValueType.is_nullable typ then c + 1 else c
+            if is_nullable typ then c + 1 else c
           ) 0 typs))
 
   let ssize_of_rec vtyp path _ =
@@ -323,8 +325,9 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match ValueType.type_of_path vtyp path with
-        | ValueType.(Nullable (Rec typs) | NotNullable (Rec typs)) ->
+        match type_of_path vtyp path with
+        | Nullable (TRec typs)
+        | NotNullable (TRec typs) ->
             typs
         | _ -> assert false in
       let typs = Array.filter_map (fun (name, typ) ->
@@ -335,19 +338,20 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if ValueType.is_nullable typ then c + 1 else c
+            if is_nullable typ then c + 1 else c
           ) 0 typs))
 
   let ssize_of_vec vtyp path _ =
     unless_private vtyp path (fun () ->
       let is_outermost = path = []
       and dim, typ =
-        match ValueType.type_of_path vtyp path with
-        | ValueType.(Nullable (Vec (dim, typ)) | NotNullable (Vec (dim, typ))) ->
+        match type_of_path vtyp path with
+        | Nullable (TVec (dim, typ))
+        | NotNullable (TVec (dim, typ)) ->
             dim, typ
         | _ -> assert false in
       round_up_const_bits (
-        if is_outermost || ValueType.is_nullable typ then dim else 0))
+        if is_outermost || is_nullable typ then dim else 0))
 
   let ssize_of_null vtyp path =
     unless_private vtyp path (fun () -> ConstSize 0)

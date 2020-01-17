@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 
 exception Missing_dependencies of string list
 
@@ -39,8 +41,8 @@ let declared_type p t f =
 
 type emitter =
   print_state ->
-  (e * Dessser.typ) list ->
-  e -> (string Batteries.IO.output -> unit) ->
+  (e * typ) list ->
+  e -> (string IO.output -> unit) ->
     string
 
 let valid_identifier s =
@@ -52,7 +54,7 @@ module type CONFIG =
 sig
   val preferred_file_extension : string
 
-  val type_identifier : print_state -> Type.t -> string
+  val type_identifier : print_state -> typ -> string
 
   val print_binding :
     string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
@@ -60,9 +62,9 @@ sig
   val print_comment : 'a IO.output -> string -> unit
 
   val print_binding_toplevel :
-    emitter -> string -> print_state -> (e * Type.t) list -> e -> unit
+    emitter -> string -> print_state -> (e * typ) list -> e -> unit
 
-  val print : emitter -> print_state -> (e * Type.t) list -> e -> string
+  val print : emitter -> print_state -> (e * typ) list -> e -> string
 
   val source_intro : string
 
@@ -93,12 +95,12 @@ struct
 
   (* Find references to external identifiers: *)
   let get_depends e =
-    Expression.fold [] [] (fun lst l -> function
+    fold_expr [] [] (fun lst l -> function
       | Identifier s as e ->
           assert (s <> "") ;
           if List.mem_assoc e l || List.mem s lst then lst else (
             pp stdout "Cannot find identifier %S in %a\n%!"
-              s (List.print (fun oc (e, _) -> Expression.print oc e)) l ;
+              s (List.print (fun oc (e, _) -> print_expr oc e)) l ;
             s :: lst
           )
       | _ -> lst
@@ -113,9 +115,9 @@ struct
           name, true in
     let identifier = { public ; expr } in
     (* TODO: add already defined identifiers in the environment: *)
-    Expression.type_check [] expr ;
+    type_check [] expr ;
     { identifiers = (name, identifier) :: state.identifiers },
-    Expression.Identifier name,
+    Identifier name,
     valid_identifier name
 
   let find_or_declare_type _p _t =
@@ -123,7 +125,7 @@ struct
 
   let emit p l e f =
     let n = gen_sym () in
-    let t = Expression.type_of l e in
+    let t = type_of l e in
     let tn = C.type_identifier p t in
     pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
     n
@@ -144,7 +146,7 @@ struct
         pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
           name
           (List.print String.print) depends
-          (Expression.print ?max_depth:None) e)) identifiers ;
+          (print_expr ?max_depth:None) e)) identifiers ;
     let p = make_print_state () in
     let rec loop progress defined left_overs = function
       | [] ->
@@ -162,7 +164,6 @@ struct
           if missing_depends <> [] then
             loop progress defined ((name, missing_depends, e) :: left_overs) rest
           else (
-            let open Expression in
             let l = List.map (fun (name, t) -> Identifier name, t) defined in
             define name p l e ;
             let t = type_of l e in

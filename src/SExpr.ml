@@ -1,5 +1,7 @@
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 
 module Ser : SER =
 struct
@@ -11,8 +13,6 @@ struct
   let stop () p = p
 
   type ser = state -> e -> e -> e
-
-  open Expression
 
   let sfloat () v p =
     WriteBytes (p, BytesOfString (StringOfFloat v))
@@ -99,7 +99,7 @@ struct
 
   let snotnull _t () p = p
 
-  type ssizer = vtyp -> path -> e -> ssize
+  type ssizer = maybe_nullable -> path -> e -> ssize
   let todo_ssize () = failwith "TODO: ssize for SExpr"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()

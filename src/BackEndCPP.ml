@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 open BackEndCLike
 open DessserTools
 
@@ -10,74 +12,76 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_struct p oc id vts =
+  let rec print_struct p oc id mts =
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.indent id ;
     indent_more p (fun () ->
-      Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier p (Type.Value vt) in
+      Array.iter (fun (field_name, mt) ->
+        let typ_id = type_identifier p (TValue mt) in
         pp oc "%s%s %s;\n" p.indent typ_id field_name
-      ) vts
+      ) mts
     ) ;
     pp oc "%s};\n\n" p.indent
 
   and type_identifier p = function
-    | Type.Value (ValueType.Nullable t) ->
-        "std::optional<"^ type_identifier p (Value (NotNullable t)) ^">"
-    | Type.Value ValueType.(NotNullable Float) -> "double"
-    | Value (NotNullable String) -> "std::string"
-    | Value (NotNullable Bool) -> "bool"
-    | Value (NotNullable Char) -> "char"
-    | Value (NotNullable I8) -> "int8_t"
-    | Value (NotNullable U8) -> "uint8_t"
-    | Value (NotNullable I16) -> "int16_t"
-    | Value (NotNullable U16) -> "uint16_t"
-    | Value (NotNullable I24) -> "int32_t"
-    | Value (NotNullable U24) -> "uint32_t"
-    | Value (NotNullable I32) -> "int32_t"
-    | Value (NotNullable U32) -> "uint32_t"
-    | Value (NotNullable I40) -> "int64_t"
-    | Value (NotNullable U40) -> "uint64_t"
-    | Value (NotNullable I48) -> "int64_t"
-    | Value (NotNullable U48) -> "uint64_t"
-    | Value (NotNullable I56) -> "int64_t"
-    | Value (NotNullable U56) -> "uint64_t"
-    | Value (NotNullable I64) -> "int64_t"
-    | Value (NotNullable U64) -> "uint64_t"
-    | Value (NotNullable I128) -> "int128_t"
-    | Value (NotNullable U128) -> "uint128_t"
-    | Value (NotNullable (Tup vts)) as t ->
-        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
-        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
+    | TValue (Nullable t) ->
+        "std::optional<"^ type_identifier p (TValue (NotNullable t)) ^">"
+    | TValue (NotNullable (Mac TFloat)) -> "double"
+    | TValue (NotNullable (Mac TString)) -> "std::string"
+    | TValue (NotNullable (Mac TBool)) -> "bool"
+    | TValue (NotNullable (Mac TChar)) -> "char"
+    | TValue (NotNullable (Mac TI8)) -> "int8_t"
+    | TValue (NotNullable (Mac TU8)) -> "uint8_t"
+    | TValue (NotNullable (Mac TI16)) -> "int16_t"
+    | TValue (NotNullable (Mac TU16)) -> "uint16_t"
+    | TValue (NotNullable (Mac TI24)) -> "int32_t"
+    | TValue (NotNullable (Mac TU24)) -> "uint32_t"
+    | TValue (NotNullable (Mac TI32)) -> "int32_t"
+    | TValue (NotNullable (Mac TU32)) -> "uint32_t"
+    | TValue (NotNullable (Mac TI40)) -> "int64_t"
+    | TValue (NotNullable (Mac TU40)) -> "uint64_t"
+    | TValue (NotNullable (Mac TI48)) -> "int64_t"
+    | TValue (NotNullable (Mac TU48)) -> "uint64_t"
+    | TValue (NotNullable (Mac TI56)) -> "int64_t"
+    | TValue (NotNullable (Mac TU56)) -> "uint64_t"
+    | TValue (NotNullable (Mac TI64)) -> "int64_t"
+    | TValue (NotNullable (Mac TU64)) -> "uint64_t"
+    | TValue (NotNullable (Mac TI128)) -> "int128_t"
+    | TValue (NotNullable (Mac TU128)) -> "uint128_t"
+    | TValue (NotNullable (Usr t)) ->
+        type_identifier p (TValue (NotNullable t.def))
+    | TValue (NotNullable (TTup mts)) as t ->
+        let mts = Array.mapi (fun i mt -> tuple_field_name i, mt) mts in
+        declared_type p t (fun oc type_id -> print_struct p oc type_id mts) |>
         valid_identifier
-    | Value (NotNullable (Rec vts)) as t ->
-        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
+    | TValue (NotNullable (TRec mts)) as t ->
+        declared_type p t (fun oc type_id -> print_struct p oc type_id mts) |>
         valid_identifier
-    | Value (NotNullable Vec (dim, typ)) ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
-    | Value (NotNullable List typ) ->
-        Printf.sprintf "List<%s>" (type_identifier p (Value typ))
-    | Value (NotNullable Map _) ->
+    | TValue (NotNullable (TVec (dim, typ))) ->
+        Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
+    | TValue (NotNullable (TList typ)) ->
+        Printf.sprintf "List<%s>" (type_identifier p (TValue typ))
+    | TValue (NotNullable (TMap _)) ->
         assert false (* No value of map type *)
-    | Pair (t1, t2) ->
+    | TPair (t1, t2) ->
         "std::pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
-    | Function (args, ret) ->
+    | TFunction (args, ret) ->
         "std::function<"^ type_identifier p ret ^
           IO.to_string (
             Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
               String.print oc (type_identifier p t))
           ) args ^">"
-    | Void -> "void"
-    | DataPtr -> "Pointer"
-    | ValuePtr vt -> type_identifier p (Value vt) ^"*"
-    | Size -> "Size"
-    | Bit -> "bool"
-    | Byte -> "uint8_t"
-    | Word -> "uint16_t"
-    | DWord -> "uint32_t"
-    | QWord -> "uint64_t"
-    | OWord -> "uint128_t"
-    | Bytes -> "Bytes"
+    | TVoid -> "void"
+    | TDataPtr -> "Pointer"
+    | TValuePtr mt -> type_identifier p (TValue mt) ^"*"
+    | TSize -> "Size"
+    | TBit -> "bool"
+    | TByte -> "uint8_t"
+    | TWord -> "uint16_t"
+    | TDWord -> "uint32_t"
+    | TQWord -> "uint64_t"
+    | TOWord -> "uint128_t"
+    | TBytes -> "Bytes"
 
   (* Identifiers used for function parameters: *)
   let param fid n = "_"^ string_of_int fid ^"_"^ string_of_int n
@@ -88,28 +92,26 @@ struct
   let print_comment oc s =
     pp oc "/* %s */" s
 
-  let accessor_of_path vt path =
-    let open ValueType in
-    let rec loop a field_accessor vt = function
+  let accessor_of_path mt path =
+    let rec loop a field_accessor mt = function
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (
-                Float | String | Bool | Char | Map _ |
-                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ->
+            | NotNullable (Mac _ | TMap _) ->
                 assert false
-            | NotNullable (Vec (_, vt))
-            | NotNullable (List vt) ->
-                loop ("["^ string_of_int i ^"]") "." vt path
-            | NotNullable (Tup vts) ->
-                loop (field_accessor ^ tuple_field_name i) "." vts.(i) path
-            | NotNullable (Rec vts) ->
-                let name = valid_identifier (fst vts.(i)) in
-                loop (field_accessor ^ name) "." (snd vts.(i)) path
+            | NotNullable (Usr t) ->
+                accessor_of_not_nullable (NotNullable t.def)
+            | NotNullable (TVec (_, mt))
+            | NotNullable (TList mt) ->
+                loop ("["^ string_of_int i ^"]") "." mt path
+            | NotNullable (TTup mts) ->
+                loop (field_accessor ^ tuple_field_name i) "." mts.(i) path
+            | NotNullable (TRec mts) ->
+                let name = valid_identifier (fst mts.(i)) in
+                loop (field_accessor ^ name) "." (snd mts.(i)) path
             | Nullable x -> accessor_of_not_nullable (NotNullable x) in
-          accessor_of_not_nullable vt in
-    loop "" "->" vt path
+          accessor_of_not_nullable mt in
+    loop "" "->" mt path
 
   let print_float_literal v oc =
     if v = infinity then
@@ -140,7 +142,7 @@ struct
       let n1 = print emit p l e1 in
       emit p l e (fun oc -> pp oc "%s.%s" n1 m) in
     match e with
-    | Expression.Comment (c, e1) ->
+    | Comment (c, e1) ->
         pp p.def "%s/* %s */\n" p.indent c ;
         print emit p l e1
     | Seq es ->
@@ -156,10 +158,10 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
-    | Nullable e1 ->
+    | ToNullable e1 ->
         let n1 = print emit p l e1 in
         emit p l e (fun oc -> String.print oc n1)
-    | NotNullable e1 ->
+    | ToNotNullable e1 ->
         let n1 = print emit p l e1 in
         emit p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | Null _ ->
@@ -404,8 +406,8 @@ struct
         binary_infix_op e1 "||" e2
     | Not e1 ->
         unary_op "!" e1
-    | AllocValue vtyp ->
-        let tn = type_identifier p (Type.Value vtyp) in
+    | AllocValue mtyp ->
+        let tn = type_identifier p (TValue mtyp) in
         emit p l e (fun oc -> Printf.fprintf oc "new %s" tn)
     | DerefValuePtr e1 ->
         print emit p l e1
@@ -425,11 +427,11 @@ struct
         valid_identifier s
     | Let (n, e1, e2) ->
         let n1 = print emit p l e1 in
-        let t = Expression.type_of l e1 in
+        let t = type_of l e1 in
         let tn = type_identifier p t in
         let res = gen_sym "let_res_" in
-        let l = (Expression.Identifier n, t) :: l in
-        let t2 = Expression.type_of l e2 in
+        let l = (Identifier n, t) :: l in
+        let t2 = type_of l e2 in
         ppi p.def "%s %s;" (type_identifier p t2) res ;
         ppi p.def "{" ;
         indent_more p (fun () ->
@@ -446,7 +448,7 @@ struct
             oc ts ;
           let l =
             Array.fold_lefti (fun l i t ->
-              (Expression.Param (fid, i), t) :: l
+              (Param (fid, i), t) :: l
             ) l ts in
           indent_more p (fun () ->
             let n = print emit p l e1 in
@@ -457,7 +459,7 @@ struct
     | Choose (e1, e2, e3) ->
         let cond = print emit p l e1 in
         let res = gen_sym "choose_res_" in
-        let t2 = Expression.type_of l e2 in
+        let t2 = type_of l e2 in
         ppi p.def "%s %s;" (type_identifier p t2) res ;
         ppi p.def "if (%s) {" cond ;
         indent_more p (fun () ->
@@ -475,10 +477,10 @@ struct
         and accum = print emit p l e3
         and ptr0 = print emit p l e4 in
         let res = gen_sym "read_while_res_" in
-        let t3 = Expression.type_of l e3 in
+        let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         let ptr = gen_sym "read_while_ptr_" in
-        let t4 = Expression.type_of l e4 in
+        let t4 = type_of l e4 in
         ppi p.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
         ppi p.def "while (true) {" ;
         indent_more p (fun () ->
@@ -495,7 +497,7 @@ struct
         and body = print emit p l e2
         and accum = print emit p l e3 in
         let res = gen_sym "while_res_" in
-        let t3 = Expression.type_of l e3 in
+        let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "while (%s(%s)) {" cond res ;
         indent_more p (fun () ->
@@ -507,7 +509,7 @@ struct
         and cond = print emit p l e2
         and accum = print emit p l e3 in
         let res = gen_sym "until_res_" in
-        let t3 = Expression.type_of l e3 in
+        let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "do {" ;
         indent_more p (fun () ->
@@ -520,7 +522,7 @@ struct
         and body = print emit p l e3
         and accum = print emit p l e4 in
         let res = gen_sym "repeat_res_" in
-        let t3 = Expression.type_of l e3 in
+        let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "for (int32_t idx_ = %s; idx != %s; idx++) {" from to_ ;
         indent_more p (fun () ->
@@ -530,9 +532,9 @@ struct
     | SetField (path, e1, e2) ->
         let ptr = print emit p l e1
         and v = print emit p l e2 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
-            let a = accessor_of_path vt path in
+        (match type_of l e1 with
+        | TValuePtr mt ->
+            let a = accessor_of_path mt path in
             if a = "" then
               ppi p.def "*%s = %s;" ptr v
             else
@@ -541,23 +543,23 @@ struct
         | _ -> assert false)
     | FieldIsNull (path, e1) ->
         let ptr = print emit p l e1 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
-            let a = accessor_of_path vt path in
+        (match type_of l e1 with
+        | TValuePtr mt ->
+            let a = accessor_of_path mt path in
             emit p l e (fun oc -> pp oc "!%s%s.has_value()" ptr a)
         | _ -> assert false)
     | GetField (path, e1) ->
         let ptr = print emit p l e1 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
-            let a = accessor_of_path vt path in
+        (match type_of l e1 with
+        | TValuePtr mt ->
+            let a = accessor_of_path mt path in
             emit p l e (fun oc -> pp oc "%s%s" ptr a)
         | _ -> assert false)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
      * must rely on a static function to produce the value: *)
-    let t = Expression.type_of l e in
+    let t = type_of l e in
     let tn = type_identifier p t in
     pp p.def "%s%s static %s_init()\n" p.indent tn n ;
     pp p.def "%s{\n" p.indent ;

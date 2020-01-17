@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
+open DessserTypes
+open DessserExpressions
 open BackEndCLike
 open DessserTools
 
@@ -10,185 +12,189 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_record p oc id vts =
+  let rec print_record p oc id mts =
     let id = valid_identifier id in
     pp oc "%stype %s = {\n" p.indent id ;
     indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier p (Type.Value vt) in
+        let typ_id = type_identifier p (TValue vt) in
         pp oc "%smutable %s : %s;\n" p.indent field_name typ_id
-      ) vts
+      ) mts
     ) ;
     pp oc "%s}\n\n" p.indent
 
   and value_type_identifier p = function
-    | ValueType.NotNullable Char -> "char"
-    | NotNullable String -> "string"
-    | NotNullable Bool -> "bool"
-    | NotNullable Float -> "float"
-    | NotNullable U8 -> "Uint8.t"
-    | NotNullable I8 -> "Int8.t"
-    | NotNullable U16 -> "Uint16.t"
-    | NotNullable I16 -> "Int16.t"
-    | NotNullable U24 -> "Uint24.t"
-    | NotNullable I24 -> "Int24.t"
-    | NotNullable U32 -> "Uint32.t"
-    | NotNullable I32 -> "Int32.t"
-    | NotNullable U40 -> "Uint40.t"
-    | NotNullable I40 -> "Int40.t"
-    | NotNullable U48 -> "Uint48.t"
-    | NotNullable I48 -> "Int48.t"
-    | NotNullable U56 -> "Uint56.t"
-    | NotNullable I56 -> "Int56.t"
-    | NotNullable U64 -> "Uint64.t"
-    | NotNullable I64 -> "Int64.t"
-    | NotNullable U128 -> "Uint128.t"
-    | NotNullable I128 -> "Int128.t"
-    | NotNullable (Vec (_, t))
-    | NotNullable (List t) ->
+    | NotNullable (Mac TChar) -> "char"
+    | NotNullable (Mac TString) -> "string"
+    | NotNullable (Mac TBool) -> "bool"
+    | NotNullable (Mac TFloat) -> "float"
+    | NotNullable (Mac TU8) -> "Uint8.t"
+    | NotNullable (Mac TI8) -> "Int8.t"
+    | NotNullable (Mac TU16) -> "Uint16.t"
+    | NotNullable (Mac TI16) -> "Int16.t"
+    | NotNullable (Mac TU24) -> "Uint24.t"
+    | NotNullable (Mac TI24) -> "Int24.t"
+    | NotNullable (Mac TU32) -> "Uint32.t"
+    | NotNullable (Mac TI32) -> "Int32.t"
+    | NotNullable (Mac TU40) -> "Uint40.t"
+    | NotNullable (Mac TI40) -> "Int40.t"
+    | NotNullable (Mac TU48) -> "Uint48.t"
+    | NotNullable (Mac TI48) -> "Int48.t"
+    | NotNullable (Mac TU56) -> "Uint56.t"
+    | NotNullable (Mac TI56) -> "Int56.t"
+    | NotNullable (Mac TU64) -> "Uint64.t"
+    | NotNullable (Mac TI64) -> "Int64.t"
+    | NotNullable (Mac TU128) -> "Uint128.t"
+    | NotNullable (Mac TI128) -> "Int128.t"
+    | NotNullable (Usr t) ->
+        value_type_identifier p (NotNullable t.def)
+    | NotNullable (TVec (_, t))
+    | NotNullable (TList t) ->
         value_type_identifier p t ^" array"
-    | NotNullable (Tup vts) as t ->
-        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
-        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
+    | NotNullable (TTup mts) as t ->
+        let mts = Array.mapi (fun i vt -> tuple_field_name i, vt) mts in
+        declared_type p t (fun oc type_id -> print_record p oc type_id mts) |>
         valid_identifier
-    | NotNullable (Rec vts) as t ->
-        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
+    | NotNullable (TRec mts) as t ->
+        declared_type p t (fun oc type_id -> print_record p oc type_id mts) |>
         valid_identifier
-    | NotNullable (Map _) ->
+    | NotNullable (TMap _) ->
         assert false (* no value of map type *)
     | Nullable t ->
         value_type_identifier p (NotNullable t) ^" option"
 
   and type_identifier p = function
-    | Type.Value vt -> value_type_identifier p vt
-    | Void -> "unit"
-    | DataPtr -> "Pointer.t"
-    | ValuePtr vt -> value_type_identifier p vt ^ " ref"
-    | Size -> "Size.t"
-    | Bit -> "bool"
-    | Byte -> "Uint8.t"
-    | Word -> "Uint16.t"
-    | DWord -> "Uint32.t"
-    | QWord -> "Uint64.t"
-    | OWord -> "Uint128.t"
-    | Bytes -> "Slice.t"
-    | Pair (t1, t2) ->
+    | TValue vt -> value_type_identifier p vt
+    | TVoid -> "unit"
+    | TDataPtr -> "Pointer.t"
+    | TValuePtr vt -> value_type_identifier p vt ^ " ref"
+    | TSize -> "Size.t"
+    | TBit -> "bool"
+    | TByte -> "Uint8.t"
+    | TWord -> "Uint16.t"
+    | TDWord -> "Uint32.t"
+    | TQWord -> "Uint64.t"
+    | TOWord -> "Uint128.t"
+    | TBytes -> "Slice.t"
+    | TPair (t1, t2) ->
         "("^ type_identifier p t1 ^" * "^ type_identifier p t2 ^")"
-    | Function ([||], t) ->
+    | TFunction ([||], t) ->
         "(() -> "^ type_identifier p t ^")"
-    | Function (args, ret) ->
+    | TFunction (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
             String.print oc (type_identifier p t))
         ) args ^" -> "^ type_identifier p ret ^")"
 
-  let mod_name = function
-    | Type.Value ValueType.(NotNullable Char) -> "Char"
-    | Value (NotNullable String) -> "String"
-    | Value (NotNullable Bool) -> "Bool"
-    | Value (NotNullable Float) -> "Float"
-    | Value (NotNullable U8) -> "Uint8"
-    | Value (NotNullable I8) -> "Int8"
-    | Value (NotNullable U16) -> "Uint16"
-    | Value (NotNullable I16) -> "Int16"
-    | Value (NotNullable U24) -> "Uint24"
-    | Value (NotNullable I24) -> "Int24"
-    | Value (NotNullable U32) -> "Uint32"
-    | Value (NotNullable I32) -> "Int32"
-    | Value (NotNullable U40) -> "Uint40"
-    | Value (NotNullable I40) -> "Int40"
-    | Value (NotNullable U48) -> "Uint48"
-    | Value (NotNullable I48) -> "Int48"
-    | Value (NotNullable U56) -> "Uint56"
-    | Value (NotNullable I56) -> "Int56"
-    | Value (NotNullable U64) -> "Uint64"
-    | Value (NotNullable I64) -> "Int64"
-    | Value (NotNullable U128) -> "Uint128"
-    | Value (NotNullable I128) -> "Int128"
-    | DataPtr -> "Pointer"
-    | Size -> "Size"
-    | Bit -> "Bool"
-    | Byte -> "Uint8"
-    | Word -> "Uint16"
-    | DWord -> "Uint32"
-    | QWord -> "Uint64"
-    | OWord -> "Uint128"
-    | Bytes -> "Slice"
+  let rec mod_name = function
+    | TValue (NotNullable (Mac TChar)) -> "Char"
+    | TValue (NotNullable (Mac TString)) -> "String"
+    | TValue (NotNullable (Mac TBool)) -> "Bool"
+    | TValue (NotNullable (Mac TFloat)) -> "Float"
+    | TValue (NotNullable (Mac TU8)) -> "Uint8"
+    | TValue (NotNullable (Mac TI8)) -> "Int8"
+    | TValue (NotNullable (Mac TU16)) -> "Uint16"
+    | TValue (NotNullable (Mac TI16)) -> "Int16"
+    | TValue (NotNullable (Mac TU24)) -> "Uint24"
+    | TValue (NotNullable (Mac TI24)) -> "Int24"
+    | TValue (NotNullable (Mac TU32)) -> "Uint32"
+    | TValue (NotNullable (Mac TI32)) -> "Int32"
+    | TValue (NotNullable (Mac TU40)) -> "Uint40"
+    | TValue (NotNullable (Mac TI40)) -> "Int40"
+    | TValue (NotNullable (Mac TU48)) -> "Uint48"
+    | TValue (NotNullable (Mac TI48)) -> "Int48"
+    | TValue (NotNullable (Mac TU56)) -> "Uint56"
+    | TValue (NotNullable (Mac TI56)) -> "Int56"
+    | TValue (NotNullable (Mac TU64)) -> "Uint64"
+    | TValue (NotNullable (Mac TI64)) -> "Int64"
+    | TValue (NotNullable (Mac TU128)) -> "Uint128"
+    | TValue (NotNullable (Mac TI128)) -> "Int128"
+    | TValue (NotNullable (Usr t)) -> mod_name (TValue (NotNullable t.def))
+    | TDataPtr -> "Pointer"
+    | TSize -> "Size"
+    | TBit -> "Bool"
+    | TByte -> "Uint8"
+    | TWord -> "Uint16"
+    | TDWord -> "Uint32"
+    | TQWord -> "Uint64"
+    | TOWord -> "Uint128"
+    | TBytes -> "Slice"
     | _ -> assert false
 
   (* Identifiers used for function parameters: *)
   let param fid n = "_"^ string_of_int fid ^"_"^ string_of_int n
 
   let rec print_default_value indent oc vtyp =
-    let open ValueType in
     match vtyp with
-    | NotNullable Float ->
+    | NotNullable (Mac TFloat) ->
         String.print oc "0."
-    | NotNullable String ->
+    | NotNullable (Mac TString) ->
         String.print oc "\"\""
-    | NotNullable Bool ->
+    | NotNullable (Mac TBool) ->
         String.print oc "false"
-    | NotNullable Char ->
+    | NotNullable (Mac TChar) ->
         String.print oc "'\\000'"
-    | NotNullable I8 ->
+    | NotNullable (Mac TI8) ->
         String.print oc "Int8.zero"
-    | NotNullable I16 ->
+    | NotNullable (Mac TI16) ->
         String.print oc "Int16.zero"
-    | NotNullable I24 ->
+    | NotNullable (Mac TI24) ->
         String.print oc "Int24.zero"
-    | NotNullable I32 ->
+    | NotNullable (Mac TI32) ->
         String.print oc "Int32.zero"
-    | NotNullable I40 ->
+    | NotNullable (Mac TI40) ->
         String.print oc "Int40.zero"
-    | NotNullable I48 ->
+    | NotNullable (Mac TI48) ->
         String.print oc "Int48.zero"
-    | NotNullable I56 ->
+    | NotNullable (Mac TI56) ->
         String.print oc "Int56.zero"
-    | NotNullable I64 ->
+    | NotNullable (Mac TI64) ->
         String.print oc "Int64.zero"
-    | NotNullable I128 ->
+    | NotNullable (Mac TI128) ->
         String.print oc "Int128.zero"
-    | NotNullable U8 ->
+    | NotNullable (Mac TU8) ->
         String.print oc "Uint8.zero"
-    | NotNullable U16 ->
+    | NotNullable (Mac TU16) ->
         String.print oc "Uint16.zero"
-    | NotNullable U24 ->
+    | NotNullable (Mac TU24) ->
         String.print oc "Uint24.zero"
-    | NotNullable U32 ->
+    | NotNullable (Mac TU32) ->
         String.print oc "Uint32.zero"
-    | NotNullable U40 ->
+    | NotNullable (Mac TU40) ->
         String.print oc "Uint40.zero"
-    | NotNullable U48 ->
+    | NotNullable (Mac TU48) ->
         String.print oc "Uint48.zero"
-    | NotNullable U56 ->
+    | NotNullable (Mac TU56) ->
         String.print oc "Uint56.zero"
-    | NotNullable U64 ->
+    | NotNullable (Mac TU64) ->
         String.print oc "Uint64.zero"
-    | NotNullable U128 ->
+    | NotNullable (Mac TU128) ->
         String.print oc "Uint128.zero"
-    | NotNullable (Tup vts) ->
+    | NotNullable (Usr t) ->
+        print_default_value indent oc (NotNullable t.def)
+    | NotNullable (TTup mts) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (i, t) ->
             let fname = tuple_field_name i in
             Printf.fprintf oc "%s = %a"
               fname (print_default_value (indent^"  ")) t)
-          oc (Array.mapi (fun i t -> (i, t)) vts)
-    | NotNullable (Rec vts) ->
+          oc (Array.mapi (fun i t -> (i, t)) mts)
+    | NotNullable (TRec mts) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (fname, t) ->
             Printf.fprintf oc "%s = %a"
               fname (print_default_value (indent^"  ")) t)
-          oc vts
-    | NotNullable (Vec (dim, t)) ->
+          oc mts
+    | NotNullable (TVec (dim, t)) ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
           Printf.fprintf oc "%a; "
             (print_default_value (indent^"  ")) t
         done ;
         Printf.fprintf oc "%s|]" indent
-    | NotNullable (List _) ->
+    | NotNullable (TList _) ->
         String.print oc "[]"
-    | NotNullable (Map _) ->
+    | NotNullable (TMap _) ->
         assert false (* no value of map type *)
     | Nullable t ->
         (* Unfortunately we cannot start with None as we want the whole tree
@@ -245,24 +251,22 @@ struct
         (Bytes.to_string bytes))
 
   let accessor_of_path vt path =
-    let open ValueType in
     let rec loop a vt = function
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (
-                Float | String | Bool | Char | Map _ |
-                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ->
+            | NotNullable (Mac _ | TMap _) ->
                 assert false
-            | NotNullable (Vec (_, vt))
-            | NotNullable (List vt) ->
+            | NotNullable (Usr t) ->
+                accessor_of_not_nullable (NotNullable t.def)
+            | NotNullable (TVec (_, vt))
+            | NotNullable (TList vt) ->
                 loop (".("^ string_of_int i ^")") vt path
-            | NotNullable (Tup vts) ->
-                loop ("."^ tuple_field_name i) vts.(i) path
-            | NotNullable (Rec vts) ->
-                let name = valid_identifier (fst vts.(i)) in
-                loop ("."^ name) (snd vts.(i)) path
+            | NotNullable (TTup mts) ->
+                loop ("."^ tuple_field_name i) mts.(i) path
+            | NotNullable (TRec mts) ->
+                let name = valid_identifier (fst mts.(i)) in
+                loop ("."^ name) (snd mts.(i)) path
             | Nullable x -> accessor_of_not_nullable (NotNullable x) in
           accessor_of_not_nullable vt in
     loop "" vt path
@@ -273,7 +277,7 @@ struct
       let n1 = print emit p l e1 in
       emit p l e (fun oc -> pp oc "%s %s" op n1) in
     let unary_mod_op op e1 =
-      let op = mod_name (Expression.type_of l e) ^"."^ op in
+      let op = mod_name (type_of l e) ^"."^ op in
       unary_op op e1 in
     let any_op op es =
       let ns = List.map (print emit p l) es in
@@ -286,17 +290,17 @@ struct
       and n2 = print emit p l e2 in
       emit p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
     let binary_mod_op op e1 e2 =
-      let op = mod_name (Expression.type_of l e) ^"."^ op in
+      let op = mod_name (type_of l e) ^"."^ op in
       binary_op op e1 e2 in
     let binary_mod_op_2nd_u8 op e1 e2 =
       let n1 = print emit p l e1
       and n2 = print emit p l e2
-      and m = mod_name (Expression.type_of l e) in
+      and m = mod_name (type_of l e) in
       emit p l e (fun oc ->
         pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2)
     in
     match e with
-    | Expression.Comment (c, e1) ->
+    | Comment (c, e1) ->
         pp p.def "%s(* %s *)\n" p.indent c ;
         print emit p l e1
     | Seq es ->
@@ -304,8 +308,8 @@ struct
     | Dump e1 ->
         let n = print emit p l e1 in
         pp p.def ("%s"^^
-          (match Expression.type_of l e1 with
-          | Type.Value ValueType.(NotNullable String) ->
+          (match type_of l e1 with
+          | TValue (NotNullable (Mac TString)) ->
               "print_string %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
@@ -318,10 +322,10 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit p l e (fun oc -> pp oc "%s |? %s" n1 n2)
-    | Nullable e1 ->
+    | ToNullable e1 ->
         let n1 = print emit p l e1 in
         emit p l e (fun oc -> pp oc "Some %s" n1)
-    | NotNullable e1 ->
+    | ToNotNullable e1 ->
         let n1 = print emit p l e1 in
         emit p l e (fun oc -> Printf.fprintf oc "Option.get %s" n1)
     | Null _ ->
@@ -403,7 +407,7 @@ struct
     | RightShift (e1, e2) ->
         binary_mod_op_2nd_u8 "shift_right_logical" e1 e2
     | StringOfInt e1 ->
-        let op = mod_name (Expression.type_of l e1) ^".to_string" in
+        let op = mod_name (type_of l e1) ^".to_string" in
         unary_op op e1
     | U8OfString e1
     | I8OfString e1
@@ -457,58 +461,58 @@ struct
     | U32OfSize e1 ->
         unary_op "Uint32.of_int" e1
     | ToU8 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint8") e1
     | ToI8 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int8") e1
     | ToU16 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint16") e1
     | ToI16 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int16") e1
     | ToU24 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint24") e1
     | ToI24 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int24") e1
     | ToU32 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint32") e1
     | ToI32 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int32") e1
     | ToU40 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint40") e1
     | ToI40 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int40") e1
     | ToU48 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint48") e1
     | ToI48 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int48") e1
     | ToU56 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint56") e1
     | ToI56 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int56") e1
     | ToU64 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint64") e1
     | ToI64 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int64") e1
     | ToU128 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint128") e1
     | ToI128 e1 ->
-        let m = mod_name (Expression.type_of l e1) in
+        let m = mod_name (type_of l e1) in
         unary_op (m ^".to_int128") e1
     | U8OfBool e1 ->
         let n = print emit p l e1 in
@@ -638,10 +642,10 @@ struct
         valid_identifier s
     | Let (n, e1, e2) ->
         let n1 = print emit p l e1 in
-        let t = Expression.type_of l e1 in
+        let t = type_of l e1 in
         let tn = type_identifier p t in
         ppi p.def "let %s : %s = %s in" (valid_identifier n) tn n1 ;
-        let l = (Expression.Identifier n, t) :: l in
+        let l = (Identifier n, t) :: l in
         print emit p l e2
     | Function (_fid, [||], e1) ->
         emit p l e (fun oc ->
@@ -656,7 +660,7 @@ struct
             oc ts ;
           let l =
             Array.fold_lefti (fun l i t ->
-              (Expression.Param (fid, i), t) :: l
+              (Param (fid, i), t) :: l
             ) l ts in
           indent_more p (fun () ->
             let n = print emit p l e1 in
@@ -733,8 +737,8 @@ struct
     | SetField (path, e1, e2) ->
         let ptr = print emit p l e1
         and v = print emit p l e2 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
+        (match type_of l e1 with
+        | TValuePtr vt ->
             let a = accessor_of_path vt path in
             if a = "" then
               ppi p.def "%s := %s;" ptr v
@@ -744,21 +748,21 @@ struct
         | _ -> assert false)
     | FieldIsNull (path, e1) ->
         let ptr = print emit p l e1 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
+        (match type_of l e1 with
+        | TValuePtr vt ->
             let a = accessor_of_path vt path in
             emit p l e (fun oc -> pp oc "!%s%s = None" ptr a)
         | _ -> assert false)
     | GetField (path, e1) ->
         let ptr = print emit p l e1 in
-        (match Expression.type_of l e1 with
-        | Type.ValuePtr vt ->
+        (match type_of l e1 with
+        | TValuePtr vt ->
             let a = accessor_of_path vt path in
             emit p l e (fun oc -> pp oc "!%s%s" ptr a)
         | _ -> assert false)
 
   let print_binding_toplevel emit n p l e =
-    let t = Expression.type_of l e in
+    let t = type_of l e in
     let tn = type_identifier p t in
     pp p.def "%slet %s : %s =\n" p.indent n tn ;
     indent_more p (fun () ->
