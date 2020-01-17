@@ -21,12 +21,20 @@ struct
     | Char (* Exact same values as U8 but different typing rules *)
     | U8
     | U16
+    | U24
     | U32
+    | U40
+    | U48
+    | U56
     | U64
     | U128
     | I8
     | I16
+    | I24
     | I32
+    | I40
+    | I48
+    | I56
     | I64
     | I128
     | Vec of int * t
@@ -56,21 +64,31 @@ struct
     | Nullable t -> t
     | NotNullable t -> t
 
-  let rec print_not_nullable oc = function
-    | Float -> String.print oc "Float"
-    | String -> String.print oc "String"
-    | Bool -> String.print oc "Bool"
-    | Char -> String.print oc "Char"
-    | U8 -> String.print oc "U8"
-    | U16 -> String.print oc "U16"
-    | U32 -> String.print oc "U32"
-    | U64 -> String.print oc "U64"
-    | U128 -> String.print oc "U128"
-    | I8 -> String.print oc "I8"
-    | I16 -> String.print oc "I16"
-    | I32 -> String.print oc "I32"
-    | I64 -> String.print oc "I64"
-    | I128 -> String.print oc "I128"
+  let rec print_not_nullable oc =
+    let sp = String.print oc in
+    function
+    | Float -> sp "Float"
+    | String -> sp "String"
+    | Bool -> sp "Bool"
+    | Char -> sp "Char"
+    | U8 -> sp "U8"
+    | U16 -> sp "U16"
+    | U24 -> sp "U24"
+    | U32 -> sp "U32"
+    | U40 -> sp "U40"
+    | U48 -> sp "U48"
+    | U56 -> sp "U56"
+    | U64 -> sp "U64"
+    | U128 -> sp "U128"
+    | I8 -> sp "I8"
+    | I16 -> sp "I16"
+    | I24 -> sp "I24"
+    | I32 -> sp "I32"
+    | I40 -> sp "I40"
+    | I48 -> sp "I48"
+    | I56 -> sp "I56"
+    | I64 -> sp "I64"
+    | I128 -> sp "I128"
     | Vec (dim, vt) ->
         pp oc "%a[%d]" print vt dim
     | List vt ->
@@ -111,9 +129,10 @@ struct
     | [] -> t
     | i :: path ->
         let rec type_of_not_nullable = function
-          | NotNullable (Float | String | Bool | Char | Map _ |
-                         U8 | U16 | U32 | U64 | U128 |
-                         I8 | I16 | I32 | I64 | I128) ->
+          | NotNullable (
+              Float | String | Bool | Char | Map _ |
+              U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+              I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ->
               assert false
           | NotNullable (Vec (dim, vt)) ->
               assert (i < dim) ;
@@ -174,22 +193,24 @@ struct
     | Pair of t * t
     | Function of t array * (* result: *) t
 
-  let rec print oc = function
+  let rec print oc =
+    let sp = String.print oc in
+    function
     | Value vt ->
         ValueType.print oc vt
-    | Void -> String.print oc "Void"
-    | DataPtr -> String.print oc "DataPtr"
+    | Void -> sp "Void"
+    | DataPtr -> sp "DataPtr"
     | ValuePtr t ->
         pp oc "ValuePtr(%a)"
           ValueType.print t
-    | Size -> String.print oc "Size"
-    | Bit -> String.print oc "Bit"
-    | Byte -> String.print oc "Byte"
-    | Word -> String.print oc "Word"
-    | DWord -> String.print oc "DWord"
-    | QWord -> String.print oc "QWord"
-    | OWord -> String.print oc "OWord"
-    | Bytes -> String.print oc "Bytes"
+    | Size -> sp "Size"
+    | Bit -> sp "Bit"
+    | Byte -> sp "Byte"
+    | Word -> sp "Word"
+    | DWord -> sp "DWord"
+    | QWord -> sp "QWord"
+    | OWord -> sp "OWord"
+    | Bytes -> sp "Bytes"
     | Pair (t1, t2) ->
         pp oc "Pair(%a, %a)"
           print t1
@@ -216,6 +237,8 @@ struct
         assert false
 end
 
+(* Some short cuts for often used types: *)
+
 type typ = Type.t
 type vtyp = ValueType.t
 type path = ValueType.path
@@ -227,12 +250,20 @@ let string = Type.Value ValueType.(NotNullable String)
 let float = Type.Value ValueType.(NotNullable Float)
 let u8 = Type.Value ValueType.(NotNullable U8)
 let u16 = Type.Value ValueType.(NotNullable U16)
+let u24 = Type.Value ValueType.(NotNullable U24)
 let u32 = Type.Value ValueType.(NotNullable U32)
+let u40 = Type.Value ValueType.(NotNullable U40)
+let u48 = Type.Value ValueType.(NotNullable U48)
+let u56 = Type.Value ValueType.(NotNullable U56)
 let u64 = Type.Value ValueType.(NotNullable U64)
 let u128 = Type.Value ValueType.(NotNullable U128)
 let i8 = Type.Value ValueType.(NotNullable I8)
 let i16 = Type.Value ValueType.(NotNullable I16)
+let i24 = Type.Value ValueType.(NotNullable I24)
 let i32 = Type.Value ValueType.(NotNullable I32)
+let i40 = Type.Value ValueType.(NotNullable I40)
+let i48 = Type.Value ValueType.(NotNullable I48)
+let i56 = Type.Value ValueType.(NotNullable I56)
 let i64 = Type.Value ValueType.(NotNullable I64)
 let i128 = Type.Value ValueType.(NotNullable I128)
 let void = Type.Void
@@ -274,12 +305,20 @@ struct
     | Char of char
     | U8 of int
     | U16 of int
+    | U24 of int
     | U32 of Uint32.t
+    | U40 of Uint40.t
+    | U48 of Uint48.t
+    | U56 of Uint56.t
     | U64 of Uint64.t
     | U128 of Uint128.t
     | I8 of int
     | I16 of int
+    | I24 of int
     | I32 of Int32.t
+    | I40 of Int64.t
+    | I48 of Int64.t
+    | I56 of Int64.t
     | I64 of Int64.t
     | I128 of Int128.t
     | Bit of bool
@@ -298,23 +337,39 @@ struct
     | CharOfString of e
     | U8OfString of e
     | U16OfString of e
+    | U24OfString of e
     | U32OfString of e
+    | U40OfString of e
+    | U48OfString of e
+    | U56OfString of e
     | U64OfString of e
     | U128OfString of e
     | I8OfString of e
     | I16OfString of e
+    | I24OfString of e
     | I32OfString of e
+    | I40OfString of e
+    | I48OfString of e
+    | I56OfString of e
     | I64OfString of e
     | I128OfString of e
     (* Integers can be casted upon others regardless of sign and width: *)
     | ToU8 of e
     | ToU16 of e
+    | ToU24 of e
     | ToU32 of e
+    | ToU40 of e
+    | ToU48 of e
+    | ToU56 of e
     | ToU64 of e
     | ToU128 of e
     | ToI8 of e
     | ToI16 of e
+    | ToI24 of e
     | ToI32 of e
+    | ToI40 of e
+    | ToI48 of e
+    | ToI56 of e
     | ToI64 of e
     | ToI128 of e
     (* Comparators: *)
@@ -481,8 +536,16 @@ struct
           pp oc "(U8 %d)" i
       | U16 i ->
           pp oc "(U16 %d)" i
+      | U24 i ->
+          pp oc "(U24 %d)" i
       | U32 u ->
           pp oc "(U32 %s)" (Uint32.to_string u)
+      | U40 u ->
+          pp oc "(U40 %s)" (Uint40.to_string u)
+      | U48 u ->
+          pp oc "(U48 %s)" (Uint48.to_string u)
+      | U56 u ->
+          pp oc "(U56 %s)" (Uint56.to_string u)
       | U64 u ->
           pp oc "(U64 %s)" (Uint64.to_string u)
       | U128 u ->
@@ -491,8 +554,16 @@ struct
           pp oc "(I8 %d)" i
       | I16 i ->
           pp oc "(I16 %d)" i
+      | I24 i ->
+          pp oc "(I24 %d)" i
       | I32 i ->
           pp oc "(I32 %ld)" i
+      | I40 i ->
+          pp oc "(I40 %Ld)" i
+      | I48 i ->
+          pp oc "(I48 %Ld)" i
+      | I56 i ->
+          pp oc "(I56 %Ld)" i
       | I64 i ->
           pp oc "(I64 %Ld)" i
       | I128 u ->
@@ -559,8 +630,16 @@ struct
           pp oc "(U8OfString %a)" p e
       | U16OfString e ->
           pp oc "(U16OfString %a)" p e
+      | U24OfString e ->
+          pp oc "(U24OfString %a)" p e
       | U32OfString e ->
           pp oc "(U32OfString %a)" p e
+      | U40OfString e ->
+          pp oc "(U40OfString %a)" p e
+      | U48OfString e ->
+          pp oc "(U48OfString %a)" p e
+      | U56OfString e ->
+          pp oc "(U56OfString %a)" p e
       | U64OfString e ->
           pp oc "(U64OfString %a)" p e
       | U128OfString e ->
@@ -569,8 +648,16 @@ struct
           pp oc "(I8OfString %a)" p e
       | I16OfString e ->
           pp oc "(I16OfString %a)" p e
+      | I24OfString e ->
+          pp oc "(I24OfString %a)" p e
       | I32OfString e ->
           pp oc "(I32OfString %a)" p e
+      | I40OfString e ->
+          pp oc "(I40OfString %a)" p e
+      | I48OfString e ->
+          pp oc "(I48OfString %a)" p e
+      | I56OfString e ->
+          pp oc "(I56OfString %a)" p e
       | I64OfString e ->
           pp oc "(I64OfString %a)" p e
       | I128OfString e ->
@@ -687,10 +774,26 @@ struct
           pp oc "(ToU16 %a)" p e
       | ToI16 e ->
           pp oc "(ToI16 %a)" p e
+      | ToU24 e ->
+          pp oc "(ToU24 %a)" p e
+      | ToI24 e ->
+          pp oc "(ToI24 %a)" p e
       | ToU32 e ->
           pp oc "(ToU32 %a)" p e
       | ToI32 e ->
           pp oc "(ToI32 %a)" p e
+      | ToU40 e ->
+          pp oc "(ToU40 %a)" p e
+      | ToI40 e ->
+          pp oc "(ToI40 %a)" p e
+      | ToU48 e ->
+          pp oc "(ToU48 %a)" p e
+      | ToI48 e ->
+          pp oc "(ToI48 %a)" p e
+      | ToU56 e ->
+          pp oc "(ToU56 %a)" p e
+      | ToI56 e ->
+          pp oc "(ToI56 %a)" p e
       | ToU64 e ->
           pp oc "(ToU64 %a)" p e
       | ToI64 e ->
@@ -781,12 +884,20 @@ struct
     | Char _ -> char
     | U8 _ -> u8
     | U16 _ -> u16
+    | U24 _ -> u24
     | U32 _ -> u32
+    | U40 _ -> u40
+    | U48 _ -> u48
+    | U56 _ -> u56
     | U64 _ -> u64
     | U128 _ -> u128
     | I8 _ -> i8
     | I16 _ -> i16
+    | I24 _ -> i24
     | I32 _ -> i32
+    | I40 _ -> i40
+    | I48 _ -> i48
+    | I56 _ -> i56
     | I64 _ -> i64
     | I128 _ -> i128
     | Bit _ -> bit
@@ -807,12 +918,20 @@ struct
     | FloatOfString _ -> float
     | U8OfString _ -> u8
     | U16OfString _ -> u16
+    | U24OfString _ -> u24
     | U32OfString _ -> u32
+    | U40OfString _ -> u40
+    | U48OfString _ -> u48
+    | U56OfString _ -> u56
     | U64OfString _ -> u64
     | U128OfString _ -> u128
     | I8OfString _ -> i8
     | I16OfString _ -> i16
+    | I24OfString _ -> i24
     | I32OfString _ -> i32
+    | I40OfString _ -> i40
+    | I48OfString _ -> i48
+    | I56OfString _ -> i56
     | I64OfString _ -> i64
     | I128OfString _ -> i128
     | FloatOfQWord _ -> float
@@ -873,8 +992,16 @@ struct
     | ToI8 _ -> u8
     | ToU16 _ -> u16
     | ToI16 _ -> i16
+    | ToU24 _ -> u24
+    | ToI24 _ -> i24
     | ToU32 _ -> u32
     | ToI32 _ -> i32
+    | ToU40 _ -> u40
+    | ToI40 _ -> i40
+    | ToU48 _ -> u48
+    | ToI48 _ -> i48
+    | ToU56 _ -> u56
+    | ToI56 _ -> i56
     | ToU64 _ -> u64
     | ToI64 _ -> i64
     | ToU128 _ -> u128
@@ -934,13 +1061,21 @@ struct
     | Bool _
     | Char _
     | U8 _
+    | U24 _
     | U16 _
     | U32 _
+    | U40 _
+    | U48 _
+    | U56 _
     | U64 _
     | U128 _
     | I8 _
     | I16 _
+    | I24 _
     | I32 _
+    | I40 _
+    | I48 _
+    | I56 _
     | I64 _
     | I128 _
     | Bit _
@@ -971,12 +1106,20 @@ struct
     | CharOfString e
     | U8OfString e
     | U16OfString e
+    | U24OfString e
     | U32OfString e
+    | U40OfString e
+    | U48OfString e
+    | U56OfString e
     | U64OfString e
     | U128OfString e
     | I8OfString e
     | I16OfString e
+    | I24OfString e
     | I32OfString e
+    | I40OfString e
+    | I48OfString e
+    | I56OfString e
     | I64OfString e
     | I128OfString e
     | U8OfByte e
@@ -1012,8 +1155,16 @@ struct
     | ToI8 e
     | ToU16 e
     | ToI16 e
+    | ToU24 e
+    | ToI24 e
     | ToU32 e
     | ToI32 e
+    | ToU40 e
+    | ToI40 e
+    | ToU48 e
+    | ToI48 e
+    | ToU56 e
+    | ToI56 e
     | ToU64 e
     | ToI64 e
     | ToU128 e
@@ -1184,12 +1335,20 @@ struct
       | Char _
       | U8 _
       | U16 _
+      | U24 _
       | U32 _
+      | U40 _
+      | U48 _
+      | U56 _
       | U64 _
       | U128 _
       | I8 _
       | I16 _
+      | I24 _
       | I32 _
+      | I40 _
+      | I48 _
+      | I56 _
       | I64 _
       | I128 _
       | Bit _
@@ -1253,12 +1412,20 @@ struct
       | CharOfString e
       | U8OfString e
       | U16OfString e
+      | U24OfString e
       | U32OfString e
+      | U40OfString e
+      | U48OfString e
+      | U56OfString e
       | U64OfString e
       | U128OfString e
       | I8OfString e
       | I16OfString e
+      | I24OfString e
       | I32OfString e
+      | I40OfString e
+      | I48OfString e
+      | I56OfString e
       | I64OfString e
       | I128OfString e
       | StringLength e
@@ -1280,8 +1447,16 @@ struct
       | ToI8 e
       | ToI16 e
       | ToU16 e
+      | ToI24 e
+      | ToU24 e
       | ToI32 e
       | ToU32 e
+      | ToI40 e
+      | ToU40 e
+      | ToI48 e
+      | ToU48 e
+      | ToI56 e
+      | ToU56 e
       | ToI64 e
       | ToU64 e
       | ToI128 e
@@ -1521,12 +1696,20 @@ sig
   val dchar : des
   val di8 : des
   val di16 : des
+  val di24 : des
   val di32 : des
+  val di40 : des
+  val di48 : des
+  val di56 : des
   val di64 : des
   val di128 : des
   val du8 : des
   val du16 : des
+  val du24 : des
   val du32 : des
+  val du40 : des
+  val du48 : des
+  val du56 : des
   val du64 : des
   val du128 : des
 
@@ -1571,12 +1754,20 @@ sig
   val schar : ser
   val si8 : ser
   val si16 : ser
+  val si24 : ser
   val si32 : ser
+  val si40 : ser
+  val si48 : ser
+  val si56 : ser
   val si64 : ser
   val si128 : ser
   val su8 : ser
   val su16 : ser
+  val su24 : ser
   val su32 : ser
+  val su40 : ser
+  val su48 : ser
+  val su56 : ser
   val su64 : ser
   val su128 : ser
 
@@ -1606,12 +1797,20 @@ sig
   val ssize_of_char : ssizer
   val ssize_of_i8 : ssizer
   val ssize_of_i16 : ssizer
+  val ssize_of_i24 : ssizer
   val ssize_of_i32 : ssizer
+  val ssize_of_i40 : ssizer
+  val ssize_of_i48 : ssizer
+  val ssize_of_i56 : ssizer
   val ssize_of_i64 : ssizer
   val ssize_of_i128 : ssizer
   val ssize_of_u8 : ssizer
   val ssize_of_u16 : ssizer
+  val ssize_of_u24 : ssizer
   val ssize_of_u32 : ssizer
+  val ssize_of_u40 : ssizer
+  val ssize_of_u48 : ssizer
+  val ssize_of_u56 : ssizer
   val ssize_of_u64 : ssizer
   val ssize_of_u128 : ssizer
   (* Specifically for the compound, excluding the size of the parts: *)
@@ -1653,12 +1852,20 @@ struct
   let dschar = ds Ser.schar Des.dchar char
   let dsi8 = ds Ser.si8 Des.di8 i8
   let dsi16 = ds Ser.si16 Des.di16 i16
+  let dsi24 = ds Ser.si24 Des.di24 i24
   let dsi32 = ds Ser.si32 Des.di32 i32
+  let dsi40 = ds Ser.si40 Des.di40 i40
+  let dsi48 = ds Ser.si48 Des.di48 i48
+  let dsi56 = ds Ser.si56 Des.di56 i56
   let dsi64 = ds Ser.si64 Des.di64 i64
   let dsi128 = ds Ser.si128 Des.di128 i128
   let dsu8 = ds Ser.su8 Des.du8 u8
   let dsu16 = ds Ser.su16 Des.du16 u16
+  let dsu24 = ds Ser.su24 Des.du24 u24
   let dsu32 = ds Ser.su32 Des.du32 u32
+  let dsu40 = ds Ser.su40 Des.du40 u40
+  let dsu48 = ds Ser.su48 Des.du48 u48
+  let dsu56 = ds Ser.su56 Des.du56 u56
   let dsu64 = ds Ser.su64 Des.du64 u64
   let dsu128 = ds Ser.su128 Des.du128 u128
 
@@ -1788,12 +1995,20 @@ struct
     | Char -> dschar
     | I8 -> dsi8
     | I16 -> dsi16
+    | I24 -> dsi24
     | I32 -> dsi32
+    | I40 -> dsi40
+    | I48 -> dsi48
+    | I56 -> dsi56
     | I64 -> dsi64
     | I128 -> dsi128
     | U8 -> dsu8
     | U16 -> dsu16
+    | U24 -> dsu24
     | U32 -> dsu32
+    | U40 -> dsu40
+    | U48 -> dsu48
+    | U56 -> dsu56
     | U64 -> dsu64
     | U128 -> dsu128
     | Tup vtyps -> dstup vtyps

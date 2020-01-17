@@ -32,8 +32,16 @@ struct
     | Value (NotNullable U8) -> "uint8_t"
     | Value (NotNullable I16) -> "int16_t"
     | Value (NotNullable U16) -> "uint16_t"
+    | Value (NotNullable I24) -> "int32_t"
+    | Value (NotNullable U24) -> "uint32_t"
     | Value (NotNullable I32) -> "int32_t"
     | Value (NotNullable U32) -> "uint32_t"
+    | Value (NotNullable I40) -> "int64_t"
+    | Value (NotNullable U40) -> "uint64_t"
+    | Value (NotNullable I48) -> "int64_t"
+    | Value (NotNullable U48) -> "uint64_t"
+    | Value (NotNullable I56) -> "int64_t"
+    | Value (NotNullable U56) -> "uint64_t"
     | Value (NotNullable I64) -> "int64_t"
     | Value (NotNullable U64) -> "uint64_t"
     | Value (NotNullable I128) -> "int128_t"
@@ -86,9 +94,10 @@ struct
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (Float | String | Bool | Char | Map _ |
-                           U8 | U16 | U32 | U64 | U128 |
-                           I8 | I16 | I32 | I64 | I128) ->
+            | NotNullable (
+                Float | String | Bool | Char | Map _ |
+                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ->
                 assert false
             | NotNullable (Vec (_, vt))
             | NotNullable (List vt) ->
@@ -167,8 +176,16 @@ struct
         emit p l e (fun oc -> pp oc "%d" i)
     | Word i | U16 i ->
         emit p l e (fun oc -> pp oc "%d" i)
+    | U24 u ->
+        emit p l e (fun oc -> pp oc "%dU" u)
     | DWord u | U32 u ->
         emit p l e (fun oc -> pp oc "%sU" (Uint32.to_string u))
+    | U40 u ->
+        emit p l e (fun oc -> pp oc "%sUL" (Uint40.to_string u))
+    | U48 u ->
+        emit p l e (fun oc -> pp oc "%sUL" (Uint48.to_string u))
+    | U56 u ->
+        emit p l e (fun oc -> pp oc "%sUL" (Uint56.to_string u))
     | QWord u | U64 u ->
         emit p l e (fun oc -> pp oc "%sUL" (Uint64.to_string u))
     | OWord u | U128 u ->
@@ -182,10 +199,18 @@ struct
         emit p l e (fun oc -> pp oc "%d" i)
     | I16 i ->
         emit p l e (fun oc -> pp oc "%d" i)
+    | I24 i ->
+        emit p l e (fun oc -> pp oc "%dL" i)
     | I32 i ->
         emit p l e (fun oc -> pp oc "%sL" (Int32.to_string i))
+    | I40 i ->
+        emit p l e (fun oc -> pp oc "%LdLL" i)
+    | I48 i ->
+        emit p l e (fun oc -> pp oc "%LdLL" i)
+    | I56 i ->
+        emit p l e (fun oc -> pp oc "%LdLL" i)
     | I64 i ->
-        emit p l e (fun oc -> pp oc "%sLL" (Int64.to_string i))
+        emit p l e (fun oc -> pp oc "%LdLL" i)
     | I128 i ->
         emit p l e (fun oc ->
           let lo = Int128.to_int64 i
@@ -232,8 +257,16 @@ struct
     | I8OfString e1
     | U16OfString e1
     | I16OfString e1
+    | U24OfString e1
+    | I24OfString e1
     | U32OfString e1
     | I32OfString e1
+    | U40OfString e1
+    | I40OfString e1
+    | U48OfString e1
+    | I48OfString e1
+    | U56OfString e1
+    | I56OfString e1
     | U64OfString e1
     | I64OfString e1
     | U128OfString e1
@@ -268,7 +301,11 @@ struct
     | SizeOfU32 e1 | U32OfSize e1
     | ToU8 e1 | ToI8 e1
     | ToU16 e1 | ToI16 e1
+    | ToU24 e1 | ToI24 e1
     | ToU32 e1 | ToI32 e1
+    | ToU40 e1 | ToI40 e1
+    | ToU48 e1 | ToI48 e1
+    | ToU56 e1 | ToI56 e1
     | ToU64 e1 | ToI64 e1
     | ToU128 e1 | ToI128 e1
     | U8OfBool e1 | BoolOfU8 e1 ->

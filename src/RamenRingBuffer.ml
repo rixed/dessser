@@ -86,9 +86,17 @@ struct
     let p = WriteDWord (LittleEndian, p, DWordOfU32 (ToU32 v)) in
     align_const p 4
 
+  let si24 = si32
+
   let si64 _st v p =
     let p = WriteQWord (LittleEndian, p, QWordOfU64 (ToU64 v)) in
     align_const p 8
+
+  let si40 = si64
+
+  let si48 = si64
+
+  let si56 = si64
 
   let si128 _st v p =
     let p = WriteOWord (LittleEndian, p, OWordOfU128 (ToU128 v)) in
@@ -106,9 +114,17 @@ struct
     let p = WriteDWord (LittleEndian, p, DWordOfU32 v) in
     align_const p 4
 
+  let su24 st v p = su32 st (ToU32 v) p
+
   let su64 _st v p =
     let p = WriteQWord (LittleEndian, p, QWordOfU64 v) in
     align_const p 8
+
+  let su40 st v p = su64 st (ToU64 v) p
+
+  let su48 st v p = su64 st (ToU64 v) p
+
+  let su56 st v p = su64 st (ToU64 v) p
 
   let su128 _st v p =
     let p = WriteOWord (LittleEndian, p, OWordOfU128 v) in
@@ -267,12 +283,20 @@ struct
   let ssize_of_bool vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
   let ssize_of_i8 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
   let ssize_of_i16 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 2)
+  let ssize_of_i24 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 3)
   let ssize_of_i32 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 4)
+  let ssize_of_i40 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 5)
+  let ssize_of_i48 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 6)
+  let ssize_of_i56 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 7)
   let ssize_of_i64 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 8)
   let ssize_of_i128 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 16)
   let ssize_of_u8 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
   let ssize_of_u16 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 2)
+  let ssize_of_u24 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 3)
   let ssize_of_u32 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 4)
+  let ssize_of_u40 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 5)
+  let ssize_of_u48 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 6)
+  let ssize_of_u56 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 7)
   let ssize_of_u64 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 8)
   let ssize_of_u128 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 16)
   let ssize_of_char vtyp path _ = unless_private vtyp path (fun () -> round_up_const_bits 1)

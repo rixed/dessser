@@ -30,8 +30,16 @@ struct
     | NotNullable I8 -> "Int8.t"
     | NotNullable U16 -> "Uint16.t"
     | NotNullable I16 -> "Int16.t"
+    | NotNullable U24 -> "Uint24.t"
+    | NotNullable I24 -> "Int24.t"
     | NotNullable U32 -> "Uint32.t"
     | NotNullable I32 -> "Int32.t"
+    | NotNullable U40 -> "Uint40.t"
+    | NotNullable I40 -> "Int40.t"
+    | NotNullable U48 -> "Uint48.t"
+    | NotNullable I48 -> "Int48.t"
+    | NotNullable U56 -> "Uint56.t"
+    | NotNullable I56 -> "Int56.t"
     | NotNullable U64 -> "Uint64.t"
     | NotNullable I64 -> "Int64.t"
     | NotNullable U128 -> "Uint128.t"
@@ -83,8 +91,16 @@ struct
     | Value (NotNullable I8) -> "Int8"
     | Value (NotNullable U16) -> "Uint16"
     | Value (NotNullable I16) -> "Int16"
+    | Value (NotNullable U24) -> "Uint24"
+    | Value (NotNullable I24) -> "Int24"
     | Value (NotNullable U32) -> "Uint32"
     | Value (NotNullable I32) -> "Int32"
+    | Value (NotNullable U40) -> "Uint40"
+    | Value (NotNullable I40) -> "Int40"
+    | Value (NotNullable U48) -> "Uint48"
+    | Value (NotNullable I48) -> "Int48"
+    | Value (NotNullable U56) -> "Uint56"
+    | Value (NotNullable I56) -> "Int56"
     | Value (NotNullable U64) -> "Uint64"
     | Value (NotNullable I64) -> "Int64"
     | Value (NotNullable U128) -> "Uint128"
@@ -118,8 +134,16 @@ struct
         String.print oc "Int8.zero"
     | NotNullable I16 ->
         String.print oc "Int16.zero"
+    | NotNullable I24 ->
+        String.print oc "Int24.zero"
     | NotNullable I32 ->
         String.print oc "Int32.zero"
+    | NotNullable I40 ->
+        String.print oc "Int40.zero"
+    | NotNullable I48 ->
+        String.print oc "Int48.zero"
+    | NotNullable I56 ->
+        String.print oc "Int56.zero"
     | NotNullable I64 ->
         String.print oc "Int64.zero"
     | NotNullable I128 ->
@@ -128,8 +152,16 @@ struct
         String.print oc "Uint8.zero"
     | NotNullable U16 ->
         String.print oc "Uint16.zero"
+    | NotNullable U24 ->
+        String.print oc "Uint24.zero"
     | NotNullable U32 ->
         String.print oc "Uint32.zero"
+    | NotNullable U40 ->
+        String.print oc "Uint40.zero"
+    | NotNullable U48 ->
+        String.print oc "Uint48.zero"
+    | NotNullable U56 ->
+        String.print oc "Uint56.zero"
     | NotNullable U64 ->
         String.print oc "Uint64.zero"
     | NotNullable U128 ->
@@ -181,6 +213,15 @@ struct
   let lift_u32 v oc =
     pp oc "Uint32.of_int32 (%ldl)" (Uint32.to_int32 v)
 
+  let lift_u40 v oc =
+    pp oc "Uint40.of_int64 (%LdL)" (Uint40.to_int64 v)
+
+  let lift_u48 v oc =
+    pp oc "Uint48.of_int64 (%LdL)" (Uint48.to_int64 v)
+
+  let lift_u56 v oc =
+    pp oc "Uint56.of_int64 (%LdL)" (Uint56.to_int64 v)
+
   let lift_u64 v oc =
     pp oc "Uint64.of_int64 (%LdL)" (Uint64.to_int64 v)
 
@@ -209,9 +250,10 @@ struct
       | [] -> a
       | i :: path ->
           let rec accessor_of_not_nullable = function
-            | NotNullable (Float | String | Bool | Char | Map _ |
-                           U8 | U16 | U32 | U64 | U128 |
-                           I8 | I16 | I32 | I64 | I128) ->
+            | NotNullable (
+                Float | String | Bool | Char | Map _ |
+                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ->
                 assert false
             | NotNullable (Vec (_, vt))
             | NotNullable (List vt) ->
@@ -296,8 +338,16 @@ struct
         emit p l e (fun oc -> pp oc "Uint8.of_int %d" i)
     | Word i | U16 i ->
         emit p l e (fun oc -> pp oc "Uint16.of_int %d" i)
+    | U24 i ->
+        emit p l e (fun oc -> pp oc "Uint24.of_int %d" i)
     | DWord u | U32 u ->
         emit p l e (lift_u32 u)
+    | U40 u ->
+        emit p l e (lift_u40 u)
+    | U48 u ->
+        emit p l e (lift_u48 u)
+    | U56 u ->
+        emit p l e (lift_u56 u)
     | QWord u | U64 u ->
         emit p l e (lift_u64 u)
     | OWord u | U128 u ->
@@ -306,8 +356,16 @@ struct
         emit p l e (fun oc -> pp oc "Int8.of_int %d" i)
     | I16 i ->
         emit p l e (fun oc -> pp oc "Int16.of_int %d" i)
+    | I24 i ->
+        emit p l e (fun oc -> pp oc "Int24.of_int %d" i)
     | I32 i ->
         emit p l e (fun oc -> pp oc "Int32.of_int32 %ld" i)
+    | I40 i ->
+        emit p l e (fun oc -> pp oc "Int40.of_int64 %Ld" i)
+    | I48 i ->
+        emit p l e (fun oc -> pp oc "Int48.of_int64 %Ld" i)
+    | I56 i ->
+        emit p l e (fun oc -> pp oc "Int56.of_int64 %Ld" i)
     | I64 i ->
         emit p l e (fun oc -> pp oc "Int64.of_int64 %Ld" i)
     | I128 i ->
@@ -351,8 +409,16 @@ struct
     | I8OfString e1
     | U16OfString e1
     | I16OfString e1
+    | U24OfString e1
+    | I24OfString e1
     | U32OfString e1
     | I32OfString e1
+    | U40OfString e1
+    | I40OfString e1
+    | U48OfString e1
+    | I48OfString e1
+    | U56OfString e1
+    | I56OfString e1
     | U64OfString e1
     | I64OfString e1
     | U128OfString e1
@@ -402,12 +468,36 @@ struct
     | ToI16 e1 ->
         let m = mod_name (Expression.type_of l e1) in
         unary_op (m ^".to_int16") e1
+    | ToU24 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_uint24") e1
+    | ToI24 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_int24") e1
     | ToU32 e1 ->
         let m = mod_name (Expression.type_of l e1) in
         unary_op (m ^".to_uint32") e1
     | ToI32 e1 ->
         let m = mod_name (Expression.type_of l e1) in
         unary_op (m ^".to_int32") e1
+    | ToU40 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_uint40") e1
+    | ToI40 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_int40") e1
+    | ToU48 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_uint48") e1
+    | ToI48 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_int48") e1
+    | ToU56 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_uint56") e1
+    | ToI56 e1 ->
+        let m = mod_name (Expression.type_of l e1) in
+        unary_op (m ^".to_int56") e1
     | ToU64 e1 ->
         let m = mod_name (Expression.type_of l e1) in
         unary_op (m ^".to_uint64") e1

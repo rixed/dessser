@@ -78,6 +78,14 @@ struct
     with_sploded_pair "du16" (ReadWord (LittleEndian, p)) (fun w p ->
       Pair (U16OfWord w, p))
 
+  let di24 () p =
+    with_sploded_pair "di24" (ReadDWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI24 (U32OfDWord w), p))
+
+  let du24 () p =
+    with_sploded_pair "du24" (ReadDWord (LittleEndian, p)) (fun w p ->
+      Pair (ToU24 (U32OfDWord w), p))
+
   let di32 () p =
     with_sploded_pair "di32" (ReadDWord (LittleEndian, p)) (fun w p ->
       Pair (ToI32 (U32OfDWord w), p))
@@ -85,6 +93,30 @@ struct
   let du32 () p =
     with_sploded_pair "du32" (ReadDWord (LittleEndian, p)) (fun w p ->
       Pair (U32OfDWord w, p))
+
+  let di40 () p =
+    with_sploded_pair "di40" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI40 (U64OfQWord w), p))
+
+  let du40 () p =
+    with_sploded_pair "du40" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToU40 (U64OfQWord w), p))
+
+  let di48 () p =
+    with_sploded_pair "di48" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI48 (U64OfQWord w), p))
+
+  let du48 () p =
+    with_sploded_pair "du48" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToU48 (U64OfQWord w), p))
+
+  let di56 () p =
+    with_sploded_pair "di56" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToI56 (U64OfQWord w), p))
+
+  let du56 () p =
+    with_sploded_pair "du56" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (ToU56 (U64OfQWord w), p))
 
   let di64 () p =
     with_sploded_pair "di64" (ReadQWord (LittleEndian, p)) (fun w p ->
@@ -191,8 +223,16 @@ struct
   let si32 () v p =
     WriteDWord (LittleEndian, p, DWordOfU32 (ToU32 v))
 
+  let si24 = si32
+
   let si64 () v p =
     WriteQWord (LittleEndian, p, QWordOfU64 (ToU64 v))
+
+  let si40 = si64
+
+  let si48 = si64
+
+  let si56 = si64
 
   let si128 () v p =
     WriteOWord (LittleEndian, p, OWordOfU128 (ToU128 v))
@@ -206,8 +246,16 @@ struct
   let su32 () v p =
     WriteDWord (LittleEndian, p, DWordOfU32 v)
 
+  let su24 = su32
+
   let su64 () v p =
     WriteQWord (LittleEndian, p, QWordOfU64 v)
+
+  let su40 = su64
+
+  let su48 = su64
+
+  let su56 = su64
 
   let su128 () v p =
     WriteOWord (LittleEndian, p, OWordOfU128 v)
@@ -249,8 +297,16 @@ struct
   let ssize_of_u16 _ _ _ = ConstSize 2
   let ssize_of_i32 _ _ _ = ConstSize 4
   let ssize_of_u32 _ _ _ = ConstSize 4
+  let ssize_of_i24 = ssize_of_i32
+  let ssize_of_u24 = ssize_of_u32
   let ssize_of_i64 _ _ _ = ConstSize 8
   let ssize_of_u64 _ _ _ = ConstSize 8
+  let ssize_of_i40 = ssize_of_i64
+  let ssize_of_u40 = ssize_of_u64
+  let ssize_of_i48 = ssize_of_i64
+  let ssize_of_u48 = ssize_of_u64
+  let ssize_of_i56 = ssize_of_i64
+  let ssize_of_u56 = ssize_of_u64
   let ssize_of_i128 _ _ _ = ConstSize 16
   let ssize_of_u128 _ _ _ = ConstSize 16
 

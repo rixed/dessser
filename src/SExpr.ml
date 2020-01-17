@@ -35,12 +35,20 @@ struct
 
   let si8 = si
   let si16 = si
+  let si24 = si
   let si32 = si
+  let si40 = si
+  let si48 = si
+  let si56 = si
   let si64 = si
   let si128 = si
   let su8 = si
   let su16 = si
+  let su24 = si
   let su32 = si
+  let su40 = si
+  let su48 = si
+  let su56 = si
   let su64 = si
   let su128 = si
 
@@ -99,12 +107,20 @@ struct
   let ssize_of_char _ _ _ = todo_ssize ()
   let ssize_of_i8 _ _ _ = todo_ssize ()
   let ssize_of_i16 _ _ _ = todo_ssize ()
+  let ssize_of_i24 _ _ _ = todo_ssize ()
   let ssize_of_i32 _ _ _ = todo_ssize ()
+  let ssize_of_i40 _ _ _ = todo_ssize ()
+  let ssize_of_i48 _ _ _ = todo_ssize ()
+  let ssize_of_i56 _ _ _ = todo_ssize ()
   let ssize_of_i64 _ _ _ = todo_ssize ()
   let ssize_of_i128 _ _ _ = todo_ssize ()
   let ssize_of_u8 _ _ _ = todo_ssize ()
   let ssize_of_u16 _ _ _ = todo_ssize ()
+  let ssize_of_u24 _ _ _ = todo_ssize ()
   let ssize_of_u32 _ _ _ = todo_ssize ()
+  let ssize_of_u40 _ _ _ = todo_ssize ()
+  let ssize_of_u48 _ _ _ = todo_ssize ()
+  let ssize_of_u56 _ _ _ = todo_ssize ()
   let ssize_of_u64 _ _ _ = todo_ssize ()
   let ssize_of_u128 _ _ _ = todo_ssize ()
   let ssize_of_tup _ _ _ = todo_ssize ()

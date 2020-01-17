@@ -53,12 +53,20 @@ struct
   let sbool st id p = set_field st id p
   let si8 st id p = set_field st id p
   let si16 st id p = set_field st id p
+  let si24 st id p = set_field st id p
   let si32 st id p = set_field st id p
+  let si40 st id p = set_field st id p
+  let si48 st id p = set_field st id p
+  let si56 st id p = set_field st id p
   let si64 st id p = set_field st id p
   let si128 st id p = set_field st id p
   let su8 st id p = set_field st id p
   let su16 st id p = set_field st id p
+  let su24 st id p = set_field st id p
   let su32 st id p = set_field st id p
+  let su40 st id p = set_field st id p
+  let su48 st id p = set_field st id p
+  let su56 st id p = set_field st id p
   let su64 st id p = set_field st id p
   let su128 st id p = set_field st id p
   let schar st id p = set_field st id p
@@ -109,12 +117,20 @@ struct
   let ssize_of_char _ _ _ = todo_ssize ()
   let ssize_of_i8 _ _ _ = todo_ssize ()
   let ssize_of_i16 _ _ _ = todo_ssize ()
+  let ssize_of_i24 _ _ _ = todo_ssize ()
   let ssize_of_i32 _ _ _ = todo_ssize ()
+  let ssize_of_i40 _ _ _ = todo_ssize ()
+  let ssize_of_i48 _ _ _ = todo_ssize ()
+  let ssize_of_i56 _ _ _ = todo_ssize ()
   let ssize_of_i64 _ _ _ = todo_ssize ()
   let ssize_of_i128 _ _ _ = todo_ssize ()
   let ssize_of_u8 _ _ _ = todo_ssize ()
   let ssize_of_u16 _ _ _ = todo_ssize ()
+  let ssize_of_u24 _ _ _ = todo_ssize ()
   let ssize_of_u32 _ _ _ = todo_ssize ()
+  let ssize_of_u40 _ _ _ = todo_ssize ()
+  let ssize_of_u48 _ _ _ = todo_ssize ()
+  let ssize_of_u56 _ _ _ = todo_ssize ()
   let ssize_of_u64 _ _ _ = todo_ssize ()
   let ssize_of_u128 _ _ _ = todo_ssize ()
   let ssize_of_tup _ _ _ = todo_ssize ()
@@ -155,12 +171,20 @@ struct
   let dbool st p = get_field st p
   let di8 st p = get_field st p
   let di16 st p = get_field st p
+  let di24 st p = get_field st p
   let di32 st p = get_field st p
+  let di40 st p = get_field st p
+  let di48 st p = get_field st p
+  let di56 st p = get_field st p
   let di64 st p = get_field st p
   let di128 st p = get_field st p
   let du8 st p = get_field st p
   let du16 st p = get_field st p
+  let du24 st p = get_field st p
   let du32 st p = get_field st p
+  let du40 st p = get_field st p
+  let du48 st p = get_field st p
+  let du56 st p = get_field st p
   let du64 st p = get_field st p
   let du128 st p = get_field st p
   let dchar st p = get_field st p
@@ -237,8 +261,16 @@ struct
           Ser.ssize_of_i8 vtyp path v |> add_size sizes
       | I16 ->
           Ser.ssize_of_i16 vtyp path v |> add_size sizes
+      | I24 ->
+          Ser.ssize_of_i24 vtyp path v |> add_size sizes
       | I32 ->
           Ser.ssize_of_i32 vtyp path v |> add_size sizes
+      | I40 ->
+          Ser.ssize_of_i40 vtyp path v |> add_size sizes
+      | I48 ->
+          Ser.ssize_of_i48 vtyp path v |> add_size sizes
+      | I56 ->
+          Ser.ssize_of_i56 vtyp path v |> add_size sizes
       | I64 ->
           Ser.ssize_of_i64 vtyp path v |> add_size sizes
       | I128 ->
@@ -247,8 +279,16 @@ struct
           Ser.ssize_of_u8 vtyp path v |> add_size sizes
       | U16 ->
           Ser.ssize_of_u16 vtyp path v |> add_size sizes
+      | U24 ->
+          Ser.ssize_of_u24 vtyp path v |> add_size sizes
       | U32 ->
           Ser.ssize_of_u32 vtyp path v |> add_size sizes
+      | U40 ->
+          Ser.ssize_of_u40 vtyp path v |> add_size sizes
+      | U48 ->
+          Ser.ssize_of_u48 vtyp path v |> add_size sizes
+      | U56 ->
+          Ser.ssize_of_u56 vtyp path v |> add_size sizes
       | U64 ->
           Ser.ssize_of_u64 vtyp path v |> add_size sizes
       | U128 ->
