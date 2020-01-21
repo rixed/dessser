@@ -133,12 +133,18 @@ let register_user_type name ?(print : gen_printer option) def =
         invalid_arg "register_user_type"
   ) user_types
 
+let get_user_type = Hashtbl.find user_types
+
 (* Examples: *)
 let () =
   register_user_type "Date" (Mac TFloat) ;
   register_user_type "Eth" (Mac TU48) ;
   register_user_type "Ipv4" (Mac TU32) ;
-  register_user_type "Ipv6" (Mac TU128)
+  register_user_type "Ipv6" (Mac TU128) ;
+  register_user_type "Cidrv4" (TTup [| NotNullable (Usr (get_user_type "Ipv4")) ;
+                                       NotNullable (Mac TU8) |]) ;
+  register_user_type "Cidrv6" (TTup [| NotNullable (Usr (get_user_type "Ipv6")) ;
+                                       NotNullable (Mac TU8) |])
 
 (* Paths are used to locate subfields within compound types. *)
 type path = int list
