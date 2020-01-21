@@ -101,9 +101,10 @@ let () =
   let state, _, entry_point =
     BE.identifier_of_expression state ~name:"convert" convert in
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in
-  compile ~optim:3 BE.preferred_file_extension exe_fname (fun oc ->
-    BE.print_source state oc ;
-    if BE.preferred_file_extension = "cc" then
+  let src_fname = change_ext BE.preferred_def_extension exe_fname in
+  write_source ~src_fname (fun oc ->
+    BE.print_definitions state oc ;
+    if BE.preferred_def_extension = "cc" then
       Printf.fprintf oc {|
 static std::string readWholeFile(std::string const fname)
 {
@@ -151,8 +152,8 @@ int main(int numArgs, char **args)
   return 0;
 }
 |} entry_point
-    else
-      Printf.fprintf oc {|
+      else
+        Printf.fprintf oc {|
 let read_whole_file fname =
   File.with_file_in ~mode:[`text] fname IO.read_all
 
@@ -185,4 +186,5 @@ let () =
       loop src
     ) in
   loop src |> ignore
-|} entry_point)
+|} entry_point) ;
+  compile ~optim:3 ~link:true backend src_fname exe_fname

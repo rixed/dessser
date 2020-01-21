@@ -8,7 +8,13 @@ open DessserTools
 
 module Config =
 struct
-  let preferred_file_extension = "ml"
+  let preferred_def_extension = "ml"
+  let preferred_decl_extension = "mli"
+  let compile_cmd ~optim ~link src dst =
+    Printf.sprintf
+      "ocamlfind ocamlopt -g -annot -O%d -I src -package stdint,batteries \
+       -linkpkg src/DessserOCamlBackendHelpers.cmx %s %S -o %S"
+      optim (if link then "" else "-c") src dst
 
   let tuple_field_name i = "field_"^ string_of_int i
 
@@ -768,6 +774,11 @@ struct
     indent_more p (fun () ->
       let n = print emit p l e in
       pp p.def "%s%s\n" p.indent n)
+
+  let print_identifier_declaration n p l e =
+    let t = type_of l e in
+    let tn = type_identifier p t in
+    pp p.def "%sval %s : %s\n" p.indent n tn
 
   let source_intro =
     "open Batteries\n\

@@ -8,7 +8,11 @@ open DessserTools
 
 module Config =
 struct
-  let preferred_file_extension = "cc"
+  let preferred_def_extension = "cc"
+  let preferred_decl_extension = "h"
+  let compile_cmd ~optim ~link src dst =
+    Printf.sprintf "g++ -std=c++17 -g -O%d -W -Wall -I src %s %S -o %S"
+      optim (if link then "" else "-c") src dst
 
   let tuple_field_name i = "field_"^ string_of_int i
 
@@ -570,6 +574,11 @@ struct
       pp p.def "%sreturn %s;\n" p.indent n) ;
     pp p.def "%s}\n" p.indent ;
     pp p.def "%s%s %s(%s_init());\n" p.indent tn n n
+
+  let print_identifier_declaration n p l e =
+    let t = type_of l e in
+    let tn = type_identifier p t in
+    pp p.def "%s%s %s;\n" p.indent tn n
 
   let source_intro =
     "#include <iostream>\n\

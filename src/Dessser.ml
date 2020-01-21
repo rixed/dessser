@@ -400,9 +400,12 @@ module type BACKEND =
 sig
   type state
   val make_state : unit -> state
-  val print_source : state -> 'a IO.output -> unit
+  val print_definitions : state -> 'a IO.output -> unit
+  val print_declarations : state -> 'a IO.output -> unit
   (* Returns the new state, the Identifier expression to use in new expressions,
    * and the identifier name in the source code: *)
   val identifier_of_expression : state -> ?name:string -> e -> (state * e * string)
-  val preferred_file_extension : string
+  val preferred_def_extension : string
+  val preferred_decl_extension : string
+  val compile_cmd : optim:int -> link:bool -> string -> string -> string
 end

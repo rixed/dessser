@@ -186,9 +186,11 @@ let test_backend () =
   let state, _, _entry_point =
     BE.identifier_of_expression state ~name:"entry_point" e in
   let exe_fname = "/tmp/simplest_gen"^ exe_ext in
-  compile BE.preferred_file_extension exe_fname (fun oc ->
-    BE.print_source state oc ;
-    String.print oc outro)
+  let src_fname = change_ext BE.preferred_def_extension exe_fname in
+  write_source ~src_fname (fun oc ->
+      BE.print_definitions state oc ;
+      String.print oc outro) ;
+  compile ~link:true backend src_fname exe_fname
 
 let main =
   test_backend ()

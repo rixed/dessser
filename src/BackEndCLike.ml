@@ -4,6 +4,8 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 
+let debug = false
+
 exception Missing_dependencies of string list
 
 type print_state =
@@ -52,7 +54,9 @@ let valid_identifier s =
 
 module type CONFIG =
 sig
-  val preferred_file_extension : string
+  val preferred_def_extension : string
+  val preferred_decl_extension : string
+  val compile_cmd : optim:int -> link:bool -> string -> string -> string
 
   val type_identifier : print_state -> typ -> string
 
@@ -63,6 +67,9 @@ sig
 
   val print_binding_toplevel :
     emitter -> string -> print_state -> (e * typ) list -> e -> unit
+
+  val print_identifier_declaration :
+    string -> print_state -> (e * typ) list -> e -> unit
 
   val print : emitter -> print_state -> (e * typ) list -> e -> string
 
@@ -80,7 +87,9 @@ let gen_sym =
 module Make (C : CONFIG) : BACKEND =
 struct
 
-  let preferred_file_extension = C.preferred_file_extension
+  let preferred_def_extension = C.preferred_def_extension
+  let preferred_decl_extension = C.preferred_decl_extension
+  let compile_cmd = C.compile_cmd
 
   let gen_sym () = valid_identifier (gen_sym "id_")
 
@@ -134,19 +143,24 @@ struct
     let name = valid_identifier name in
     C.print_binding_toplevel emit name p l e
 
-  let print_source state oc =
+  let declare name p l e =
+    let name = valid_identifier name in
+    C.print_identifier_declaration name p l e
+
+  let print_source output_identifier state oc =
     (* state is full of identifiers (list of name * exp). Output them in any order
      * as long as dependencies are defined before used. *)
     let identifiers =
       List.map (fun (name, identifier) ->
         name, get_depends identifier.expr, identifier.expr
       ) state.identifiers in
-    pp stdout "Identifiers:\n%a\n%!"
-      (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, depends, e) ->
-        pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
-          name
-          (List.print String.print) depends
-          (print_expr ?max_depth:None) e)) identifiers ;
+    if debug then
+      pp stdout "Identifiers:\n%a\n%!"
+        (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, depends, e) ->
+          pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
+            name
+            (List.print String.print) depends
+            (print_expr ?max_depth:None) e)) identifiers ;
     let p = make_print_state () in
     let rec loop progress defined left_overs = function
       | [] ->
@@ -165,7 +179,7 @@ struct
             loop progress defined ((name, missing_depends, e) :: left_overs) rest
           else (
             let l = List.map (fun (name, t) -> Identifier name, t) defined in
-            define name p l e ;
+            output_identifier name p l e ;
             let t = type_of l e in
             let defined = (name, t) :: defined in
             loop true defined left_overs rest
@@ -176,10 +190,16 @@ struct
        %a\n\
        %s\n\n\
        %a\n\n\
-       %s\n\n"
+       %s"
       C.source_intro
       C.print_comment "Declarations"
       (IO.close_out p.decl)
       C.print_comment "Definitions"
       (IO.close_out p.def)
+
+  let print_definitions state oc =
+    print_source define state oc
+
+  let print_declarations state oc =
+    print_source declare state oc
 end
