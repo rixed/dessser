@@ -37,13 +37,13 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
     (* convert from encoding_in into a heapvalue: *)
     func [|TDataPtr|] (fun fid ->
       let src = Param (fid, 0) in
-        let vptr = AllocValue schema in
-        ToValue.desser schema src vptr) in
+      let vptr = AllocValue schema in
+      ToValue.desser schema src vptr) in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
     func [|TValuePtr schema|] (fun fid ->
       let vptr = Param (fid, 0) in
-      Sizer.sersize schema vptr)  in
+      Sizer.sersize schema vptr) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
     func [|TValuePtr schema; TDataPtr|] (fun fid ->

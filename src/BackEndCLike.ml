@@ -47,10 +47,11 @@ type emitter =
   e -> (string IO.output -> unit) ->
     string
 
+(* Avoid modifying the name when it's valid: *)
 let valid_identifier s =
-  if s = "" then "v_" else
-  if s.[0] >= 'a' && s.[0] <= 'z' || s.[0] = '_' then s ^"_" else
-  "v_"^ s ^"_"
+  if s = "" then "v" else
+  if s.[0] >= 'a' && s.[0] <= 'z' || s.[0] = '_' then s else
+  "v_"^ s
 
 module type CONFIG =
 sig

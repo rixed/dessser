@@ -189,7 +189,8 @@ struct
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (fname, t) ->
             Printf.fprintf oc "%s = %a"
-              fname (print_default_value (indent^"  ")) t)
+              (valid_identifier fname)
+              (print_default_value (indent^"  ")) t)
           oc mts
     | NotNullable (TVec (dim, t)) ->
         Printf.fprintf oc "[| " ;
