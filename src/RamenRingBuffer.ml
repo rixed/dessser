@@ -353,6 +353,5 @@ struct
       round_up_const_bits (
         if is_outermost || is_nullable typ then dim else 0))
 
-  let ssize_of_null vtyp path =
-    unless_private vtyp path (fun () -> ConstSize 0)
+  let ssize_of_null _vtyp _path = ConstSize 0
 end
