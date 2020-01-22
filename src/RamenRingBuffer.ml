@@ -249,24 +249,34 @@ struct
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
   let unless_private vtyp path k =
-    let rec loop path =
+    let rec loop path vtyp =
       match path with
-      | [] | [_] ->
-          (* Reached the bottom of the stack without meeting a private field
-           * name *)
+      | [] ->
+          (* Reached the leaf type without meeting a private field name *)
           k ()
-      | idx :: path ->
-        (match type_of_path vtyp path with
-        | Nullable (TRec typs)
-        | NotNullable (TRec typs) ->
-            let name, _ = typs.(idx) in
+      | idx :: rest ->
+        (match vtyp with
+        | Nullable (TRec vtyps)
+        | NotNullable (TRec vtyps) ->
+            let name, vtyp = vtyps.(idx) in
             if is_private name then
               ConstSize 0
             else
-              loop path
+              loop rest vtyp
+        | Nullable (TTup vtyps)
+        | NotNullable (TTup vtyps) ->
+            loop rest vtyps.(idx)
+        | Nullable (TVec (d, vtyp))
+        | NotNullable (TVec (d, vtyp)) ->
+            assert (idx < d) ;
+            loop rest vtyp
+        | Nullable (TList vtyp)
+        | NotNullable (TList vtyp) ->
+            loop rest vtyp
         | _ ->
-            loop path) in
-    loop path
+            assert false)
+    in
+    loop path vtyp
 
   (* SerSize of the whole string: *)
   let ssize_of_string vtyp path id =

@@ -149,6 +149,7 @@ let () =
 (* Paths are used to locate subfields within compound types.
  * Head of the list is the index of the considered type child, then
  * the index of the grandchild, and so on. *)
+(* FIXME: a data structure that can be appended/prepended/matched from both ends *)
 type path = int list
 
 let print_path oc p =

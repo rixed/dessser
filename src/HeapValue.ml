@@ -13,28 +13,27 @@ open DessserExpressions
 
 type heapvalue_state = path ref
 
-let next st =
-  match !st with
+let next path =
+  match List.rev !path with
   | [] -> ()
-  | i::rest -> st := (i+1) :: rest
+  | i::rest -> path := List.rev ((i+1) :: rest)
 
-let enter st =
-  st := 0 :: !st
+let enter path =
+  path := !path @ [0]
 
-let leave st =
-  match !st with
+let leave path =
+  match List.rev !path with
   | [] -> assert false
-  | _::rest -> st := rest
+  | _::rest -> path := List.rev rest
 
 module Ser : SER =
 struct
-  type state = heapvalue_state * (* next ser value is nullable: *) bool ref
+  type state = heapvalue_state * maybe_nullable
   let ptr mtyp = valueptr mtyp
 
   (* [p] must ben a ValuePtr. *)
-  let start _mtyp p =
-    (* Note: nullability will be set before the first value is serialized *)
-    (ref [], ref false), p
+  let start mtyp p =
+    (ref [], mtyp), p
 
   let stop (path, _) p =
     assert (!path = []) ;
@@ -42,10 +41,9 @@ struct
 
   type ser = state -> e -> e -> e
 
-  let set_field (path_ref, nullable_ref) v p =
+  let set_field (path_ref, mtyp) v p =
     let path = !path_ref in
-    let v = if !nullable_ref then ToNullable v else v in
-    nullable_ref := false ;
+    let v = if is_nullable (type_of_path mtyp path) then ToNullable v else v in
     SetField (path, p, v)
 
   let sfloat st id p = set_field st id p
@@ -83,26 +81,21 @@ struct
 
   let rec_sep _n (path, _) p = next path ; p
 
-  (* FIXME: vectors/lists/maps: in order to be convertible to/from a heap value
-   * they must be also entered/left. *)
+  let vec_opn (path, _) _ _ p = enter path ; p
 
-  let vec_opn _st _ _ p = p
+  let vec_cls (path, _) p = leave path ; p
 
-  let vec_cls _st p = p
+  let vec_sep _idx (path, _) p = next path ; p
 
-  let vec_sep _idx _st p = p
+  let list_opn (path, _) _ _ p = enter path ; p
 
-  let list_opn _st _ _n p = p
+  let list_cls (path, _) p = leave path ; p
 
-  let list_cls _st p = p
+  let list_sep (path, _) p = next path ; p
 
-  let list_sep _st p = p
+  let nullable _ p = p
 
-  let nullable (_, nullable_ref) p =
-    nullable_ref := true ;
-    p
-
-  (* Do not update the state as it's done in the other branch of the alternative
+  (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
   let snull t (path, _) p =
     SetField (!path, p, Null t)
@@ -142,13 +135,13 @@ end
 
 module Des : DES =
 struct
-  type state = heapvalue_state * bool ref
+  type state = heapvalue_state * maybe_nullable
   let ptr mtyp = valueptr mtyp
 
   (* The pointer that's given to us must have been obtained from a
    * HeapValue.Ser. *)
-  let start _mtyp p =
-    (ref [], ref false), p
+  let start mtyp p =
+    (ref [], mtyp), p
 
   let stop (path, _) p =
     assert (!path = []) ;
@@ -157,11 +150,10 @@ struct
   type des = state -> e -> e
 
   (* Beware that Dessser expect deserializers to return only not-nullables. *)
-  let get_field (path_ref, nullable_ref) p =
+  let get_field (path_ref, mtyp) p =
     let path = !path_ref in
     let v = GetField (path, p) in
-    let v = if !nullable_ref then ToNotNullable v else v in
-    nullable_ref := false ;
+    let v = if is_nullable (type_of_path mtyp path) then ToNotNullable v else v in
     Pair (v, p)
 
   let dfloat st p = get_field st p
@@ -199,27 +191,27 @@ struct
 
   let rec_sep _n (path, _) p = next path ; p
 
-  let vec_opn _st _ _ p = p
+  let vec_opn (path, _) _ _ p = enter path ; p
 
-  let vec_cls _st p = p
+  let vec_cls (path, _) p = leave path ; p
 
-  let vec_sep _n _st p = p
+  let vec_sep _ (path, _) p = next path ; p
 
-  let list_opn st _ p =
+  let list_opn (path, _ as st) _ p =
+    enter path ;
     let lst = get_field st p in
     Pair (ListLength lst, p)
 
-  let list_cls _st p = p
+  let list_cls (path, _) p = leave path ; p
 
-  let list_sep _st p = p
+  let list_sep (path, _) p = next path ; p
 
   (* Will be called on every nullable fields before any attempt to deserialize
    * the value: *)
-  let is_null (path, nullable_ref) p =
-    nullable_ref := true ;
+  let is_null (path, _) p =
     FieldIsNull (!path, p)
 
-  (* Do not update the state as it's done in the other branch of the alternative
+  (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
   let dnull _t _st p = p
   let dnotnull _t _st p = p
@@ -296,20 +288,20 @@ struct
           let sizes =
             Ser.ssize_of_tup mtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
-            Let ("sizes", sizes, sersize_ (i::path) src (Identifier "sizes"))
+            Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes"))
           ) sizes mtyps
       | TRec mtyps ->
           let sizes =
             Ser.ssize_of_rec mtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
-            sersize_ (i::path) src sizes
+            sersize_ (path @ [i]) src sizes
           ) sizes mtyps
       | TVec (dim, _) ->
           let sizes =
             Ser.ssize_of_vec mtyp path v |> add_size sizes in
           let rec loop sizes i =
             if i >= dim then sizes else
-            let sizes = sersize_ (i::path) src sizes in
+            let sizes = sersize_ (path @ [i]) src sizes in
             loop sizes (i + 1) in
           loop sizes 0
       | TList _typ ->
