@@ -268,12 +268,12 @@ struct
                 accessor_of_not_nullable (NotNullable t.def)
             | NotNullable (TVec (_, vt))
             | NotNullable (TList vt) ->
-                loop (".("^ string_of_int i ^")") vt path
+                loop (a ^".("^ string_of_int i ^")") vt path
             | NotNullable (TTup mts) ->
-                loop ("."^ tuple_field_name i) mts.(i) path
+                loop (a ^"."^ tuple_field_name i) mts.(i) path
             | NotNullable (TRec mts) ->
                 let name = valid_identifier (fst mts.(i)) in
-                loop ("."^ name) (snd mts.(i)) path
+                loop (a ^"."^ name) (snd mts.(i)) path
             | Nullable x -> accessor_of_not_nullable (NotNullable x) in
           accessor_of_not_nullable vt in
     loop "" vt path
