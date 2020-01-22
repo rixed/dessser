@@ -15,22 +15,19 @@ struct
   let stop () src = src
   type des = state -> (*dataptr*) e -> (* (nn * dataptr) *) e
 
-  let from_byte v1 v2 =
-    fun src ->
-      let b_src = ReadByte src in
-      MapPair (b_src,
-        func [|byte; dataptr|] (fun fid ->
-          Pair (
-            Choose (BoolOfU8 (U8OfByte (Param (fid, 0))), v1, v2),
-            Param (fid, 1))))
+  let from_byte v1 v2 src =
+    let b_src = ReadByte src in
+    with_sploded_pair "from_byte" b_src (fun b src ->
+      Pair (
+        Choose (BoolOfU8 (U8OfByte b), v1, v2),
+        src))
 
   let dfloat () = from_byte (Float 1.) (Float 0.)
   let dstring () = from_byte (String "x") (String "")
   let dbool () = from_byte (Bool true) (Bool false)
   let dchar () src =
-    MapPair (ReadByte src,
-      func [|byte; dataptr|] (fun fid ->
-        Pair (CharOfU8 (U8OfByte (Param (fid, 0))), Param (fid, 1))))
+    with_sploded_pair "dchar" (ReadByte src) (fun b src ->
+      Pair (CharOfU8 (U8OfByte b), src))
   let di8 () = from_byte (I8 1) (I8 0)
   let di16 () = from_byte (I16 1) (I16 0)
   let di24 () = from_byte (I24 1) (I24 0)

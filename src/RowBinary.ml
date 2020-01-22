@@ -14,10 +14,8 @@ struct
   type des = state -> e -> e
 
   let dfloat () p =
-    let w_p = ReadQWord (LittleEndian, p) in
-    MapPair (w_p,
-      func [|qword; dataptr|] (fun fid ->
-        Pair (FloatOfQWord (Param (fid, 0)), (Param (fid, 1)))))
+    with_sploded_pair "dfloat" (ReadQWord (LittleEndian, p)) (fun w p ->
+      Pair (FloatOfQWord w, p))
 
   let read_leb128 p =
     let t_u32_u8 = TPair (u32, u8) in

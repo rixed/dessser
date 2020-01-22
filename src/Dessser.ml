@@ -165,20 +165,18 @@ struct
    * point to the next value to read/write.
    * [vtyp] denotes the maybe_nullable of the current subfields, whereas
    * [mtyp0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des typ sstate dstate mtyp0 src_dst =
+  let ds ser des typ sstate dstate _mtyp0 src_dst =
     let what = IO.to_string print_typ typ in
     let src_dst = Comment ("Desserialize a "^ what, src_dst) in
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid ->
-        let v_src = des dstate (Param (fid, 0)) in
-        let dst = Param (fid, 1) in
-        with_sploded_pair "ds" v_src (fun v src ->
-          (* dessser handle nulls itself, so that DES/SER implementations
-           * do not have to care for nullability. NotNullable is just a cast
-           * and has no other effect outside of type_check. *)
-          Pair (
-            src,
-            Comment ("Serialize a "^ what, ser sstate v dst)))))
+    with_sploded_pair "ds" src_dst (fun src dst ->
+      let v_src = des dstate src in
+      with_sploded_pair "ds2" v_src (fun v src ->
+        (* dessser handle nulls itself, so that DES/SER implementations
+         * do not have to care for nullability. NotNullable is just a cast
+         * and has no other effect outside of type_check. *)
+        Pair (
+          src,
+          Comment ("Serialize a "^ what, ser sstate v dst))))
 
   let dsfloat = ds Ser.sfloat Des.dfloat float
   let dsstring = ds Ser.sstring Des.dstring string
@@ -203,91 +201,92 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 u64
   let dsu128 = ds Ser.su128 Des.du128 u128
 
-  let dsnull t sstate dstate mtyp0 src_dst =
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-        Comment ("Desserialize NULL", Des.dnull t dstate (Param (fid, 0))),
-        Comment ("Serialize NULL", Ser.snull t sstate (Param (fid, 1))))))
+  let dsnull t sstate dstate _mtyp0 src_dst =
+    with_sploded_pair "dsnull" src_dst (fun src dst ->
+      Pair (
+        Comment ("Desserialize NULL", Des.dnull t dstate src),
+        Comment ("Serialize NULL", Ser.snull t sstate dst)))
 
-  let dsnotnull t sstate dstate mtyp0 src_dst =
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-        Comment ("Desserialize NonNull", Des.dnotnull t dstate (Param (fid, 0))),
-        Comment ("Serialize NonNull", Ser.snotnull t sstate (Param (fid, 1))))))
+  let dsnotnull t sstate dstate _mtyp0 src_dst =
+    with_sploded_pair "dsnotnull" src_dst (fun src dst ->
+      Pair (
+        Comment ("Desserialize NonNull", Des.dnotnull t dstate src),
+        Comment ("Serialize NonNull", Ser.snotnull t sstate dst)))
 
   let rec dstup mtyps sstate dstate mtyp0 src_dst =
     let src_dst = Comment ("Convert a Tuple",
-      MapPair (src_dst,
-        func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-          Des.tup_opn dstate mtyps (Param (fid, 0)),
-          Ser.tup_opn sstate mtyps (Param (fid, 1)))))) in
+      with_sploded_pair "dstup" src_dst (fun src dst ->
+        Pair (
+          Des.tup_opn dstate mtyps src,
+          Ser.tup_opn sstate mtyps dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i vtyp ->
         let src_dst = Comment ("Convert tuple field "^ string_of_int i, src_dst) in
         if i = 0 then
           desser_ vtyp sstate dstate mtyp0 src_dst
         else
-          let src_dst = MapPair (src_dst,
-            func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid ->
+          let src_dst =
+            with_sploded_pair "dstup2" src_dst (fun src dst ->
               Pair (
-                Des.tup_sep i dstate (Param (fid, 0)),
-                Ser.tup_sep i sstate (Param (fid, 1))))) in
+                Des.tup_sep i dstate src,
+                Ser.tup_sep i sstate dst)) in
           desser_ vtyp sstate dstate mtyp0 src_dst
       ) src_dst mtyps in
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-        Des.tup_cls dstate (Param (fid, 0)),
-        Ser.tup_cls sstate (Param (fid, 1)))))
+    with_sploded_pair "dstup3" src_dst (fun src dst ->
+      Pair (
+        Des.tup_cls dstate src,
+        Ser.tup_cls sstate dst))
 
   and dsrec mtyps sstate dstate mtyp0 src_dst =
     let src_dst = Comment ("Convert a Record",
-      MapPair (src_dst,
-        func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-          Des.rec_opn dstate mtyps (Param (fid, 0)),
-          Ser.rec_opn sstate mtyps (Param (fid, 1)))))) in
+      with_sploded_pair "dsrec" src_dst (fun src dst ->
+        Pair (
+          Des.rec_opn dstate mtyps src,
+          Ser.rec_opn sstate mtyps dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, vtyp) ->
         let src_dst = Comment ("Convert record field "^ name, src_dst) in
         if i = 0 then
           desser_ vtyp sstate dstate mtyp0 src_dst
         else
-          let src_dst = MapPair (src_dst,
-            func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid ->
+          let src_dst =
+            with_sploded_pair "dsrec2" src_dst (fun src dst ->
               Pair (
-                Des.rec_sep name dstate (Param (fid, 0)),
-                Ser.rec_sep name sstate (Param (fid, 1))))) in
+                Des.rec_sep name dstate src,
+                Ser.rec_sep name sstate dst)) in
           desser_ vtyp sstate dstate mtyp0 src_dst
       ) src_dst mtyps in
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-        Des.rec_cls dstate (Param (fid, 0)),
-        Ser.rec_cls sstate (Param (fid, 1)))))
+    with_sploded_pair "dsrec2" src_dst (fun src dst ->
+      Pair (
+        Des.rec_cls dstate src,
+        Ser.rec_cls sstate dst))
 
   (* This will generates a long linear code with one block per array
    * item, which should be ok since vector dimension is expected to be small.
    * TODO: use one of the loop expressions instead if the dimension is large *)
   and dsvec dim vtyp sstate dstate mtyp0 src_dst =
     let src_dst = Comment ("Convert a Vector",
-      MapPair (src_dst,
-        func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-          Des.vec_opn dstate dim vtyp (Param (fid, 0)),
-          Ser.vec_opn sstate dim vtyp (Param (fid, 1)))))) in
+      with_sploded_pair "dsvec" src_dst (fun src dst ->
+        Pair (
+          Des.vec_opn dstate dim vtyp src,
+          Ser.vec_opn sstate dim vtyp dst))) in
     let rec loop src_dst i =
       if i >= dim then
-        MapPair (src_dst,
-          func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-            Des.vec_cls dstate (Param (fid, 0)),
-            Ser.vec_cls sstate (Param (fid, 1)))))
+        with_sploded_pair "dsvec2" src_dst (fun src dst ->
+          Pair (
+            Des.vec_cls dstate src,
+            Ser.vec_cls sstate dst))
       else (
         let src_dst = Comment ("Convert vector field "^ string_of_int i, src_dst) in
         if i = 0 then (
           let src_dst = desser_ vtyp sstate dstate mtyp0 src_dst in
           loop src_dst (i + 1)
         ) else (
-          let src_dst = MapPair (src_dst,
-            func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-              Des.vec_sep i dstate (Param (fid, 0)),
-              Ser.vec_sep i sstate (Param (fid, 1))))) in
+          let src_dst =
+            with_sploded_pair "dsvec3" src_dst (fun src dst ->
+            Pair (
+              Des.vec_sep i dstate src,
+              Ser.vec_sep i sstate dst)) in
           let src_dst = desser_ vtyp sstate dstate mtyp0 src_dst in
           loop src_dst (i + 1)
         )
@@ -311,16 +310,16 @@ struct
                   let src_dst =
                     Choose (Eq (param_n, I32 0l),
                       param_src_dst,
-                      MapPair (param_src_dst,
-                        func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-                          Des.list_sep dstate (Param (fid, 0)),
-                          Ser.list_sep sstate (Param (fid, 1)))))) in
+                      with_sploded_pair "dslist" param_src_dst (fun psrc pdst ->
+                        Pair (
+                          Des.list_sep dstate psrc,
+                          Ser.list_sep sstate pdst))) in
                   desser_ vtyp sstate dstate mtyp0 src_dst))),
               Pair (src, dst)) in
-          MapPair (src_dst,
-            func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-              Des.vec_cls dstate (Param (fid, 0)),
-              Ser.vec_cls sstate (Param (fid, 1))))))))
+          with_sploded_pair "dslist2" src_dst (fun src dst ->
+            Pair (
+              Des.vec_cls dstate src,
+              Ser.vec_cls sstate dst)))))
 
   and desser_value_type = function
     | Mac TFloat -> dsfloat
@@ -378,10 +377,10 @@ struct
     and dstate, src = Des.start mtyp0 src in
     let src_dst = Pair (src, dst) in
     let src_dst = desser_ mtyp0 sstate dstate mtyp0 src_dst in
-    MapPair (src_dst,
-      func [|Des.ptr mtyp0; Ser.ptr mtyp0|] (fun fid -> Pair (
-        Des.stop dstate (Param (fid, 0)),
-        Ser.stop sstate (Param (fid, 1)))))
+    with_sploded_pair "desser" src_dst (fun src dst ->
+      Pair (
+        Des.stop dstate src,
+        Ser.stop sstate dst))
 end
 
 (*
