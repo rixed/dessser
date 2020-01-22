@@ -158,6 +158,8 @@ type e =
   | BlitByte of e * e * e
   | DataPtrAdd of e * e
   | DataPtrSub of e * e
+  | DataPtrPush of e
+  | DataPtrPop of e
   | RemSize of e
   | And of e * e
   | Or of e * e
@@ -478,6 +480,10 @@ let rec print_expr ?max_depth oc e =
         pp oc "(DataPtrAdd %a %a)" p e1 p e2
     | DataPtrSub (e1, e2) ->
         pp oc "(DataPtrSub %a %a)" p e1 p e2
+    | DataPtrPush e1 ->
+        pp oc "(DataPtrPush %a)" p e1
+    | DataPtrPop e1 ->
+        pp oc "(DataPtrPop %a)" p e1
     | RemSize e ->
         pp oc "(RemSize %a)" p e
     | And (e1, e2) ->
@@ -704,6 +710,8 @@ and type_of l e0 =
   | BlitByte _ -> dataptr
   | DataPtrAdd _ -> dataptr
   | DataPtrSub _ -> size
+  | DataPtrPush _ -> dataptr
+  | DataPtrPop _ -> dataptr
   | RemSize _ -> size
   | And _ -> bool
   | Or _ -> bool
@@ -816,6 +824,8 @@ let rec fold_expr u l f e =
   | IsNull e1
   | ToNullable e1
   | ToNotNullable e1
+  | DataPtrPush e1
+  | DataPtrPop e1
   | LogNot e1
   | StringOfInt e1
   | StringOfChar e1
@@ -1270,6 +1280,9 @@ let type_check l e =
     | DataPtrSub (e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 dataptr
+    | DataPtrPush e1
+    | DataPtrPop e1 ->
+        check_eq l e1 dataptr
     | RemSize e ->
         check_eq l e dataptr ;
     | And (e1, e2)

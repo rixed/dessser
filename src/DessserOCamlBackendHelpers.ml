@@ -225,4 +225,16 @@ struct
       Bytes.set p.bytes i c
     done ;
     skip p sz
+
+  let push p =
+    { p with stack = p.offset :: p.stack }
+
+  let pop p =
+    let offset, stack =
+      match p.stack with
+      | [] ->
+          Printf.eprintf "Cannot pop pointer offset from empty stack\n%!" ;
+          assert false
+      | o :: s -> o, s in
+    { p with offset ; stack }
 end

@@ -12,7 +12,7 @@ struct
   type state =
     (* That int count the nullable fields (ie. bit index of the next nullable
      * in the nullmask) *)
-    { mutable nullmasks : (int * (* DataPtr *) e) list }
+    { mutable nullmasks : int list }
   let ptr _vtyp = dataptr
 
   let start _vtyp p =
@@ -20,8 +20,13 @@ struct
 
   let stop _st p = p
 
-  let push_nullmask st p = st.nullmasks <- (0, p) :: st.nullmasks
-  let pop_nullmask st = st.nullmasks <- List.tl st.nullmasks
+  let push_nullmask st p =
+    st.nullmasks <- 0 :: st.nullmasks ;
+    DataPtrPush p
+
+  let pop_nullmask st p =
+    st.nullmasks <- List.tl st.nullmasks ;
+    DataPtrPop p
 
   (* Realign the pointer on a multiple of [ringbuf_word_size].
    * [extra_bytes] modulo [ringbuf_word_size] gives the number of bytes
@@ -140,15 +145,14 @@ struct
         ) 0 vtyps
       else
         Array.length vtyps in
-    push_nullmask st p ;
+    let p = push_nullmask st p in
     zero_nullmask_const nullmask_bits p
 
   let tup_opn st vtyps p =
     tup_opn_with_typs vtyps st p
 
   let tup_cls st p =
-    pop_nullmask st ;
-    p
+    pop_nullmask st p
 
   let tup_sep _idx _st p = p
 
@@ -171,8 +175,7 @@ struct
     tup_opn_with_typs vtyps st p
 
   let rec_cls st p =
-    pop_nullmask st ;
-    p
+    pop_nullmask st p
 
   let rec_sep _fname _st p = p
 
@@ -183,12 +186,11 @@ struct
         if is_nullable vtyp then dim else 0
       else
         dim in
-    push_nullmask st p ;
+    let p = push_nullmask st p in
     zero_nullmask_const nullmask_bits p
 
   let vec_cls st p =
-    pop_nullmask st ;
-    p
+    pop_nullmask st p
 
   let vec_sep _idx _st p = p
 
@@ -200,12 +202,11 @@ struct
         if is_nullable vtyp then n else U32 Uint32.zero
       else
         n in
-    push_nullmask st p ;
+    let p = push_nullmask st p in
     zero_nullmask_dyn nullmask_bits p
 
   let list_cls st p =
-    pop_nullmask st ;
-    p
+    pop_nullmask st p
 
   let list_sep _st p = p
 
@@ -214,8 +215,8 @@ struct
   let nullable st p =
     (match st.nullmasks with
     | [] -> ()
-    | (bi, p) :: r ->
-        st.nullmasks <- (bi + 1, p) :: r) ;
+    | bi :: r ->
+        st.nullmasks <- (bi + 1) :: r) ;
     Comment ("Advance nullmask bit index", p)
 
   (* The nullmask has been zeroed already: *)
@@ -226,9 +227,9 @@ struct
      * the nullmask: *)
     match st.nullmasks with
     | [] -> p
-    | (bi, p) :: _ ->
+    | bi :: _ ->
         Comment ("Set the nullmask bit",
-          SetBit (p, U32 (Uint32.of_int (bi-1)), Bit true))
+          SetBit (DataPtrPop p, U32 (Uint32.of_int (bi-1)), Bit true))
 
   type ssizer = maybe_nullable -> path -> e -> ssize
 

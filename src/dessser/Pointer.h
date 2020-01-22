@@ -3,6 +3,7 @@
 #include <cassert>
 #include <memory>
 #include <cstring>
+#include <stack>
 #include "dessser/Bytes.h"
 #include "dessser/typedefs.h"
 
@@ -22,6 +23,8 @@ struct Pointer {
   size_t size;
   // Current location of the read/write pointer inside the buffer:
   size_t offset;
+  // Stack of saved offset positions:
+  std::stack<size_t> stack;
   /* The type of pointer used to hold a heap allocated value that's being
    * build with BackEndCPP.set_field or deconstructed with get_field.
    * If this is set then buffer must by null, and the other way around.
@@ -295,6 +298,22 @@ struct Pointer {
     assert(buffer == that.buffer);
     assert(offset >= that.offset);
     return Size(offset - that.offset);
+  }
+
+  Pointer push()
+  {
+    Pointer ptr(*this);
+    ptr.stack.push(ptr.offset);
+    return ptr;
+  }
+
+  Pointer pop()
+  {
+    Pointer ptr(*this);
+    assert(! ptr.stack.empty());
+    ptr.offset = ptr.stack.top();
+    ptr.stack.pop();
+    return ptr;
   }
 };
 

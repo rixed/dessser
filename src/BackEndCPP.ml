@@ -402,6 +402,10 @@ struct
         method_call e1 "skip" [ e2 ]
     | DataPtrSub (e1, e2) ->
         method_call e1 "sub" [ e2 ]
+    | DataPtrPush e1 ->
+        method_call e1 "push" []
+    | DataPtrPop e1 ->
+        method_call e1 "pop" []
     | RemSize e1 ->
         method_call e1 "remSize" []
     | And (e1, e2) ->

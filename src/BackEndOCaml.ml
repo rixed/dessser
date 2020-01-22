@@ -618,6 +618,10 @@ struct
         binary_op "Pointer.skip" e1 e2
     | DataPtrSub (e1, e2) ->
         binary_op "Pointer.sub" e1 e2
+    | DataPtrPush e1 ->
+        unary_op "Pointer.push" e1
+    | DataPtrPop e1 ->
+        unary_op "Pointer.pop" e1
     | RemSize e1 ->
         unary_op "Pointer.remSize" e1
     | And (e1, e2) ->
