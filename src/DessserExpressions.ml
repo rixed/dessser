@@ -253,7 +253,7 @@ let rec print_expr ?max_depth oc e =
     | Bool b ->
         pp oc "(Bool %b)" b
     | Char c ->
-        pp oc "(Char %c)" c
+        pp oc "(Char %C)" c
     | U8 i ->
         pp oc "(U8 %d)" i
     | U16 i ->
