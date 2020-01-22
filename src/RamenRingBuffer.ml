@@ -45,13 +45,13 @@ struct
   (* Zero a nullmask known at compile time and advance the pointer *)
   let zero_nullmask_const bits p =
     let sz = (bits + 7) / 8 in
-    let p = BlitBytes (p, Byte 0, Size sz) in
+    let p = BlitByte (p, Byte 0, Size sz) in
     align_const p sz
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
     let sz = RightShift (Add (bits, Size 7), U8 3) in
-    let p = BlitBytes (p, Byte 0, sz) in
+    let p = BlitByte (p, Byte 0, sz) in
     align_dyn p sz
 
   type ser = state -> e -> e -> e

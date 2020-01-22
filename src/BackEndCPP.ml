@@ -396,7 +396,7 @@ struct
         method_call e1 "writeBytes" [ e2 ]
     | PokeByte (e1, e2) ->
         method_call e1 "pokeByte" [ e2 ]
-    | BlitBytes (e1, e2, e3) ->
+    | BlitByte (e1, e2, e3) ->
         method_call e1 "blitBytes" [ e2 ; e3 ]
     | DataPtrAdd (e1, e2) ->
         method_call e1 "skip" [ e2 ]

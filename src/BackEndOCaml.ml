@@ -612,7 +612,7 @@ struct
         and v = print emit p l e2 in
         ppi p.def "Pointer.pokeByte %s %s;" ptr v ;
         ptr
-    | BlitBytes (e1, e2, e3) ->
+    | BlitByte (e1, e2, e3) ->
         any_op "Pointer.blitBytes" [ e1 ; e2 ; e3 ]
     | DataPtrAdd (e1, e2) ->
         binary_op "Pointer.skip" e1 e2

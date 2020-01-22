@@ -294,14 +294,15 @@ struct
           let sizes =
             Ser.ssize_of_rec mtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
-            sersize_ (path @ [i]) src sizes
+            Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes"))
           ) sizes mtyps
       | TVec (dim, _) ->
           let sizes =
             Ser.ssize_of_vec mtyp path v |> add_size sizes in
           let rec loop sizes i =
             if i >= dim then sizes else
-            let sizes = sersize_ (path @ [i]) src sizes in
+            let sizes =
+              Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes")) in
             loop sizes (i + 1) in
           loop sizes 0
       | TList _typ ->

@@ -155,7 +155,7 @@ type e =
   | WriteOWord of endianness * e * e
   | WriteBytes of e * e
   | PokeByte of e * e
-  | BlitBytes of e * e * e
+  | BlitByte of e * e * e
   | DataPtrAdd of e * e
   | DataPtrSub of e * e
   | RemSize of e
@@ -472,8 +472,8 @@ let rec print_expr ?max_depth oc e =
         pp oc "(WriteBytes %a %a)" p e1 p e2
     | PokeByte (e1, e2) ->
         pp oc "(PokeByte %a %a)" p e1 p e2
-    | BlitBytes (e1, e2, e3) ->
-        pp oc "(BlitBytes %a %a %a)" p e1 p e2 p e3
+    | BlitByte (e1, e2, e3) ->
+        pp oc "(BlitByte %a %a %a)" p e1 p e2 p e3
     | DataPtrAdd (e1, e2) ->
         pp oc "(DataPtrAdd %a %a)" p e1 p e2
     | DataPtrSub (e1, e2) ->
@@ -701,7 +701,7 @@ and type_of l e0 =
   | WriteOWord _ -> dataptr
   | WriteBytes _ -> dataptr
   | PokeByte _ -> dataptr
-  | BlitBytes _ -> dataptr
+  | BlitByte _ -> dataptr
   | DataPtrAdd _ -> dataptr
   | DataPtrSub _ -> size
   | RemSize _ -> size
@@ -1197,7 +1197,7 @@ let rec type_check l e =
     | SizeOfU32 e ->
         check_eq l e u32
     | QWordOfU64 e ->
-        check_eq l e i64
+        check_eq l e u64
     | OWordOfU128 e ->
         check_eq l e u128
     | U128OfOWord e ->
@@ -1260,9 +1260,9 @@ let rec type_check l e =
     | WriteBytes (e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 bytes
-    | BlitBytes (e1, e2, e3) ->
+    | BlitByte (e1, e2, e3) ->
         check_eq l e1 dataptr ;
-        check_eq l e2 bytes ;
+        check_eq l e2 byte ;
         check_eq l e3 size
     | DataPtrAdd (e1, e2) ->
         check_eq l e1 dataptr ;
