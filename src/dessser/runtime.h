@@ -34,7 +34,7 @@ inline double floatOfQword(uint64_t v)
 template <typename T1, typename T2>
 std::ostream &operator<<(std::ostream &os, std::pair<T1,T2> const &p)
 {
-  os << '<' << p.first << ", " << p.second << ">\n";
+  os << '<' << p.first << ", " << p.second << ">";
   return os;
 }
 

@@ -166,6 +166,7 @@ let test_desser () =
   Let ("e", TestDesSer.desser mtyp src dst,
          Seq [
           Dump (Identifier "e") ;
+          Dump (String "\n") ;
           Identifier "e" ])
 
 (* Test: generate the source for test_desser and compile it: *)

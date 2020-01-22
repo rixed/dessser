@@ -1361,6 +1361,7 @@ let gen_id =
     incr seq ;
     "gen"^ string_of_int !seq
 
+(* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
 let with_sploded_pair what e f =
   let pair_id = gen_id () ^"_"^ what in
   let n1 = pair_id ^"_0"
