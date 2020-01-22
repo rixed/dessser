@@ -759,11 +759,11 @@ and type_of l e0 =
   | Function (fid, ts, e) ->
       let l = Array.fold_lefti (fun l i t -> (Param (fid, i), t)::l) l ts in
       TFunction (ts, type_of l e)
-  | Param (_, n) as e ->
+  | Param (fid, n) as e ->
       (try List.assoc e l
       with Not_found ->
-          Printf.eprintf "Cannot find parameter %d in %a\n%!"
-            n (List.print (fun oc (e, _) -> print_expr oc e)) l ;
+          Printf.eprintf "Cannot find parameter #%d of function %d in %a\n%!"
+            n fid (List.print (fun oc (e, _) -> print_expr oc e)) l ;
           raise Not_found)
   | Choose (_, e, _) -> type_of l e
   | ReadWhile (_, _, e, _) -> pair (type_of l e) dataptr
@@ -810,90 +810,90 @@ let rec fold_expr u l f e =
   | AllocValue _
   | Identifier _ ->
       u
-  | Dump e
-  | DerefValuePtr e
-  | Comment (_, e)
-  | IsNull e
-  | ToNullable e
-  | ToNotNullable e
-  | LogNot e
-  | StringOfInt e
-  | StringOfChar e
-  | FloatOfQWord e
-  | QWordOfFloat e
-  | StringOfFloat e
-  | FloatOfString e
-  | CharOfString e
-  | U8OfString e
-  | U16OfString e
-  | U24OfString e
-  | U32OfString e
-  | U40OfString e
-  | U48OfString e
-  | U56OfString e
-  | U64OfString e
-  | U128OfString e
-  | I8OfString e
-  | I16OfString e
-  | I24OfString e
-  | I32OfString e
-  | I40OfString e
-  | I48OfString e
-  | I56OfString e
-  | I64OfString e
-  | I128OfString e
-  | U8OfByte e
-  | ByteOfU8 e
-  | U16OfWord e
-  | WordOfU16 e
-  | U32OfDWord e
-  | DWordOfU32 e
-  | U64OfQWord e
-  | QWordOfU64 e
-  | U128OfOWord e
-  | OWordOfU128 e
-  | U8OfChar e
-  | CharOfU8 e
-  | SizeOfU32 e
-  | U32OfSize e
-  | BitOfBool e
-  | BoolOfBit e
-  | U8OfBool e
-  | BoolOfU8 e
-  | StringLength e
-  | StringOfBytes e
-  | BytesOfString e
-  | ListLength e
-  | ReadByte e
-  | ReadWord (_, e)
-  | ReadDWord (_, e)
-  | ReadQWord (_, e)
-  | ReadOWord (_, e)
-  | RemSize e
-  | Not e
-  | ToU8 e
-  | ToI8 e
-  | ToU16 e
-  | ToI16 e
-  | ToU24 e
-  | ToI24 e
-  | ToU32 e
-  | ToI32 e
-  | ToU40 e
-  | ToI40 e
-  | ToU48 e
-  | ToI48 e
-  | ToU56 e
-  | ToI56 e
-  | ToU64 e
-  | ToI64 e
-  | ToU128 e
-  | ToI128 e
-  | FieldIsNull (_, e)
-  | GetField (_, e)
-  | Fst e
-  | Snd e ->
-      fold_expr u l f e
+  | Dump e1
+  | DerefValuePtr e1
+  | Comment (_, e1)
+  | IsNull e1
+  | ToNullable e1
+  | ToNotNullable e1
+  | LogNot e1
+  | StringOfInt e1
+  | StringOfChar e1
+  | FloatOfQWord e1
+  | QWordOfFloat e1
+  | StringOfFloat e1
+  | FloatOfString e1
+  | CharOfString e1
+  | U8OfString e1
+  | U16OfString e1
+  | U24OfString e1
+  | U32OfString e1
+  | U40OfString e1
+  | U48OfString e1
+  | U56OfString e1
+  | U64OfString e1
+  | U128OfString e1
+  | I8OfString e1
+  | I16OfString e1
+  | I24OfString e1
+  | I32OfString e1
+  | I40OfString e1
+  | I48OfString e1
+  | I56OfString e1
+  | I64OfString e1
+  | I128OfString e1
+  | U8OfByte e1
+  | ByteOfU8 e1
+  | U16OfWord e1
+  | WordOfU16 e1
+  | U32OfDWord e1
+  | DWordOfU32 e1
+  | U64OfQWord e1
+  | QWordOfU64 e1
+  | U128OfOWord e1
+  | OWordOfU128 e1
+  | U8OfChar e1
+  | CharOfU8 e1
+  | SizeOfU32 e1
+  | U32OfSize e1
+  | BitOfBool e1
+  | BoolOfBit e1
+  | U8OfBool e1
+  | BoolOfU8 e1
+  | StringLength e1
+  | StringOfBytes e1
+  | BytesOfString e1
+  | ListLength e1
+  | ReadByte e1
+  | ReadWord (_, e1)
+  | ReadDWord (_, e1)
+  | ReadQWord (_, e1)
+  | ReadOWord (_, e1)
+  | RemSize e1
+  | Not e1
+  | ToU8 e1
+  | ToI8 e1
+  | ToU16 e1
+  | ToI16 e1
+  | ToU24 e1
+  | ToI24 e1
+  | ToU32 e1
+  | ToI32 e1
+  | ToU40 e1
+  | ToI40 e1
+  | ToU48 e1
+  | ToI48 e1
+  | ToU56 e1
+  | ToI56 e1
+  | ToU64 e1
+  | ToI64 e1
+  | ToU128 e1
+  | ToI128 e1
+  | FieldIsNull (_, e1)
+  | GetField (_, e1)
+  | Fst e1
+  | Snd e1 ->
+      fold_expr u l f e1
   | Coalesce (e1, e2)
   | Gt (e1, e2)
   | Ge (e1, e2)
@@ -936,7 +936,7 @@ let rec fold_expr u l f e =
   | Let (s, e1, e2) ->
       fold_expr (fold_expr u l f e1) ((Identifier s, type_of l e1)::l) f e2
   | SetBit (e1, e2, e3)
-  | BlitBytes (e1, e2, e3)
+  | BlitByte (e1, e2, e3)
   | Choose (e1, e2, e3)
   | LoopWhile (e1, e2, e3)
   | LoopUntil (e1, e2, e3) ->
@@ -945,12 +945,12 @@ let rec fold_expr u l f e =
   | Repeat (e1, e2, e3, e4) ->
       fold_expr (fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3) l f e4
   | Seq es ->
-      List.fold_left (fun u e -> fold_expr u l f e) u es
-  | Function (id, ts, e) ->
+      List.fold_left (fun u e1 -> fold_expr u l f e1) u es
+  | Function (id, ts, e1) ->
       let l = Array.fold_lefti (fun l i t -> (Param (id, i), t)::l) l ts in
-      fold_expr u l f e
+      fold_expr u l f e1
 
-let rec type_check l e =
+let type_check l e =
   fold_expr () l (fun () l e0 ->
     let check_void l e =
       match type_of l e with
@@ -1325,6 +1325,9 @@ let rec type_check l e =
           check_eq l e4 t2 ;
           check_eq l e4 t3)
   ) e
+
+let size_of_expr l e =
+  fold_expr 0 l (fun n _l _e0 -> n + 1) e
 
 let () =
   let max_depth = 3 in

@@ -283,7 +283,7 @@ struct
     unless_private vtyp path (fun () ->
       let sz = SizeOfU32 (StringLength id) in
       let headsz = Size !ringbuf_word_size in
-      DynSize (Add (headsz ,round_up_dyn sz)))
+      DynSize (Add (headsz, round_up_dyn sz)))
 
   (* SerSize of the list header: *)
   let ssize_of_list vtyp path _id =
