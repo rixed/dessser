@@ -63,8 +63,7 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
-      let tptr = TDataPtr in
-      func [|tptr; tptr|] (fun fid ->
+      func [|TDataPtr; TDataPtr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into S-Expression:",
           DS.desser typ src dst))
@@ -75,8 +74,7 @@ let () =
       let module DS2 = DesSer (HeapValue.Des) (SExpr.Ser) (*(RamenRingBuffer.Ser (BE))*) in
       let module Sizer = HeapValue.SerSizer (RamenRingBuffer.Ser) in
 
-      let tptr = TDataPtr in
-      func [|tptr; tptr|] (fun fid ->
+      func [|TDataPtr; TDataPtr|] (fun fid ->
         let src = Param (fid, 0) and dst = Param (fid, 1) in
         Comment ("Convert from RowBinary into a heap value:",
           let vptr = AllocValue typ in

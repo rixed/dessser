@@ -146,7 +146,9 @@ let () =
   register_user_type "Cidrv6" (TTup [| NotNullable (Usr (get_user_type "Ipv6")) ;
                                        NotNullable (Mac TU8) |])
 
-(* Paths are used to locate subfields within compound types. *)
+(* Paths are used to locate subfields within compound types.
+ * Head of the list is the index of the considered type child, then
+ * the index of the grandchild, and so on. *)
 type path = int list
 
 let print_path oc p =
@@ -178,7 +180,7 @@ let rec type_of_path t path =
       type_of_not_nullable t
 
 (*$inject
-   let test_t = NotNullable (TTup [| NotNullable (Mac TU8) ; 
+   let test_t = NotNullable (TTup [| NotNullable (Mac TU8) ;
                                      Nullable (Mac TString) |])
 *)
 

@@ -88,7 +88,7 @@ struct
     | TBytes -> "Bytes"
 
   (* Identifiers used for function parameters: *)
-  let param fid n = "_"^ string_of_int fid ^"_"^ string_of_int n
+  let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
   let print_binding n tn f oc =
     pp oc "%s %s(%t);" tn n f
