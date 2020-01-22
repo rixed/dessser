@@ -68,37 +68,51 @@ end
 
 module Pointer =
 struct
-  type t = Bytes.t * (* offset: *) int * (* length; *) int
+  type t =
+    { bytes : Bytes.t ;
+      offset : int ;
+      length : int ;
+      (* Saved positions: *)
+      stack : int list }
 
   let make sz =
-    Bytes.create sz, 0, sz
+    { bytes = Bytes.create sz ;
+      offset = 0 ;
+      length = sz ;
+      stack = [] }
 
-  let of_bytes b o l = b, o, l
+  let of_bytes bytes offset length =
+    { bytes ; offset ; length ; stack = [] }
 
   let of_string s =
-    Bytes.of_string s, 0, String.length s
+    { bytes = Bytes.of_string s ;
+      offset = 0 ;
+      length = String.length s ;
+      stack = [] }
 
   (* Check that the given offset is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput (o - l))
 
-  let skip (b, o, l) n =
-    if debug then Printf.printf "Advance from %d to %d\n%!" o (o+n) ;
-    check_input_length (o + n) l ;
-    (b, o + n, l)
+  let skip p n =
+    if debug then
+      Printf.printf "Advance from %d to %d\n%!" p.offset (p.offset + n) ;
+    check_input_length (p.offset + n) p.length ;
+    { p with offset = p.offset + n }
 
-  let sub (b1, o1, _) (b2, o2, _) =
-    assert (b1 == b2) ;
-    assert (o1 >= o2) ;
-    Size.of_int (o1 - o2)
+  let sub p1 p2 =
+    assert (p1.bytes == p2.bytes) ;
+    assert (p1.offset >= p2.offset) ;
+    Size.of_int (p1.offset - p2.offset)
 
-  let remSize (_, o, l) =
-    Size.of_int (l - o)
+  let remSize p =
+    Size.of_int (p.length - p.offset)
 
-  let peekByte (b, o, l) at =
-    check_input_length (o + at - 1) l ;
-    let c = Bytes.get b (o + at) in
-    if debug then Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (o+at) ;
+  let peekByte p at =
+    check_input_length (p.offset + at - 1) p.length ;
+    let c = Bytes.get p.bytes (p.offset + at) in
+    if debug then
+      Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (p.offset+at) ;
     Uint8.of_int (Char.code c)
 
   let peekWordLe p at =
@@ -144,12 +158,12 @@ struct
   let readOWordLe p =
     peekOWordLe p 0, skip p 16
 
-  let readBytes (b, o, _ as p) sz =
-    Slice.make b o sz,
+  let readBytes p sz =
+    Slice.make p.bytes p.offset sz,
     skip p sz
 
-  let pokeByte (b, o, _) at v =
-    Bytes.set b (o + at) (Uint8.to_int v |> Char.chr)
+  let pokeByte p at v =
+    Bytes.set p.bytes (p.offset + at) (Uint8.to_int v |> Char.chr)
 
   let pokeWordLe p at v =
     let fst, snd = v, Uint16.shift_right_logical v 8 in
@@ -200,15 +214,15 @@ struct
     pokeOWordLe p 0 v ;
     skip p 16
 
-  let writeBytes (b, o, _ as p) v =
+  let writeBytes p v =
     let len = v.Slice.length in
-    Bytes.blit v.bytes v.offset b o len ;
+    Bytes.blit v.bytes v.offset p.bytes p.offset len ;
     skip p len
 
-  let blitBytes (b, o, _ as p) v sz =
+  let blitBytes p v sz =
     let c = Char.chr (Uint8.to_int v) in
-    for i = o to o + sz - 1 do
-      Bytes.set b i c
+    for i = p.offset to p.offset + sz - 1 do
+      Bytes.set p.bytes i c
     done ;
     skip p sz
 end

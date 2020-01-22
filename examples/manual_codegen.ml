@@ -176,9 +176,8 @@ let () =
       let sz = 1024 in
       let dst = Pointer.make sz in
       let src, dst = %s src dst in
-      let b, o, l = dst in
-      assert (o < l) ;
-      String.print stdout (Bytes.sub_string b 0 o) ;
+      assert (dst.offset < dst.length) ;
+      String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
       Char.print stdout !delim ;
       flush stdout ;
       loop src
