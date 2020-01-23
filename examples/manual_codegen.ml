@@ -21,7 +21,7 @@ let run_cmd cmd =
 let () =
   let m x = NotNullable (Mac x)
   and n x = Nullable (Mac x) in
-  let udp_typ =
+  let _udp_typ =
     NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
       n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
@@ -29,7 +29,7 @@ let () =
       n TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ; (* Should be U32 *)
       m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
     |])
-  and _http_typ =
+  and http_typ =
     NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
       n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
@@ -47,7 +47,7 @@ let () =
       m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
       m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
       m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
-  let typ = udp_typ in
+  let typ = http_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module BackEndOCaml : BACKEND), ".opt"
@@ -102,6 +102,7 @@ let () =
   let src_fname = change_ext BE.preferred_def_extension exe_fname in
   write_source ~src_fname (fun oc ->
     BE.print_definitions state oc ;
+    let out_buf_size = 10000 in
     if BE.preferred_def_extension = "cc" then
       Printf.fprintf oc {|
 static std::string readWholeFile(std::string const fname)
@@ -132,7 +133,7 @@ int main(int numArgs, char **args)
   Pointer src(input);
 
   while (src.rem() > 0) {
-    Size outSz(1024);
+    Size outSz(%d);
     Pointer dst(outSz);
 
     std::pair<Pointer, Pointer> ptrs = %s(src, dst);
@@ -149,7 +150,7 @@ int main(int numArgs, char **args)
 
   return 0;
 }
-|} entry_point
+|} out_buf_size entry_point
       else
         Printf.fprintf oc {|
 let read_whole_file fname =
@@ -173,7 +174,7 @@ let () =
 
   let rec loop src =
     if Pointer.remSize src <= 0 then src else (
-      let sz = 1024 in
+      let sz = %d in
       let dst = Pointer.make sz in
       let src, dst = %s src dst in
       assert (dst.offset < dst.length) ;
@@ -183,5 +184,5 @@ let () =
       loop src
     ) in
   loop src |> ignore
-|} entry_point) ;
+|} out_buf_size entry_point) ;
   compile ~optim:3 ~link:true backend src_fname exe_fname
