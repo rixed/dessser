@@ -264,9 +264,10 @@ struct
     | StringOfInt e1 ->
         let n1 = print emit p l e1 in
         (match type_of l e1 with
-        | TValue (Nullable (Mac (TU128 | TI128))
-                 | NotNullable (Mac (TU128 | TI128))) ->
-            emit ?name p l e (fun oc -> pp oc "\"TODO: string of 128bits integers\"")
+        | TValue (Nullable (Mac TU128) | NotNullable (Mac TU128)) ->
+            emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
+        | TValue (Nullable (Mac TI128) | NotNullable (Mac TI128)) ->
+            emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
     | U8OfString e1

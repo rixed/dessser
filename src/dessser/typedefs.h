@@ -4,6 +4,7 @@
 #include <cstddef>
 
 typedef __uint128_t uint128_t;
+typedef __int128_t int128_t;
 
 typedef uint8_t Byte;
 typedef uint16_t Word;
