@@ -167,7 +167,6 @@ struct
    * [mtyp0] denotes the maybe_nullable of the whole value. *)
   let ds ser des typ sstate dstate _mtyp0 src_dst =
     let what = IO.to_string print_typ typ in
-    let src_dst = Comment ("Desserialize a "^ what, src_dst) in
     with_sploded_pair "ds" src_dst (fun src dst ->
       let v_src = des dstate src in
       with_sploded_pair "ds2" v_src (fun v src ->
@@ -175,7 +174,7 @@ struct
          * do not have to care for nullability. NotNullable is just a cast
          * and has no other effect outside of type_check. *)
         Pair (
-          src,
+          Comment ("Desserialize a "^ what, src),
           Comment ("Serialize a "^ what, ser sstate v dst))))
 
   let dsfloat = ds Ser.sfloat Des.dfloat float
@@ -221,16 +220,16 @@ struct
           Ser.tup_opn sstate mtyps dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i vtyp ->
-        let src_dst = Comment ("Convert tuple field "^ string_of_int i, src_dst) in
-        if i = 0 then
-          desser_ vtyp sstate dstate mtyp0 src_dst
-        else
-          let src_dst =
-            with_sploded_pair "dstup2" src_dst (fun src dst ->
-              Pair (
-                Des.tup_sep i dstate src,
-                Ser.tup_sep i sstate dst)) in
-          desser_ vtyp sstate dstate mtyp0 src_dst
+        Comment ("Convert tuple field "^ string_of_int i,
+          if i = 0 then
+            desser_ vtyp sstate dstate mtyp0 src_dst
+          else
+            let src_dst =
+              with_sploded_pair "dstup2" src_dst (fun src dst ->
+                Pair (
+                  Des.tup_sep i dstate src,
+                  Ser.tup_sep i sstate dst)) in
+            desser_ vtyp sstate dstate mtyp0 src_dst)
       ) src_dst mtyps in
     with_sploded_pair "dstup3" src_dst (fun src dst ->
       Pair (
@@ -238,24 +237,25 @@ struct
         Ser.tup_cls sstate dst))
 
   and dsrec mtyps sstate dstate mtyp0 src_dst =
-    let src_dst = Comment ("Convert a Record",
+    let src_dst =
       with_sploded_pair "dsrec" src_dst (fun src dst ->
         Pair (
           Des.rec_opn dstate mtyps src,
-          Ser.rec_opn sstate mtyps dst))) in
+          Ser.rec_opn sstate mtyps dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, vtyp) ->
-        let src_dst = Comment ("Convert record field "^ name, src_dst) in
-        if i = 0 then
-          desser_ vtyp sstate dstate mtyp0 src_dst
-        else
-          let src_dst =
-            with_sploded_pair "dsrec2" src_dst (fun src dst ->
-              Pair (
-                Des.rec_sep name dstate src,
-                Ser.rec_sep name sstate dst)) in
-          desser_ vtyp sstate dstate mtyp0 src_dst
+        Comment ("Convert record field "^ name,
+          if i = 0 then
+            desser_ vtyp sstate dstate mtyp0 src_dst
+          else
+            let src_dst =
+              with_sploded_pair "dsrec2" src_dst (fun src dst ->
+                Pair (
+                  Des.rec_sep name dstate src,
+                  Ser.rec_sep name sstate dst)) in
+            desser_ vtyp sstate dstate mtyp0 src_dst)
       ) src_dst mtyps in
+    let src_dst = Comment ("Convert a Record", src_dst) in
     with_sploded_pair "dsrec2" src_dst (fun src dst ->
       Pair (
         Des.rec_cls dstate src,
@@ -265,11 +265,11 @@ struct
    * item, which should be ok since vector dimension is expected to be small.
    * TODO: use one of the loop expressions instead if the dimension is large *)
   and dsvec dim vtyp sstate dstate mtyp0 src_dst =
-    let src_dst = Comment ("Convert a Vector",
+    let src_dst =
       with_sploded_pair "dsvec" src_dst (fun src dst ->
         Pair (
           Des.vec_opn dstate dim vtyp src,
-          Ser.vec_opn sstate dim vtyp dst))) in
+          Ser.vec_opn sstate dim vtyp dst)) in
     let rec loop src_dst i =
       if i >= dim then
         with_sploded_pair "dsvec2" src_dst (fun src dst ->
@@ -277,22 +277,22 @@ struct
             Des.vec_cls dstate src,
             Ser.vec_cls sstate dst))
       else (
-        let src_dst = Comment ("Convert vector field "^ string_of_int i, src_dst) in
-        if i = 0 then (
-          let src_dst = desser_ vtyp sstate dstate mtyp0 src_dst in
-          loop src_dst (i + 1)
-        ) else (
-          let src_dst =
-            with_sploded_pair "dsvec3" src_dst (fun src dst ->
-            Pair (
-              Des.vec_sep i dstate src,
-              Ser.vec_sep i sstate dst)) in
-          let src_dst = desser_ vtyp sstate dstate mtyp0 src_dst in
-          loop src_dst (i + 1)
-        )
+        let src_dst =
+          if i = 0 then
+            desser_ vtyp sstate dstate mtyp0 src_dst
+          else
+            let src_dst =
+              with_sploded_pair "dsvec3" src_dst (fun src dst ->
+              Pair (
+                Des.vec_sep i dstate src,
+                Ser.vec_sep i sstate dst)) in
+            desser_ vtyp sstate dstate mtyp0 src_dst in
+        (* FIXME: comment is poorly located: *)
+        let src_dst = Comment ("Convert field #"^ string_of_int i, src_dst) in
+        loop src_dst (i + 1)
       )
     in
-    loop src_dst 0
+    Comment ("Convert a vector", loop src_dst 0)
 
   and dslist vtyp sstate dstate mtyp0 src_dst =
     let pair_ptrs = TPair (Des.ptr mtyp0, Ser.ptr mtyp0) in
