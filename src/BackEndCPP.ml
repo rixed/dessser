@@ -263,7 +263,12 @@ struct
         binary_infix_op e1 ">>" e2
     | StringOfInt e1 ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1)
+        (match type_of l e1 with
+        | TValue (Nullable (Mac (TU128 | TI128))
+                 | NotNullable (Mac (TU128 | TI128))) ->
+            emit ?name p l e (fun oc -> pp oc "\"TODO: string of 128bits integers\"")
+        | _ ->
+            emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
     | U8OfString e1
     | I8OfString e1
     | U16OfString e1
