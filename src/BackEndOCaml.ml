@@ -712,7 +712,7 @@ struct
               ppi oc "if not (%s next_byte) then (accum, ptr) else" cond ;
               ppi oc "let accum = %s accum next_byte in" reduce ;
               ppi oc "let ptr = Pointer.skip ptr 1 in" ;
-              ppi oc "read_while_loop %s %s in" accum ptr) ;
+              ppi oc "read_while_loop accum ptr in") ;
             ppi oc "read_while_loop %s %s" accum ptr))
     | LoopWhile (e1, e2, e3) ->
         let cond = print emit p l e1
