@@ -34,8 +34,8 @@ struct
         p),
       (* Still have to add the last byte (which is <128): *)
       Comment ("Last byte from read_leb128",
-        with_sploded_pair "leb128" (Identifier "leb_shft_ptr") (fun leb_shft ptr ->
-          with_sploded_pair "leb128" (ReadByte ptr) (fun last_b ptr ->
+        with_sploded_pair "leb128_1" (Identifier "leb_shft_ptr") (fun leb_shft ptr ->
+          with_sploded_pair "leb128_2" (ReadByte ptr) (fun last_b ptr ->
             Pair (
               SizeOfU32 (Add (LeftShift (ToU32 (U8OfByte last_b),
                                         (Snd leb_shft)),
