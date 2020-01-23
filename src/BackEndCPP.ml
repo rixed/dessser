@@ -127,28 +127,30 @@ struct
 
   let gen_sym pref = valid_identifier (gen_sym pref)
 
-  let rec print emit p l e =
+  let rec print ?name emit p l e =
+    let gen_sym ?name pref =
+      match name with Some n -> n | None -> gen_sym pref in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
     let unary_op op e1 =
       let n1 = print emit p l e1 in
-      emit p l e (fun oc -> pp oc "%s %s" op n1) in
+      emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
     let binary_infix_op e1 op e2 =
       let n1 = print emit p l e1
       and n2 = print emit p l e2 in
-      emit p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
+      emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
     let method_call e1 m args =
       let n1 = print emit p l e1
       and ns = List.map (print emit p l) args in
-      emit p l e (fun oc ->
+      emit ?name p l e (fun oc ->
         pp oc "%s.%s%a" n1 m
           (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns) in
     let member e1 m =
       let n1 = print emit p l e1 in
-      emit p l e (fun oc -> pp oc "%s.%s" n1 m) in
+      emit ?name p l e (fun oc -> pp oc "%s.%s" n1 m) in
     match e with
     | Comment (c, e1) ->
         pp p.def "%s/* %s */\n" p.indent c ;
-        print emit p l e1
+        print ?name emit p l e1
     | Seq es ->
         List.fold_left (fun _ e -> print emit p l e) "must_not_be_used1" es
     | Ignore e1 ->
@@ -161,75 +163,75 @@ struct
         "must_not_be_used2"
     | IsNull e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "%s.has_value ()" n)
+        emit ?name p l e (fun oc -> pp oc "%s.has_value ()" n)
     | Coalesce (e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
     | ToNullable e1 ->
         let n1 = print emit p l e1 in
-        emit p l e (fun oc -> String.print oc n1)
+        emit ?name p l e (fun oc -> String.print oc n1)
     | ToNotNullable e1 ->
         let n1 = print emit p l e1 in
-        emit p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
+        emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | Null _ ->
-        emit p l e (fun oc -> pp oc "std::nullopt")
+        emit ?name p l e (fun oc -> pp oc "std::nullopt")
     | Float f ->
-        emit p l e (print_float_literal f)
+        emit ?name p l e (print_float_literal f)
     | String s ->
-        emit p l e (fun oc -> String.print_quoted oc s)
+        emit ?name p l e (fun oc -> String.print_quoted oc s)
     | Bit b | Bool b ->
-        emit p l e (fun oc -> Bool.print oc b)
+        emit ?name p l e (fun oc -> Bool.print oc b)
     | Char c ->
-        emit p l e (fun oc -> pp oc "%C" c)
+        emit ?name p l e (fun oc -> pp oc "%C" c)
     | Byte i | U8 i ->
-        emit p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%d" i)
     | Word i | U16 i ->
-        emit p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%d" i)
     | U24 u ->
-        emit p l e (fun oc -> pp oc "%dU" u)
+        emit ?name p l e (fun oc -> pp oc "%dU" u)
     | DWord u | U32 u ->
-        emit p l e (fun oc -> pp oc "%sU" (Uint32.to_string u))
+        emit ?name p l e (fun oc -> pp oc "%sU" (Uint32.to_string u))
     | U40 u ->
-        emit p l e (fun oc -> pp oc "%sUL" (Uint40.to_string u))
+        emit ?name p l e (fun oc -> pp oc "%sUL" (Uint40.to_string u))
     | U48 u ->
-        emit p l e (fun oc -> pp oc "%sUL" (Uint48.to_string u))
+        emit ?name p l e (fun oc -> pp oc "%sUL" (Uint48.to_string u))
     | U56 u ->
-        emit p l e (fun oc -> pp oc "%sUL" (Uint56.to_string u))
+        emit ?name p l e (fun oc -> pp oc "%sUL" (Uint56.to_string u))
     | QWord u | U64 u ->
-        emit p l e (fun oc -> pp oc "%sUL" (Uint64.to_string u))
+        emit ?name p l e (fun oc -> pp oc "%sUL" (Uint64.to_string u))
     | OWord u | U128 u ->
-        emit p l e (fun oc ->
+        emit ?name p l e (fun oc ->
           let lo = Uint128.to_uint64 u
           and hi = Uint128.(to_uint64 (shift_right_logical u 64)) in
           pp oc "((((uint128_t)%sULL) << 64U) | %sULL)"
             (Uint64.to_string hi)
             (Uint64.to_string lo))
     | I8 i ->
-        emit p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%d" i)
     | I16 i ->
-        emit p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%d" i)
     | I24 i ->
-        emit p l e (fun oc -> pp oc "%dL" i)
+        emit ?name p l e (fun oc -> pp oc "%dL" i)
     | I32 i ->
-        emit p l e (fun oc -> pp oc "%sL" (Int32.to_string i))
+        emit ?name p l e (fun oc -> pp oc "%sL" (Int32.to_string i))
     | I40 i ->
-        emit p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
     | I48 i ->
-        emit p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
     | I56 i ->
-        emit p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
     | I64 i ->
-        emit p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
     | I128 i ->
-        emit p l e (fun oc ->
+        emit ?name p l e (fun oc ->
           let lo = Int128.to_int64 i
           and hi = Int128.(to_int64 (shift_right_logical i 64)) in
           pp oc "((((int128_t)%sLL) << 64) | %sLL)"
             (Int64.to_string hi)
             (Int64.to_string lo))
     | Size s ->
-        emit p l e (fun oc -> pp oc "%dUL" s)
+        emit ?name p l e (fun oc -> pp oc "%dUL" s)
     | Gt (e1, e2) ->
         binary_infix_op e1 ">" e2
     | Ge (e1, e2) ->
@@ -262,7 +264,7 @@ struct
         binary_infix_op e1 ">>" e2
     | StringOfInt e1 ->
         let n1 = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "std::to_string(%s)" n1)
+        emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1)
     | U8OfString e1
     | I8OfString e1
     | U16OfString e1
@@ -282,25 +284,25 @@ struct
     | U128OfString e1
     | I128OfString e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "std::stoll(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
     | FloatOfQWord e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "floatOfQword(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "floatOfQword(%s)" n)
     | QWordOfFloat e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "qwordOfFloat(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "qwordOfFloat(%s)" n)
     | StringOfFloat e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "std::to_string(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n)
     | StringOfChar e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "std::string(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "std::string(%s)" n)
     | CharOfString e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "%s[0]" n)
+        emit ?name p l e (fun oc -> pp oc "%s[0]" n)
     | FloatOfString e1 ->
         let n = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "std::stod(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "std::stod(%s)" n)
     | ByteOfU8 e1 | U8OfByte e1
     | WordOfU16 e1 | U16OfWord e1
     | U32OfDWord e1 | DWordOfU32 e1
@@ -319,11 +321,11 @@ struct
     | ToU64 e1 | ToI64 e1
     | ToU128 e1 | ToI128 e1
     | U8OfBool e1 | BoolOfU8 e1 ->
-        print emit p l e1
+        print ?name emit p l e1
     | AppendBytes (e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit p l e (fun oc -> pp oc "%s, %s" n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | AppendString (e1, e2) ->
         binary_infix_op e1 "+" e2
     | StringLength e1
@@ -333,9 +335,9 @@ struct
         method_call e1 "toString" []
     | BytesOfString e1 ->
         let n1 = print emit p l e1 in
-        emit p l e (fun oc -> pp oc "%s" n1)
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | DataPtrOfString s ->
-        emit p l e (fun oc -> pp oc "%S" s)
+        emit ?name p l e (fun oc -> pp oc "%S" s)
     | TestBit (e1, e2) ->
         method_call e1 "getBit" [ e2 ]
     | SetBit (e1, e2, e3) ->
@@ -420,13 +422,13 @@ struct
         unary_op "!" e1
     | AllocValue mtyp ->
         let tn = type_identifier p (TValue mtyp) in
-        emit p l e (fun oc -> Printf.fprintf oc "new %s" tn)
+        emit ?name p l e (fun oc -> Printf.fprintf oc "new %s" tn)
     | DerefValuePtr e1 ->
-        print emit p l e1
+        print ?name emit p l e1
     | Pair (e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit p l e (fun oc -> pp oc "%s, %s" n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | Fst e1 ->
         member e1 "first"
     | Snd e1 ->
@@ -434,14 +436,19 @@ struct
     | MapPair (e1, e2) ->
         let pair = print emit p l e1
         and func = print emit p l e2 in
-        emit p l e (fun oc -> pp oc "%s(%s.first, %s.second)" func pair pair)
+        emit ?name p l e (fun oc -> pp oc "%s(%s.first, %s.second)" func pair pair)
     | Identifier s ->
-        valid_identifier s
+        (match name with
+        | Some _ ->
+            (* If we want another name for that identifier, emit a binding: *)
+            emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
+        | None ->
+            valid_identifier s)
     | Let (n, e1, e2) ->
         let n1 = print emit p l e1 in
         let t = type_of l e1 in
         let tn = type_identifier p t in
-        let res = gen_sym "let_res_" in
+        let res = gen_sym ?name "let_res_" in
         let l = (Identifier n, t) :: l in
         let t2 = type_of l e2 in
         ppi p.def "%s %s;" (type_identifier p t2) res ;
@@ -453,7 +460,7 @@ struct
         ppi p.def "}" ;
         res
     | Function (fid, ts, e1) ->
-        emit p l e (fun oc ->
+        emit ?name p l e (fun oc ->
           array_print_i ~first:"[&](" ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s %s"
               (type_identifier p t) (param fid i))
@@ -470,7 +477,7 @@ struct
         param fid n
     | Choose (e1, e2, e3) ->
         let cond = print emit p l e1 in
-        let res = gen_sym "choose_res_" in
+        let res = gen_sym ?name "choose_res_" in
         let t2 = type_of l e2 in
         ppi p.def "%s %s;" (type_identifier p t2) res ;
         ppi p.def "if (%s) {" cond ;
@@ -488,7 +495,7 @@ struct
         and reduce = print emit p l e2
         and accum = print emit p l e3
         and ptr0 = print emit p l e4 in
-        let res = gen_sym "read_while_res_" in
+        let res = gen_sym ?name "read_while_res_" in
         let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         let ptr = gen_sym "read_while_ptr_" in
@@ -503,12 +510,12 @@ struct
             ppi p.def "%s = %s.skip(1);" ptr ptr) ;
           ppi p.def "} else break;") ;
         ppi p.def "}" ;
-        emit p l e (fun oc -> pp oc "%s, %s" res ptr)
+        emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | LoopWhile (e1, e2, e3) ->
         let cond = print emit p l e1
         and body = print emit p l e2
         and accum = print emit p l e3 in
-        let res = gen_sym "while_res_" in
+        let res = gen_sym ?name "while_res_" in
         let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "while (%s(%s)) {" cond res ;
@@ -520,7 +527,7 @@ struct
         let body = print emit p l e1
         and cond = print emit p l e2
         and accum = print emit p l e3 in
-        let res = gen_sym "until_res_" in
+        let res = gen_sym ?name "until_res_" in
         let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "do {" ;
@@ -533,7 +540,7 @@ struct
         and to_ = print emit p l e2
         and body = print emit p l e3
         and accum = print emit p l e4 in
-        let res = gen_sym "repeat_res_" in
+        let res = gen_sym ?name "repeat_res_" in
         let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
         ppi p.def "for (int32_t idx_ = %s; idx != %s; idx++) {" from to_ ;
@@ -542,7 +549,7 @@ struct
         ppi p.def "}" ;
         res
     | SetField (path, e1, e2) ->
-        let ptr = print emit p l e1
+        let ptr = print ?name emit p l e1
         and v = print emit p l e2 in
         (match type_of l e1 with
         | TValuePtr mt ->
@@ -558,14 +565,14 @@ struct
         (match type_of l e1 with
         | TValuePtr mt ->
             let a = accessor_of_path mt path in
-            emit p l e (fun oc -> pp oc "!%s%s.has_value()" ptr a)
+            emit ?name p l e (fun oc -> pp oc "!%s%s.has_value()" ptr a)
         | _ -> assert false)
     | GetField (path, e1) ->
         let ptr = print emit p l e1 in
         (match type_of l e1 with
         | TValuePtr mt ->
             let a = accessor_of_path mt path in
-            emit p l e (fun oc -> pp oc "%s%s" ptr a)
+            emit ?name p l e (fun oc -> pp oc "%s%s" ptr a)
         | _ -> assert false)
 
   let print_binding_toplevel emit n p l e =

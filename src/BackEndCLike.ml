@@ -42,6 +42,7 @@ let declared_type p t f =
   )
 
 type emitter =
+  ?name:string ->
   print_state ->
   (e * typ) list ->
   e -> (string IO.output -> unit) ->
@@ -72,7 +73,7 @@ sig
   val print_identifier_declaration :
     string -> print_state -> (e * typ) list -> e -> unit
 
-  val print : emitter -> print_state -> (e * typ) list -> e -> string
+  val print : ?name:string -> emitter -> print_state -> (e * typ) list -> e -> string
 
   val source_intro : string
 
@@ -133,8 +134,8 @@ struct
   let find_or_declare_type _p _t =
     assert false
 
-  let emit p l e f =
-    let n = gen_sym () in
+  let emit ?name p l e f =
+    let n = match name with Some n -> n | None -> gen_sym () in
     let t = type_of l e in
     let tn = C.type_identifier p t in
     pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
