@@ -96,26 +96,25 @@ struct
   let print_comment oc s =
     pp oc "/* %s */" s
 
-  let accessor_of_path mt path =
-    let rec loop a field_accessor mt = function
-      | [] -> a
-      | i :: path ->
-          let rec accessor_of_not_nullable = function
-            | NotNullable (Mac _ | TMap _) ->
-                assert false
-            | NotNullable (Usr t) ->
-                accessor_of_not_nullable (NotNullable t.def)
-            | NotNullable (TVec (_, mt))
-            | NotNullable (TList mt) ->
-                loop (a ^"["^ string_of_int i ^"]") "." mt path
-            | NotNullable (TTup mts) ->
-                loop (a ^ field_accessor ^ tuple_field_name i) "." mts.(i) path
-            | NotNullable (TRec mts) ->
-                let name = valid_identifier (fst mts.(i)) in
-                loop (a ^ field_accessor ^ name) "." (snd mts.(i)) path
-            | Nullable x -> accessor_of_not_nullable (NotNullable x) in
-          accessor_of_not_nullable mt in
-    loop "" "->" mt path
+  let rec deref_path v vt = function
+    | [] -> v
+    | i :: path ->
+        let rec deref_not_nullable v = function
+          | NotNullable (Mac _ | TMap _) ->
+              assert false
+          | NotNullable (Usr t) ->
+              deref_not_nullable v (NotNullable t.def)
+          | NotNullable (TVec (_, vt))
+          | NotNullable (TList vt) ->
+              deref_path (v ^"["^ string_of_int i ^"]") vt path
+          | NotNullable (TTup vts) ->
+              deref_path (v ^"."^ tuple_field_name i) vts.(i) path
+          | NotNullable (TRec vts) ->
+              let name = valid_identifier (fst vts.(i)) in
+              deref_path (v ^"."^ name) (snd vts.(i)) path
+          | Nullable x ->
+              deref_not_nullable (v ^".value()") (NotNullable x) in
+        deref_not_nullable v vt
 
   let print_float_literal v oc =
     if v = infinity then
@@ -552,27 +551,24 @@ struct
         let ptr = print ?name emit p l e1
         and v = print emit p l e2 in
         (match type_of l e1 with
-        | TValuePtr mt ->
-            let a = accessor_of_path mt path in
-            if a = "" then
-              ppi p.def "*%s = %s;" ptr v
-            else
-              ppi p.def "%s%s = %s;" ptr a v ;
+        | TValuePtr vt ->
+            let a = deref_path ("(*"^ ptr ^")") vt path in
+            ppi p.def "%s = %s;" a v ;
             ptr
         | _ -> assert false)
     | FieldIsNull (path, e1) ->
         let ptr = print emit p l e1 in
         (match type_of l e1 with
-        | TValuePtr mt ->
-            let a = accessor_of_path mt path in
-            emit ?name p l e (fun oc -> pp oc "!%s%s.has_value()" ptr a)
+        | TValuePtr vt ->
+            let a = deref_path ("(*"^ ptr ^")") vt path in
+            emit ?name p l e (fun oc -> pp oc "!%s.has_value()" a)
         | _ -> assert false)
     | GetField (path, e1) ->
         let ptr = print emit p l e1 in
         (match type_of l e1 with
-        | TValuePtr mt ->
-            let a = accessor_of_path mt path in
-            emit ?name p l e (fun oc -> pp oc "%s%s" ptr a)
+        | TValuePtr vt ->
+            let a = deref_path ("(*"^ ptr ^")") vt path in
+            emit ?name p l e (fun oc -> pp oc "%s" a)
         | _ -> assert false)
 
   let print_binding_toplevel emit n p l e =
