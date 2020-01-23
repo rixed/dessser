@@ -200,17 +200,15 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 u64
   let dsu128 = ds Ser.su128 Des.du128 u128
 
-  let dsnull t sstate dstate _mtyp0 src_dst =
-    with_sploded_pair "dsnull" src_dst (fun src dst ->
-      Pair (
-        Comment ("Desserialize NULL", Des.dnull t dstate src),
-        Comment ("Serialize NULL", Ser.snull t sstate dst)))
+  let dsnull t sstate dstate _mtyp0 src dst =
+    Pair (
+      Comment ("Desserialize NULL", Des.dnull t dstate src),
+      Comment ("Serialize NULL", Ser.snull t sstate dst))
 
-  let dsnotnull t sstate dstate _mtyp0 src_dst =
-    with_sploded_pair "dsnotnull" src_dst (fun src dst ->
-      Pair (
-        Comment ("Desserialize NonNull", Des.dnotnull t dstate src),
-        Comment ("Serialize NonNull", Ser.snotnull t sstate dst)))
+  let dsnotnull t sstate dstate _mtyp0 src dst =
+    Pair (
+      Comment ("Desserialize NonNull", Des.dnotnull t dstate src),
+      Comment ("Serialize NonNull", Ser.snotnull t sstate dst))
 
   let rec dstup mtyps sstate dstate mtyp0 src_dst =
     let src_dst = Comment ("Convert a Tuple",
@@ -361,16 +359,13 @@ struct
           (* Des can use [is_null] to prepare for a nullable, but Ser might also
            * have some work to do: *)
           let dst = Ser.nullable sstate dst in
-          let src_dst = Pair (src, dst) in
           (* XXX WARNING XXX
            * if any of dnull/snull/snotnull/etc update the state, they will
            * do so in both branches of this alternative. *)
           Choose (cond,
-            dsnull t sstate dstate mtyp0 src_dst,
-            (
-              let src_dst = dsnotnull t sstate dstate mtyp0 src_dst in
-              desser_value_type t sstate dstate mtyp0 src_dst
-            )))
+            dsnull t sstate dstate mtyp0 src dst,
+            dsnotnull t sstate dstate mtyp0 src dst |>
+            desser_value_type t sstate dstate mtyp0))
     | NotNullable t ->
         desser_value_type t sstate dstate mtyp0 src_dst
 
