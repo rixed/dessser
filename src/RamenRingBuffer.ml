@@ -229,7 +229,9 @@ struct
     | [] -> p
     | bi :: _ ->
         Comment ("Set the nullmask bit",
-          SetBit (DataPtrPop p, U32 (Uint32.of_int (bi-1)), Bit true))
+          Seq [
+            Ignore (SetBit (DataPtrPop p, U32 (Uint32.of_int (bi-1)), Bit true)) ;
+            p ])
 
   type ssizer = maybe_nullable -> path -> e -> ssize
 

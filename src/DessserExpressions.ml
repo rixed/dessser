@@ -12,6 +12,7 @@ type e =
   | Comment of string * e
   | Dump of e
   | Seq of e list
+  | Ignore of e
   | IsNull of e
   | Coalesce of e * e
   (* Turn e into a nullable: *)
@@ -232,10 +233,12 @@ let rec print_expr ?max_depth oc e =
     match e with
     | Comment (str, e) ->
         pp oc "(Comment %S %a)" str p e
-    | Dump e1 ->
-        pp oc "(Dump %a)" p e1
+    | Dump e ->
+        pp oc "(Dump %a)" p e
     | Seq es ->
         pp oc "(Seq %a)" (List.print ~first:"" ~last:"" ~sep:" " p) es
+    | Ignore e ->
+        pp oc "(Ignore %a)" p e
     | IsNull e ->
         pp oc "(IsNull %a)" p e
     | Coalesce (e1, e2) ->
@@ -580,7 +583,8 @@ let rec mtype_of_valueptr e0 l e =
 and type_of l e0 =
   match e0 with
   | Dump _
-  | Seq [] ->
+  | Seq []
+  | Ignore _ ->
       void
   | Seq es ->
       type_of l (List.last es)
@@ -819,6 +823,7 @@ let rec fold_expr u l f e =
   | Identifier _ ->
       u
   | Dump e1
+  | Ignore e1
   | DerefValuePtr e1
   | Comment (_, e1)
   | IsNull e1
@@ -1063,6 +1068,7 @@ let type_check l e =
     match e0 with
     | Comment _
     | Dump _
+    | Ignore _
     | Null _
     | Float _
     | String _

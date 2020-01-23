@@ -312,6 +312,10 @@ struct
         print emit p l e1
     | Seq es ->
         List.fold_left (fun _ e -> print emit p l e) "must_not_be_used1" es
+    | Ignore e1 ->
+        let n = print emit p l e1 in
+        pp p.def "%signore %s;\n" p.indent n ;
+        "must_not_be_used3"
     | Dump e1 ->
         let n = print emit p l e1 in
         pp p.def ("%s"^^
