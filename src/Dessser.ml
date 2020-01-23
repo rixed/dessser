@@ -279,20 +279,22 @@ struct
       else (
         let src_dst =
           if i = 0 then
-            desser_ vtyp sstate dstate mtyp0 src_dst
+            src_dst
           else
-            let src_dst =
-              with_sploded_pair "dsvec3" src_dst (fun src dst ->
+            with_sploded_pair "dsvec3" src_dst (fun src dst ->
               Pair (
                 Des.vec_sep i dstate src,
                 Ser.vec_sep i sstate dst)) in
-            desser_ vtyp sstate dstate mtyp0 src_dst in
         (* FIXME: comment is poorly located: *)
-        let src_dst = Comment ("Convert field #"^ string_of_int i, src_dst) in
+        let src_dst = Comment ("Convert field #"^ string_of_int i,
+          desser_ vtyp sstate dstate mtyp0 src_dst) in
         loop src_dst (i + 1)
       )
     in
-    Comment ("Convert a vector", loop src_dst 0)
+    let what =
+      Printf.sprintf2 "Convert a vector of %d %a"
+        dim print_maybe_nullable vtyp in
+    Comment (what, loop src_dst 0)
 
   and dslist vtyp sstate dstate mtyp0 src_dst =
     let pair_ptrs = TPair (Des.ptr mtyp0, Ser.ptr mtyp0) in

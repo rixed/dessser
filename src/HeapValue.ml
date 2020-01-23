@@ -153,7 +153,8 @@ struct
   let get_field (path_ref, mtyp) p =
     let path = !path_ref in
     let v = GetField (path, p) in
-    let v = if is_nullable (type_of_path mtyp path) then ToNotNullable v else v in
+    let v =
+      if is_nullable (type_of_path mtyp path) then ToNotNullable v else v in
     Pair (v, p)
 
   let dfloat st p = get_field st p
