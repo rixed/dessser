@@ -21,7 +21,7 @@ let run_cmd cmd =
 let () =
   let m x = NotNullable (Mac x)
   and n x = Nullable (Mac x) in
-  let _udp_typ =
+  let udp_typ =
     NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
       n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
@@ -29,7 +29,7 @@ let () =
       n TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ; (* Should be U32 *)
       m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
     |])
-  and http_typ =
+  and _http_typ =
     NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
       n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
@@ -47,7 +47,7 @@ let () =
       m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
       m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
       m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
-  let typ = http_typ in
+  let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module BackEndOCaml : BACKEND), ".opt"

@@ -164,8 +164,8 @@ struct
   (* Most of the functions below return the src and dst pointers advanced to
    * point to the next value to read/write.
    * [vtyp] denotes the maybe_nullable of the current subfields, whereas
-   * [mtyp0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des typ sstate dstate _mtyp0 src_dst =
+   * [vtyp0] denotes the maybe_nullable of the whole value. *)
+  let ds ser des typ sstate dstate _vtyp0 src_dst =
     let what = IO.to_string print_typ typ in
     with_sploded_pair "ds" src_dst (fun src dst ->
       let v_src = des dstate src in
@@ -200,59 +200,59 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 u64
   let dsu128 = ds Ser.su128 Des.du128 u128
 
-  let dsnull t sstate dstate _mtyp0 src dst =
+  let dsnull t sstate dstate _vtyp0 src dst =
     Pair (
       Comment ("Desserialize NULL", Des.dnull t dstate src),
       Comment ("Serialize NULL", Ser.snull t sstate dst))
 
-  let dsnotnull t sstate dstate _mtyp0 src dst =
+  let dsnotnull t sstate dstate _vtyp0 src dst =
     Pair (
       Comment ("Desserialize NonNull", Des.dnotnull t dstate src),
       Comment ("Serialize NonNull", Ser.snotnull t sstate dst))
 
-  let rec dstup mtyps sstate dstate mtyp0 src_dst =
+  let rec dstup vtyps sstate dstate vtyp0 src_dst =
     let src_dst = Comment ("Convert a Tuple",
       with_sploded_pair "dstup" src_dst (fun src dst ->
         Pair (
-          Des.tup_opn dstate mtyps src,
-          Ser.tup_opn sstate mtyps dst))) in
+          Des.tup_opn dstate vtyps src,
+          Ser.tup_opn sstate vtyps dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i vtyp ->
         Comment ("Convert tuple field "^ string_of_int i,
           if i = 0 then
-            desser_ vtyp sstate dstate mtyp0 src_dst
+            desser_ vtyp sstate dstate vtyp0 src_dst
           else
             let src_dst =
               with_sploded_pair "dstup2" src_dst (fun src dst ->
                 Pair (
                   Des.tup_sep i dstate src,
                   Ser.tup_sep i sstate dst)) in
-            desser_ vtyp sstate dstate mtyp0 src_dst)
-      ) src_dst mtyps in
+            desser_ vtyp sstate dstate vtyp0 src_dst)
+      ) src_dst vtyps in
     with_sploded_pair "dstup3" src_dst (fun src dst ->
       Pair (
         Des.tup_cls dstate src,
         Ser.tup_cls sstate dst))
 
-  and dsrec mtyps sstate dstate mtyp0 src_dst =
+  and dsrec vtyps sstate dstate vtyp0 src_dst =
     let src_dst =
       with_sploded_pair "dsrec" src_dst (fun src dst ->
         Pair (
-          Des.rec_opn dstate mtyps src,
-          Ser.rec_opn sstate mtyps dst)) in
+          Des.rec_opn dstate vtyps src,
+          Ser.rec_opn sstate vtyps dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, vtyp) ->
         Comment ("Convert record field "^ name,
           if i = 0 then
-            desser_ vtyp sstate dstate mtyp0 src_dst
+            desser_ vtyp sstate dstate vtyp0 src_dst
           else
             let src_dst =
               with_sploded_pair "dsrec2" src_dst (fun src dst ->
                 Pair (
                   Des.rec_sep name dstate src,
                   Ser.rec_sep name sstate dst)) in
-            desser_ vtyp sstate dstate mtyp0 src_dst)
-      ) src_dst mtyps in
+            desser_ vtyp sstate dstate vtyp0 src_dst)
+      ) src_dst vtyps in
     let src_dst = Comment ("Convert a Record", src_dst) in
     with_sploded_pair "dsrec2" src_dst (fun src dst ->
       Pair (
@@ -262,7 +262,7 @@ struct
   (* This will generates a long linear code with one block per array
    * item, which should be ok since vector dimension is expected to be small.
    * TODO: use one of the loop expressions instead if the dimension is large *)
-  and dsvec dim vtyp sstate dstate mtyp0 src_dst =
+  and dsvec dim vtyp sstate dstate vtyp0 src_dst =
     let src_dst =
       with_sploded_pair "dsvec" src_dst (fun src dst ->
         Pair (
@@ -285,7 +285,7 @@ struct
                 Ser.vec_sep i sstate dst)) in
         (* FIXME: comment is poorly located: *)
         let src_dst = Comment ("Convert field #"^ string_of_int i,
-          desser_ vtyp sstate dstate mtyp0 src_dst) in
+          desser_ vtyp sstate dstate vtyp0 src_dst) in
         loop src_dst (i + 1)
       )
     in
@@ -294,8 +294,8 @@ struct
         dim print_maybe_nullable vtyp in
     Comment (what, loop src_dst 0)
 
-  and dslist vtyp sstate dstate mtyp0 src_dst =
-    let pair_ptrs = TPair (Des.ptr mtyp0, Ser.ptr mtyp0) in
+  and dslist vtyp sstate dstate vtyp0 src_dst =
+    let pair_ptrs = TPair (Des.ptr vtyp0, Ser.ptr vtyp0) in
     Comment ("Convert a List",
       with_sploded_pair "dslist1" src_dst (fun src dst ->
         let dim_src = Des.list_opn dstate vtyp src in
@@ -314,7 +314,7 @@ struct
                         Pair (
                           Des.list_sep dstate psrc,
                           Ser.list_sep sstate pdst))) in
-                  desser_ vtyp sstate dstate mtyp0 src_dst))),
+                  desser_ vtyp sstate dstate vtyp0 src_dst))),
               Pair (src, dst)) in
           with_sploded_pair "dslist2" src_dst (fun src dst ->
             Pair (
@@ -345,13 +345,13 @@ struct
     | Mac TU64 -> dsu64
     | Mac TU128 -> dsu128
     | Usr t -> desser_value_type t.def
-    | TTup mtyps -> dstup mtyps
-    | TRec mtyps -> dsrec mtyps
+    | TTup vtyps -> dstup vtyps
+    | TRec vtyps -> dsrec vtyps
     | TVec (dim, vtyp) -> dsvec dim vtyp
     | TList vtyp -> dslist vtyp
     | TMap _ -> assert false (* No value of map type *)
 
-  and desser_ vtyp sstate dstate mtyp0 src_dst =
+  and desser_ vtyp sstate dstate vtyp0 src_dst =
     match vtyp with
     | Nullable t ->
         with_sploded_pair "desser_" src_dst (fun src dst ->
@@ -363,17 +363,17 @@ struct
            * if any of dnull/snull/snotnull/etc update the state, they will
            * do so in both branches of this alternative. *)
           Choose (cond,
-            dsnull t sstate dstate mtyp0 src dst,
-            dsnotnull t sstate dstate mtyp0 src dst |>
-            desser_value_type t sstate dstate mtyp0))
+            dsnull t sstate dstate vtyp0 src dst,
+            dsnotnull t sstate dstate vtyp0 src dst |>
+            desser_value_type t sstate dstate vtyp0))
     | NotNullable t ->
-        desser_value_type t sstate dstate mtyp0 src_dst
+        desser_value_type t sstate dstate vtyp0 src_dst
 
-  let desser mtyp0 src dst =
-    let sstate, dst = Ser.start mtyp0 dst
-    and dstate, src = Des.start mtyp0 src in
+  let desser vtyp0 src dst =
+    let sstate, dst = Ser.start vtyp0 dst
+    and dstate, src = Des.start vtyp0 src in
     let src_dst = Pair (src, dst) in
-    let src_dst = desser_ mtyp0 sstate dstate mtyp0 src_dst in
+    let src_dst = desser_ vtyp0 sstate dstate vtyp0 src_dst in
     with_sploded_pair "desser" src_dst (fun src dst ->
       Pair (
         Des.stop dstate src,

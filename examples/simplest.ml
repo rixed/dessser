@@ -9,9 +9,9 @@ open DessserTools
 module TestDes : DES =
 struct
   type state = unit
-  let ptr _mtyp = dataptr
+  let ptr _vtyp = dataptr
 
-  let start _mtyp src = (), src
+  let start _vtyp src = (), src
   let stop () src = src
   type des = state -> (*dataptr*) e -> (* (nn * dataptr) *) e
 
@@ -74,7 +74,7 @@ end
 module TestSer : SER =
 struct
   type state = unit
-  let ptr _mtyp = dataptr
+  let ptr _vtyp = dataptr
 
   let start _v dst = (), dst
   let stop () dst = dst
@@ -156,11 +156,11 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let mtyp = NotNullable (TTup [| Nullable (Mac TU8) ;
+  let vtyp = NotNullable (TTup [| Nullable (Mac TU8) ;
                                   NotNullable (Mac TChar) |]) in
   let src = DataPtrOfString "\001X"
   and dst = DataPtrOfString "_____" in
-  Let ("e", TestDesSer.desser mtyp src dst,
+  Let ("e", TestDesSer.desser vtyp src dst,
          Seq [
           Dump (Identifier "e") ;
           Dump (String "\n") ;

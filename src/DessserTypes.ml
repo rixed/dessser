@@ -94,19 +94,19 @@ let rec print_value_type oc = function
       print_mac_type oc t
   | Usr t ->
       t.print oc
-  | TVec (dim, mt) ->
-      pp oc "%a[%d]" print_maybe_nullable mt dim
-  | TList mt ->
-      pp oc "%a[]" print_maybe_nullable mt
-  | TTup mts ->
+  | TVec (dim, vt) ->
+      pp oc "%a[%d]" print_maybe_nullable vt dim
+  | TList vt ->
+      pp oc "%a[]" print_maybe_nullable vt
+  | TTup vts ->
       pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:";" print_maybe_nullable) mts
-  | TRec mts ->
+        (Array.print ~first:"(" ~last:")" ~sep:";" print_maybe_nullable) vts
+  | TRec vts ->
       pp oc "%a"
         (Array.print ~first:"{" ~last:"}" ~sep:";"
           (fun oc (n, t) ->
             pp oc "%s: %a" n print_maybe_nullable t)
-        ) mts
+        ) vts
   | TMap (k, v) ->
       pp oc "%a{%a}"
         print_maybe_nullable v
@@ -164,17 +164,17 @@ let rec type_of_path t path =
             assert false
         | NotNullable (Usr t) ->
             type_of_not_nullable (NotNullable t.def)
-        | NotNullable (TVec (dim, mt)) ->
+        | NotNullable (TVec (dim, vt)) ->
             assert (i < dim) ;
-            type_of_path mt path
-        | NotNullable (TList mt) ->
-            type_of_path mt path
-        | NotNullable (TTup mts) ->
-            assert (i < Array.length mts) ;
-            type_of_path mts.(i) path
-        | NotNullable (TRec mts) ->
-            assert (i < Array.length mts) ;
-            type_of_path (snd mts.(i)) path
+            type_of_path vt path
+        | NotNullable (TList vt) ->
+            type_of_path vt path
+        | NotNullable (TTup vts) ->
+            assert (i < Array.length vts) ;
+            type_of_path vts.(i) path
+        | NotNullable (TRec vts) ->
+            assert (i < Array.length vts) ;
+            type_of_path (snd vts.(i)) path
         | Nullable x ->
             type_of_not_nullable (NotNullable x) in
       type_of_not_nullable t
@@ -225,8 +225,8 @@ type typ =
 let rec print_typ oc =
   let sp = String.print oc in
   function
-  | TValue mt ->
-      print_maybe_nullable oc mt
+  | TValue vt ->
+      print_maybe_nullable oc vt
   | TVoid -> sp "Void"
   | TDataPtr -> sp "DataPtr"
   | TValuePtr t ->

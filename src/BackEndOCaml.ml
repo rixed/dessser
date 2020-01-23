@@ -18,14 +18,14 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_record p oc id mts =
+  let rec print_record p oc id vts =
     let id = valid_identifier id in
     pp oc "%stype %s = {\n" p.indent id ;
     indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier p (TValue vt) in
         pp oc "%smutable %s : %s;\n" p.indent field_name typ_id
-      ) mts
+      ) vts
     ) ;
     pp oc "%s}\n\n" p.indent
 
@@ -57,12 +57,12 @@ struct
     | NotNullable (TVec (_, t))
     | NotNullable (TList t) ->
         value_type_identifier p t ^" array"
-    | NotNullable (TTup mts) as t ->
-        let mts = Array.mapi (fun i vt -> tuple_field_name i, vt) mts in
-        declared_type p t (fun oc type_id -> print_record p oc type_id mts) |>
+    | NotNullable (TTup vts) as t ->
+        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
+        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
         valid_identifier
-    | NotNullable (TRec mts) as t ->
-        declared_type p t (fun oc type_id -> print_record p oc type_id mts) |>
+    | NotNullable (TRec vts) as t ->
+        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
         valid_identifier
     | NotNullable (TMap _) ->
         assert false (* no value of map type *)
@@ -178,20 +178,20 @@ struct
         String.print oc "Uint128.zero"
     | NotNullable (Usr t) ->
         print_default_value indent oc (NotNullable t.def)
-    | NotNullable (TTup mts) ->
+    | NotNullable (TTup vts) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (i, t) ->
             let fname = tuple_field_name i in
             Printf.fprintf oc "%s = %a"
               fname (print_default_value (indent^"  ")) t)
-          oc (Array.mapi (fun i t -> (i, t)) mts)
-    | NotNullable (TRec mts) ->
+          oc (Array.mapi (fun i t -> (i, t)) vts)
+    | NotNullable (TRec vts) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (fname, t) ->
             Printf.fprintf oc "%s = %a"
               (valid_identifier fname)
               (print_default_value (indent^"  ")) t)
-          oc mts
+          oc vts
     | NotNullable (TVec (dim, t)) ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
@@ -268,11 +268,11 @@ struct
           | NotNullable (TVec (_, vt))
           | NotNullable (TList vt) ->
               deref_path (v ^".("^ string_of_int i ^")") vt path
-          | NotNullable (TTup mts) ->
-              deref_path (v ^"."^ tuple_field_name i) mts.(i) path
-          | NotNullable (TRec mts) ->
-              let name = valid_identifier (fst mts.(i)) in
-              deref_path (v ^"."^ name) (snd mts.(i)) path
+          | NotNullable (TTup vts) ->
+              deref_path (v ^"."^ tuple_field_name i) vts.(i) path
+          | NotNullable (TRec vts) ->
+              let name = valid_identifier (fst vts.(i)) in
+              deref_path (v ^"."^ name) (snd vts.(i)) path
           | Nullable x ->
               deref_not_nullable ("(Option.get "^ v ^")") (NotNullable x) in
         deref_not_nullable v vt

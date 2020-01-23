@@ -16,14 +16,14 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_struct p oc id mts =
+  let rec print_struct p oc id vts =
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.indent id ;
     indent_more p (fun () ->
-      Array.iter (fun (field_name, mt) ->
-        let typ_id = type_identifier p (TValue mt) in
+      Array.iter (fun (field_name, vt) ->
+        let typ_id = type_identifier p (TValue vt) in
         pp oc "%s%s %s;\n" p.indent typ_id field_name
-      ) mts
+      ) vts
     ) ;
     pp oc "%s};\n\n" p.indent
 
@@ -54,12 +54,12 @@ struct
     | TValue (NotNullable (Mac TU128)) -> "uint128_t"
     | TValue (NotNullable (Usr t)) ->
         type_identifier p (TValue (NotNullable t.def))
-    | TValue (NotNullable (TTup mts)) as t ->
-        let mts = Array.mapi (fun i mt -> tuple_field_name i, mt) mts in
-        declared_type p t (fun oc type_id -> print_struct p oc type_id mts) |>
+    | TValue (NotNullable (TTup vts)) as t ->
+        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
+        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
         valid_identifier
-    | TValue (NotNullable (TRec mts)) as t ->
-        declared_type p t (fun oc type_id -> print_struct p oc type_id mts) |>
+    | TValue (NotNullable (TRec vts)) as t ->
+        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
         valid_identifier
     | TValue (NotNullable (TVec (dim, typ))) ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
@@ -77,7 +77,7 @@ struct
           ) args ^">"
     | TVoid -> "void"
     | TDataPtr -> "Pointer"
-    | TValuePtr mt -> type_identifier p (TValue mt) ^"*"
+    | TValuePtr vt -> type_identifier p (TValue vt) ^"*"
     | TSize -> "Size"
     | TBit -> "bool"
     | TByte -> "uint8_t"
@@ -425,8 +425,8 @@ struct
         binary_infix_op e1 "||" e2
     | Not e1 ->
         unary_op "!" e1
-    | AllocValue mtyp ->
-        let tn = type_identifier p (TValue mtyp) in
+    | AllocValue vtyp ->
+        let tn = type_identifier p (TValue vtyp) in
         emit ?name p l e (fun oc -> Printf.fprintf oc "new %s" tn)
     | DerefValuePtr e1 ->
         print ?name emit p l e1

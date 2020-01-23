@@ -531,8 +531,8 @@ let rec print_expr ?max_depth oc e =
         pp oc "(ToU128 %a)" p e
     | ToI128 e ->
         pp oc "(ToI128 %a)" p e
-    | AllocValue mtyp ->
-        pp oc "(AllocValue %a)" print_maybe_nullable mtyp
+    | AllocValue vtyp ->
+        pp oc "(AllocValue %a)" print_maybe_nullable vtyp
     | DerefValuePtr e ->
         pp oc "(DerefValuePtr %a)" p e
     | SetField (path, e1, e2) ->
@@ -574,9 +574,9 @@ exception Type_error of e * e * typ * string
 exception Type_error_param of e * e * int * typ * string
 exception Type_error_path of e * e * path * string
 
-let rec mtype_of_valueptr e0 l e =
+let rec vtype_of_valueptr e0 l e =
   match type_of l e with
-  | TValuePtr mt -> mt
+  | TValuePtr vt -> vt
   | t -> raise (Type_error (e0, e, t, "be a ValuePtr"))
 
 (* [e] must have been type checked already: *)
@@ -738,14 +738,14 @@ and type_of l e0 =
   | ToI64 _ -> i64
   | ToU128 _ -> u128
   | ToI128 _ -> i128
-  | AllocValue mtyp -> valueptr mtyp
+  | AllocValue vtyp -> valueptr vtyp
   | DerefValuePtr e ->
-      TValue (mtype_of_valueptr e0 l e)
+      TValue (vtype_of_valueptr e0 l e)
   | SetField (_, e1, _) -> type_of l e1
   | FieldIsNull _ -> bool
   | GetField (path, e) ->
-      let mt = mtype_of_valueptr e0 l e in
-      TValue (type_of_path mt path)
+      let vt = vtype_of_valueptr e0 l e in
+      TValue (type_of_path vt path)
   | Pair (e1, e2) ->
       pair (type_of l e1) (type_of l e2)
   | Fst e ->
@@ -1044,23 +1044,23 @@ let type_check l e =
       | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
     let check_valueptr_path_same_types l e1 path e2 =
       match type_of l e1 with
-      | TValuePtr mt ->
-          let exp = TValue (type_of_path mt path) in
+      | TValuePtr vt ->
+          let exp = TValue (type_of_path vt path) in
           check_eq l e2 exp
       | t -> raise (Type_error (e0, e1, t, "be a ValuePtr")) in
     let check_valueptr_path l e path =
       match type_of l e with
-      | TValuePtr mt ->
-          (try ignore (type_of_path mt path)
+      | TValuePtr vt ->
+          (try ignore (type_of_path vt path)
           with _ ->
-            let s = IO.to_string print_maybe_nullable mt in
+            let s = IO.to_string print_maybe_nullable vt in
             raise (Type_error_path (e0, e, path, "stay within "^ s)))
       | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
     let check_valueptr_path_nullable l e path nullable =
       match type_of l e with
-      | TValuePtr mt ->
-          let mt = type_of_path mt path in
-          let act = is_nullable mt in
+      | TValuePtr vt ->
+          let vt = type_of_path vt path in
+          let act = is_nullable vt in
           if act <> nullable then
             let expected = (if nullable then "" else "not") ^" nullable" in
             raise (Type_error_path (e0, e, path, "be "^ expected))
