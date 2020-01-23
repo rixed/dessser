@@ -176,19 +176,22 @@ let rec type_of_path t path =
             assert (i < Array.length mts) ;
             type_of_path (snd mts.(i)) path
         | Nullable x ->
-            type_of_not_nullable (NotNullable x) |>
-            to_nullable in
+            type_of_not_nullable (NotNullable x) in
       type_of_not_nullable t
 
 (*$inject
-   let test_t = NotNullable (TTup [| NotNullable (Mac TU8) ;
-                                     Nullable (Mac TString) |])
+  let test_t = NotNullable (TTup [|
+    NotNullable (Mac TU8) ;
+    Nullable (Mac TString) ;
+    Nullable (TVec (2, NotNullable (Mac TChar))) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_maybe_nullable)
   test_t (type_of_path test_t [])
   (NotNullable (Mac TU8)) (type_of_path test_t [0])
   (Nullable (Mac TString)) (type_of_path test_t [1])
+  (Nullable (TVec (2, NotNullable (Mac TChar)))) (type_of_path test_t [2])
+  (NotNullable (Mac TChar)) (type_of_path test_t [2; 0])
 *)
 
 (* To all the above types we add a few low-level types that can not be used
