@@ -19,7 +19,7 @@ OCAMLOPTFLAGS += -g
 endif
 
 PACKAGES = \
-	batteries,parsercombinator,stdint
+	batteries,parsercombinator,stdint,qcheck
 
 META_REQUIRES = \
 	findlib $(PACKAGES)
@@ -101,7 +101,8 @@ LIBDESSSER_SOURCES = \
 	src/BackEndOCaml.ml \
 	src/RamenRingBuffer.ml \
 	src/HeapValue.ml \
-	src/DessserOCamlBackendHelpers.ml
+	src/DessserOCamlBackendHelpers.ml \
+	src/DessserQCheck.ml
 
 EXAMPLES_SOURCES = \
 	examples/simplest.ml \
