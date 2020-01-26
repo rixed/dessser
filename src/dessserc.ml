@@ -266,7 +266,7 @@ let dest_fname =
 let maybe_nullable_of_string str =
   let what = "schema"
   and print = print_maybe_nullable in
-  let p = DessserParsers.(string_parser ~what ~print typ) in
+  let p = Parser.(string_parser ~what ~print typ) in
   let parse_as_string str = p str in
   (* First try to parse that file, then to parse that string: *)
   try (

@@ -56,7 +56,7 @@ let rec value_type_gen depth =
     let lst =
       [ 4, map (fun mt -> Mac mt) mac_type_gen ;
         1, map (fun ut -> Usr ut) user_type_gen ;
-        2, map2 (fun dim mn -> TVec (dim, mn)) nat mn_gen ;
+        2, map2 (fun dim mn -> TVec (dim, mn)) (int_range 1 10) mn_gen ;
         2, map (fun mn -> TList mn) mn_gen ;
         2, map (fun mns -> TTup mns) (tiny_array mn_gen) ;
         2, map (fun fs -> TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
@@ -67,12 +67,114 @@ let rec value_type_gen depth =
 
 and maybe_nullable_gen st =
   Gen.(fix (fun _self depth ->
-    map2 (fun b mn ->
-      if b then Nullable mn else NotNullable mn
+    map2 (fun b vt ->
+      if b then Nullable vt else NotNullable vt
     ) bool (value_type_gen depth)
   )) st
 
+let maybe_nullable_gen =
+  Gen.(sized_size (int_bound 4) maybe_nullable_gen)
+
+let rec size_of_value_type = function
+  | Mac _ | Usr _ -> 1
+  | TVec (_, mn) | TList mn -> size_of_maybe_nullable mn
+  | TTup typs ->
+      Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 typs
+  | TRec typs ->
+      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 typs
+  | TMap (k, v) ->
+      size_of_maybe_nullable k + size_of_maybe_nullable v
+
+and size_of_maybe_nullable = function
+  | Nullable vt | NotNullable vt -> size_of_value_type vt
+
+let shrink_mac_type mt =
+  let to_simplest =
+    [ TString ; TFloat ;
+      TI128 ; TU128 ; TI64 ; TU64 ; TI56 ; TU56 ; TI48 ; TU48 ; TI40 ; TU40 ;
+      TI32 ; TU32 ; TI24 ; TU24 ; TI16 ; TU16 ; TI8 ; TU8 ; TChar ; TBool ] in
+  let rec loop = function
+    | [] -> Iter.empty
+    | mt'::rest when mt' = mt ->
+        if rest = [] then Iter.empty else Iter.of_list rest
+    | _::rest ->
+        loop rest in
+  loop to_simplest
+
+let rec shrink_value_type =
+  let vt_of_mn = function NotNullable vt | Nullable vt -> vt
+  in
+  function
+  | Mac mt ->
+      (fun f ->
+        shrink_mac_type mt (fun mt -> f (Mac mt)))
+  | Usr _ ->
+      Iter.empty
+  | TVec (dim, mn) ->
+      (fun f ->
+        shrink_maybe_nullable mn (fun mn ->
+          f (vt_of_mn mn) ;
+          f (TVec (dim, mn))))
+  | TList mn ->
+      (fun f ->
+        shrink_maybe_nullable mn (fun mn ->
+          f (TList mn) ;
+          f (vt_of_mn mn)))
+  | TTup mns ->
+      (fun f ->
+        Array.iter (fun mn -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
+        let shrink_mns =
+          Shrink.filter (fun mns -> Array.length mns > 1)
+            (Shrink.array ~shrink:shrink_maybe_nullable) mns |>
+          Iter.map (fun mns -> TTup mns) in
+        shrink_mns f)
+  | TRec mns ->
+      (fun f ->
+        Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
+        let shrink_mns =
+          let shrink (fn, mn) =
+            Iter.map (fun mn -> fn, mn) (shrink_maybe_nullable mn) in
+          Shrink.filter (fun mns -> Array.length mns > 1)
+            (Shrink.array ~shrink) mns |>
+          Iter.map (fun mns -> TRec mns) in
+        shrink_mns f)
+  | TMap (k, v) ->
+      (fun f ->
+        shrink_maybe_nullable k (f % vt_of_mn) ;
+        shrink_maybe_nullable v (f % vt_of_mn) ;
+        let shrink_kv =
+          (Shrink.pair shrink_maybe_nullable shrink_maybe_nullable) (k, v) |>
+          Iter.map (fun (k, v) -> TMap (k, v)) in
+        shrink_kv f)
+
+and shrink_maybe_nullable = function
+  | Nullable vt ->
+      (fun f ->
+        shrink_value_type vt (fun vt ->
+          f (NotNullable vt) ;
+          f (Nullable vt)))
+  | NotNullable vt ->
+      (fun f ->
+        shrink_value_type vt (fun vt -> f (NotNullable vt)))
+
+let maybe_nullable =
+  let print = IO.to_string print_maybe_nullable
+  and small = size_of_maybe_nullable
+  and shrink = shrink_maybe_nullable in
+  make ~print ~small ~shrink maybe_nullable_gen
+
+(*$inject
+   open Batteries
+   module T = DessserTypes *)
+
+(*$Q maybe_nullable & ~count:10_000
+  maybe_nullable (fun mn -> \
+    let str = IO.to_string T.print_maybe_nullable mn in \
+    let mn' = T.Parser.maybe_nullable_of_string str in \
+    T.eq mn' mn)
+*)
+
 let test () =
-  Gen.generate ~n:3 (maybe_nullable_gen 3) |>
+  Gen.generate ~n:3 maybe_nullable_gen |>
   List.iter (fun mn ->
     Printf.printf "%a\n" print_maybe_nullable mn)
