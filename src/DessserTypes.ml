@@ -56,22 +56,28 @@ and maybe_nullable =
 
 let rec value_type_eq vt1 vt2 =
   match vt1, vt2 with
-  | Mac mt1, Mac mt2 -> mt1 = mt2
-  | Usr ut1, Usr ut2 -> ut1.name = ut2.name
-  | TVec (d1, mn1), TVec (d2, mn2) -> d1 = d2 && eq mn1 mn2
-  | TList mn1, TList mn2 -> eq mn1 mn2
+  | Mac mt1, Mac mt2 ->
+      mt1 = mt2
+  | Usr ut1, Usr ut2 ->
+      ut1.name = ut2.name
+  | TVec (d1, mn1), TVec (d2, mn2) ->
+      d1 = d2 && maybe_nullable_eq mn1 mn2
+  | TList mn1, TList mn2 ->
+      maybe_nullable_eq mn1 mn2
   | TTup mn1s, TTup mn2s ->
       Array.length mn1s = Array.length mn2s &&
-      Array.for_all2 eq mn1s mn2s
+      Array.for_all2 maybe_nullable_eq mn1s mn2s
   | TRec mn1s, TRec mn2s ->
       Array.length mn1s = Array.length mn2s &&
-      Array.for_all2 (fun (n1, mn1) (n2, mn2) -> n1 = n2 && eq mn1 mn2) mn1s mn2s
+      Array.for_all2 (fun (n1, mn1) (n2, mn2) ->
+        n1 = n2 && maybe_nullable_eq mn1 mn2
+      ) mn1s mn2s
   | TMap (k1, v1), TMap (k2, v2) ->
-      eq k1 k2 && eq v1 v2
+      maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
   | _ ->
       false
 
-and eq mn1 mn2 =
+and maybe_nullable_eq mn1 mn2 =
   match mn1, mn2 with
   | Nullable vt1, Nullable vt2 -> value_type_eq vt1 vt2
   | NotNullable vt1, NotNullable vt2 -> value_type_eq vt1 vt2
@@ -145,6 +151,87 @@ and print_maybe_nullable oc = function
       print_value_type oc t
 
 let user_types = Hashtbl.create 50
+
+(* To all the above types we add a few low-level types that can not be used
+ * in values but are useful to manipulate them. *)
+type typ =
+  | TValue of maybe_nullable
+  | TVoid
+  (* DataPtr are used to point into the stream of bytes that's being
+   * serialized into / deserialized from. The type of the value that's
+   * being (de)serialized is kept nonetheless. *)
+  | TDataPtr
+  (* ValuePtr are used to point at heap allocated values of a given type.
+   * The "offset" is then the location in that data structure, and it is
+   * "advanced" by hopping from subfield to subfields, traversing the
+   * structure depth first. The path is thus merely an integer, but the
+   * backend has to know how to locate each addressable leaves. *)
+  | TValuePtr of maybe_nullable
+  (* A size in byte. *)
+  | TSize
+  (* Data access, may be just pointer to the actual serialized object: *)
+  | TBit
+  | TByte
+  | TWord
+  | TDWord
+  | TQWord
+  | TOWord
+  | TBytes
+  | TPair of typ * typ
+  | TFunction of typ array * (* result: *) typ
+
+let rec typ_eq t1 t2 =
+  match t1, t2 with
+  | TValue mn1, TValue mn2
+  | TValuePtr mn1, TValuePtr mn2 ->
+      maybe_nullable_eq mn1 mn2
+  | TPair (t11, t12), TPair (t21, t22) ->
+      typ_eq t11 t21 && typ_eq t12 t22
+  | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
+      Array.for_all2 typ_eq pt1 pt2 && typ_eq rt1 rt2
+  | t1, t2 -> t1 = t2
+
+let rec print_typ oc =
+  let sp = String.print oc in
+  function
+  | TValue vt ->
+      print_maybe_nullable oc vt
+  | TVoid -> sp "Void"
+  | TDataPtr -> sp "DataPtr"
+  | TValuePtr t ->
+      pp oc "(%a ValuePtr)" print_maybe_nullable t
+  | TSize -> sp "Size"
+  | TBit -> sp "Bit"
+  | TByte -> sp "Byte"
+  | TWord -> sp "Word"
+  | TDWord -> sp "DWord"
+  | TQWord -> sp "QWord"
+  | TOWord -> sp "OWord"
+  | TBytes -> sp "Bytes"
+  | TPair (t1, t2) ->
+      pp oc "(%a * %a)"
+        print_typ t1
+        print_typ t2
+  | TFunction ([||], t1) ->
+      pp oc "( -> %a)" print_typ t1
+  | TFunction (ts, t2) ->
+      pp oc "(%a -> %a)"
+        (Array.print ~first:"" ~last:"" ~sep:"->" print_typ) ts
+        print_typ t2
+
+let typ_to_nullable = function
+  | TValue (NotNullable t) -> TValue (Nullable t)
+  | t ->
+      Printf.eprintf "Cannot turn type %a into nullable\n%!"
+        print_typ t ;
+      assert false
+
+let typ_to_not_nullable = function
+  | TValue (Nullable t) -> TValue (NotNullable t)
+  | t ->
+      Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
+        print_typ t ;
+      assert false
 
 module Parser =
 struct
@@ -243,7 +330,7 @@ struct
       let m = "map key" :: m in
       (
         char '[' -- opt_blanks -+
-          typ +- opt_blanks +- char ']' ++
+          maybe_nullable +- opt_blanks +- char ']' ++
         opt_question_mark >>: fun (k, n) ->
           MapKey k, n
       ) m
@@ -252,7 +339,7 @@ struct
       vec_dim ||| list_dim ||| map_key
     ) m
 
-  and typ m =
+  and maybe_nullable m =
     let m = "type" :: m in
     (
       (
@@ -300,7 +387,7 @@ struct
     let m = "tuple type" :: m in
     (
       char '(' -- opt_blanks -+
-        several ~sep:tup_sep typ
+        several ~sep:tup_sep maybe_nullable
       +- opt_blanks +- char ')' ++
       opt_question_mark >>: fun (ts, nullable) ->
         make_type nullable (TTup (Array.of_list ts))
@@ -309,7 +396,7 @@ struct
   and record_typ m =
     let m = "record type" :: m in
     let field_typ =
-      identifier +- opt_blanks +- char ':' +- opt_blanks ++ typ in
+      identifier +- opt_blanks +- char ':' +- opt_blanks ++ maybe_nullable in
     (
       char '{' -- opt_blanks -+
         several ~sep:tup_sep field_typ +-
@@ -346,9 +433,9 @@ struct
       | Ok (res, _) ->
           res
 
-  let maybe_nullable_of_string =
+  let maybe_nullable_of_string ?what =
     let print = print_maybe_nullable in
-    string_parser ~print typ
+    string_parser ~print ?what maybe_nullable
 
   (*$< Parser *)
   (*$inject
@@ -387,30 +474,69 @@ struct
     open DessserTypes
   *)
 
-  (*$= typ & ~printer:(test_printer print_maybe_nullable)
+  (*$= maybe_nullable & ~printer:(test_printer print_maybe_nullable)
     (Ok ((NotNullable (Mac TU8)), (2,[]))) \
-       (test_p typ "u8")
+       (test_p maybe_nullable "u8")
     (Ok ((Nullable (Mac TU8)), (3,[]))) \
-       (test_p typ "u8?")
+       (test_p maybe_nullable "u8?")
     (Ok ((NotNullable (TVec (3, (NotNullable (Mac TU8))))), (5,[]))) \
-       (test_p typ "u8[3]")
+       (test_p maybe_nullable "u8[3]")
     (Ok ((NotNullable (TVec (3, (Nullable (Mac TU8))))), (6,[]))) \
-       (test_p typ "u8?[3]")
+       (test_p maybe_nullable "u8?[3]")
     (Ok ((Nullable (TVec (3, (NotNullable (Mac TU8))))), (6,[]))) \
-       (test_p typ "u8[3]?")
+       (test_p maybe_nullable "u8[3]?")
     (Ok ((NotNullable (TVec (3, (Nullable (TList (NotNullable (Mac TU8))))))), (8,[]))) \
-       (test_p typ "u8[]?[3]")
+       (test_p maybe_nullable "u8[]?[3]")
     (Ok ((Nullable (TList (NotNullable (TVec (3, (Nullable (Mac TU8))))))), (9,[]))) \
-       (test_p typ "u8?[3][]?")
+       (test_p maybe_nullable "u8?[3][]?")
     (Ok ((Nullable (TMap ((NotNullable (Mac TString)), (NotNullable (Mac TU8))))), (11,[]))) \
-       (test_p typ "u8[string]?")
+       (test_p maybe_nullable "u8[string]?")
     (Ok ((NotNullable (TMap ((NotNullable (TMap ((Nullable (Mac TU8)), (Nullable (Mac TString))))), (Nullable (TList ((NotNullable (TTup [| (NotNullable (Mac TU8)) ; (NotNullable (TMap ((NotNullable (Mac TString)), (NotNullable (Mac TBool))))) |])))))))), (35,[]))) \
-       (test_p typ "(u8; bool[string])[]?[string?[u8?]]")
+       (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
     (Ok ((NotNullable (TRec [| "f1", NotNullable (Mac TBool) ; "f2", Nullable (Mac TU8) |])), (19,[]))) \
-      (test_p typ "{f1: Bool; f2: U8?}")
+      (test_p maybe_nullable "{f1: Bool; f2: U8?}")
     (Ok ((NotNullable (TVec (1, NotNullable (Mac TBool)))), (7,[]))) \
-      (test_p typ "Bool[1]")
+      (test_p maybe_nullable "Bool[1]")
   *)
+
+  let rec typ m =
+    let m = "typ" :: m in
+    (
+      (maybe_nullable >>: fun mn -> TValue mn) |||
+      (strinG "void" >>: fun () -> TVoid) |||
+      (strinG "dataptr" >>: fun () -> TDataPtr) |||
+      (
+        char '(' -- opt_blanks -+
+          maybe_nullable +- !blanks +- strinG "valueptr" +-
+        opt_blanks +- char ')' >>:
+          fun mn -> TValuePtr mn
+      ) |||
+      (strinG "size" >>: fun () -> TSize) |||
+      (strinG "bit" >>: fun () -> TBit) |||
+      (strinG "byte" >>: fun () -> TByte) |||
+      (strinG "word" >>: fun () -> TWord) |||
+      (strinG "dword" >>: fun () -> TDWord) |||
+      (strinG "qword" >>: fun () -> TQWord) |||
+      (strinG "oword" >>: fun () -> TOWord) |||
+      (strinG "bytes" >>: fun () -> TBytes) |||
+      (
+        char '(' -- opt_blanks -+ typ +- opt_blanks +-
+        char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
+          fun (t1, t2) -> TPair (t1, t2)
+      ) |||
+      (
+        let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
+        char '(' -+
+          repeat ~sep typ +- sep ++ typ +- opt_blanks +-
+        char ')' >>: fun (ptyps, rtyp) ->
+          TFunction (Array.of_list ptyps, rtyp)
+      )
+    ) m
+
+  let typ_of_string ?what =
+    let print = print_typ in
+    string_parser ~print ?what typ
+
   (*$>*)
 end
 
@@ -458,6 +584,10 @@ type path = int list
 let print_path oc p =
   List.print ~first:"" ~last:"" ~sep:"/" Int.print oc p
 
+let path_of_string s =
+  String.split_on_char '/' s |>
+  List.map int_of_string
+
 let rec type_of_path t path =
   match path with
   | [] -> t
@@ -496,76 +626,6 @@ let rec type_of_path t path =
   (Nullable (TVec (2, NotNullable (Mac TChar)))) (type_of_path test_t [2])
   (NotNullable (Mac TChar)) (type_of_path test_t [2; 0])
 *)
-
-(* To all the above types we add a few low-level types that can not be used
- * in values but are useful to manipulate them. *)
-type typ =
-  | TValue of maybe_nullable
-  | TVoid
-  (* DataPtr are used to point into the stream of bytes that's being
-   * serialized into / deserialized from. The type of the value that's
-   * being (de)serialized is kept nonetheless. *)
-  | TDataPtr
-  (* ValuePtr are used to point at heap allocated values of a given type.
-   * The "offset" is then the location in that data structure, and it is
-   * "advanced" by hopping from subfield to subfields, traversing the
-   * structure depth first. The path is thus merely an integer, but the
-   * backend has to know how to locate each addressable leaves. *)
-  | TValuePtr of maybe_nullable
-  (* A size in byte. *)
-  | TSize
-  (* Data access, may be just pointer to the actual serialized object: *)
-  | TBit
-  | TByte
-  | TWord
-  | TDWord
-  | TQWord
-  | TOWord
-  | TBytes
-  | TPair of typ * typ
-  | TFunction of typ array * (* result: *) typ
-
-let rec print_typ oc =
-  let sp = String.print oc in
-  function
-  | TValue vt ->
-      print_maybe_nullable oc vt
-  | TVoid -> sp "Void"
-  | TDataPtr -> sp "DataPtr"
-  | TValuePtr t ->
-      pp oc "ValuePtr(%a)" print_maybe_nullable t
-  | TSize -> sp "Size"
-  | TBit -> sp "Bit"
-  | TByte -> sp "Byte"
-  | TWord -> sp "Word"
-  | TDWord -> sp "DWord"
-  | TQWord -> sp "QWord"
-  | TOWord -> sp "OWord"
-  | TBytes -> sp "Bytes"
-  | TPair (t1, t2) ->
-      pp oc "Pair(%a, %a)"
-        print_typ t1
-        print_typ t2
-  | TFunction ([||], t1) ->
-      pp oc "(unit->%a)" print_typ t1
-  | TFunction (ts, t2) ->
-      pp oc "(%a->%a)"
-        (Array.print ~first:"" ~last:"" ~sep:"->" print_typ) ts
-        print_typ t2
-
-let typ_to_nullable = function
-  | TValue (NotNullable t) -> TValue (Nullable t)
-  | t ->
-      Printf.eprintf "Cannot turn type %a into nullable\n%!"
-        print_typ t ;
-      assert false
-
-let typ_to_not_nullable = function
-  | TValue (Nullable t) -> TValue (NotNullable t)
-  | t ->
-      Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
-        print_typ t ;
-      assert false
 
 (* Some short cuts for often used types: *)
 

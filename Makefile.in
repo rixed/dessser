@@ -87,11 +87,11 @@ all: $(INSTALLED) examples
 doc:
 
 LIBDESSSER_SOURCES = \
+	src/DessserTools.ml \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/Dessser.ml \
-	src/DessserTools.ml \
 	src/SExpr.ml \
 	src/RowBinary.ml \
 	src/DevNull.ml \
@@ -190,6 +190,7 @@ TESTABLE_SOURCES = \
 	src/DessserQCheck.ml
 
 LINKED_FOR_TESTS = \
+	src/DessserTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserQCheck.ml

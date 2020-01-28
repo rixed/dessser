@@ -188,11 +188,11 @@ let maybe_nullable =
    module T = DessserTypes
    module E = DessserExpressions *)
 
-(*$Q maybe_nullable & ~count:1000
+(*$Q maybe_nullable & ~count:10_000
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_maybe_nullable mn in \
     let mn' = T.Parser.maybe_nullable_of_string str in \
-    T.eq mn' mn)
+    T.maybe_nullable_eq mn' mn)
 *)
 
 (*
@@ -382,7 +382,7 @@ and expression_gen (l, depth) =
   ) (l, depth)
 
 let expression_gen =
-  Gen.(sized_size (int_bound 0) (fun n -> expression_gen ([], n)))
+  Gen.(sized_size (int_bound 4) (fun n -> expression_gen ([], n)))
 
 let size_of_expression e =
   fold_expr 0 [] (fun n _ _ -> succ n) e
@@ -391,3 +391,11 @@ let expression =
   let print = IO.to_string print_expr
   and small = size_of_expression in
   make ~print ~small expression_gen
+
+(*$Q expression & ~count:10_000
+  expression (fun e -> \
+    let str = IO.to_string E.print_expr e in \
+    match E.Parser.expr str with \
+    | [ e' ] -> expr_eq e' e \
+    | _ -> false)
+*)

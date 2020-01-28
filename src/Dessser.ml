@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 open DessserTypes
 open DessserExpressions
+open DessserTools
 module T = DessserTypes
 
 (* Given the above we can built interesting expressions.
@@ -417,3 +418,9 @@ sig
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
 end
+
+let compile ?(optim=3) ~link backend src_fname dest_fname =
+  let module BE = (val backend : BACKEND) in
+  let cmd = BE.compile_cmd ~optim ~link src_fname dest_fname in
+  run_cmd cmd ;
+  Printf.printf "output produced in %s\n" dest_fname
