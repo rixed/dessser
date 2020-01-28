@@ -4,6 +4,8 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 open DessserTools
+open Ops
+module T = DessserTypes
 
 let run_cmd cmd =
   match Unix.system cmd with
@@ -64,9 +66,9 @@ let () =
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
       func [|TDataPtr; TDataPtr|] (fun fid ->
-        let src = Param (fid, 0) and dst = Param (fid, 1) in
-        Comment ("Convert from RowBinary into S-Expression:",
-          DS.desser typ src dst))
+        let src = param fid 0 and dst = param fid 1 in
+        comment "Convert from RowBinary into S-Expression:"
+          (DS.desser typ src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
@@ -75,23 +77,23 @@ let () =
       let module Sizer = HeapValue.SerSizer (RamenRingBuffer.Ser) in
 
       func [|TDataPtr; TDataPtr|] (fun fid ->
-        let src = Param (fid, 0) and dst = Param (fid, 1) in
-        Comment ("Convert from RowBinary into a heap value:",
-          let vptr = AllocValue typ in
+        let src = param fid 0 and dst = param fid 1 in
+        comment "Convert from RowBinary into a heap value:" (
+          let vptr = alloc_value typ in
           let src_valueptr = DS1.desser typ src vptr in
           with_sploded_pair "src_valueptr" src_valueptr (fun src valueptr ->
-            Comment ("Compute the serialized size of this tuple:",
+            comment "Compute the serialized size of this tuple:" (
               let const_dyn_sz = Sizer.sersize typ valueptr in
               with_sploded_pair "read_tuple" const_dyn_sz (fun const_sz dyn_sz ->
-                Seq [
-                  Dump (String "Constant size: ") ;
-                  Dump const_sz ;
-                  Dump (String ", dynamic size: ") ;
-                  Dump dyn_sz ;
-                  Dump (String "\n") ;
-                  Comment ("Now convert the heap value into an SExpr:",
+                seq [
+                  dump (string "Constant size: ") ;
+                  dump const_sz ;
+                  dump (string ", dynamic size: ") ;
+                  dump dyn_sz ;
+                  dump (string "\n") ;
+                  comment "Now convert the heap value into an SExpr:" (
                     let src_dst' = DS2.desser typ valueptr dst in
-                    Pair (src, Snd (src_dst'))) ])))))
+                    pair src (snd src_dst')) ])))))
     ) in
   Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;
   type_check [] convert ;

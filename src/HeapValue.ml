@@ -10,6 +10,8 @@ open Batteries
 open Dessser
 open DessserTypes
 open DessserExpressions
+open Ops
+module T = DessserTypes
 
 type heapvalue_state = path ref
 
@@ -41,33 +43,33 @@ struct
 
   type ser = state -> e -> e -> e
 
-  let set_field (path_ref, vtyp) v p =
+  let set_field_ (path_ref, vtyp) v p =
     let path = !path_ref in
-    let v = if is_nullable (type_of_path vtyp path) then ToNullable v else v in
-    SetField (path, p, v)
+    let v = if is_nullable (type_of_path vtyp path) then to_nullable v else v in
+    set_field path p v
 
-  let sfloat st id p = set_field st id p
-  let sstring st id p = set_field st id p
-  let sbool st id p = set_field st id p
-  let si8 st id p = set_field st id p
-  let si16 st id p = set_field st id p
-  let si24 st id p = set_field st id p
-  let si32 st id p = set_field st id p
-  let si40 st id p = set_field st id p
-  let si48 st id p = set_field st id p
-  let si56 st id p = set_field st id p
-  let si64 st id p = set_field st id p
-  let si128 st id p = set_field st id p
-  let su8 st id p = set_field st id p
-  let su16 st id p = set_field st id p
-  let su24 st id p = set_field st id p
-  let su32 st id p = set_field st id p
-  let su40 st id p = set_field st id p
-  let su48 st id p = set_field st id p
-  let su56 st id p = set_field st id p
-  let su64 st id p = set_field st id p
-  let su128 st id p = set_field st id p
-  let schar st id p = set_field st id p
+  let sfloat st id p = set_field_ st id p
+  let sstring st id p = set_field_ st id p
+  let sbool st id p = set_field_ st id p
+  let si8 st id p = set_field_ st id p
+  let si16 st id p = set_field_ st id p
+  let si24 st id p = set_field_ st id p
+  let si32 st id p = set_field_ st id p
+  let si40 st id p = set_field_ st id p
+  let si48 st id p = set_field_ st id p
+  let si56 st id p = set_field_ st id p
+  let si64 st id p = set_field_ st id p
+  let si128 st id p = set_field_ st id p
+  let su8 st id p = set_field_ st id p
+  let su16 st id p = set_field_ st id p
+  let su24 st id p = set_field_ st id p
+  let su32 st id p = set_field_ st id p
+  let su40 st id p = set_field_ st id p
+  let su48 st id p = set_field_ st id p
+  let su56 st id p = set_field_ st id p
+  let su64 st id p = set_field_ st id p
+  let su128 st id p = set_field_ st id p
+  let schar st id p = set_field_ st id p
 
   let tup_opn (path, _) _ p = enter path ; p
 
@@ -98,7 +100,7 @@ struct
   (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
   let snull t (path, _) p =
-    SetField (!path, p, Null t)
+    set_field !path p (null t)
 
   let snotnull _t _st p = p
 
@@ -152,10 +154,10 @@ struct
   (* Beware that Dessser expect deserializers to return only not-nullables. *)
   let get_field (path_ref, vtyp) p =
     let path = !path_ref in
-    let v = GetField (path, p) in
+    let v = get_field path p in
     let v =
-      if is_nullable (type_of_path vtyp path) then ToNotNullable v else v in
-    Pair (v, p)
+      if is_nullable (type_of_path vtyp path) then to_not_nullable v else v in
+    pair v p
 
   let dfloat st p = get_field st p
   let dstring st p = get_field st p
@@ -201,7 +203,7 @@ struct
   let list_opn (path, _ as st) _ p =
     enter path ;
     let lst = get_field st p in
-    Pair (ListLength lst, p)
+    pair (list_length lst) p
 
   let list_cls (path, _) p = leave path ; p
 
@@ -210,7 +212,7 @@ struct
   (* Will be called on every nullable fields before any attempt to deserialize
    * the value: *)
   let is_null (path, _) p =
-    FieldIsNull (!path, p)
+    field_is_null !path p
 
   (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
@@ -229,13 +231,13 @@ struct
    * Ser module. *)
   let sersize vtyp src =
     let add_size sizes sz =
-      MapPair (sizes,
-        func [|size; size|] (fun fid ->
+      map_pair sizes
+        (func T.[|size; size|] (fun fid ->
           match sz with
           | ConstSize s ->
-              Pair (Add (Size s, Param (fid, 0)), Param (fid, 1))
+              pair (add (size s) (param fid 0)) (param fid 1)
           | DynSize s ->
-              Pair (Param (fid, 0), Add (s, Param (fid, 1))))) in
+              pair (param fid 0) (add s (param fid 1)))) in
     (* Add that value size to the passed size pair: *)
     let rec ssize_vtype path sizes v = function
       | Mac TFloat ->
@@ -289,13 +291,13 @@ struct
           let sizes =
             Ser.ssize_of_tup vtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
-            Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes"))
+            let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes"))
           ) sizes vtyps
       | TRec vtyps ->
           let sizes =
             Ser.ssize_of_rec vtyp path v |> add_size sizes in
           Array.fold_lefti (fun sizes i _ ->
-            Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes"))
+            let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes"))
           ) sizes vtyps
       | TVec (dim, _) ->
           let sizes =
@@ -303,7 +305,7 @@ struct
           let rec loop sizes i =
             if i >= dim then sizes else
             let sizes =
-              Let ("sizes", sizes, sersize_ (path @ [i]) src (Identifier "sizes")) in
+              let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes")) in
             loop sizes (i + 1) in
           loop sizes 0
       | TList _typ ->
@@ -314,17 +316,16 @@ struct
     and sersize_ path src sizes =
       let sub_vtyp = type_of_path vtyp path in
       if is_nullable sub_vtyp then
-        let comment =
-          Printf.sprintf2 "sersize of path %a" print_path path in
-        Comment (comment,
-          Choose (FieldIsNull (path, src),
-            add_size sizes (Ser.ssize_of_null sub_vtyp path),
-            let sub_vtyp' = to_value_type sub_vtyp in
-            ssize_vtype path sizes (ToNotNullable (GetField (path, src))) sub_vtyp'))
+        comment
+          (Printf.sprintf2 "sersize of path %a" print_path path)
+          (choose ~cond:(field_is_null path src)
+            (add_size sizes (Ser.ssize_of_null sub_vtyp path))
+            (let sub_vtyp' = to_value_type sub_vtyp in
+            ssize_vtype path sizes (to_not_nullable (get_field path src)) sub_vtyp'))
       else
         let sub_vtyp' = to_value_type sub_vtyp in
-        ssize_vtype path sizes (GetField (path, src)) sub_vtyp'
+        ssize_vtype path sizes (get_field path src) sub_vtyp'
     in
-    let sizes = Pair (Size 0, Size 0) in
+    let sizes = pair (size 0) (size 0) in
     sersize_ [] src sizes
 end

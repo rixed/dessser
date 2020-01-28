@@ -4,6 +4,8 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 open DessserTools
+open Ops
+module T = DessserTypes
 
 (* The simplest possible deserializer *)
 module TestDes : DES =
@@ -16,36 +18,36 @@ struct
   type des = state -> (*dataptr*) e -> (* (nn * dataptr) *) e
 
   let from_byte v1 v2 src =
-    let b_src = ReadByte src in
+    let b_src = read_byte src in
     with_sploded_pair "from_byte" b_src (fun b src ->
-      Pair (
-        Choose (BoolOfU8 (U8OfByte b), v1, v2),
-        src))
+      pair
+        (choose ~cond:(bool_of_u8 (u8_of_byte b)) v1 v2)
+        src)
 
-  let dfloat () = from_byte (Float 1.) (Float 0.)
-  let dstring () = from_byte (String "x") (String "")
-  let dbool () = from_byte (Bool true) (Bool false)
+  let dfloat () = from_byte (float 1.) (float 0.)
+  let dstring () = from_byte (string "x") (string "")
+  let dbool () = from_byte (bool true) (bool false)
   let dchar () src =
-    with_sploded_pair "dchar" (ReadByte src) (fun b src ->
-      Pair (CharOfU8 (U8OfByte b), src))
-  let di8 () = from_byte (I8 1) (I8 0)
-  let di16 () = from_byte (I16 1) (I16 0)
-  let di24 () = from_byte (I24 1) (I24 0)
-  let di32 () = from_byte (I32 1l) (I32 0l)
-  let di40 () = from_byte (I40 1L) (I40 0L)
-  let di48 () = from_byte (I48 1L) (I48 0L)
-  let di56 () = from_byte (I56 1L) (I56 0L)
-  let di64 () = from_byte (I64 1L) (I64 0L)
-  let di128 () = from_byte (I128 Int128.one) (I128 Int128.zero)
-  let du8 () = from_byte (U8 1) (U8 0)
-  let du16 () = from_byte (U16 1) (U16 0)
-  let du24 () = from_byte (U24 1) (U24 0)
-  let du32 () = from_byte (U32 Uint32.one) (U32 Uint32.zero)
-  let du40 () = from_byte (U40 Uint40.one) (U40 Uint40.zero)
-  let du48 () = from_byte (U48 Uint48.one) (U48 Uint48.zero)
-  let du56 () = from_byte (U56 Uint56.one) (U56 Uint56.zero)
-  let du64 () = from_byte (U64 Uint64.one) (U64 Uint64.zero)
-  let du128 () = from_byte (U128 Uint128.one) (U128 Uint128.zero)
+    with_sploded_pair "dchar" (read_byte src) (fun b src ->
+      pair (char_of_u8 (u8_of_byte b)) src)
+  let di8 () = from_byte (i8 1) (i8 0)
+  let di16 () = from_byte (i16 1) (i16 0)
+  let di24 () = from_byte (i24 1) (i24 0)
+  let di32 () = from_byte (i32 1l) (i32 0l)
+  let di40 () = from_byte (i40 1L) (i40 0L)
+  let di48 () = from_byte (i48 1L) (i48 0L)
+  let di56 () = from_byte (i56 1L) (i56 0L)
+  let di64 () = from_byte (i64 1L) (i64 0L)
+  let di128 () = from_byte (i128 Int128.one) (i128 Int128.zero)
+  let du8 () = from_byte (u8 1) (u8 0)
+  let du16 () = from_byte (u16 1) (u16 0)
+  let du24 () = from_byte (u24 1) (u24 0)
+  let du32 () = from_byte (u32 Uint32.one) (u32 Uint32.zero)
+  let du40 () = from_byte (u40 Uint40.one) (u40 Uint40.zero)
+  let du48 () = from_byte (u48 Uint48.one) (u48 Uint48.zero)
+  let du56 () = from_byte (u56 Uint56.one) (u56 Uint56.zero)
+  let du64 () = from_byte (u64 Uint64.one) (u64 Uint64.zero)
+  let du128 () = from_byte (u128 Uint128.one) (u128 Uint128.zero)
   let tup_opn () _ src = src
   let tup_cls () src = src
   let tup_sep _ () src = src
@@ -56,17 +58,17 @@ struct
   let vec_cls () src = src
   let vec_sep _ () src = src
   let list_opn () _ src =
-    let b_src = ReadByte src in
-    MapPair (b_src,
-      func [|byte; dataptr|] (fun fid ->
-        Pair (
-          ToU32 (U8OfByte (Param (fid, 0))),
-          Param (fid, 1))))
+    let b_src = read_byte src in
+    map_pair b_src
+      (func [|T.byte; T.dataptr|] (fun fid ->
+        pair
+          (to_u32 (u8_of_byte (param fid 0)))
+          (param fid 1)))
   let list_cls () src = src
   let list_sep () src = src
   let is_null () src =
-    BoolOfU8 (U8OfByte (PeekByte (src, Size 0)))
-  let dnull _t () src = DataPtrAdd (src, Size 1)
+    bool_of_u8 (u8_of_byte (peek_byte src (size 0)))
+  let dnull _t () src = data_ptr_add src (size 1)
   let dnotnull = dnull
 end
 
@@ -81,31 +83,31 @@ struct
   type ser = state -> (*nn*) e -> (*dataptr*) e -> (*dataptr*) e
 
   let from_bool b dst =
-    WriteByte (dst, ByteOfU8 (U8OfBool b))
-  let from_eq v1 v = from_bool (Eq (v1, v))
-  let sfloat () = from_eq (Float 1.)
-  let sstring () v = from_bool (Ge (StringLength v, U32 Uint32.zero))
+    write_byte dst (byte_of_u8 (u8_of_bool b))
+  let from_eq v1 v = from_bool (eq v1 v)
+  let sfloat () = from_eq (float 1.)
+  let sstring () v = from_bool (ge (string_length v) (u32 Uint32.zero))
   let sbool () = from_bool
 
-  let schar () b dst = WriteByte (dst, ByteOfU8 (U8OfChar b))
-  let si8 () = from_eq (I8 1)
-  let si16 () = from_eq (I16 1)
-  let si24 () = from_eq (I24 1)
-  let si32 () = from_eq (I32 1l)
-  let si40 () = from_eq (I40 1L)
-  let si48 () = from_eq (I48 1L)
-  let si56 () = from_eq (I56 1L)
-  let si64 () = from_eq (I64 1L)
-  let si128 () = from_eq (I128 Int128.one)
-  let su8 () = from_eq (U8 1)
-  let su16 () = from_eq (U16 1)
-  let su24 () = from_eq (U24 1)
-  let su32 () = from_eq (U32 Uint32.one)
-  let su40 () = from_eq (U40 Uint40.one)
-  let su48 () = from_eq (U48 Uint48.one)
-  let su56 () = from_eq (U56 Uint56.one)
-  let su64 () = from_eq (U64 Uint64.one)
-  let su128 () = from_eq (U128 Uint128.one)
+  let schar () b dst = write_byte dst (byte_of_u8 (u8_of_char b))
+  let si8 () = from_eq (i8 1)
+  let si16 () = from_eq (i16 1)
+  let si24 () = from_eq (i24 1)
+  let si32 () = from_eq (i32 1l)
+  let si40 () = from_eq (i40 1L)
+  let si48 () = from_eq (i48 1L)
+  let si56 () = from_eq (i56 1L)
+  let si64 () = from_eq (i64 1L)
+  let si128 () = from_eq (i128 Int128.one)
+  let su8 () = from_eq (u8 1)
+  let su16 () = from_eq (u16 1)
+  let su24 () = from_eq (u24 1)
+  let su32 () = from_eq (u32 Uint32.one)
+  let su40 () = from_eq (u40 Uint40.one)
+  let su48 () = from_eq (u48 Uint48.one)
+  let su56 () = from_eq (u56 Uint56.one)
+  let su64 () = from_eq (u64 Uint64.one)
+  let su128 () = from_eq (u128 Uint128.one)
   let tup_opn () _ dst = dst
   let tup_cls () dst = dst
   let tup_sep _i () dst = dst
@@ -119,8 +121,8 @@ struct
   let list_cls () dst = dst
   let list_sep () dst = dst
   let nullable () dst = dst
-  let snull _t () dst = WriteByte (dst, Byte 1)
-  let snotnull _t () dst = WriteByte (dst, Byte 0)
+  let snull _t () dst = write_byte dst (byte 1)
+  let snotnull _t () dst = write_byte dst (byte 0)
 
   type ssizer = maybe_nullable -> path -> (*valueptr*) e -> ssize
   let ssize_of_float _ _ _ = ConstSize 1
@@ -158,13 +160,12 @@ module TestDesSer = DesSer (TestDes) (TestSer)
 let test_desser () =
   let vtyp = NotNullable (TTup [| Nullable (Mac TU8) ;
                                   NotNullable (Mac TChar) |]) in
-  let src = DataPtrOfString "\001X"
-  and dst = DataPtrOfString "_____" in
-  Let ("e", TestDesSer.desser vtyp src dst,
-         Seq [
-          Dump (Identifier "e") ;
-          Dump (String "\n") ;
-          Identifier "e" ])
+  let src = data_ptr_of_string "\001X"
+  and dst = data_ptr_of_string "_____" in
+  let_ "e" (TestDesSer.desser vtyp src dst)
+    (seq [ dump (identifier "e") ;
+           dump (string "\n") ;
+           identifier "e" ])
 
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =

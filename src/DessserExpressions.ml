@@ -8,17 +8,8 @@ let print_endianness oc = function
   | LittleEndian -> String.print oc "little-endian"
   | BigEndian -> String.print oc "big-endian"
 
-type e =
-  | Comment of string * e
-  | Dump of e
-  | Seq of e list
-  | Ignore of e
-  | IsNull of e
-  | Coalesce of e * e
-  (* Turn e into a nullable: *)
-  | ToNullable of e
-  (* Turn e into a not-nullable: *)
-  | ToNotNullable of e
+type e0 =
+  | Param of (*function id*) int * (*param no*) int
   | Null of value_type
   | Float of float
   | String of string
@@ -49,122 +40,7 @@ type e =
   | DWord of Uint32.t
   | QWord of Uint64.t
   | OWord of Uint128.t
-  | Gt of e * e
-  (* Convert from/to string for all base value types: *)
-  | StringOfFloat of e
-  | StringOfChar of e
-  | StringOfInt of e
-  | FloatOfString of e
-  | CharOfString of e
-  | U8OfString of e
-  | U16OfString of e
-  | U24OfString of e
-  | U32OfString of e
-  | U40OfString of e
-  | U48OfString of e
-  | U56OfString of e
-  | U64OfString of e
-  | U128OfString of e
-  | I8OfString of e
-  | I16OfString of e
-  | I24OfString of e
-  | I32OfString of e
-  | I40OfString of e
-  | I48OfString of e
-  | I56OfString of e
-  | I64OfString of e
-  | I128OfString of e
-  (* Integers can be casted upon others regardless of sign and width: *)
-  | ToU8 of e
-  | ToU16 of e
-  | ToU24 of e
-  | ToU32 of e
-  | ToU40 of e
-  | ToU48 of e
-  | ToU56 of e
-  | ToU64 of e
-  | ToU128 of e
-  | ToI8 of e
-  | ToI16 of e
-  | ToI24 of e
-  | ToI32 of e
-  | ToI40 of e
-  | ToI48 of e
-  | ToI56 of e
-  | ToI64 of e
-  | ToI128 of e
-  (* Comparators: *)
-  | Ge of e * e
-  | Eq of e * e
-  | Ne of e * e
-  | Add of e * e
-  | Sub of e * e
-  | Mul of e * e
-  | Div of e * e
-  | Rem of e * e
-  | LogAnd of e * e
-  | LogOr of e * e
-  | LogXor of e * e
-  | LogNot of e
-  | LeftShift of e * e
-  | RightShift of e * e
-  | FloatOfQWord of e
-  | QWordOfFloat of e
-  | U8OfByte of e
-  | ByteOfU8 of e
-  | U16OfWord of e
-  | WordOfU16 of e
-  | U32OfDWord of e
-  | DWordOfU32 of e
-  | U64OfQWord of e
-  | QWordOfU64 of e
-  | U128OfOWord of e
-  | OWordOfU128 of e
-  | U8OfChar of e
-  | CharOfU8 of e
-  | SizeOfU32 of e
-  | U32OfSize of e
-  | BitOfBool of e
-  | BoolOfBit of e
-  (* à la C: *)
-  | U8OfBool of e
-  | BoolOfU8 of e
-  | AppendBytes of e * e
-  | AppendString of e * e
-  | StringLength of e
-  | StringOfBytes of e
-  | BytesOfString of e
-  | ListLength of e
   | DataPtrOfString of string
-  | TestBit of e * e
-  | SetBit of e * e * e
-  | ReadByte of e
-  | ReadWord of endianness * e
-  | ReadDWord of endianness * e
-  | ReadQWord of endianness * e
-  | ReadOWord of endianness * e
-  | ReadBytes of e * e
-  | PeekByte of e * e
-  | PeekWord of endianness * e * e
-  | PeekDWord of endianness * e * e
-  | PeekQWord of endianness * e * e
-  | PeekOWord of endianness * e * e
-  | WriteByte of e * e
-  | WriteWord of endianness * e * e
-  | WriteDWord of endianness * e * e
-  | WriteQWord of endianness * e * e
-  | WriteOWord of endianness * e * e
-  | WriteBytes of e * e
-  | PokeByte of e * e
-  | BlitByte of e * e * e
-  | DataPtrAdd of e * e
-  | DataPtrSub of e * e
-  | DataPtrPush of e
-  | DataPtrPop of e
-  | RemSize of e
-  | And of e * e
-  | Or of e * e
-  | Not of e
   (* To build heap values: *)
   (* Allocate a default values value.
    * For backends that can alloc uninitialized values:
@@ -175,54 +51,179 @@ type e =
    *   Will define the type, then make up a name and return it. Construction
    *   and allocation will happen as the serialize progresses. *)
   | AllocValue of maybe_nullable
-  (* Get the value pointed by a valueptr: *)
-  | DerefValuePtr of e
-  (* Set a field. There is no control that the field type match the type at
-   * this location. *)
-  | SetField of path * e * e
-  | FieldIsNull of path * e
-  | GetField of path * e
-  | Pair of e * e
-  (* WARNING: never use Fst and Snd on the same expression or that expression
-   * will be computed twice!
-   * Instead, use MapPair or Let *)
-  | Fst of e
-  | Snd of e
-  | MapPair of (* the pair: *) e * (* the function2: *) e
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
-  | Let of string * e * e
-  | Function of (*function id*) int * (*args*) typ array * (* body: *) e
-  | Param of (*function id*) int * (*param no*) int
-  | Choose :
-      (* Condition: *) e * (* Consequent: *) e * (* Alternative: *) e -> e
-  | ReadWhile :
-      (* Condition (byte->bool): *) e *
-      (* Reducer ('a->byte->'a): *) e *
-      (* Initial value: *) e *
-      (* Starting position: *) e ->
-      (* Result ('a * ptr): *) e
-  | LoopWhile :
-      (* Condition ('a->bool): *) e *
-      (* Loop body ('a->'a): *) e *
-      (* Initial value: *) e -> e
-  | LoopUntil :
-      (* Loop body ('a->'a): *) e *
-      (* Condition ('a->bool): *) e *
-      (* Initial value: *) e -> e
-  | Repeat :
-      (* From: *) e * (* To: *) e *
-      (* Loop body (idx->'a->'a): *) e *
-      (* Initial value: *) e -> e
+
+type e1 =
+  | Function of (*function id*) int * (*args*) typ array
+  | Comment of string
+  | FieldIsNull of path
+  | GetField of path
+  | Dump
+  | Ignore
+  | IsNull
+  (* Turn e into a nullable: *)
+  | ToNullable
+  (* Turn e into a not-nullable: *)
+  | ToNotNullable
+  (* Convert from/to string for all base value types: *)
+  | StringOfFloat
+  | StringOfChar
+  | StringOfInt
+  | FloatOfString
+  | CharOfString
+  | U8OfString
+  | U16OfString
+  | U24OfString
+  | U32OfString
+  | U40OfString
+  | U48OfString
+  | U56OfString
+  | U64OfString
+  | U128OfString
+  | I8OfString
+  | I16OfString
+  | I24OfString
+  | I32OfString
+  | I40OfString
+  | I48OfString
+  | I56OfString
+  | I64OfString
+  | I128OfString
+  (* Integers can be casted upon others regardless of sign and width: *)
+  | ToU8
+  | ToU16
+  | ToU24
+  | ToU32
+  | ToU40
+  | ToU48
+  | ToU56
+  | ToU64
+  | ToU128
+  | ToI8
+  | ToI16
+  | ToI24
+  | ToI32
+  | ToI40
+  | ToI48
+  | ToI56
+  | ToI64
+  | ToI128
+  | LogNot
+  | FloatOfQWord
+  | QWordOfFloat
+  | U8OfByte
+  | ByteOfU8
+  | U16OfWord
+  | WordOfU16
+  | U32OfDWord
+  | DWordOfU32
+  | U64OfQWord
+  | QWordOfU64
+  | U128OfOWord
+  | OWordOfU128
+  | U8OfChar
+  | CharOfU8
+  | SizeOfU32
+  | U32OfSize
+  | BitOfBool
+  | BoolOfBit
+  (* à la C: *)
+  | U8OfBool
+  | BoolOfU8
+  | StringLength
+  | StringOfBytes
+  | BytesOfString
+  | ListLength
+  | ReadByte
+  | DataPtrPush
+  | DataPtrPop
+  | RemSize
+  | Not
+  (* Get the value pointed by a valueptr: *)
+  | DerefValuePtr
+  (* WARNING: never use Fst and Snd on the same expression or that expression
+   * will be computed twice!
+   * Instead, use MapPair or Let *)
+  | Fst
+  | Snd
+  | ReadWord of endianness
+  | ReadDWord of endianness
+  | ReadQWord of endianness
+  | ReadOWord of endianness
+
+type e2 =
+  | Let of string
+  (* Set a field. There is no control that the field type match the type at
+   * this location. *)
+  | SetField of path
+  | Coalesce
+  (* Comparators: *)
+  | Gt
+  | Ge
+  | Eq
+  | Ne
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Rem
+  | LogAnd
+  | LogOr
+  | LogXor
+  | LeftShift
+  | RightShift
+  | AppendBytes
+  | AppendString
+  | TestBit
+  | ReadBytes
+  | PeekByte
+  | WriteByte
+  | WriteBytes
+  | PokeByte
+  | DataPtrAdd
+  | DataPtrSub
+  | And
+  | Or
+  | Pair
+  | MapPair (* the pair * the function2 *)
+  | PeekWord of endianness
+  | PeekDWord of endianness
+  | PeekQWord of endianness
+  | PeekOWord of endianness
+  | WriteWord of endianness
+  | WriteDWord of endianness
+  | WriteQWord of endianness
+  | WriteOWord of endianness
+
+type e3 =
+  | SetBit
+  | BlitByte
+  | Choose (* Condition * Consequent * Alternative *)
+  | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
+  | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
+
+type e4 =
+  | ReadWhile (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init * Start pos ->
+                   Result ('a*ptr) *)
+  | Repeat (* From * To * body (idx->'a->'a) * Init value *)
+
+type e =
+  | Seq of e list
+  | E0 of e0
+  | E1 of e1 * e
+  | E2 of e2 * e * e
+  | E3 of e3 * e * e * e
+  | E4 of e4 * e * e * e * e
 
 (* Create a function expression and return its id: *)
 let func =
-  let next_id = ref (0) in
+  let next_id = ref 0 in
   fun typs f ->
     let id = !next_id in
     incr next_id ;
-    Function (id, typs, f id)
+    E1 (Function (id, typs), f id)
 
 let rec print_expr ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
@@ -231,343 +232,343 @@ let rec print_expr ?max_depth oc e =
     let max_depth = Option.map pred max_depth in
     let p = print_expr ?max_depth in
     match e with
-    | Comment (str, e) ->
+    | E1 (Comment str, e) ->
         pp oc "(Comment %S %a)" str p e
-    | Dump e ->
+    | E1 (Dump, e) ->
         pp oc "(Dump %a)" p e
     | Seq es ->
         pp oc "(Seq %a)" (List.print ~first:"" ~last:"" ~sep:" " p) es
-    | Ignore e ->
+    | E1 (Ignore, e) ->
         pp oc "(Ignore %a)" p e
-    | IsNull e ->
+    | E1 (IsNull, e) ->
         pp oc "(IsNull %a)" p e
-    | Coalesce (e1, e2) ->
+    | E2 (Coalesce, e1, e2) ->
         pp oc "(Coalesce %a %a)" p e1 p e2
-    | ToNullable e ->
+    | E1 (ToNullable, e) ->
         pp oc "(ToNullable %a)" p e
-    | ToNotNullable e ->
+    | E1 (ToNotNullable, e) ->
         pp oc "(ToNotNullable %a)" p e
-    | Null t ->
+    | E0 (Null t) ->
         pp oc "(Null %a)" print_value_type t
-    | Float f ->
+    | E0 (Float f) ->
         pp oc "(Float %f)" f
-    | String s ->
+    | E0 (String s) ->
         pp oc "(String %S)" s
-    | Bool b ->
+    | E0 (Bool b) ->
         pp oc "(Bool %b)" b
-    | Char c ->
+    | E0 (Char c) ->
         pp oc "(Char %C)" c
-    | U8 i ->
+    | E0 (U8 i) ->
         pp oc "(U8 %d)" i
-    | U16 i ->
+    | E0 (U16 i) ->
         pp oc "(U16 %d)" i
-    | U24 i ->
+    | E0 (U24 i) ->
         pp oc "(U24 %d)" i
-    | U32 u ->
+    | E0 (U32 u) ->
         pp oc "(U32 %s)" (Uint32.to_string u)
-    | U40 u ->
+    | E0 (U40 u) ->
         pp oc "(U40 %s)" (Uint40.to_string u)
-    | U48 u ->
+    | E0 (U48 u) ->
         pp oc "(U48 %s)" (Uint48.to_string u)
-    | U56 u ->
+    | E0 (U56 u) ->
         pp oc "(U56 %s)" (Uint56.to_string u)
-    | U64 u ->
+    | E0 (U64 u) ->
         pp oc "(U64 %s)" (Uint64.to_string u)
-    | U128 u ->
+    | E0 (U128 u) ->
         pp oc "(U128 %s)" (Uint128.to_string u)
-    | I8 i ->
+    | E0 (I8 i) ->
         pp oc "(I8 %d)" i
-    | I16 i ->
+    | E0 (I16 i) ->
         pp oc "(I16 %d)" i
-    | I24 i ->
+    | E0 (I24 i) ->
         pp oc "(I24 %d)" i
-    | I32 i ->
+    | E0 (I32 i) ->
         pp oc "(I32 %ld)" i
-    | I40 i ->
+    | E0 (I40 i) ->
         pp oc "(I40 %Ld)" i
-    | I48 i ->
+    | E0 (I48 i) ->
         pp oc "(I48 %Ld)" i
-    | I56 i ->
+    | E0 (I56 i) ->
         pp oc "(I56 %Ld)" i
-    | I64 i ->
+    | E0 (I64 i) ->
         pp oc "(I64 %Ld)" i
-    | I128 u ->
+    | E0 (I128 u) ->
         pp oc "(I128 %s)" (Int128.to_string u)
-    | Bit b ->
+    | E0 (Bit b) ->
         pp oc "(Bit %b)" b
-    | Size i ->
+    | E0 (Size i) ->
         pp oc "(Size %d)" i
-    | Byte i ->
+    | E0 (Byte i) ->
         pp oc "(Byte %d)" i
-    | Word i ->
+    | E0 (Word i) ->
         pp oc "(Word %d)" i
-    | DWord u ->
+    | E0 (DWord u) ->
         pp oc "(DWord %s)" (Uint32.to_string u)
-    | QWord u ->
+    | E0 (QWord u) ->
         pp oc "(QWord %s)" (Uint64.to_string u)
-    | OWord u ->
+    | E0 (OWord u) ->
         pp oc "(OWord %s)" (Uint128.to_string u)
-    | Gt (e1, e2) ->
+    | E2 (Gt, e1, e2) ->
         pp oc "(Gt %a %a)" p e1 p e2
-    | Ge (e1, e2) ->
+    | E2 (Ge, e1, e2) ->
         pp oc "(Ge %a %a)" p e1 p e2
-    | Eq (e1, e2) ->
+    | E2 (Eq, e1, e2) ->
         pp oc "(Eq %a %a)" p e1 p e2
-    | Ne (e1, e2) ->
+    | E2 (Ne, e1, e2) ->
         pp oc "(Ne %a %a)" p e1 p e2
-    | Add (e1, e2) ->
+    | E2 (Add, e1, e2) ->
         pp oc "(Add %a %a)" p e1 p e2
-    | Sub (e1, e2) ->
+    | E2 (Sub, e1, e2) ->
         pp oc "(Sub %a %a)" p e1 p e2
-    | Mul (e1, e2) ->
+    | E2 (Mul, e1, e2) ->
         pp oc "(Mul %a %a)" p e1 p e2
-    | Div (e1, e2) ->
+    | E2 (Div, e1, e2) ->
         pp oc "(Div %a %a)" p e1 p e2
-    | Rem (e1, e2) ->
+    | E2 (Rem, e1, e2) ->
         pp oc "(Rem %a %a)" p e1 p e2
-    | LogAnd (e1, e2) ->
+    | E2 (LogAnd, e1, e2) ->
         pp oc "(LogAnd %a %a)" p e1 p e2
-    | LogOr (e1, e2) ->
+    | E2 (LogOr, e1, e2) ->
         pp oc "(LogOr %a %a)" p e1 p e2
-    | LogXor (e1, e2) ->
+    | E2 (LogXor, e1, e2) ->
         pp oc "(LogXor %a %a)" p e1 p e2
-    | LeftShift (e1, e2) ->
+    | E2 (LeftShift, e1, e2) ->
         pp oc "(LeftShift %a %a)" p e1 p e2
-    | RightShift (e1, e2) ->
+    | E2 (RightShift, e1, e2) ->
         pp oc "(RightShift %a %a)" p e1 p e2
-    | LogNot e ->
+    | E1 (LogNot, e) ->
         pp oc "(LogNot %a)" p e
-    | StringOfInt e ->
+    | E1 (StringOfInt, e) ->
         pp oc "(StringOfInt %a)" p e
-    | StringOfChar e ->
+    | E1 (StringOfChar, e) ->
         pp oc "(StringOfChar %a)" p e
-    | StringOfFloat e ->
+    | E1 (StringOfFloat, e) ->
         pp oc "(StringOfFloat %a)" p e
-    | FloatOfQWord e ->
+    | E1 (FloatOfQWord, e) ->
         pp oc "(FloatOfQWord %a)" p e
-    | QWordOfFloat e ->
+    | E1 (QWordOfFloat, e) ->
         pp oc "(QWordOfFloat %a)" p e
-    | FloatOfString e ->
+    | E1 (FloatOfString, e) ->
         pp oc "(FloatOfString %a)" p e
-    | CharOfString e ->
+    | E1 (CharOfString, e) ->
         pp oc "(CharOfString %a)" p e
-    | U8OfString e ->
+    | E1 (U8OfString, e) ->
         pp oc "(U8OfString %a)" p e
-    | U16OfString e ->
+    | E1 (U16OfString, e) ->
         pp oc "(U16OfString %a)" p e
-    | U24OfString e ->
+    | E1 (U24OfString, e) ->
         pp oc "(U24OfString %a)" p e
-    | U32OfString e ->
+    | E1 (U32OfString, e) ->
         pp oc "(U32OfString %a)" p e
-    | U40OfString e ->
+    | E1 (U40OfString, e) ->
         pp oc "(U40OfString %a)" p e
-    | U48OfString e ->
+    | E1 (U48OfString, e) ->
         pp oc "(U48OfString %a)" p e
-    | U56OfString e ->
+    | E1 (U56OfString, e) ->
         pp oc "(U56OfString %a)" p e
-    | U64OfString e ->
+    | E1 (U64OfString, e) ->
         pp oc "(U64OfString %a)" p e
-    | U128OfString e ->
+    | E1 (U128OfString, e) ->
         pp oc "(U128OfString %a)" p e
-    | I8OfString e ->
+    | E1 (I8OfString, e) ->
         pp oc "(I8OfString %a)" p e
-    | I16OfString e ->
+    | E1 (I16OfString, e) ->
         pp oc "(I16OfString %a)" p e
-    | I24OfString e ->
+    | E1 (I24OfString, e) ->
         pp oc "(I24OfString %a)" p e
-    | I32OfString e ->
+    | E1 (I32OfString, e) ->
         pp oc "(I32OfString %a)" p e
-    | I40OfString e ->
+    | E1 (I40OfString, e) ->
         pp oc "(I40OfString %a)" p e
-    | I48OfString e ->
+    | E1 (I48OfString, e) ->
         pp oc "(I48OfString %a)" p e
-    | I56OfString e ->
+    | E1 (I56OfString, e) ->
         pp oc "(I56OfString %a)" p e
-    | I64OfString e ->
+    | E1 (I64OfString, e) ->
         pp oc "(I64OfString %a)" p e
-    | I128OfString e ->
+    | E1 (I128OfString, e) ->
         pp oc "(I128OfString %a)" p e
-    | U8OfByte e ->
+    | E1 (U8OfByte, e) ->
         pp oc "(U8OfByte %a)" p e
-    | ByteOfU8 e ->
+    | E1 (ByteOfU8, e) ->
         pp oc "(ByteOfU8 %a)" p e
-    | U16OfWord e ->
+    | E1 (U16OfWord, e) ->
         pp oc "(U16OfWord %a)" p e
-    | WordOfU16 e ->
+    | E1 (WordOfU16, e) ->
         pp oc "(WordOfU16 %a)" p e
-    | U32OfDWord e ->
+    | E1 (U32OfDWord, e) ->
         pp oc "(U32OfDWord %a)" p e
-    | DWordOfU32 e ->
+    | E1 (DWordOfU32, e) ->
         pp oc "(DWordOfU32 %a)" p e
-    | U64OfQWord e ->
+    | E1 (U64OfQWord, e) ->
         pp oc "(U64OfQWord %a)" p e
-    | QWordOfU64 e ->
+    | E1 (QWordOfU64, e) ->
         pp oc "(QWordOfU64 %a)" p e
-    | U128OfOWord e ->
+    | E1 (U128OfOWord, e) ->
         pp oc "(U128OfOWord %a)" p e
-    | OWordOfU128 e ->
+    | E1 (OWordOfU128, e) ->
         pp oc "(OWordOfU128 %a)" p e
-    | U8OfChar e ->
+    | E1 (U8OfChar, e) ->
         pp oc "(U8OfChar %a)" p e
-    | CharOfU8 e ->
+    | E1 (CharOfU8, e) ->
         pp oc "(CharOfU8 %a)" p e
-    | SizeOfU32 e ->
+    | E1 (SizeOfU32, e) ->
         pp oc "(SizeOfU32 %a)" p e
-    | U32OfSize e ->
+    | E1 (U32OfSize, e) ->
         pp oc "(U32OfSize %a)" p e
-    | BitOfBool e ->
+    | E1 (BitOfBool, e) ->
         pp oc "(BitOfBool %a)" p e
-    | BoolOfBit e ->
+    | E1 (BoolOfBit, e) ->
         pp oc "(BoolOfBit %a)" p e
-    | U8OfBool e ->
+    | E1 (U8OfBool, e) ->
         pp oc "(U8OfBool %a)" p e
-    | BoolOfU8 e ->
+    | E1 (BoolOfU8, e) ->
         pp oc "(BoolOfU8 %a)" p e
-    | AppendBytes (e1, e2) ->
+    | E2 (AppendBytes, e1, e2) ->
         pp oc "(AppendBytes %a %a)" p e1 p e2
-    | AppendString (e1, e2) ->
+    | E2 (AppendString, e1, e2) ->
         pp oc "(AppendString %a %a)" p e1 p e2
-    | StringLength e ->
+    | E1 (StringLength, e) ->
         pp oc "(StringLength %a)" p e
-    | StringOfBytes e ->
+    | E1 (StringOfBytes, e) ->
         pp oc "(StringOfBytes %a)" p e
-    | BytesOfString e ->
+    | E1 (BytesOfString, e) ->
         pp oc "(BytesOfString %a)" p e
-    | ListLength e ->
+    | E1 (ListLength, e) ->
         pp oc "(ListLength %a)" p e
-    | DataPtrOfString s ->
+    | E0 (DataPtrOfString s) ->
         pp oc "(DataPtrOfString %S)" s
-    | TestBit (e1, e2) ->
+    | E2 (TestBit, e1, e2) ->
         pp oc "(TestBit %a %a)" p e1 p e2
-    | SetBit (e1, e2, e3) ->
+    | E3 (SetBit, e1, e2, e3) ->
         pp oc "(SetBit %a %a %a)" p e1 p e2 p e3
-    | ReadByte e ->
+    | E1 (ReadByte, e) ->
         pp oc "(ReadByte %a)" p e
-    | ReadWord (e1, e2) ->
-        pp oc "(ReadWord %a %a)" print_endianness e1 p e2
-    | ReadDWord (e1, e2) ->
-        pp oc "(ReadDWord %a %a)" print_endianness e1 p e2
-    | ReadQWord (e1, e2) ->
-        pp oc "(ReadQWord %a %a)" print_endianness e1 p e2
-    | ReadOWord (e1, e2) ->
-        pp oc "(ReadOWord %a %a)" print_endianness e1 p e2
-    | ReadBytes (e1, e2) ->
+    | E1 (ReadWord en, e1) ->
+        pp oc "(ReadWord %a %a)" print_endianness en p e1
+    | E1 (ReadDWord en, e1) ->
+        pp oc "(ReadDWord %a %a)" print_endianness en p e1
+    | E1 (ReadQWord en, e1) ->
+        pp oc "(ReadQWord %a %a)" print_endianness en p e1
+    | E1 (ReadOWord en, e1) ->
+        pp oc "(ReadOWord %a %a)" print_endianness en p e1
+    | E2 (ReadBytes, e1, e2) ->
         pp oc "(ReadBytes %a %a)" p e1 p e2
-    | PeekByte (e1, e2) ->
+    | E2 (PeekByte, e1, e2) ->
         pp oc "(PeekByte %a %a)" p e1 p e2
-    | PeekWord (e1, e2, e3) ->
-        pp oc "(PeekWord %a %a %a)" print_endianness e1 p e2 p e3
-    | PeekDWord (e1, e2, e3) ->
-        pp oc "(PeekDWord %a %a %a)" print_endianness e1 p e2 p e3
-    | PeekQWord (e1, e2, e3) ->
-        pp oc "(PeekQWord %a %a %a)" print_endianness e1 p e2 p e3
-    | PeekOWord (e1, e2, e3) ->
-        pp oc "(PeekOWord %a %a %a)" print_endianness e1 p e2 p e3
-    | WriteByte (e1, e2) ->
+    | E2 (PeekWord en, e1, e2) ->
+        pp oc "(PeekWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (PeekDWord en, e1, e2) ->
+        pp oc "(PeekDWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (PeekQWord en, e1, e2) ->
+        pp oc "(PeekQWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (PeekOWord en, e1, e2) ->
+        pp oc "(PeekOWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (WriteByte, e1, e2) ->
         pp oc "(WriteByte %a %a)" p e1 p e2
-    | WriteWord (e1, e2, e3) ->
-        pp oc "(WriteWord %a %a %a)" print_endianness e1 p e2 p e3
-    | WriteDWord (e1, e2, e3) ->
-        pp oc "(WriteDWord %a %a %a)" print_endianness e1 p e2 p e3
-    | WriteQWord (e1, e2, e3) ->
-        pp oc "(WriteQWord %a %a %a)" print_endianness e1 p e2 p e3
-    | WriteOWord (e1, e2, e3) ->
-        pp oc "(WriteOWord %a %a %a)" print_endianness e1 p e2 p e3
-    | WriteBytes (e1, e2) ->
+    | E2 (WriteWord en, e1, e2) ->
+        pp oc "(WriteWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (WriteDWord en, e1, e2) ->
+        pp oc "(WriteDWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (WriteQWord en, e1, e2) ->
+        pp oc "(WriteQWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (WriteOWord en, e1, e2) ->
+        pp oc "(WriteOWord %a %a %a)" print_endianness en p e1 p e2
+    | E2 (WriteBytes, e1, e2) ->
         pp oc "(WriteBytes %a %a)" p e1 p e2
-    | PokeByte (e1, e2) ->
+    | E2 (PokeByte, e1, e2) ->
         pp oc "(PokeByte %a %a)" p e1 p e2
-    | BlitByte (e1, e2, e3) ->
+    | E3 (BlitByte, e1, e2, e3) ->
         pp oc "(BlitByte %a %a %a)" p e1 p e2 p e3
-    | DataPtrAdd (e1, e2) ->
+    | E2 (DataPtrAdd, e1, e2) ->
         pp oc "(DataPtrAdd %a %a)" p e1 p e2
-    | DataPtrSub (e1, e2) ->
+    | E2 (DataPtrSub, e1, e2) ->
         pp oc "(DataPtrSub %a %a)" p e1 p e2
-    | DataPtrPush e1 ->
+    | E1 (DataPtrPush, e1) ->
         pp oc "(DataPtrPush %a)" p e1
-    | DataPtrPop e1 ->
+    | E1 (DataPtrPop, e1) ->
         pp oc "(DataPtrPop %a)" p e1
-    | RemSize e ->
+    | E1 (RemSize, e) ->
         pp oc "(RemSize %a)" p e
-    | And (e1, e2) ->
+    | E2 (And, e1, e2) ->
         pp oc "(And %a %a)" p e1 p e2
-    | Or (e1, e2) ->
+    | E2 (Or, e1, e2) ->
         pp oc "(Or %a %a)" p e1 p e2
-    | Not e ->
+    | E1 (Not, e) ->
         pp oc "(Not %a)" p e
-    | ToU8 e ->
+    | E1 (ToU8, e) ->
         pp oc "(ToU8%a)" p e
-    | ToI8 e ->
+    | E1 (ToI8, e) ->
         pp oc "(ToI8 %a)" p e
-    | ToU16 e ->
+    | E1 (ToU16, e) ->
         pp oc "(ToU16 %a)" p e
-    | ToI16 e ->
+    | E1 (ToI16, e) ->
         pp oc "(ToI16 %a)" p e
-    | ToU24 e ->
+    | E1 (ToU24, e) ->
         pp oc "(ToU24 %a)" p e
-    | ToI24 e ->
+    | E1 (ToI24, e) ->
         pp oc "(ToI24 %a)" p e
-    | ToU32 e ->
+    | E1 (ToU32, e) ->
         pp oc "(ToU32 %a)" p e
-    | ToI32 e ->
+    | E1 (ToI32, e) ->
         pp oc "(ToI32 %a)" p e
-    | ToU40 e ->
+    | E1 (ToU40, e) ->
         pp oc "(ToU40 %a)" p e
-    | ToI40 e ->
+    | E1 (ToI40, e) ->
         pp oc "(ToI40 %a)" p e
-    | ToU48 e ->
+    | E1 (ToU48, e) ->
         pp oc "(ToU48 %a)" p e
-    | ToI48 e ->
+    | E1 (ToI48, e) ->
         pp oc "(ToI48 %a)" p e
-    | ToU56 e ->
+    | E1 (ToU56, e) ->
         pp oc "(ToU56 %a)" p e
-    | ToI56 e ->
+    | E1 (ToI56, e) ->
         pp oc "(ToI56 %a)" p e
-    | ToU64 e ->
+    | E1 (ToU64, e) ->
         pp oc "(ToU64 %a)" p e
-    | ToI64 e ->
+    | E1 (ToI64, e) ->
         pp oc "(ToI64 %a)" p e
-    | ToU128 e ->
+    | E1 (ToU128, e) ->
         pp oc "(ToU128 %a)" p e
-    | ToI128 e ->
+    | E1 (ToI128, e) ->
         pp oc "(ToI128 %a)" p e
-    | AllocValue vtyp ->
+    | E0 (AllocValue vtyp) ->
         pp oc "(AllocValue %a)" print_maybe_nullable vtyp
-    | DerefValuePtr e ->
+    | E1 (DerefValuePtr, e) ->
         pp oc "(DerefValuePtr %a)" p e
-    | SetField (path, e1, e2) ->
+    | E2 (SetField path, e1, e2) ->
         pp oc "(SetField %a %a %a)" print_path path p e1 p e2
-    | FieldIsNull (path, e) ->
+    | E1 (FieldIsNull path, e) ->
         pp oc "(FieldIsNull %a %a)" print_path path p e
-    | GetField (path, e) ->
+    | E1 (GetField path, e) ->
         pp oc "(GetField %a %a)" print_path path p e
-    | Pair (e1, e2) ->
+    | E2 (Pair, e1, e2) ->
         pp oc "(Pair %a %a)" p e1 p e2
-    | Fst e ->
+    | E1 (Fst, e) ->
         pp oc "(Fst %a)" p e
-    | Snd e ->
+    | E1 (Snd, e) ->
         pp oc "(Snd %a)" p e
-    | MapPair (e1, e2) ->
+    | E2 (MapPair, e1, e2) ->
         pp oc "(MapPair %a %a)" p e1 p e2
-    | Identifier n ->
+    | E0 (Identifier n) ->
         (* Do not repeat the expression, that we keep only for knowing the type of this expression: *)
         pp oc "(Identifier %s)" n
-    | Let (n, e1, e2) ->
+    | E2 (Let n, e1, e2) ->
         pp oc "(Let %s %a %a)" n p e1 p e2
-    | Function (id, ts, e) ->
+    | E1 (Function (id, ts), e) ->
         pp oc "(Function %d %a %a)"
           id (Array.print ~first:"" ~last:"" ~sep:" " print_typ) ts p e
-    | Param (fid, n) ->
+    | E0 (Param (fid, n)) ->
         pp oc "(Param %d %d)" fid n
-    | Choose (e1, e2, e3) ->
+    | E3 (Choose, e1, e2, e3) ->
         pp oc "(Choose %a %a %a)" p e1 p e2 p e3
-    | ReadWhile (e1, e2, e3, e4) ->
-        pp oc "(ReadWord %a %a %a %a)" p e1 p e2 p e3 p e4
-    | LoopWhile (e1, e2, e3) ->
+    | E4 (ReadWhile, e1, e2, e3, e4) ->
+        pp oc "(ReadWhile %a %a %a %a)" p e1 p e2 p e3 p e4
+    | E3 (LoopWhile, e1, e2, e3) ->
         pp oc "(LoopWhile %a %a %a)" p e1 p e2 p e3
-    | LoopUntil (e1, e2, e3) ->
+    | E3 (LoopUntil, e1, e2, e3) ->
         pp oc "(LoopUntil %a %a %a)" p e1 p e2 p e3
-    | Repeat (e1, e2, e3, e4) ->
+    | E4 (Repeat, e1, e2, e3, e4) ->
         pp oc "(Repeat %a %a %a %a)" p e1 p e2 p e3 p e4
 
 exception Type_error of e * e * typ * string
@@ -582,388 +583,233 @@ let rec vtype_of_valueptr e0 l e =
 (* [e] must have been type checked already: *)
 and type_of l e0 =
   match e0 with
-  | Dump _
+  | E1 (Dump, _)
   | Seq []
-  | Ignore _ ->
+  | E1 (Ignore, _) ->
       void
   | Seq es ->
       type_of l (List.last es)
-  | Comment (_, e)
-  | Coalesce (_, e)
-  | Add (e, _)
-  | Sub (e, _)
-  | Mul (e, _)
-  | Div (e, _)
-  | Rem (e, _)
-  | LogAnd (e, _)
-  | LogOr (e, _)
-  | LogXor (e, _)
-  | LeftShift (e, _)
-  | RightShift (e, _)
-  | LogNot e ->
+  | E1 (Comment _, e)
+  | E2 (Coalesce, _, e)
+  | E2 (Add, e, _)
+  | E2 (Sub, e, _)
+  | E2 (Mul, e, _)
+  | E2 (Div, e, _)
+  | E2 (Rem, e, _)
+  | E2 (LogAnd, e, _)
+  | E2 (LogOr, e, _)
+  | E2 (LogXor, e, _)
+  | E2 (LeftShift, e, _)
+  | E2 (RightShift, e, _)
+  | E1 (LogNot, e) ->
       type_of l e
-  | ToNullable e ->
+  | E1 (ToNullable, e) ->
       typ_to_nullable (type_of l e)
-  | ToNotNullable e ->
+  | E1 (ToNotNullable, e) ->
       typ_to_not_nullable (type_of l e)
-  | IsNull _ -> bool
-  | Null t -> TValue (Nullable t)
-  | Float _ -> float
-  | String _ -> string
-  | Bool _ -> bool
-  | Char _ -> char
-  | U8 _ -> u8
-  | U16 _ -> u16
-  | U24 _ -> u24
-  | U32 _ -> u32
-  | U40 _ -> u40
-  | U48 _ -> u48
-  | U56 _ -> u56
-  | U64 _ -> u64
-  | U128 _ -> u128
-  | I8 _ -> i8
-  | I16 _ -> i16
-  | I24 _ -> i24
-  | I32 _ -> i32
-  | I40 _ -> i40
-  | I48 _ -> i48
-  | I56 _ -> i56
-  | I64 _ -> i64
-  | I128 _ -> i128
-  | Bit _ -> bit
-  | Size _ -> size
-  | Byte _ -> byte
-  | Word _ -> word
-  | DWord _ -> dword
-  | QWord _ -> qword
-  | OWord _ -> oword
-  | Gt _ -> bool
-  | Ge _ -> bool
-  | Eq _ -> bool
-  | Ne _ -> bool
-  | StringOfFloat _
-  | StringOfChar _
-  | StringOfInt _ -> string
-  | CharOfString _ -> char
-  | FloatOfString _ -> float
-  | U8OfString _ -> u8
-  | U16OfString _ -> u16
-  | U24OfString _ -> u24
-  | U32OfString _ -> u32
-  | U40OfString _ -> u40
-  | U48OfString _ -> u48
-  | U56OfString _ -> u56
-  | U64OfString _ -> u64
-  | U128OfString _ -> u128
-  | I8OfString _ -> i8
-  | I16OfString _ -> i16
-  | I24OfString _ -> i24
-  | I32OfString _ -> i32
-  | I40OfString _ -> i40
-  | I48OfString _ -> i48
-  | I56OfString _ -> i56
-  | I64OfString _ -> i64
-  | I128OfString _ -> i128
-  | FloatOfQWord _ -> float
-  | QWordOfFloat _ -> qword
-  | U8OfByte _ -> u8
-  | ByteOfU8 _ -> byte
-  | U16OfWord _ -> u16
-  | WordOfU16 _ -> word
-  | U32OfDWord _ -> u32
-  | DWordOfU32 _ -> dword
-  | U64OfQWord _ -> u64
-  | QWordOfU64 _ -> qword
-  | U128OfOWord _ -> u128
-  | OWordOfU128 _ -> oword
-  | U8OfChar _ -> u8
-  | CharOfU8 _ -> char
-  | SizeOfU32 _ -> size
-  | U32OfSize _ -> u32
-  | BitOfBool _ -> bit
-  | BoolOfBit _ -> bool
-  | U8OfBool _ -> u8
-  | BoolOfU8 _ -> bool
-  | AppendBytes _ -> bytes
-  | AppendString _ -> string
-  | StringLength _ -> u32
-  | StringOfBytes _ -> string
-  | BytesOfString _ -> bytes
-  | ListLength _ -> u32
-  | DataPtrOfString _ -> dataptr
-  | TestBit _ -> bit
-  | SetBit _ -> dataptr
-  | ReadByte _ -> pair byte dataptr
-  | ReadWord _ -> pair word dataptr
-  | ReadDWord _ -> pair dword dataptr
-  | ReadQWord _ -> pair qword dataptr
-  | ReadOWord _ -> pair oword dataptr
-  | ReadBytes _ -> pair bytes dataptr
-  | PeekByte _ -> byte
-  | PeekWord _ -> word
-  | PeekDWord _ -> dword
-  | PeekQWord _ -> qword
-  | PeekOWord _ -> oword
-  | WriteByte _ -> dataptr
-  | WriteWord _ -> dataptr
-  | WriteDWord _ -> dataptr
-  | WriteQWord _ -> dataptr
-  | WriteOWord _ -> dataptr
-  | WriteBytes _ -> dataptr
-  | PokeByte _ -> dataptr
-  | BlitByte _ -> dataptr
-  | DataPtrAdd _ -> dataptr
-  | DataPtrSub _ -> size
-  | DataPtrPush _ -> dataptr
-  | DataPtrPop _ -> dataptr
-  | RemSize _ -> size
-  | And _ -> bool
-  | Or _ -> bool
-  | Not _ -> bool
-  | ToU8 _ -> i8
-  | ToI8 _ -> u8
-  | ToU16 _ -> u16
-  | ToI16 _ -> i16
-  | ToU24 _ -> u24
-  | ToI24 _ -> i24
-  | ToU32 _ -> u32
-  | ToI32 _ -> i32
-  | ToU40 _ -> u40
-  | ToI40 _ -> i40
-  | ToU48 _ -> u48
-  | ToI48 _ -> i48
-  | ToU56 _ -> u56
-  | ToI56 _ -> i56
-  | ToU64 _ -> u64
-  | ToI64 _ -> i64
-  | ToU128 _ -> u128
-  | ToI128 _ -> i128
-  | AllocValue vtyp -> valueptr vtyp
-  | DerefValuePtr e ->
+  | E1 (IsNull, _) -> bool
+  | E0 (Null t) -> TValue (Nullable t)
+  | E0 (Float _) -> float
+  | E0 (String _) -> string
+  | E0 (Bool _) -> bool
+  | E0 (Char _) -> char
+  | E0 (U8 _) -> u8
+  | E0 (U16 _) -> u16
+  | E0 (U24 _) -> u24
+  | E0 (U32 _) -> u32
+  | E0 (U40 _) -> u40
+  | E0 (U48 _) -> u48
+  | E0 (U56 _) -> u56
+  | E0 (U64 _) -> u64
+  | E0 (U128 _) -> u128
+  | E0 (I8 _) -> i8
+  | E0 (I16 _) -> i16
+  | E0 (I24 _) -> i24
+  | E0 (I32 _) -> i32
+  | E0 (I40 _) -> i40
+  | E0 (I48 _) -> i48
+  | E0 (I56 _) -> i56
+  | E0 (I64 _) -> i64
+  | E0 (I128 _) -> i128
+  | E0 (Bit _) -> bit
+  | E0 (Size _) -> size
+  | E0 (Byte _) -> byte
+  | E0 (Word _) -> word
+  | E0 (DWord _) -> dword
+  | E0 (QWord _) -> qword
+  | E0 (OWord _) -> oword
+  | E2 (Gt, _, _) -> bool
+  | E2 (Ge, _, _) -> bool
+  | E2 (Eq, _, _) -> bool
+  | E2 (Ne, _, _) -> bool
+  | E1 (StringOfFloat, _)
+  | E1 (StringOfChar, _)
+  | E1 (StringOfInt, _) -> string
+  | E1 (CharOfString, _) -> char
+  | E1 (FloatOfString, _) -> float
+  | E1 (U8OfString, _) -> u8
+  | E1 (U16OfString, _) -> u16
+  | E1 (U24OfString, _) -> u24
+  | E1 (U32OfString, _) -> u32
+  | E1 (U40OfString, _) -> u40
+  | E1 (U48OfString, _) -> u48
+  | E1 (U56OfString, _) -> u56
+  | E1 (U64OfString, _) -> u64
+  | E1 (U128OfString, _) -> u128
+  | E1 (I8OfString, _) -> i8
+  | E1 (I16OfString, _) -> i16
+  | E1 (I24OfString, _) -> i24
+  | E1 (I32OfString, _) -> i32
+  | E1 (I40OfString, _) -> i40
+  | E1 (I48OfString, _) -> i48
+  | E1 (I56OfString, _) -> i56
+  | E1 (I64OfString, _) -> i64
+  | E1 (I128OfString, _) -> i128
+  | E1 (FloatOfQWord, _) -> float
+  | E1 (QWordOfFloat, _) -> qword
+  | E1 (U8OfByte, _) -> u8
+  | E1 (ByteOfU8, _) -> byte
+  | E1 (U16OfWord, _) -> u16
+  | E1 (WordOfU16, _) -> word
+  | E1 (U32OfDWord, _) -> u32
+  | E1 (DWordOfU32, _) -> dword
+  | E1 (U64OfQWord, _) -> u64
+  | E1 (QWordOfU64, _) -> qword
+  | E1 (U128OfOWord, _) -> u128
+  | E1 (OWordOfU128, _) -> oword
+  | E1 (U8OfChar, _) -> u8
+  | E1 (CharOfU8, _) -> char
+  | E1 (SizeOfU32, _) -> size
+  | E1 (U32OfSize, _) -> u32
+  | E1 (BitOfBool, _) -> bit
+  | E1 (BoolOfBit, _) -> bool
+  | E1 (U8OfBool, _) -> u8
+  | E1 (BoolOfU8, _) -> bool
+  | E2 (AppendBytes, _, _) -> bytes
+  | E2 (AppendString, _, _) -> string
+  | E1 (StringLength, _) -> u32
+  | E1 (StringOfBytes, _) -> string
+  | E1 (BytesOfString, _) -> bytes
+  | E1 (ListLength, _) -> u32
+  | E0 (DataPtrOfString _) -> dataptr
+  | E2 (TestBit, _, _) -> bit
+  | E3 (SetBit, _, _, _) -> dataptr
+  | E1 (ReadByte, _) -> pair byte dataptr
+  | E1 (ReadWord _, _) -> pair word dataptr
+  | E1 (ReadDWord _, _) -> pair dword dataptr
+  | E1 (ReadQWord _, _) -> pair qword dataptr
+  | E1 (ReadOWord _, _) -> pair oword dataptr
+  | E2 (ReadBytes, _, _) -> pair bytes dataptr
+  | E2 (PeekByte, _, _) -> byte
+  | E2 (PeekWord _, _, _) -> word
+  | E2 (PeekDWord _ , _, _)-> dword
+  | E2 (PeekQWord _, _, _) -> qword
+  | E2 (PeekOWord _, _, _) -> oword
+  | E2 (WriteByte, _, _) -> dataptr
+  | E2 (WriteWord _, _, _) -> dataptr
+  | E2 (WriteDWord _, _, _) -> dataptr
+  | E2 (WriteQWord _, _, _) -> dataptr
+  | E2 (WriteOWord _, _, _) -> dataptr
+  | E2 (WriteBytes, _, _) -> dataptr
+  | E2 (PokeByte, _, _) -> dataptr
+  | E3 (BlitByte, _, _, _) -> dataptr
+  | E2 (DataPtrAdd, _, _) -> dataptr
+  | E2 (DataPtrSub, _, _) -> size
+  | E1 (DataPtrPush, _) -> dataptr
+  | E1 (DataPtrPop, _) -> dataptr
+  | E1 (RemSize, _) -> size
+  | E2 (And, _, _) -> bool
+  | E2 (Or, _, _) -> bool
+  | E1 (Not, _) -> bool
+  | E1 (ToU8, _) -> i8
+  | E1 (ToI8, _) -> u8
+  | E1 (ToU16, _) -> u16
+  | E1 (ToI16, _) -> i16
+  | E1 (ToU24, _) -> u24
+  | E1 (ToI24, _) -> i24
+  | E1 (ToU32, _) -> u32
+  | E1 (ToI32, _) -> i32
+  | E1 (ToU40, _) -> u40
+  | E1 (ToI40, _) -> i40
+  | E1 (ToU48, _) -> u48
+  | E1 (ToI48, _) -> i48
+  | E1 (ToU56, _) -> u56
+  | E1 (ToI56, _) -> i56
+  | E1 (ToU64, _) -> u64
+  | E1 (ToI64, _) -> i64
+  | E1 (ToU128, _) -> u128
+  | E1 (ToI128, _) -> i128
+  | E0 (AllocValue vtyp) -> valueptr vtyp
+  | E1 (DerefValuePtr, e) ->
       TValue (vtype_of_valueptr e0 l e)
-  | SetField (_, e1, _) -> type_of l e1
-  | FieldIsNull _ -> bool
-  | GetField (path, e) ->
+  | E2 (SetField _, e1, _) -> type_of l e1
+  | E1 (FieldIsNull _, _) -> bool
+  | E1 (GetField path, e) ->
       let vt = vtype_of_valueptr e0 l e in
       TValue (type_of_path vt path)
-  | Pair (e1, e2) ->
+  | E2 (Pair, e1, e2) ->
       pair (type_of l e1) (type_of l e2)
-  | Fst e ->
+  | E1 (Fst, e) ->
       (match type_of l e with
       | TPair (t, _) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
-  | Snd e ->
+  | E1 (Snd, e) ->
       (match type_of l e with
       | TPair (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
-  | MapPair (_, e) ->
+  | E2 (MapPair, _, e) ->
       (match type_of l e with
       | TFunction (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a function")))
-  | Identifier n as e ->
+  | E0 (Identifier n) as e ->
       (try List.assoc e l
       with Not_found ->
           Printf.eprintf "Cannot find identifier %S in %a\n%!"
             n (List.print (fun oc (e, _) -> print_expr oc e)) l ;
           raise Not_found)
-  | Let (n, e1, e2) ->
-      type_of ((Identifier n, (type_of l e1))::l) e2
-  | Function (fid, ts, e) ->
-      let l = Array.fold_lefti (fun l i t -> (Param (fid, i), t)::l) l ts in
+  | E2 (Let n, e1, e2) ->
+      type_of ((E0 (Identifier n), type_of l e1) :: l) e2
+  | E1 (Function (fid, ts), e) ->
+      let l = Array.fold_lefti (fun l i t ->
+        (E0 (Param (fid, i)), t) :: l
+      ) l ts in
       TFunction (ts, type_of l e)
-  | Param (fid, n) as e ->
+  | E0 (Param (fid, n)) as e ->
       (try List.assoc e l
       with Not_found ->
           Printf.eprintf "Cannot find parameter #%d of function %d in %a\n%!"
             n fid (List.print (fun oc (e, _) -> print_expr oc e)) l ;
           raise Not_found)
-  | Choose (_, e, _) -> type_of l e
-  | ReadWhile (_, _, e, _) -> pair (type_of l e) dataptr
-  | LoopWhile (_, _, e) -> type_of l e
-  | LoopUntil (_, _, e) -> type_of l e
-  | Repeat (_, _, _, e) -> type_of l e
+  | E3 (Choose, _, e, _) -> type_of l e
+  | E4 (ReadWhile, _, _, e, _) -> pair (type_of l e) dataptr
+  | E3 (LoopWhile, _, _, e) -> type_of l e
+  | E3 (LoopUntil, _, _, e) -> type_of l e
+  | E4 (Repeat, _, _, _, e) -> type_of l e
 
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold_expr u l f e =
   let u = f u l e in
   match e with
-  | Null _
-  | Float _
-  | String _
-  | Bool _
-  | Char _
-  | U8 _
-  | U24 _
-  | U16 _
-  | U32 _
-  | U40 _
-  | U48 _
-  | U56 _
-  | U64 _
-  | U128 _
-  | I8 _
-  | I16 _
-  | I24 _
-  | I32 _
-  | I40 _
-  | I48 _
-  | I56 _
-  | I64 _
-  | I128 _
-  | Bit _
-  | Size _
-  | Byte _
-  | Word _
-  | DWord _
-  | QWord _
-  | OWord _
-  | Param _
-  | DataPtrOfString _
-  | AllocValue _
-  | Identifier _ ->
-      u
-  | Dump e1
-  | Ignore e1
-  | DerefValuePtr e1
-  | Comment (_, e1)
-  | IsNull e1
-  | ToNullable e1
-  | ToNotNullable e1
-  | DataPtrPush e1
-  | DataPtrPop e1
-  | LogNot e1
-  | StringOfInt e1
-  | StringOfChar e1
-  | FloatOfQWord e1
-  | QWordOfFloat e1
-  | StringOfFloat e1
-  | FloatOfString e1
-  | CharOfString e1
-  | U8OfString e1
-  | U16OfString e1
-  | U24OfString e1
-  | U32OfString e1
-  | U40OfString e1
-  | U48OfString e1
-  | U56OfString e1
-  | U64OfString e1
-  | U128OfString e1
-  | I8OfString e1
-  | I16OfString e1
-  | I24OfString e1
-  | I32OfString e1
-  | I40OfString e1
-  | I48OfString e1
-  | I56OfString e1
-  | I64OfString e1
-  | I128OfString e1
-  | U8OfByte e1
-  | ByteOfU8 e1
-  | U16OfWord e1
-  | WordOfU16 e1
-  | U32OfDWord e1
-  | DWordOfU32 e1
-  | U64OfQWord e1
-  | QWordOfU64 e1
-  | U128OfOWord e1
-  | OWordOfU128 e1
-  | U8OfChar e1
-  | CharOfU8 e1
-  | SizeOfU32 e1
-  | U32OfSize e1
-  | BitOfBool e1
-  | BoolOfBit e1
-  | U8OfBool e1
-  | BoolOfU8 e1
-  | StringLength e1
-  | StringOfBytes e1
-  | BytesOfString e1
-  | ListLength e1
-  | ReadByte e1
-  | ReadWord (_, e1)
-  | ReadDWord (_, e1)
-  | ReadQWord (_, e1)
-  | ReadOWord (_, e1)
-  | RemSize e1
-  | Not e1
-  | ToU8 e1
-  | ToI8 e1
-  | ToU16 e1
-  | ToI16 e1
-  | ToU24 e1
-  | ToI24 e1
-  | ToU32 e1
-  | ToI32 e1
-  | ToU40 e1
-  | ToI40 e1
-  | ToU48 e1
-  | ToI48 e1
-  | ToU56 e1
-  | ToI56 e1
-  | ToU64 e1
-  | ToI64 e1
-  | ToU128 e1
-  | ToI128 e1
-  | FieldIsNull (_, e1)
-  | GetField (_, e1)
-  | Fst e1
-  | Snd e1 ->
-      fold_expr u l f e1
-  | Coalesce (e1, e2)
-  | Gt (e1, e2)
-  | Ge (e1, e2)
-  | Eq (e1, e2)
-  | Ne (e1, e2)
-  | Add (e1, e2)
-  | Sub (e1, e2)
-  | Mul (e1, e2)
-  | Div (e1, e2)
-  | Rem (e1, e2)
-  | LogAnd (e1, e2)
-  | LogOr (e1, e2)
-  | LogXor (e1, e2)
-  | LeftShift (e1, e2)
-  | RightShift (e1, e2)
-  | AppendBytes (e1, e2)
-  | AppendString (e1, e2)
-  | TestBit (e1, e2)
-  | ReadBytes (e1, e2)
-  | PeekByte (e1, e2)
-  | WriteByte (e1, e2)
-  | PeekWord (_, e1, e2)
-  | PeekDWord (_, e1, e2)
-  | PeekQWord (_, e1, e2)
-  | PeekOWord (_, e1, e2)
-  | WriteWord (_, e1, e2)
-  | WriteDWord (_, e1, e2)
-  | WriteQWord (_, e1, e2)
-  | WriteOWord (_, e1, e2)
-  | WriteBytes (e1, e2)
-  | PokeByte (e1, e2)
-  | DataPtrAdd (e1, e2)
-  | DataPtrSub (e1, e2)
-  | And (e1, e2)
-  | Or (e1, e2)
-  | SetField (_, e1, e2)
-  | Pair (e1, e2)
-  | MapPair (e1, e2) ->
-      fold_expr (fold_expr u l f e1) l f e2
-  | Let (s, e1, e2) ->
-      fold_expr (fold_expr u l f e1) ((Identifier s, type_of l e1)::l) f e2
-  | SetBit (e1, e2, e3)
-  | BlitByte (e1, e2, e3)
-  | Choose (e1, e2, e3)
-  | LoopWhile (e1, e2, e3)
-  | LoopUntil (e1, e2, e3) ->
-      fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3
-  | ReadWhile (e1, e2, e3, e4)
-  | Repeat (e1, e2, e3, e4) ->
-      fold_expr (fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3) l f e4
   | Seq es ->
       List.fold_left (fun u e1 -> fold_expr u l f e1) u es
-  | Function (id, ts, e1) ->
-      let l = Array.fold_lefti (fun l i t -> (Param (id, i), t)::l) l ts in
+  | E0 _ ->
+      u
+  | E1 (Function (id, ts), e1) ->
+      let l = Array.fold_lefti (fun l i t ->
+        (E0 (Param (id, i)), t) :: l
+      ) l ts in
       fold_expr u l f e1
+  | E1 (_, e1) ->
+      fold_expr u l f e1
+  | E2 (Let s, e1, e2) ->
+      let l' = (E0 (Identifier s), type_of l e1) :: l in
+      fold_expr (fold_expr u l f e1) l' f e2
+  | E2 (_, e1, e2) ->
+      fold_expr (fold_expr u l f e1) l f e2
+  | E3 (_, e1, e2, e3) ->
+      fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3
+  | E4 (_, e1, e2, e3, e4) ->
+      fold_expr (fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3) l f e4
 
 let type_check l e =
   fold_expr () l (fun () l e0 ->
@@ -1066,254 +912,161 @@ let type_check l e =
             raise (Type_error_path (e0, e, path, "be "^ expected))
       | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
     match e0 with
-    | Comment _
-    | Dump _
-    | Ignore _
-    | Null _
-    | Float _
-    | String _
-    | Bool _
-    | Char _
-    | U8 _
-    | U16 _
-    | U24 _
-    | U32 _
-    | U40 _
-    | U48 _
-    | U56 _
-    | U64 _
-    | U128 _
-    | I8 _
-    | I16 _
-    | I24 _
-    | I32 _
-    | I40 _
-    | I48 _
-    | I56 _
-    | I64 _
-    | I128 _
-    | Bit _
-    | Size _
-    | Byte _
-    | Word _
-    | DWord _
-    | QWord _
-    | OWord _
-    | DataPtrOfString _
-    | AllocValue _
-    | Pair _
-    | Identifier _
-    | Let _
-    | Param _
-    | Function _ ->
+    | E0 (Null _ | Float _ | String _ | Bool _ | Char _
+         | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
+         | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
+         | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+         | DataPtrOfString _ | AllocValue _
+         | Identifier _| Param _)
+    | E1 ((Comment _ | Dump | Ignore | Function _), _)
+    | E2 ((Pair | Let _), _, _) ->
         ()
     | Seq es ->
         let rec loop = function
           | [] | [_] -> ()
           | e::es -> check_void l e ; loop es in
         loop es
-    | IsNull e ->
+    | E1 (IsNull, e) ->
         check_nullable l e
-    | Coalesce (e1, e2) ->
+    | E2 (Coalesce, e1, e2) ->
         check_nullable l e1 ;
         check_not_nullable l e2
-    | ToNullable e ->
+    | E1 (ToNullable, e) ->
         check_not_nullable l e
-    | ToNotNullable e ->
+    | E1 (ToNotNullable, e) ->
         check_nullable l e
-    | Gt (e1, e2)
-    | Ge (e1, e2)
-    | Eq (e1, e2)
-    | Ne (e1, e2) ->
+    | E2 ((Gt | Ge | Eq | Ne), e1, e2) ->
         check_comparable l e1 ;
         check_same_types l e1 e2
-    | Add (e1, e2)
-    | Sub (e1, e2)
-    | Mul (e1, e2)
-    | Div (e1, e2)
-    | Rem (e1, e2) ->
+    | E2 ((Add | Sub | Mul | Div | Rem), e1, e2) ->
         check_numeric l e1 ;
         check_same_types l e1 e2
-    | LogAnd (e1, e2)
-    | LogOr (e1, e2)
-    | LogXor (e1, e2) ->
+    | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
         check_integer l e1 ;
         check_same_types l e1 e2
-    | LeftShift (e1, e2)
-    | RightShift (e1, e2) ->
+    | E2 ((LeftShift | RightShift), e1, e2) ->
         check_integer l e1 ;
         check_eq l e2 u8
-    | LogNot e
-    | StringOfInt e ->
+    | E1 ((LogNot | StringOfInt), e) ->
         check_integer l e
-    | StringOfChar e
-    | U8OfChar e ->
+    | E1 ((StringOfChar | U8OfChar), e) ->
         check_eq l e char
-    | FloatOfString e
-    | CharOfString e
-    | U8OfString e
-    | U16OfString e
-    | U24OfString e
-    | U32OfString e
-    | U40OfString e
-    | U48OfString e
-    | U56OfString e
-    | U64OfString e
-    | U128OfString e
-    | I8OfString e
-    | I16OfString e
-    | I24OfString e
-    | I32OfString e
-    | I40OfString e
-    | I48OfString e
-    | I56OfString e
-    | I64OfString e
-    | I128OfString e
-    | StringLength e
-    | BytesOfString e ->
+    | E1 ((FloatOfString | CharOfString | U8OfString | U16OfString
+         | U24OfString | U32OfString | U40OfString | U48OfString
+         | U56OfString | U64OfString | U128OfString | I8OfString
+         | I16OfString | I24OfString | I32OfString | I40OfString
+         | I48OfString | I56OfString | I64OfString | I128OfString
+         | StringLength | BytesOfString), e) ->
         check_eq l e string
-    | FloatOfQWord e
-    | U64OfQWord e ->
+    | E1 ((FloatOfQWord | U64OfQWord), e) ->
         check_eq l e qword
-    | QWordOfFloat e
-    | StringOfFloat e ->
+    | E1 ((QWordOfFloat | StringOfFloat), e) ->
         check_eq l e float
-    | U8OfByte e ->
+    | E1 (U8OfByte, e) ->
         check_eq l e byte
-    | CharOfU8 e
-    | ByteOfU8 e
-    | BoolOfU8 e ->
+    | E1 ((CharOfU8 | ByteOfU8 | BoolOfU8), e) ->
         check_eq l e u8
-    | ToU8 e
-    | ToI8 e
-    | ToI16 e
-    | ToU16 e
-    | ToI24 e
-    | ToU24 e
-    | ToI32 e
-    | ToU32 e
-    | ToI40 e
-    | ToU40 e
-    | ToI48 e
-    | ToU48 e
-    | ToI56 e
-    | ToU56 e
-    | ToI64 e
-    | ToU64 e
-    | ToI128 e
-    | ToU128 e ->
+    | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
+         | ToI40 | ToU40 | ToI48 | ToU48 | ToI56 | ToU56 | ToI64 | ToU64
+         | ToI128 | ToU128), e) ->
         check_integer l e
-    | U16OfWord e ->
+    | E1 (U16OfWord, e) ->
         check_eq l e word
-    | WordOfU16 e ->
+    | E1 (WordOfU16, e) ->
         check_eq l e u16
-    | U32OfDWord e ->
+    | E1 (U32OfDWord, e) ->
         check_eq l e dword
-    | DWordOfU32 e
-    | SizeOfU32 e ->
+    | E1 ((DWordOfU32 | SizeOfU32), e) ->
         check_eq l e u32
-    | QWordOfU64 e ->
+    | E1 (QWordOfU64, e) ->
         check_eq l e u64
-    | OWordOfU128 e ->
+    | E1 (OWordOfU128, e) ->
         check_eq l e u128
-    | U128OfOWord e ->
+    | E1 (U128OfOWord, e) ->
         check_eq l e oword
-    | U32OfSize e ->
+    | E1 (U32OfSize, e) ->
         check_eq l e size
-    | BitOfBool e
-    | U8OfBool e
-    | Not e ->
+    | E1 ((BitOfBool | U8OfBool | Not), e) ->
         check_eq l e bool
-    | BoolOfBit e ->
+    | E1 (BoolOfBit, e) ->
         check_eq l e bit
-    | AppendBytes (e1, e2) ->
+    | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 bytes ;
         check_eq l e2 bytes
-    | AppendString (e1, e2) ->
+    | E2 (AppendString, e1, e2) ->
         check_eq l e1 string ;
         check_eq l e2 string
-    | StringOfBytes e ->
+    | E1 (StringOfBytes, e) ->
         check_eq l e bytes
-    | ListLength e ->
+    | E1 (ListLength, e) ->
         check_list l e
-    | TestBit (e1, e2) ->
+    | E2 (TestBit, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 size
-    | SetBit (e1, e2, e3) ->
+    | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 dataptr ;
         check_eq l e2 u32 ;
         check_eq l e3 bit
-    | ReadByte e
-    | ReadWord (_, e)
-    | ReadDWord (_, e)
-    | ReadQWord (_, e)
-    | ReadOWord (_, e) ->
+    | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
         check_eq l e dataptr
-    | ReadBytes (e1, e2)
-    | PeekByte (e1, e2)
-    | PeekWord (_, e1, e2)
-    | PeekDWord (_, e1, e2)
-    | PeekQWord (_, e1, e2)
-    | PeekOWord (_, e1, e2) ->
+    | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
+         | PeekOWord _), e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 size
-    | WriteByte (e1, e2)
-    | PokeByte (e1, e2) ->
+    | E2 ((WriteByte | PokeByte), e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 byte
-    | WriteWord (_, e1, e2) ->
+    | E2 (WriteWord _, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 word
-    | WriteDWord (_, e1, e2) ->
+    | E2 (WriteDWord _, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 dword
-    | WriteQWord (_, e1, e2) ->
+    | E2 (WriteQWord _, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 qword
-    | WriteOWord (_, e1, e2) ->
+    | E2 (WriteOWord _, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 oword
-    | WriteBytes (e1, e2) ->
+    | E2 (WriteBytes, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 bytes
-    | BlitByte (e1, e2, e3) ->
+    | E3 (BlitByte, e1, e2, e3) ->
         check_eq l e1 dataptr ;
         check_eq l e2 byte ;
         check_eq l e3 size
-    | DataPtrAdd (e1, e2) ->
+    | E2 (DataPtrAdd, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 size
-    | DataPtrSub (e1, e2) ->
+    | E2 (DataPtrSub, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 dataptr
-    | DataPtrPush e1
-    | DataPtrPop e1 ->
+    | E1 ((DataPtrPush | DataPtrPop), e1) ->
         check_eq l e1 dataptr
-    | RemSize e ->
+    | E1 (RemSize, e) ->
         check_eq l e dataptr ;
-    | And (e1, e2)
-    | Or (e1, e2) ->
+    | E2 ((And | Or), e1, e2) ->
         check_eq l e1 bool ;
         check_eq l e2 bool
-    | DerefValuePtr e1 ->
+    | E1 (DerefValuePtr, e1) ->
         check_valueptr l e1
-    | SetField (path, e1, e2) ->
+    | E2 (SetField path, e1, e2) ->
         check_valueptr_path_same_types l e1 path e2
-    | FieldIsNull (path, e) ->
+    | E1 (FieldIsNull path, e) ->
         check_valueptr_path_nullable l e path true
-    | GetField (path, e) ->
+    | E1 (GetField path, e) ->
         check_valueptr_path l e path
-    | Fst e ->
+    | E1 (Fst, e) ->
         check_pair l e
-    | Snd e ->
+    | E1 (Snd, e) ->
         check_pair l e
-    | MapPair (e1, e2) ->
+    | E2 (MapPair, e1, e2) ->
         check_pair l e1 ;
         check_function 2 l e2
-    | Choose (e1, e2, e3) ->
+    | E3 (Choose, e1, e2, e3) ->
         check_eq l e1 bool ;
         check_same_types l e2 e3
-    | ReadWhile (e1, e2, e3, e4) ->
+    | E4 (ReadWhile, e1, e2, e3, e4) ->
         check_params1 l e1 (fun t1 t2 ->
           check_param e1 0 t1 byte ;
           check_param e1 1 t2 bool) ;
@@ -1322,21 +1075,21 @@ let type_check l e =
           check_param e2 1 t2 byte ;
           check_eq l e3 t3) ;
         check_eq l e4 dataptr
-    | LoopWhile (e1, e2, e3) ->
+    | E3 (LoopWhile, e1, e2, e3) ->
         check_params1 l e1 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_param e1 1 t2 bool) ;
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_eq l e3 t2)
-    | LoopUntil (e1, e2, e3) ->
+    | E3 (LoopUntil, e1, e2, e3) ->
         check_params1 l e1 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_eq l e3 t2) ;
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_param e2 1 t2 bool) ;
-    | Repeat (e1, e2, e3, e4) ->
+    | E4 (Repeat, e1, e2, e3, e4) ->
         check_eq l e1 i32 ;
         check_eq l e2 i32 ;
         check_params2 l e3 (fun t1 t2 t3 ->
@@ -1385,27 +1138,28 @@ let with_sploded_pair what e f =
   let pair_id = gen_id () ^"_"^ what in
   let n1 = pair_id ^"_0"
   and n2 = pair_id ^"_1" in
-  Let (pair_id, e,
-    Let (n1, Fst (Identifier pair_id),
-      Let (n2, Snd (Identifier pair_id),
-        f (Identifier n1) (Identifier n2))))
+  E2 (Let pair_id, e,
+    E2 (Let n1, E1 (Fst, E0 (Identifier pair_id)),
+      E2 (Let n2, E1 (Snd, E0 (Identifier pair_id)),
+        f (E0 (Identifier n1)) (E0 (Identifier n2)))))
 
 (*$< DessserTypes *)
 (*$inject
   let vptr = TValuePtr (Nullable (Mac TString))
   let func2 =
-    Function (14, [|vptr; TDataPtr|],
-      Let ("gen9_ds", Pair (GetField ([], Param (14, 0)),
-                            Param (14, 0)),
-        Let ("gen9_ds_0", Fst (Identifier "gen9_ds"),
-          Let ("gen9_ds_1", Snd (Identifier "gen9_ds"),
-            Pair (Identifier "gen9_ds_1",
-                  Comment ("Serialize a String",
-                    WriteByte (
-                      WriteBytes (
-                        WriteByte (Param (14, 1), ByteOfU8 (U8OfChar (Char '"'))),
-                        BytesOfString (ToNotNullable (Identifier "gen9_ds_0"))),
-                      ByteOfU8 (U8OfChar (Char '"')))))))))
+    let open Ops in
+    E1 (Function (14, [|vptr; TDataPtr|]),
+      let_ "gen9_ds" (pair (get_field [] (param 14 0))
+                           (param 14 0))
+        (let_ "gen9_ds_0" (fst (identifier "gen9_ds"))
+          (let_ "gen9_ds_1" (snd (identifier "gen9_ds"))
+            (pair (identifier "gen9_ds_1")
+                  (comment "Serialize a String"
+                    (write_byte
+                      (write_bytes
+                        (write_byte (param 14 1) (byte_of_const_char '"'))
+                        (bytes_of_string (to_not_nullable (identifier "gen9_ds_0"))))
+                      (byte_of_const_char '"')))))))
 *)
 (*$= type_of & ~printer:(BatIO.to_string print_typ)
   (TFunction ([|vptr; TDataPtr|], TPair (vptr, TDataPtr))) (type_of [] func2)
@@ -1440,3 +1194,147 @@ let register_user_expr name ?check ?type_ ?print def =
     | Some _ ->
         invalid_arg "register_user_expr"
   ) user_expressions
+
+(*
+ * Simplified notation:
+ *)
+
+module Ops =
+struct
+  let ignore_ e1 = E1 (Ignore, e1)
+  let dump e1 = E1 (Dump, e1)
+  let is_null e1 = E1 (IsNull, e1)
+  let coalesce e1 e2 = E2 (Coalesce, e1, e2)
+  let read_byte e1 = E1 (ReadByte, e1)
+  let read_word en e1 = E1 (ReadWord en, e1)
+  let read_dword en e1 = E1 (ReadDWord en, e1)
+  let read_qword en e1 = E1 (ReadQWord en, e1)
+  let read_oword en e1 = E1 (ReadOWord en, e1)
+  let peek_word en e1 e2 = E2 (PeekWord en, e1, e2)
+  let peek_dword en e1 e2 = E2 (PeekDWord en, e1, e2)
+  let peek_qword en e1 e2 = E2 (PeekQWord en, e1, e2)
+  let peek_oword en e1 e2 = E2 (PeekOWord en, e1, e2)
+  let read_bytes e1 e2 = E2 (ReadBytes, e1, e2)
+  let peek_byte e1 e2 = E2 (PeekByte, e1, e2)
+  let write_bytes e1 e2 = E2 (WriteBytes, e1, e2)
+  let write_byte e1 e2 = E2 (WriteByte, e1, e2)
+  let write_word en e1 e2 = E2 (WriteWord en, e1, e2)
+  let write_dword en e1 e2 = E2 (WriteDWord en, e1, e2)
+  let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
+  let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
+  let bytes_of_string e1 = E1 (BytesOfString, e1)
+  let string_of_int e1 = E1 (StringOfInt, e1)
+  let string_of_float e1 = E1 (StringOfFloat, e1)
+  let byte_of_u8 e1 = E1 (ByteOfU8, e1)
+  let bool_of_u8 e1 = E1 (BoolOfU8, e1)
+  let word_of_u16 e1 = E1 (WordOfU16, e1)
+  let dword_of_u32 e1 = E1 (DWordOfU32, e1)
+  let qword_of_u64 e1 = E1 (QWordOfU64, e1)
+  let oword_of_u128 e1 = E1 (OWordOfU128, e1)
+  let u8_of_byte e1 = E1 (U8OfByte, e1)
+  let u8_of_char e1 = E1 (U8OfChar, e1)
+  let u8_of_bool e1 = E1 (U8OfBool, e1)
+  let char_of_u8 e1 = E1 (CharOfU8, e1)
+  let u32_of_size e1 = E1 (U32OfSize, e1)
+  let size_of_u32 e1 = E1 (SizeOfU32, e1)
+  let null t = E0 (Null t)
+  let bit n = E0 (Bit n)
+  let bool n = E0 (Bool n)
+  let i8 n = E0 (I8 n)
+  let u8 n = E0 (U8 n)
+  let i16 n = E0 (I16 n)
+  let u16 n = E0 (U16 n)
+  let i24 n = E0 (I24 n)
+  let u24 n = E0 (U24 n)
+  let i32 n = E0 (I32 n)
+  let u32 n = E0 (U32 n)
+  let i40 n = E0 (I40 n)
+  let u40 n = E0 (U40 n)
+  let i48 n = E0 (I48 n)
+  let u48 n = E0 (U48 n)
+  let i56 n = E0 (I56 n)
+  let u56 n = E0 (U56 n)
+  let i64 n = E0 (I64 n)
+  let u64 n = E0 (U64 n)
+  let i128 n = E0 (I128 n)
+  let u128 n = E0 (U128 n)
+  let char n = E0 (Char n)
+  let float n = E0 (Float n)
+  let string n = E0 (String n)
+  let byte n = E0 (Byte n)
+  let size n = E0 (Size n)
+  let word n = E0 (Word n)
+  let dword n = E0 (DWord n)
+  let qword n = E0 (QWord n)
+  let oword n = E0 (OWord n)
+  let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
+  let byte_of_const_char e1 = byte_of_char (char e1)
+  let choose ~cond e2 e3 =  E3 (Choose, cond, e2, e3)
+  let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
+  let pair e1 e2 = E2 (Pair, e1, e2)
+  let float_of_qword e1 = E1 (FloatOfQWord, e1)
+  let qword_of_float e1 = E1 (QWordOfFloat, e1)
+  let let_ n e1 e2 = E2 (Let n, e1, e2)
+  let comment n e1 = E1 (Comment n, e1)
+  let ge e1 e2 = E2 (Ge, e1, e2)
+  let gt e1 e2 = E2 (Gt, e1, e2)
+  let eq e1 e2 = E2 (Eq, e1, e2)
+  let param fid n = E0 (Param (fid, n))
+  let add e1 e2 = E2 (Add, e1, e2)
+  let sub e1 e2 = E2 (Sub, e1, e2)
+  let mul e1 e2 = E2 (Mul, e1, e2)
+  let div e1 e2 = E2 (Div, e1, e2)
+  let rem e1 e2 = E2 (Rem, e1, e2)
+  let left_shift e1 e2 = E2 (LeftShift, e1, e2)
+  let right_shift e1 e2 = E2 (RightShift, e1, e2)
+  let log_and e1 e2 = E2 (LogAnd, e1, e2)
+  let log_or e1 e2 = E2 (LogOr, e1, e2)
+  let log_xor e1 e2 = E2 (LogXor, e1, e2)
+  let identifier n = E0 (Identifier n)
+  let to_i8 e1 = E1 (ToI8, e1)
+  let to_u8 e1 = E1 (ToU8, e1)
+  let to_i16 e1 = E1 (ToI16, e1)
+  let to_u16 e1 = E1 (ToU16, e1)
+  let to_i24 e1 = E1 (ToI24, e1)
+  let to_u24 e1 = E1 (ToU24, e1)
+  let to_i32 e1 = E1 (ToI32, e1)
+  let to_u32 e1 = E1 (ToU32, e1)
+  let to_i40 e1 = E1 (ToI40, e1)
+  let to_u40 e1 = E1 (ToU40, e1)
+  let to_i48 e1 = E1 (ToI48, e1)
+  let to_u48 e1 = E1 (ToU48, e1)
+  let to_i56 e1 = E1 (ToI56, e1)
+  let to_u56 e1 = E1 (ToU56, e1)
+  let to_i64 e1 = E1 (ToI64, e1)
+  let to_u64 e1 = E1 (ToU64, e1)
+  let to_i128 e1 = E1 (ToI128, e1)
+  let to_u128 e1 = E1 (ToU128, e1)
+  let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
+  let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
+  let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
+  let fst e1 = E1 (Fst, e1)
+  let snd e1 = E1 (Snd, e1)
+  let size_of_u32 e1 = E1 (SizeOfU32, e1)
+  let string_of_bytes e1 = E1 (StringOfBytes, e1)
+  let not_ e1 = E1 (Not, e1)
+  let u16_of_word e1 = E1 (U16OfWord, e1)
+  let u32_of_dword e1 = E1 (U32OfDWord, e1)
+  let u64_of_qword e1 = E1 (U64OfQWord, e1)
+  let u128_of_oword e1 = E1 (U128OfOWord, e1)
+  let data_ptr_add e1 e2 = E2 (DataPtrAdd, e1, e2)
+  let data_ptr_push e1 = E1 (DataPtrPush, e1)
+  let data_ptr_pop e1 = E1 (DataPtrPop, e1)
+  let data_ptr_of_string s = E0 (DataPtrOfString s)
+  let string_length e1 = E1 (StringLength, e1)
+  let list_length e1 = E1 (ListLength, e1)
+  let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
+  let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
+  let to_nullable e1 = E1 (ToNullable, e1)
+  let to_not_nullable e1 = E1 (ToNotNullable, e1)
+  let set_field p e1 e2 = E2 (SetField p, e1, e2)
+  let get_field p e1 = E1 (GetField p, e1)
+  let field_is_null p e1 = E1 (FieldIsNull p, e1)
+  let map_pair e1 e2 = E2 (MapPair, e1, e2)
+  let seq es = Seq es
+  let alloc_value mn = E0 (AllocValue mn)
+end

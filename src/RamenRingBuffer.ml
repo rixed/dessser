@@ -3,6 +3,8 @@ open Stdint
 open Dessser
 open DessserTypes
 open DessserExpressions
+open Ops
+module T = DessserTypes
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
 let ringbuf_word_size = ref 4
@@ -22,79 +24,79 @@ struct
 
   let push_nullmask st p =
     st.nullmasks <- 0 :: st.nullmasks ;
-    DataPtrPush p
+    data_ptr_push p
 
   let pop_nullmask st p =
     st.nullmasks <- List.tl st.nullmasks ;
-    DataPtrPop p
+    data_ptr_pop p
 
   (* Realign the pointer on a multiple of [ringbuf_word_size].
    * [extra_bytes] modulo [ringbuf_word_size] gives the number of bytes
    * that's been written after the last word boundary. *)
   let align_dyn p extra_bytes =
-    let wsize = Size !ringbuf_word_size in
-    let extra_bytes = Rem (extra_bytes, wsize) in
-    let padding_len = Sub (wsize, extra_bytes) in
-    Choose (Gt (wsize, padding_len),
-      DataPtrAdd (p, padding_len),
-      p)
+    let wsize = size !ringbuf_word_size in
+    let extra_bytes = rem extra_bytes wsize in
+    let padding_len = sub wsize extra_bytes in
+    choose ~cond:(gt wsize padding_len)
+      (data_ptr_add p padding_len)
+      p
 
   let align_const p extra_bytes =
     let extra_bytes = extra_bytes mod !ringbuf_word_size in
     let padding_len = !ringbuf_word_size - extra_bytes in
     if !ringbuf_word_size > extra_bytes then
-      DataPtrAdd (p, Size padding_len)
+      data_ptr_add p (size padding_len)
     else
       p
 
   (* Zero a nullmask known at compile time and advance the pointer *)
   let zero_nullmask_const bits p =
     let sz = (bits + 7) / 8 in
-    let p = BlitByte (p, Byte 0, Size sz) in
+    let p = blit_byte p (byte 0) (size sz) in
     align_const p sz
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
-    let sz = RightShift (Add (bits, Size 7), U8 3) in
-    let p = BlitByte (p, Byte 0, sz) in
+    let sz = right_shift (add bits (size 7)) (u8 3) in
+    let p = blit_byte p (byte 0) sz in
     align_dyn p sz
 
   type ser = state -> e -> e -> e
 
   let sfloat _st v p =
-    WriteQWord (LittleEndian, p, QWordOfFloat v)
+    write_qword LittleEndian p (qword_of_float v)
 
   let sstring _st v p =
-    let len = StringLength v in
-    let p = WriteDWord (LittleEndian, p, DWordOfU32 len) in
-    let bytes = BytesOfString v in
-    let p = WriteBytes (p, bytes) in
-    align_dyn p (SizeOfU32 len)
+    let len = string_length v in
+    let p = write_dword LittleEndian p (dword_of_u32 len) in
+    let bytes = bytes_of_string v in
+    let p = write_bytes p bytes in
+    align_dyn p (size_of_u32 len)
 
   let sbool _st v p =
-    let p = WriteByte (p, ByteOfU8 (U8OfBool v)) in
+    let p = write_byte p (byte_of_u8 (u8_of_bool v)) in
     align_const p 1
 
   let schar _st v p =
-    let p = WriteByte (p, ByteOfU8 (U8OfChar v)) in
+    let p = write_byte p (byte_of_u8 (u8_of_char v)) in
     align_const p 1
 
   let si8 _st v p =
-    let p = WriteByte (p, ByteOfU8 v) in
+    let p = write_byte p (byte_of_u8 v) in
     align_const p 1
 
   let si16 _st v p =
-    let p = WriteWord (LittleEndian, p, WordOfU16 v) in
+    let p = write_word LittleEndian p (word_of_u16 v) in
     align_const p 2
 
   let si32 _st v p =
-    let p = WriteDWord (LittleEndian, p, DWordOfU32 (ToU32 v)) in
+    let p = write_dword LittleEndian p (dword_of_u32 (to_u32 v)) in
     align_const p 4
 
   let si24 = si32
 
   let si64 _st v p =
-    let p = WriteQWord (LittleEndian, p, QWordOfU64 (ToU64 v)) in
+    let p = write_qword LittleEndian p (qword_of_u64 (to_u64 v)) in
     align_const p 8
 
   let si40 = si64
@@ -104,35 +106,35 @@ struct
   let si56 = si64
 
   let si128 _st v p =
-    let p = WriteOWord (LittleEndian, p, OWordOfU128 (ToU128 v)) in
+    let p = write_oword LittleEndian p (oword_of_u128 (to_u128 v)) in
     align_const p 16
 
   let su8 _st v p =
-    let p = WriteByte (p, ByteOfU8 v) in
+    let p = write_byte p (byte_of_u8 v) in
     align_const p 1
 
   let su16 _st v p =
-    let p = WriteWord (LittleEndian, p, WordOfU16 v) in
+    let p = write_word LittleEndian p (word_of_u16 v) in
     align_const p 2
 
   let su32 _st v p =
-    let p = WriteDWord (LittleEndian, p, DWordOfU32 v) in
+    let p = write_dword LittleEndian p (dword_of_u32 v) in
     align_const p 4
 
-  let su24 st v p = su32 st (ToU32 v) p
+  let su24 st v p = su32 st (to_u32 v) p
 
   let su64 _st v p =
-    let p = WriteQWord (LittleEndian, p, QWordOfU64 v) in
+    let p = write_qword LittleEndian p (qword_of_u64 v) in
     align_const p 8
 
-  let su40 st v p = su64 st (ToU64 v) p
+  let su40 st v p = su64 st (to_u64 v) p
 
-  let su48 st v p = su64 st (ToU64 v) p
+  let su48 st v p = su64 st (to_u64 v) p
 
-  let su56 st v p = su64 st (ToU64 v) p
+  let su56 st v p = su64 st (to_u64 v) p
 
   let su128 _st v p =
-    let p = WriteOWord (LittleEndian, p, OWordOfU128 v) in
+    let p = write_oword LittleEndian p (oword_of_u128 v) in
     align_const p 16
 
   let tup_opn_with_typs vtyps st p =
@@ -168,7 +170,7 @@ struct
     let vtyps =
       Array.filter (fun (name, _typ) -> not (is_private name)) vtyps in
     Array.fast_sort record_field_cmp vtyps ;
-    Array.map snd vtyps
+    Array.map Pervasives.snd vtyps
 
   let rec_opn st vtyps p =
     let vtyps = tuple_typs_of_record vtyps in
@@ -196,10 +198,10 @@ struct
 
   let list_opn st vtyp n p =
     let outermost = st.nullmasks = [] in
-    let p = WriteDWord (LittleEndian, p, DWordOfU32 n) in
+    let p = write_dword LittleEndian p (dword_of_u32 n) in
     let nullmask_bits =
       if outermost then
-        if is_nullable vtyp then n else U32 Uint32.zero
+        if is_nullable vtyp then n else u32 Uint32.zero
       else
         n in
     let p = push_nullmask st p in
@@ -217,7 +219,7 @@ struct
     | [] -> ()
     | bi :: r ->
         st.nullmasks <- (bi + 1) :: r) ;
-    Comment ("Advance nullmask bit index", p)
+    comment "Advance nullmask bit index" p
 
   (* The nullmask has been zeroed already: *)
   let snull _t _st p = p
@@ -228,9 +230,10 @@ struct
     match st.nullmasks with
     | [] -> p
     | bi :: _ ->
-        Comment ("Set the nullmask bit",
-          Seq [
-            Ignore (SetBit (DataPtrPop p, U32 (Uint32.of_int (bi-1)), Bit true)) ;
+        comment "Set the nullmask bit"
+          (Seq [
+            ignore_
+              (set_bit (data_ptr_pop p) (u32 (Uint32.of_int (bi-1))) (bit true)) ;
             p ])
 
   type ssizer = maybe_nullable -> path -> e -> ssize
@@ -244,10 +247,10 @@ struct
     round_up_const n
 
   let round_up_dyn sz =
-    let mask = Size (!ringbuf_word_size - 1) in
-    LogAnd (
-      Add (sz, mask),
-      LogXor (mask, SizeOfU32 (U32 (Uint32.of_int64 0xFFFF_FFFFL))))
+    let mask = size (!ringbuf_word_size - 1) in
+    log_and
+      (add sz mask)
+      (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
 
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
@@ -284,9 +287,9 @@ struct
   (* SerSize of the whole string: *)
   let ssize_of_string vtyp path id =
     unless_private vtyp path (fun () ->
-      let sz = SizeOfU32 (StringLength id) in
-      let headsz = Size !ringbuf_word_size in
-      DynSize (Add (headsz, round_up_dyn sz)))
+      let sz = size_of_u32 (string_length id) in
+      let headsz = size !ringbuf_word_size in
+      DynSize (add headsz (round_up_dyn sz)))
 
   (* SerSize of the list header: *)
   let ssize_of_list vtyp path _id =

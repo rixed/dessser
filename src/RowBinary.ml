@@ -3,9 +3,12 @@ open Stdint
 open Dessser
 open DessserTypes
 open DessserExpressions
+open Ops
+module T = DessserTypes
 
 module Des : DES =
 struct
+
   type state = unit
   let ptr _vtyp = dataptr
 
@@ -14,33 +17,34 @@ struct
   type des = state -> e -> e
 
   let dfloat () p =
-    with_sploded_pair "dfloat" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (FloatOfQWord w, p))
+    let w_p = read_qword LittleEndian p in
+    with_sploded_pair "dfloat" w_p (fun w p ->
+      pair (float_of_qword w) p)
 
   let read_leb128 p =
-    let t_u32_u8 = TPair (u32, u8) in
-    Let (
-      "leb_shft_ptr", ReadWhile (
-        Comment ("Condition for read_leb128",
-          func [|byte|] (fun fid -> Ge (Param (fid, 0), Byte 128))),
-        Comment ("Reducer for read_leb128",
-          func [|t_u32_u8; byte|] (fun fid ->
-            let byte = LogAnd (U8OfByte (Param (fid, 1)), U8 127) in
-            let leb = Fst (Param (fid, 0))
-            and shft = Snd (Param (fid, 0)) in
-            Pair (Add (LeftShift (ToU32 byte, shft), leb),
-                  Add (shft, U8 7)))),
-        Pair (U32 Uint32.zero, U8 0),
-        p),
+    let t_u32_u8 = TPair (T.u32, T.u8) in
+    let_ "leb_shft_ptr"
+      (read_while
+        ~cond:(comment "Condition for read_leb128"
+          (func [|T.byte|] (fun fid -> ge (param fid 0) (byte 128))))
+        ~reduce:(comment "Reducer for read_leb128"
+          (func [|t_u32_u8; T.byte|] (fun fid ->
+            let byte = log_and (u8_of_byte (param fid 1)) (u8 127) in
+            let leb = fst (param fid 0)
+            and shft = snd (param fid 0) in
+            pair (add  (left_shift (to_u32 byte) shft) leb)
+                 (add shft (u8 7)))))
+        ~init:(pair (u32 Uint32.zero) (u8 0))
+        ~pos:p)
       (* Still have to add the last byte (which is <128): *)
-      Comment ("Last byte from read_leb128",
-        with_sploded_pair "leb128_1" (Identifier "leb_shft_ptr") (fun leb_shft ptr ->
-          with_sploded_pair "leb128_2" (ReadByte ptr) (fun last_b ptr ->
-            Pair (
-              SizeOfU32 (Add (LeftShift (ToU32 (U8OfByte last_b),
-                                        (Snd leb_shft)),
-                              Fst leb_shft)),
-              ptr)))))
+      (comment "Last byte from read_leb128"
+        (with_sploded_pair "leb128_1" (identifier "leb_shft_ptr") (fun leb_shft ptr ->
+          with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->
+            pair
+              (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))
+                                            (snd leb_shft))
+                                (fst leb_shft)))
+              ptr))))
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
    * a size, and deserialize a RowBinary tuple into a non-nullable value of
@@ -49,88 +53,88 @@ struct
 
   let dstring () p =
     with_sploded_pair "dstring" (read_leb128 p) (fun len p ->
-      with_sploded_pair "dstring" (ReadBytes (p, len)) (fun bs p ->
-        Pair (StringOfBytes bs, p)))
+      with_sploded_pair "dstring" (read_bytes p len) (fun bs p ->
+        pair (string_of_bytes bs) p))
 
   let dbool () p =
-    with_sploded_pair "dbool" (ReadByte p) (fun b p ->
-      Pair (Not (Eq (U8OfByte b, U8 0)), p))
+    with_sploded_pair "dbool" (read_byte p) (fun b p ->
+      pair (not_ (eq (u8_of_byte b) (u8 0))) p)
 
   let dchar () p =
-    with_sploded_pair "dchar" (ReadByte p) (fun b p ->
-      Pair (CharOfU8 (U8OfByte b), p))
+    with_sploded_pair "dchar" (read_byte p) (fun b p ->
+      pair (char_of_u8 (u8_of_byte b)) p)
 
   let di8 () p =
-    with_sploded_pair "di8" (ReadByte p) (fun b p ->
-      Pair (ToI8 (U8OfByte b), p))
+    with_sploded_pair "di8" (read_byte p) (fun b p ->
+      pair (to_i8 (u8_of_byte b)) p)
 
   let du8 () p =
-    with_sploded_pair "du8" (ReadByte p) (fun b p ->
-      Pair (U8OfByte b, p))
+    with_sploded_pair "du8" (read_byte p) (fun b p ->
+      pair (u8_of_byte b) p)
 
   let di16 () p =
-    with_sploded_pair "di16" (ReadWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI16 (U16OfWord w), p))
+    with_sploded_pair "di16" (read_word LittleEndian p) (fun w p ->
+      pair (to_i16 (u16_of_word w)) p)
 
   let du16 () p =
-    with_sploded_pair "du16" (ReadWord (LittleEndian, p)) (fun w p ->
-      Pair (U16OfWord w, p))
+    with_sploded_pair "du16" (read_word LittleEndian p) (fun w p ->
+      pair (u16_of_word w) p)
 
   let di24 () p =
-    with_sploded_pair "di24" (ReadDWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI24 (U32OfDWord w), p))
+    with_sploded_pair "di24" (read_dword LittleEndian p) (fun w p ->
+      pair (to_i24 (u32_of_dword w)) p)
 
   let du24 () p =
-    with_sploded_pair "du24" (ReadDWord (LittleEndian, p)) (fun w p ->
-      Pair (ToU24 (U32OfDWord w), p))
+    with_sploded_pair "du24" (read_dword LittleEndian p) (fun w p ->
+      pair (to_u24 (u32_of_dword w)) p)
 
   let di32 () p =
-    with_sploded_pair "di32" (ReadDWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI32 (U32OfDWord w), p))
+    with_sploded_pair "di32" (read_dword LittleEndian p) (fun w p ->
+      pair (to_i32 (u32_of_dword w)) p)
 
   let du32 () p =
-    with_sploded_pair "du32" (ReadDWord (LittleEndian, p)) (fun w p ->
-      Pair (U32OfDWord w, p))
+    with_sploded_pair "du32" (read_dword LittleEndian p) (fun w p ->
+      pair (u32_of_dword w) p)
 
   let di40 () p =
-    with_sploded_pair "di40" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI40 (U64OfQWord w), p))
+    with_sploded_pair "di40" (read_qword LittleEndian p) (fun w p ->
+      pair (to_i40 (u64_of_qword w)) p)
 
   let du40 () p =
-    with_sploded_pair "du40" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToU40 (U64OfQWord w), p))
+    with_sploded_pair "du40" (read_qword LittleEndian p) (fun w p ->
+      pair (to_u40 (u64_of_qword w)) p)
 
   let di48 () p =
-    with_sploded_pair "di48" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI48 (U64OfQWord w), p))
+    with_sploded_pair "di48" (read_qword LittleEndian p) (fun w p ->
+      pair (to_i48 (u64_of_qword w)) p)
 
   let du48 () p =
-    with_sploded_pair "du48" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToU48 (U64OfQWord w), p))
+    with_sploded_pair "du48" (read_qword LittleEndian p) (fun w p ->
+      pair (to_u48 (u64_of_qword w)) p)
 
   let di56 () p =
-    with_sploded_pair "di56" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI56 (U64OfQWord w), p))
+    with_sploded_pair "di56" (read_qword LittleEndian p) (fun w p ->
+      pair (to_i56 (u64_of_qword w)) p)
 
   let du56 () p =
-    with_sploded_pair "du56" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToU56 (U64OfQWord w), p))
+    with_sploded_pair "du56" (read_qword LittleEndian p) (fun w p ->
+      pair (to_u56 (u64_of_qword w)) p)
 
   let di64 () p =
-    with_sploded_pair "di64" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI64 (U64OfQWord w), p))
+    with_sploded_pair "di64" (read_qword LittleEndian p) (fun w p ->
+      pair (to_i64 (u64_of_qword w)) p)
 
   let du64 () p =
-    with_sploded_pair "du64" (ReadQWord (LittleEndian, p)) (fun w p ->
-      Pair (U64OfQWord w, p))
+    with_sploded_pair "du64" (read_qword LittleEndian p) (fun w p ->
+      pair (u64_of_qword w) p)
 
   let di128 () p =
-    with_sploded_pair "di128" (ReadOWord (LittleEndian, p)) (fun w p ->
-      Pair (ToI128 (U128OfOWord w), p))
+    with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
+      pair (to_i128 (u128_of_oword w)) p)
 
   let du128 () p =
-    with_sploded_pair "di128" (ReadOWord (LittleEndian, p)) (fun w p ->
-      Pair (U128OfOWord w, p))
+    with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
+      pair (u128_of_oword w) p)
 
   (* Items of a tuples are just concatenated together: *)
   let tup_opn () _ p = p
@@ -152,7 +156,7 @@ struct
 
   let list_opn () _ p =
     with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
-      Pair (U32OfSize dim, p))
+      pair (u32_of_size dim) p)
 
   let list_cls () p = p
   let list_sep () p = p
@@ -162,10 +166,10 @@ struct
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
   let is_null () p =
-    Eq (PeekByte (p, Size 0), Byte 1)
+    eq (peek_byte p (size 0)) (byte 1)
 
   let dnull _t () p =
-    DataPtrAdd (p, Size 1)
+    data_ptr_add p (size 1)
 
   let dnotnull = dnull
 end
@@ -180,49 +184,49 @@ struct
   type ser = state -> e -> e -> e
 
   let sfloat () v p =
-    WriteQWord (LittleEndian, p, QWordOfFloat v)
+    write_qword LittleEndian p (qword_of_float v)
 
   let write_leb128 p v =
-    let t_ptr_sz = TPair (TDataPtr, u32) in
-    Fst (
-      LoopUntil (
-        Comment ("Loop body for write_leb128",
-          func [|t_ptr_sz|] (fun fid ->
-            with_sploded_pair "write_leb128" (Param (fid, 0)) (fun p wlen ->
+    let t_ptr_sz = TPair (TDataPtr, T.u32) in
+    fst (
+      loop_until
+        ~body:(comment "Loop body for write_leb128"
+          (func [|t_ptr_sz|] (fun fid ->
+            with_sploded_pair "write_leb128" (param fid 0) (fun p wlen ->
               let b =
-                Choose (Gt (U32 (Uint32.of_int 128), wlen),
-                  LogAnd (ToU8 wlen, U8 127),
-                  LogOr (ToU8 wlen, U8 128)) in
-              Pair (
-                WriteByte (p, b),
-                RightShift (wlen, U8 7))))),
-        Comment ("Condition for write_leb128 (until wlen is 0)",
-          func [|t_ptr_sz|] (fun fid -> Gt (Snd (Param (fid, 0)), U32 Uint32.zero))),
-        Pair (p, U32OfSize v)))
+                choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
+                  (log_and (to_u8 wlen) (u8 127))
+                  (log_or (to_u8 wlen) (u8 128)) in
+              pair
+                (write_byte p b)
+                (right_shift wlen (u8 7))))))
+        ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
+          (func [|t_ptr_sz|] (fun fid -> gt (snd (param fid 0)) (u32 Uint32.zero))))
+        ~init:(pair p (u32_of_size v)))
 
   let sstring () v p =
-    let p = write_leb128 p (StringLength v) in
-    WriteBytes (p, BytesOfString v)
+    let p = write_leb128 p (string_length v) in
+    write_bytes p (bytes_of_string v)
 
   let sbool () v p =
-    WriteByte (p, ByteOfU8 (U8OfBool v))
+    write_byte p (byte_of_u8 (u8_of_bool v))
 
   let schar () v p =
-    WriteByte (p, ByteOfU8 (U8OfChar v))
+    write_byte p (byte_of_u8 (u8_of_char v))
 
   let si8 () v p =
-    WriteByte (p, ByteOfU8 (ToU8 v))
+    write_byte p (byte_of_u8 (to_u8 v))
 
   let si16 () v p =
-    WriteWord (LittleEndian, p, WordOfU16 (ToU16 v))
+    write_word LittleEndian p (word_of_u16 (to_u16 v))
 
   let si32 () v p =
-    WriteDWord (LittleEndian, p, DWordOfU32 (ToU32 v))
+    write_dword LittleEndian p (dword_of_u32 (to_u32 v))
 
   let si24 = si32
 
   let si64 () v p =
-    WriteQWord (LittleEndian, p, QWordOfU64 (ToU64 v))
+    write_qword LittleEndian p (qword_of_u64 (to_u64 v))
 
   let si40 = si64
 
@@ -231,21 +235,21 @@ struct
   let si56 = si64
 
   let si128 () v p =
-    WriteOWord (LittleEndian, p, OWordOfU128 (ToU128 v))
+    write_oword LittleEndian p (oword_of_u128 (to_u128 v))
 
   let su8 () v p =
-    WriteByte (p, ByteOfU8 v)
+    write_byte p (byte_of_u8 v)
 
   let su16 () v p =
-    WriteWord (LittleEndian, p, WordOfU16 v)
+    write_word LittleEndian p (word_of_u16 v)
 
   let su32 () v p =
-    WriteDWord (LittleEndian, p, DWordOfU32 v)
+    write_dword LittleEndian p (dword_of_u32 v)
 
   let su24 = su32
 
   let su64 () v p =
-    WriteQWord (LittleEndian, p, QWordOfU64 v)
+    write_qword LittleEndian p (qword_of_u64 v)
 
   let su40 = su64
 
@@ -254,7 +258,7 @@ struct
   let su56 = su64
 
   let su128 () v p =
-    WriteOWord (LittleEndian, p, OWordOfU128 v)
+    write_oword LittleEndian p (oword_of_u128 v)
 
   let tup_opn () _ p = p
   let tup_cls () p = p
@@ -269,7 +273,7 @@ struct
   let vec_sep _idx () p = p
 
   let list_opn () _ n p =
-    write_leb128 p (SizeOfU32 n)
+    write_leb128 p (size_of_u32 n)
 
   let list_cls () p = p
   let list_sep () p = p
@@ -277,10 +281,10 @@ struct
   let nullable () p = p
 
   let snull _t () p =
-    WriteByte (p, Byte 1)
+    write_byte p (byte 1)
 
   let snotnull _t () p =
-    WriteByte (p, Byte 0)
+    write_byte p (byte 0)
 
   type ssizer = maybe_nullable -> path -> e -> ssize
 
@@ -311,24 +315,24 @@ struct
   let ssize_of_vec _ _ _ = ConstSize 0
 
   let ssize_of_leb128 n =
-    let t_u32_u32 = TPair (u32, u32) in
-    SizeOfU32 (Fst (
-      LoopWhile (
-        Comment ("Condition for ssize_of_leb128",
-          func [|t_u32_u32|] (fun fid ->
-            with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
-              let max_len_for_lebsz = LeftShift (lebsz, U8 7) in
-              Ge (n, max_len_for_lebsz)))),
-        Comment ("Loop for ssize_of_leb128",
-          func [|t_u32_u32|] (fun fid ->
-            with_sploded_pair "ssize_of_leb128" (Param (fid, 0)) (fun lebsz n ->
-              Pair (Add (lebsz, U32 Uint32.one), n)))),
-        Pair (U32 Uint32.one, n))))
+    let t_u32_u32 = TPair (T.u32, T.u32) in
+    size_of_u32 (fst (
+      loop_while
+        ~cond:(comment "Condition for ssize_of_leb128"
+          (func [|t_u32_u32|] (fun fid ->
+            with_sploded_pair "ssize_of_leb128" (param fid 0) (fun lebsz n ->
+              let max_len_for_lebsz = left_shift lebsz (u8 7) in
+              ge n max_len_for_lebsz))))
+        ~body:(comment "Loop for ssize_of_leb128"
+          (func [|t_u32_u32|] (fun fid ->
+            with_sploded_pair "ssize_of_leb128" (param fid 0) (fun lebsz n ->
+              pair (add lebsz (u32 Uint32.one)) n))))
+        ~init:(pair (u32 Uint32.one) n)))
 
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
   let ssize_of_list _ _ lst =
-    DynSize (ssize_of_leb128 (ListLength lst))
+    DynSize (ssize_of_leb128 (list_length lst))
 
   let ssize_of_null _ _ = ConstSize 1
 
@@ -336,6 +340,7 @@ struct
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ v =
     DynSize (
-      Let ("wlen", U32OfSize (StringLength v),
-        Add (ssize_of_leb128 (Identifier "wlen"), (Identifier "wlen"))))
+      let_ "wlen" (u32_of_size (string_length v))
+        (add (ssize_of_leb128 (identifier "wlen"))
+             (identifier "wlen")))
 end

@@ -107,7 +107,7 @@ struct
   (* Find references to external identifiers: *)
   let get_depends e =
     fold_expr [] [] (fun lst l -> function
-      | Identifier s as e ->
+      | E0 (Identifier s) as e ->
           assert (s <> "") ;
           if List.mem_assoc e l || List.mem s lst then lst else (
             pp stdout "Cannot find identifier %S in %a\n%!"
@@ -128,7 +128,7 @@ struct
     (* TODO: add already defined identifiers in the environment: *)
     type_check [] expr ;
     { identifiers = (name, identifier) :: state.identifiers },
-    Identifier name,
+    E0 (Identifier name),
     valid_identifier name
 
   let find_or_declare_type _p _t =
@@ -180,7 +180,10 @@ struct
           if missing_depends <> [] then
             loop progress defined ((name, missing_depends, e) :: left_overs) rest
           else (
-            let l = List.map (fun (name, t) -> Identifier name, t) defined in
+            let l =
+              List.map (fun (name, t) ->
+                E0 (Identifier name), t
+              ) defined in
             output_identifier name p l e ;
             let t = type_of l e in
             let defined = (name, t) :: defined in

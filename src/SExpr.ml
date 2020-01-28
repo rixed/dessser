@@ -6,6 +6,8 @@ open DessserExpressions
 module Ser : SER =
 struct
 
+  open Ops
+
   type state = unit
   let ptr _vtyp = dataptr
 
@@ -15,23 +17,20 @@ struct
   type ser = state -> e -> e -> e
 
   let sfloat () v p =
-    WriteBytes (p, BytesOfString (StringOfFloat v))
-
-  let byte_of_char c =
-    ByteOfU8 (U8OfChar (Char c))
+    write_bytes p (bytes_of_string (string_of_float v))
 
   let sstring () v p =
-    let quo = byte_of_char '"' in
-    let p = WriteByte (p, quo) in
-    let v = BytesOfString v in
-    let p = WriteBytes (p, v) in
-    WriteByte (p, quo)
+    let quo = byte_of_const_char '"' in
+    let p = write_byte p quo in
+    let v = bytes_of_string v in
+    let p = write_bytes p v in
+    write_byte p quo
 
   let sbool () v p =
-    WriteByte (p, Choose (v, byte_of_char 'T', byte_of_char 'F'))
+    write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
   let si () v p =
-    WriteBytes (p, BytesOfString (StringOfInt v))
+    write_bytes p (bytes_of_string (string_of_int v))
 
   let si8 = si
   let si16 = si
@@ -53,49 +52,49 @@ struct
   let su128 = si
 
   let schar () v p =
-    WriteByte (p, ByteOfU8 (U8OfChar v))
+    write_byte p (byte_of_char v)
 
   (* Could also write the field names with the value in a pair... *)
   let tup_opn () _ p =
-    WriteByte (p, byte_of_char '(')
+    write_byte p (byte_of_const_char '(')
 
   let tup_cls () p =
-    WriteByte (p, byte_of_char ')')
+    write_byte p (byte_of_const_char ')')
 
   let tup_sep _idx () p =
-    WriteByte (p, byte_of_char ' ')
+    write_byte p (byte_of_const_char ' ')
 
   let rec_opn () _ p =
-    WriteByte (p, byte_of_char '(')
+    write_byte p (byte_of_const_char '(')
 
   let rec_cls () p =
-    WriteByte (p, byte_of_char ')')
+    write_byte p (byte_of_const_char ')')
 
   let rec_sep _idx () p =
-    WriteByte (p, byte_of_char ' ')
+    write_byte p (byte_of_const_char ' ')
 
   let vec_opn () _ _ p =
-    WriteByte (p, byte_of_char '[')
+    write_byte p (byte_of_const_char '[')
 
   let vec_cls () p =
-    WriteByte (p, byte_of_char ']')
+    write_byte p (byte_of_const_char ']')
 
   let vec_sep _n () p =
-    WriteByte (p, byte_of_char ' ')
+    write_byte p (byte_of_const_char ' ')
 
   let list_opn () _ p _n =
-    WriteByte (p, byte_of_char '[')
+    write_byte p (byte_of_const_char '[')
 
   let list_cls () p =
-    WriteByte (p, byte_of_char ']')
+    write_byte p (byte_of_const_char ']')
 
   let list_sep () p =
-    WriteByte (p, byte_of_char ' ')
+    write_byte p (byte_of_const_char ' ')
 
   let nullable () p = p
 
   let snull _t () p =
-    WriteDWord (LittleEndian, p, DWord (Uint32.of_int32 0x6c_6c_75_6el))
+    write_dword LittleEndian p (dword (Uint32.of_int32 0x6c_6c_75_6el))
 
   let snotnull _t () p = p
 
