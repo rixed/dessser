@@ -201,7 +201,7 @@ struct
         done ;
         Printf.fprintf oc "%s|]" indent
     | NotNullable (TList _) ->
-        String.print oc "[]"
+        String.print oc "[||]"
     | NotNullable (TMap _) ->
         assert false (* no value of map type *)
     | Nullable t ->
