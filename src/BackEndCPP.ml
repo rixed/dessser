@@ -266,7 +266,7 @@ struct
     | E2 (Div, e1, e2) ->
         binary_infix_op e1 "/" e2
     | E2 (Rem, e1, e2) ->
-        binary_infix_op e1 "%%" e2
+        binary_infix_op e1 "%" e2
     | E2 (LogAnd, e1, e2) ->
         binary_infix_op e1 "&" e2
     | E2 (LogOr, e1, e2) ->
