@@ -11,6 +11,7 @@ struct
   let preferred_def_extension = "ml"
   let preferred_decl_extension = "mli"
   let compile_cmd ~optim ~link src dst =
+    let optim = cap 2 3 optim in
     Printf.sprintf
       "ocamlfind ocamlopt -g -annot -O%d -I src -package stdint,batteries \
        -linkpkg src/DessserOCamlBackendHelpers.cmx %s %S -o %S"
