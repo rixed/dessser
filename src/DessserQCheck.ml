@@ -330,7 +330,7 @@ and e1_gen l depth =
           ) (expression_gen (l, depth - 1))
         ) (tiny_array maybe_nullable_gen)
       ) ;
-    1, map2 comment string_readable expr ;
+    1, map2 comment (string ~gen:printable) expr ;
     1, map2 field_is_null path_gen expr ;
     1, map2 get_field path_gen expr ;
     1, map2 read_word endianness_gen expr ;
