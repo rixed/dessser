@@ -600,7 +600,7 @@ struct
      * must rely on a static function to produce the value: *)
     let t = type_of l e in
     let tn = type_identifier p t in
-    pp p.def "%s%s static %s_init()\n" p.indent tn n ;
+    pp p.def "%sstatic %s %s_init()\n" p.indent tn n ;
     pp p.def "%s{\n" p.indent ;
     indent_more p (fun () ->
       (* TODO: add other predefined globals in the environment: *)
