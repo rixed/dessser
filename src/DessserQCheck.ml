@@ -292,25 +292,31 @@ let rec e0_gen l depth =
        ) ui64 ui64 ;
     1, map data_ptr_of_string small_string ;
     1, map alloc_value maybe_nullable_gen ;
-    1, map identifier field_name_gen
   ] in
   let lst =
     if depth > 0 then
+      (1,
+        pick_from_env l depth (function
+          | E0 (Identifier _) -> true
+          | _ -> false)) ::
       (1, (
-        (* Pick a param at random in the environment: *)
-        let params =
-          List.filter_map (function
-            | E0 (Param _) as p, _t -> Some p
-            | _ -> None
-          ) l in
-        if params <> [] then
-          oneofl params
-        else
-          (* Reroll the dice: *)
-          expression_gen (l, depth)
-      )) :: lst
+        pick_from_env l depth (function
+          | E0 (Param _) -> true
+          | _ -> false))) ::
+      lst
     else lst in
   frequency lst
+
+(* Pick a param or identifier at random in the environment: *)
+and pick_from_env l depth f =
+  let open Gen in
+  let es =
+    List.filter_map (fun (e, _t) -> if f e then Some e else None) l in
+  if es <> [] then
+    oneofl es
+  else
+    (* Reroll the dice: *)
+    expression_gen (l, depth)
 
 and e1_gen l depth =
   let expr = expression_gen (l, depth - 1) in
@@ -417,8 +423,7 @@ let expression =
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;
         true
-    with BackEndCLike.Missing_dependencies _ -> true
-       | _ -> false
+    with _ -> false
 
   let can_be_compiled e =
     can_be_compiled_with_backend (module BackEndOCaml : BACKEND) e &&
