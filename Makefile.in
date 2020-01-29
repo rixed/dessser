@@ -187,6 +187,7 @@ src/DessserCompilConfig.ml: Makefile
 TESTABLE_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/BackEndCPP.ml \
 	src/DessserQCheck.ml
 
 LINKED_FOR_TESTS = \

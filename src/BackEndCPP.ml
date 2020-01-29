@@ -628,3 +628,28 @@ struct
 end
 
 include BackEndCLike.Make (Config)
+
+(*$inject
+  open Batteries
+  open DessserTypes
+  open DessserExpressions
+  open Dessser
+  open DessserTools *)
+
+(*$R
+  let e = List.hd (Parser.expr "(alloc-value \"{crfgfc: U32[9]}?\")") in
+  let state = make_state () in
+  let state, _, _ = identifier_of_expression state e in
+  let src_fname =
+    Filename.temp_file "dessserCPPTest_" ".cc" in
+  let obj_fname = Filename.remove_extension src_fname in
+  write_source ~src_fname (print_definitions state) ;
+  assert_bool "Cannot compile `(alloc-value \"{crfgfc: U32[9]}?\")`" (
+    let be = (module BackEndCPP : BACKEND) in
+    try compile ~optim:0 ~link:false be src_fname obj_fname ;
+        ignore_exceptions Unix.unlink src_fname ;
+        ignore_exceptions Unix.unlink obj_fname ;
+        true
+    with _ ->
+        false)
+*)

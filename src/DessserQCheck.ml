@@ -438,3 +438,14 @@ let expression =
         if type_of [] e = TVoid then true \
         else can_be_compiled e)
 *)
+
+(* Non regression tests: *)
+(*$R
+  let e = Parser.expr
+    "(alloc-value \"(I48?;\
+        {ksryai: U40;qthlta: (U48?)?;\
+         gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?};\
+         zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" in
+  let e = List.hd e in
+  assert_bool "Cannot compile deep type" (can_be_compiled e)
+*)
