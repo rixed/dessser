@@ -399,3 +399,35 @@ let expression =
     | [ e' ] -> expr_eq e' e \
     | _ -> false)
 *)
+
+(*$inject
+  open Dessser
+  open DessserTools
+
+  let can_be_compiled_with_backend be e =
+    let module BE = (val be : BACKEND) in
+    let state = BE.make_state () in
+    let state, _, _ = BE.identifier_of_expression state e in
+    let src_fname =
+      let ext = "."^ BE.preferred_def_extension in
+      Filename.temp_file "dessserQCheck_" ext in
+    let obj_fname = Filename.remove_extension src_fname in
+    write_source ~src_fname (BE.print_definitions state) ;
+    try compile ~optim:0 ~link:false be src_fname obj_fname ;
+        ignore_exceptions Unix.unlink src_fname ;
+        ignore_exceptions Unix.unlink obj_fname ;
+        true
+    with BackEndCLike.Missing_dependencies _ -> true
+       | _ -> false
+
+  let can_be_compiled e =
+    can_be_compiled_with_backend (module BackEndOCaml : BACKEND) e &&
+    can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
+*)
+
+(*$Q expression & ~count:10_000
+  expression (fun e -> \
+    match type_check [] e with \
+    | exception _ -> true \
+    | () -> can_be_compiled e)
+*)
