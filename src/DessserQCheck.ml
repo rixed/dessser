@@ -5,6 +5,31 @@ open DessserTypes
 open QCheck
 
 (*
+ * Some misc generators
+ *)
+
+let tiny_int =
+  Gen.int_range 1 10
+
+let tiny_array gen =
+  Gen.(array_size (int_range 1 5) gen)
+
+let tiny_list gen =
+  Gen.(list_size (int_range 1 5) gen)
+
+let field_name_gen =
+  let open Gen in
+  let all_chars = "abcdefghijklmnopqrstuvwxyz" in
+  let gen = map (fun n -> all_chars.[n mod String.length all_chars]) nat in
+  string_size ~gen (int_range 4 6)
+
+let let_name_gen = field_name_gen
+
+(* Useful when generate random comments: avoids including a closing comment *)
+let printable_no_star =
+  Gen.(map (fun c -> if c = '*' then 'X' else c) printable)
+
+(*
  * Random types generator
  *)
 
@@ -42,23 +67,6 @@ let user_type_gen =
   Gen.(sized (fun n _st ->
     let k = user_type_keys.(n mod Array.length user_type_keys) in
     Hashtbl.find user_types k))
-
-let tiny_int =
-  Gen.int_range 1 10
-
-let tiny_array gen =
-  Gen.(array_size (int_range 1 5) gen)
-
-let tiny_list gen =
-  Gen.(list_size (int_range 1 5) gen)
-
-let field_name_gen =
-  let open Gen in
-  let all_chars = "abcdefghijklmnopqrstuvwxyz" in
-  let gen = map (fun n -> all_chars.[n mod String.length all_chars]) nat in
-  string_size ~gen (int_range 4 6)
-
-let let_name_gen = field_name_gen
 
 let rec value_type_gen depth =
   let open Gen in
@@ -336,7 +344,7 @@ and e1_gen l depth =
           ) (expression_gen (l, depth - 1))
         ) (tiny_array maybe_nullable_gen)
       ) ;
-    1, map2 comment (string ~gen:printable) expr ;
+    1, map2 comment (string ~gen:printable_no_star) expr ;
     1, map2 field_is_null path_gen expr ;
     1, map2 get_field path_gen expr ;
     1, map2 read_word endianness_gen expr ;
