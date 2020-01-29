@@ -241,7 +241,7 @@ struct
 
   let lift_u128 v oc =
     if Uint128.compare v (Uint128.of_int max_int) < 0 then
-      pp oc "Uint128.of_int %d" (Uint128.to_int v)
+      pp oc "Uint128.of_int (%d)" (Uint128.to_int v)
     else (
       let bytes = Bytes.create 16 in
       Uint128.to_bytes_little_endian v bytes 0 ;
@@ -251,7 +251,7 @@ struct
   let lift_i128 v oc =
     if Int128.compare v (Int128.of_int min_int) > 0 &&
        Int128.compare v (Int128.of_int max_int) < 0 then
-      pp oc "Int128.of_int %d" (Int128.to_int v)
+      pp oc "Int128.of_int (%d)" (Int128.to_int v)
     else (
       let bytes = Bytes.create 16 in
       Int128.to_bytes_little_endian v bytes 0 ;
@@ -350,11 +350,11 @@ struct
     | E0 (Char c) ->
         emit ?name p l e (fun oc -> pp oc "%C" c)
     | E0 (Byte i) | E0 (U8 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint8.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Uint8.of_int (%d)" i)
     | E0 (Word i) | E0 (U16 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint16.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Uint16.of_int (%d)" i)
     | E0 (U24 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint24.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Uint24.of_int (%d)" i)
     | E0 (DWord u) | E0 (U32 u) ->
         emit ?name p l e (lift_u32 u)
     | E0 (U40 u) ->
@@ -368,25 +368,25 @@ struct
     | E0 (OWord u) | E0 (U128 u) ->
         emit ?name p l e (lift_u128 u)
     | E0 (I8 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int8.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Int8.of_int (%d)" i)
     | E0 (I16 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int16.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Int16.of_int (%d)" i)
     | E0 (I24 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int24.of_int %d" i)
+        emit ?name p l e (fun oc -> pp oc "Int24.of_int (%d)" i)
     | E0 (I32 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int32.of_int32 %ld" i)
+        emit ?name p l e (fun oc -> pp oc "Int32.of_int32 (%ldl)" i)
     | E0 (I40 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int40.of_int64 %Ld" i)
+        emit ?name p l e (fun oc -> pp oc "Int40.of_int64 (%LdL)" i)
     | E0 (I48 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int48.of_int64 %Ld" i)
+        emit ?name p l e (fun oc -> pp oc "Int48.of_int64 (%LdL)" i)
     | E0 (I56 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int56.of_int64 %Ld" i)
+        emit ?name p l e (fun oc -> pp oc "Int56.of_int64 (%LdL)" i)
     | E0 (I64 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int64.of_int64 %Ld" i)
+        emit ?name p l e (fun oc -> pp oc "Int64.of_int64 (%LdL)" i)
     | E0 (I128 i) ->
         emit ?name p l e (lift_i128 i)
     | E0 (Size s) ->
-        emit ?name p l e (fun oc -> pp oc "Size.of_int %d" s)
+        emit ?name p l e (fun oc -> pp oc "Size.of_int (%d)" s)
     | E2 (Gt, e1, e2) ->
         binary_infix_op e1 ">" e2
     | E2 (Ge, e1, e2) ->
@@ -635,7 +635,7 @@ struct
     | E1 (Not, e1) ->
         unary_op "not" e1
     | E0 (AllocValue vtyp) ->
-        emit ?name p l e (fun oc -> pp oc "ref %a" (print_default_value p.indent) vtyp)
+        emit ?name p l e (fun oc -> pp oc "ref (%a)" (print_default_value p.indent) vtyp)
     | E1 (DerefValuePtr, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "!%s" n1)
