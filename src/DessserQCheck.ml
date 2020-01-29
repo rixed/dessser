@@ -434,5 +434,7 @@ let expression =
   expression (fun e -> \
     match type_check [] e with \
     | exception _ -> true \
-    | () -> can_be_compiled e)
+    | () -> \
+        if type_of [] e = TVoid then true \
+        else can_be_compiled e)
 *)

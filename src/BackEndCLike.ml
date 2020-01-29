@@ -132,7 +132,10 @@ struct
           name, true in
     let identifier = { public ; expr } in
     (* TODO: add already defined identifiers in the environment: *)
-    type_check [] expr ;
+    let l = [] in
+    type_check l expr ;
+    if type_of l expr = TVoid then
+      invalid_arg "identifier_of_expression of type void" ;
     { identifiers = (name, identifier) :: state.identifiers },
     E0 (Identifier name),
     valid_identifier name

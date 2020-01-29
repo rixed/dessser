@@ -412,7 +412,9 @@ sig
   val print_definitions : state -> 'a IO.output -> unit
   val print_declarations : state -> 'a IO.output -> unit
   (* Returns the new state, the Identifier expression to use in new expressions,
-   * and the identifier name in the source code: *)
+   * and the identifier name in the source code.
+   * Expression is not allowed to have the null type (which would make little
+   * sense anyway): *)
   val identifier_of_expression : state -> ?name:string -> e -> (state * e * string)
   val preferred_def_extension : string
   val preferred_decl_extension : string
