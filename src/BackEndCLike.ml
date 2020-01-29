@@ -9,7 +9,7 @@ let debug = false
 exception Missing_dependencies of string list
 
 type print_state =
-  { decl : string IO.output ;
+  { mutable decl : string IO.output ;
     def : string IO.output ;
     mutable indent : string ;
     mutable declared : Set.String.t }
@@ -34,10 +34,16 @@ let declared_type p t f =
   if Set.String.mem id p.declared then id
   else (
     p.declared <- Set.String.add id p.declared ;
-    let indent = p.indent in
+    (* Write in a temp string to avoid being interrupted by another
+     * declaration: *)
+    let decl = p.decl
+    and indent = p.indent in
+    p.decl <- IO.output_string () ;
     p.indent <- "" ;
     f p.decl id ;
     p.indent <- indent ;
+    String.print decl (IO.close_out p.decl) ;
+    p.decl <- decl ;
     id
   )
 
