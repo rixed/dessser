@@ -169,15 +169,15 @@ struct
         pp p.def "%s/* %s */\n" p.indent c ;
         print ?name emit p l e1
     | Seq es ->
-        List.fold_left (fun _ e -> print emit p l e) "must_not_be_used1" es
+        List.fold_left (fun _ e -> print emit p l e) "" es
     | E1 (Ignore, e1) ->
         let n = print emit p l e1 in
         pp p.def "%s(void)%s;\n" p.indent n ;
-        "must_not_be_used3"
+        ""
     | E1 (Dump, e1) ->
         let n = print emit p l e1 in
         pp p.def "%sstd::cout << %s;\n" p.indent n ;
-        "must_not_be_used2"
+        ""
     | E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.has_value ()" n)
