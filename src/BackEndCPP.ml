@@ -12,7 +12,9 @@ struct
   let preferred_decl_extension = "h"
   let compile_cmd ~optim ~link src dst =
     let optim = cap 0 3 optim in
-    Printf.sprintf "g++ -std=c++17 -g -O%d -W -Wall -I src %s %S -o %S"
+    Printf.sprintf
+      "g++ -std=c++17 -g -O%d -W -Wall -Wno-unused-parameter \
+           -Wno-shift-negative-value -I src %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
   let tuple_field_name i = "field_"^ string_of_int i
