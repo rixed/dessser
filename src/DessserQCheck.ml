@@ -79,7 +79,8 @@ let rec value_type_gen depth =
         2, map (fun mn -> TList mn) mn_gen ;
         2, map (fun mns -> TTup mns) (tiny_array mn_gen) ;
         2, map (fun fs -> TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
-        1, map2 (fun k v -> TMap (k, v)) mn_gen mn_gen ] in
+        (* Avoid maps for now, as there is no manipulable values of that type: *)
+        0, map2 (fun k v -> TMap (k, v)) mn_gen mn_gen ] in
     frequency lst
   else
     map (fun mt -> Mac mt) mac_type_gen
