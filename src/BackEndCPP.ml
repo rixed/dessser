@@ -127,6 +127,23 @@ struct
 
   let gen_sym pref = valid_identifier (gen_sym pref)
 
+  let c_char_of c =
+    match Char.code c with
+    | 0x07 -> "\\a"
+    | 0x08 -> "\\b"
+    | 0x09 -> "\\t"
+    | 0x0a -> "\\n"
+    | 0x0b -> "\\v"
+    | 0x0c -> "\\f"
+    | 0x0d -> "\\r"
+    | 0x22 -> "\\\""
+    | 0x27 -> "\\'"
+    | 0x3f -> "\\?"
+    | 0x5c -> "\\\\"
+    | n ->
+        if char_is_printable c then String.of_char c
+        else Printf.sprintf "\\%03o" n
+
   let rec print ?name emit p l e =
     let gen_sym ?name pref =
       match name with Some n -> n | None -> gen_sym pref in
@@ -183,7 +200,7 @@ struct
     | E0 (Bit b) | E0 (Bool b) ->
         emit ?name p l e (fun oc -> Bool.print oc b)
     | E0 (Char c) ->
-        emit ?name p l e (fun oc -> pp oc "%C" c)
+        emit ?name p l e (fun oc -> pp oc "'%s'" (c_char_of c))
     | E0 (Byte i) | E0 (U8 i) ->
         emit ?name p l e (fun oc -> pp oc "%d" i)
     | E0 (Word i) | E0 (U16 i) ->

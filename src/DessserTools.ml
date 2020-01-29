@@ -52,3 +52,14 @@ let float_of_anystring s =
 
 let cap mi ma x =
   if x < mi then mi else if x > ma then ma else x
+
+let is_missing_symbol = function
+  | '(' | ')' | '[' | ']' | '{' | '}' | ';'
+  | '\'' | '"' | ',' | '.' | '_' |  ' ' ->
+      true
+  | _ ->
+      false
+
+let char_is_printable c =
+  let open Char in
+  is_letter c || is_digit c || is_symbol c || is_missing_symbol c
