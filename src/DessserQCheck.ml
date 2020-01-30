@@ -439,7 +439,7 @@ let expression =
     can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
 *)
 
-(*$Q expression & ~count:10_000
+(*$Q expression & ~count:100
   expression (fun e -> \
     match type_check [] e with \
     | exception _ -> true \
