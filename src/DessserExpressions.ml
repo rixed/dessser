@@ -188,6 +188,7 @@ type e2 =
   | LogXor
   | LeftShift
   | RightShift
+  | AppendByte
   | AppendBytes
   | AppendString
   | TestBit
@@ -447,6 +448,7 @@ let string_of_e2 = function
   | LogXor -> "log-xor"
   | LeftShift -> "left-shift"
   | RightShift -> "right-shift"
+  | AppendByte -> "append-byte"
   | AppendBytes -> "append-bytes"
   | AppendString -> "append-string"
   | TestBit -> "test-bit"
@@ -775,6 +777,7 @@ struct
       | Lst [ Sym "log-xor" ; x1 ; x2 ] -> E2 (LogXor, e x1, e x2)
       | Lst [ Sym "left-shift" ; x1 ; x2 ] -> E2 (LeftShift, e x1, e x2)
       | Lst [ Sym "right-shift" ; x1 ; x2 ] -> E2 (RightShift, e x1, e x2)
+      | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
       | Lst [ Sym "append-bytes" ; x1 ; x2 ] -> E2 (AppendBytes, e x1, e x2)
       | Lst [ Sym "append-string" ; x1 ; x2 ] -> E2 (AppendString, e x1, e x2)
       | Lst [ Sym "test-bit" ; x1 ; x2 ] -> E2 (TestBit, e x1, e x2)
@@ -956,6 +959,7 @@ and type_of l e0 =
   | E1 (BoolOfBit, _) -> bool
   | E1 (U8OfBool, _) -> u8
   | E1 (BoolOfU8, _) -> bool
+  | E2 (AppendByte, _, _) -> byte
   | E2 (AppendBytes, _, _) -> bytes
   | E2 (AppendString, _, _) -> string
   | E1 (StringLength, _) -> u32
@@ -1261,6 +1265,9 @@ let type_check l e =
         check_eq l e bool
     | E1 (BoolOfBit, e) ->
         check_eq l e bit
+    | E2 (AppendByte, e1, e2) ->
+        check_eq l e1 bytes ;
+        check_eq l e2 byte
     | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 bytes ;
         check_eq l e2 bytes
@@ -1608,4 +1615,7 @@ struct
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let seq es = Seq es
   let alloc_value mn = E0 (AllocValue mn)
+  let append_byte e1 e2 = E2 (AppendByte, e1, e2)
+  let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
+  let append_string e1 e2 = E2 (AppendString, e1, e2)
 end

@@ -60,6 +60,18 @@ struct
       Bytes.blit s2.bytes s2.offset bytes s1.length s2.length ;
       { bytes ; offset = 0 ; length }
 
+  let add s1 b =
+    if s1.offset + s1.length < Bytes.length s1.bytes &&
+       Bytes.get s1.bytes (s1.offset + s1.length) = b
+    then
+      { s1 with length = s1.length + 1 }
+    else
+      let length = s1.length + 1 in
+      let bytes = Bytes.create length in
+      Bytes.blit s1.bytes s1.offset bytes 0 s1.length ;
+      Bytes.set bytes s1.length b ;
+      { bytes ; offset = 0 ; length }
+
   let to_string s =
     Bytes.sub_string s.bytes s.offset s.length
   let of_string s =

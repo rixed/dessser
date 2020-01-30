@@ -347,6 +347,10 @@ struct
     | E1 (ToU128, e1) | E1 (ToI128, e1)
     | E1 (U8OfBool, e1) | E1 (BoolOfU8, e1) ->
         print ?name emit p l e1
+    | E2 (AppendByte, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E2 (AppendBytes, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

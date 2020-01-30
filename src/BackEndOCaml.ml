@@ -531,6 +531,8 @@ struct
     | E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.one %s = 0" n)
+    | E2 (AppendByte, e1, e2) ->
+        binary_op "Slice.add" e1 e2
     | E2 (AppendBytes, e1, e2) ->
         binary_op "Slice.append" e1 e2
     | E2 (AppendString, e1, e2) ->
