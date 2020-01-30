@@ -12,7 +12,7 @@ struct Bytes {
   size_t capa;
   /* Size of this byte string: */
   size_t size;
-  /* Locating of this byte string within byffer: */
+  /* Location of this byte string within buffer: */
   size_t offset;
 
   Bytes(std::shared_ptr<Byte[]> buffer_, size_t size_, size_t offset_) :

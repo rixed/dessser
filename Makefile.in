@@ -248,4 +248,4 @@ clean:
 
 distclean: clean
 	@echo 'Cleaning all build files'
-	@$(RM) META
+	@$(RM) META DessserCompilConfig.ml
