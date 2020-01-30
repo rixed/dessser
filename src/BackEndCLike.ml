@@ -36,14 +36,12 @@ let declared_type p t f =
     p.declared <- Set.String.add id p.declared ;
     (* Write in a temp string to avoid being interrupted by another
      * declaration: *)
-    let decl = p.decl
+    let oc = IO.output_string ()
     and indent = p.indent in
-    p.decl <- IO.output_string () ;
     p.indent <- "" ;
-    f p.decl id ;
+    f oc id ;
     p.indent <- indent ;
-    String.print decl (IO.close_out p.decl) ;
-    p.decl <- decl ;
+    String.print p.decl (IO.close_out oc) ;
     id
   )
 
