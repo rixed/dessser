@@ -30,7 +30,22 @@ struct Bytes {
     memcpy(buffer.get(), s.c_str(), size);
   }
 
-  /* TODO: used for append: Bytes(Bytes const &b1, Bytes const &b2) */
+  Bytes(Bytes const &b1, Bytes const &b2)
+  {
+    if (b1.buffer == b2.buffer &&
+        b1.offset + b1.size == b2.offset) { /* fast path */
+      capa = b1.capa;
+      buffer = b1.buffer;
+      offset = b1.offset;
+      size = b1.size + b2.size;
+    } else { /* slow path */
+      capa = size = b1.size + b2.size;
+      buffer = std::shared_ptr<Byte[]>(new Byte[size]);
+      offset = 0;
+      memcpy(buffer.get(), &b1.buffer[b1.offset], b1.size);
+      memcpy(&buffer[b1.size], b2.buffer.get(), b2.size);
+    }
+  }
 
   Bytes(Bytes const &b1, Byte b)
   {
