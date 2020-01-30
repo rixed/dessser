@@ -194,8 +194,10 @@ let schema =
 
 let encoding_in =
   let row_binary = (module RowBinary.Des : DES) in
+  let s_expr = (module SExpr.Des : DES) in
   let encodings =
-    [ "row-binary", row_binary ] in
+    [ "row-binary", row_binary ;
+      "s-expression", s_expr ] in
   let doc = "encoding format for input" in
   let docv = "row-binary" in
   let i = Arg.info ~doc ~docv [ "input-encoding" ] in
