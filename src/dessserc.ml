@@ -31,25 +31,19 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
   let module Sizer = HeapValue.SerSizer (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func [|TDataPtr; TDataPtr|] (fun fid ->
-      let src = param fid 0 and dst = param fid 1 in
-      DS.desser schema src dst) in
+    func2 TDataPtr TDataPtr (DS.desser schema) in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    func [|TDataPtr|] (fun fid ->
-      let src = param fid 0 in
+    func1 TDataPtr (fun src ->
       let vptr = alloc_value schema in
       ToValue.desser schema src vptr) in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    func [|TValuePtr schema|] (fun fid ->
-      let vptr = param fid 0 in
+    func1 (TValuePtr schema) (fun vptr ->
       Sizer.sersize schema vptr) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    func [|TValuePtr schema; TDataPtr|] (fun fid ->
-      let vptr = param fid 0
-      and dst = param fid 1 in
+    func2 (TValuePtr schema) TDataPtr (fun vptr dst ->
       let src_dst = OfValue.desser schema vptr dst in
       snd src_dst) in
   if debug then (
@@ -169,9 +163,7 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   let module DS = DesSer (Des) (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func [|TDataPtr; TDataPtr|] (fun fid ->
-      let src = param fid 0 and dst = param fid 1 in
-      DS.desser schema src dst) in
+    func2 TDataPtr TDataPtr (DS.desser schema) in
   if debug then type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_id =

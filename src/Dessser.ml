@@ -314,14 +314,12 @@ struct
           let src_dst =
             repeat ~from:(i32 0l) ~to_:(to_i32 dim)
               ~body:(comment "Convert a list item"
-                (func [|T.i32; pair_ptrs|] (fun fid ->
-                  let param_n = param fid 0 (*i32*) in
-                  let param_src_dst = param fid 1 (*pair_ptrs*) in
+                (func2 T.i32 pair_ptrs (fun n src_dst ->
                   let src_dst =
                     choose
-                      ~cond:(eq param_n (i32 0l))
-                      param_src_dst
-                      (with_sploded_pair "dslist" param_src_dst (fun psrc pdst ->
+                      ~cond:(eq n (i32 0l))
+                      src_dst
+                      (with_sploded_pair "dslist" src_dst (fun psrc pdst ->
                         pair
                           (Des.list_sep dstate psrc)
                           (Ser.list_sep sstate pdst))) in

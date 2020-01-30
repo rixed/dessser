@@ -60,10 +60,8 @@ struct
   let list_opn () _ src =
     let b_src = read_byte src in
     map_pair b_src
-      (func [|T.byte; T.dataptr|] (fun fid ->
-        pair
-          (to_u32 (u8_of_byte (param fid 0)))
-          (param fid 1)))
+      (func2 T.byte T.dataptr (fun b p ->
+        pair (to_u32 (u8_of_byte b)) p))
   let list_cls () src = src
   let list_sep () src = src
   let is_null () src =

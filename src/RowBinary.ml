@@ -26,12 +26,12 @@ struct
     let_ "leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
-          (func [|T.byte|] (fun fid -> ge (param fid 0) (byte 128))))
+          (func1 T.byte (fun b -> ge b (byte 128))))
         ~reduce:(comment "Reducer for read_leb128"
-          (func [|t_u32_u8; T.byte|] (fun fid ->
-            let byte = log_and (u8_of_byte (param fid 1)) (u8 127) in
-            let leb = fst (param fid 0)
-            and shft = snd (param fid 0) in
+          (func2 t_u32_u8 T.byte (fun leb_shft b ->
+            let byte = log_and (u8_of_byte b) (u8 127) in
+            let leb = fst leb_shft
+            and shft = snd leb_shft in
             pair (add  (left_shift (to_u32 byte) shft) leb)
                  (add shft (u8 7)))))
         ~init:(pair (u32 Uint32.zero) (u8 0))
@@ -191,8 +191,8 @@ struct
     fst (
       loop_until
         ~body:(comment "Loop body for write_leb128"
-          (func [|t_ptr_sz|] (fun fid ->
-            with_sploded_pair "write_leb128" (param fid 0) (fun p wlen ->
+          (func1 t_ptr_sz (fun p_wlen ->
+            with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
               let b =
                 choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
                   (log_and (to_u8 wlen) (u8 127))
@@ -201,7 +201,7 @@ struct
                 (write_byte p b)
                 (right_shift wlen (u8 7))))))
         ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
-          (func [|t_ptr_sz|] (fun fid -> gt (snd (param fid 0)) (u32 Uint32.zero))))
+          (func1 t_ptr_sz (fun ptr_sz -> gt (snd ptr_sz) (u32 Uint32.zero))))
         ~init:(pair p (u32_of_size v)))
 
   let sstring () v p =
@@ -319,13 +319,13 @@ struct
     size_of_u32 (fst (
       loop_while
         ~cond:(comment "Condition for ssize_of_leb128"
-          (func [|t_u32_u32|] (fun fid ->
-            with_sploded_pair "ssize_of_leb128" (param fid 0) (fun lebsz n ->
+          (func1 t_u32_u32 (fun lebsz_n ->
+            with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
               let max_len_for_lebsz = left_shift lebsz (u8 7) in
               ge n max_len_for_lebsz))))
         ~body:(comment "Loop for ssize_of_leb128"
-          (func [|t_u32_u32|] (fun fid ->
-            with_sploded_pair "ssize_of_leb128" (param fid 0) (fun lebsz n ->
+          (func1 t_u32_u32 (fun lebsz_n ->
+            with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
               pair (add lebsz (u32 Uint32.one)) n))))
         ~init:(pair (u32 Uint32.one) n)))
 

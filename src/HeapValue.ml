@@ -232,12 +232,12 @@ struct
   let sersize vtyp src =
     let add_size sizes sz =
       map_pair sizes
-        (func T.[|size; size|] (fun fid ->
+        (func2 T.size T.size (fun s1 s2 ->
           match sz with
           | ConstSize s ->
-              pair (add (size s) (param fid 0)) (param fid 1)
+              pair (add (size s) s1) s2
           | DynSize s ->
-              pair (param fid 0) (add s (param fid 1)))) in
+              pair s1 (add s s2))) in
     (* Add that value size to the passed size pair: *)
     let rec ssize_vtype path sizes v = function
       | Mac TFloat ->

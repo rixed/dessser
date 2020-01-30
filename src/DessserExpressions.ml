@@ -279,6 +279,25 @@ let func =
     incr next_id ;
     E1 (Function (id, typs), f id)
 
+(* Specialized to a given arity: *)
+let func1 t1 f =
+  func [| t1 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0)) in
+    f p1)
+
+let func2 t1 t2 f =
+  func [| t1 ; t2 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1)) in
+    f p1 p2)
+
+let func3 t1 t2 t3 f =
+  func [| t1 ; t2 ; t3 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1))
+    and p3 = E0 (Param (fid, 2)) in
+    f p1 p2 p3)
+
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
