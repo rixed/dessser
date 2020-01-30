@@ -3,7 +3,7 @@
 #include <map>
 
 template<class K, class V>
-class Map : public std::map<K, V> {
+struct Map : public std::map<K, V> {
   Map() {}
 };
 

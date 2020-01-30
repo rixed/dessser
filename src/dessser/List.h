@@ -4,7 +4,7 @@
 #include <vector>
 
 template<class T>
-class List : public std::vector<T> {
+struct List : public std::vector<T> {
   List() {
     this->reserve(10);
   }
