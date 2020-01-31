@@ -121,7 +121,7 @@ struct Pointer {
 
   Word peekWordBe() const
   {
-    checkOffset(offset + 1);
+    checkOffset(offset + 2);
     return (((Word)buffer[offset]) << 8) |
            buffer[offset + 1];
   }
@@ -147,6 +147,21 @@ struct Pointer {
       peekDWordLe(), skip(4));
   }
 
+  DWord peekDWordBe() const
+  {
+    checkOffset(offset + 3);
+    return (((DWord)buffer[offset]) << 24) |
+           (((DWord)buffer[offset + 1]) << 16) |
+           (((DWord)buffer[offset + 2]) << 8) |
+           buffer[offset + 3];
+  }
+
+  std::pair<DWord, Pointer> readDWordBe() const
+  {
+    return std::make_pair<DWord, Pointer>(
+      peekDWordBe(), skip(4));
+  }
+
   QWord peekQWordLe() const
   {
     checkOffset(offset + 7);
@@ -164,6 +179,25 @@ struct Pointer {
   {
     return std::make_pair<QWord, Pointer>(
       peekQWordLe(), skip(8));
+  }
+
+  QWord peekQWordBe() const
+  {
+    checkOffset(offset + 7);
+    return (((QWord)buffer[offset]) << 56) |
+           (((QWord)buffer[offset + 1]) << 48) |
+           (((QWord)buffer[offset + 2]) << 40) |
+           (((QWord)buffer[offset + 3]) << 32) |
+           (((QWord)buffer[offset + 4]) << 24) |
+           (((QWord)buffer[offset + 5]) << 16) |
+           (((QWord)buffer[offset + 6]) << 8) |
+           buffer[offset + 7];
+  }
+
+  std::pair<QWord, Pointer> readQWordBe() const
+  {
+    return std::make_pair<QWord, Pointer>(
+      peekQWordBe(), skip(8));
   }
 
   OWord peekOWordLe() const
@@ -192,6 +226,34 @@ struct Pointer {
     checkOffset(offset + 15);
     return std::make_pair<OWord, Pointer>(
       peekOWordLe(), skip(16));
+  }
+
+  OWord peekOWordBe() const
+  {
+    checkOffset(offset + 15);
+    return (((OWord)buffer[offset]) << 120) |
+           (((OWord)buffer[offset + 1]) << 112) |
+           (((OWord)buffer[offset + 2]) << 104) |
+           (((OWord)buffer[offset + 3]) << 96) |
+           (((OWord)buffer[offset + 4]) << 88) |
+           (((OWord)buffer[offset + 5]) << 80) |
+           (((OWord)buffer[offset + 6]) << 72) |
+           (((OWord)buffer[offset + 7]) << 64) |
+           (((OWord)buffer[offset + 8]) << 56) |
+           (((OWord)buffer[offset + 9]) << 48) |
+           (((OWord)buffer[offset + 10]) << 40) |
+           (((OWord)buffer[offset + 11]) << 32) |
+           (((OWord)buffer[offset + 12]) << 24) |
+           (((OWord)buffer[offset + 13]) << 16) |
+           (((OWord)buffer[offset + 14]) << 8) |
+           buffer[offset + 15];
+  }
+
+  std::pair<OWord, Pointer> readOWordBe() const
+  {
+    checkOffset(offset + 15);
+    return std::make_pair<OWord, Pointer>(
+      peekOWordBe(), skip(16));
   }
 
   std::pair<Bytes, Pointer> readBytes(Size const &sz) const
@@ -233,6 +295,14 @@ struct Pointer {
     return (skip(2));
   }
 
+  Pointer writeWordBe(Word v)
+  {
+    checkOffset(offset + 1);
+    buffer[offset+1] = v;
+    buffer[offset] = v >> 8;
+    return (skip(2));
+  }
+
   Pointer writeDWordLe(DWord v)
   {
     checkOffset(offset + 3);
@@ -240,6 +310,16 @@ struct Pointer {
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
     buffer[offset+3] = v >> 24;
+    return (skip(4));
+  }
+
+  Pointer writeDWordBe(DWord v)
+  {
+    checkOffset(offset + 3);
+    buffer[offset+3] = v;
+    buffer[offset+2] = v >> 8;
+    buffer[offset+1] = v >> 16;
+    buffer[offset] = v >> 24;
     return (skip(4));
   }
 
@@ -254,6 +334,20 @@ struct Pointer {
     buffer[offset+5] = v >> 40;
     buffer[offset+6] = v >> 48;
     buffer[offset+7] = v >> 56;
+    return (skip(8));
+  }
+
+  Pointer writeQWordBe(QWord v)
+  {
+    checkOffset(offset + 7);
+    buffer[offset+7] = v;
+    buffer[offset+6] = v >> 8;
+    buffer[offset+5] = v >> 16;
+    buffer[offset+4] = v >> 24;
+    buffer[offset+3] = v >> 32;
+    buffer[offset+2] = v >> 40;
+    buffer[offset+1] = v >> 48;
+    buffer[offset] = v >> 56;
     return (skip(8));
   }
 
@@ -276,6 +370,28 @@ struct Pointer {
     buffer[offset+13] = v >> 104;
     buffer[offset+14] = v >> 112;
     buffer[offset+15] = v >> 120;
+    return (skip(16));
+  }
+
+  Pointer writeOWordBe(OWord v)
+  {
+    checkOffset(offset + 15);
+    buffer[offset+15] = v;
+    buffer[offset+14] = v >> 8;
+    buffer[offset+13] = v >> 16;
+    buffer[offset+12] = v >> 24;
+    buffer[offset+11] = v >> 32;
+    buffer[offset+10] = v >> 40;
+    buffer[offset+9] = v >> 48;
+    buffer[offset+8] = v >> 56;
+    buffer[offset+7] = v >> 64;
+    buffer[offset+6] = v >> 72;
+    buffer[offset+5] = v >> 80;
+    buffer[offset+4] = v >> 88;
+    buffer[offset+3] = v >> 96;
+    buffer[offset+2] = v >> 104;
+    buffer[offset+1] = v >> 112;
+    buffer[offset] = v >> 120;
     return (skip(16));
   }
 

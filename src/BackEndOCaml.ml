@@ -571,59 +571,59 @@ struct
     | E1 (ReadByte, e1) ->
         unary_op "Pointer.readByte" e1
     | E1 (ReadWord LittleEndian, e1) ->
-        unary_op "Pointer.readWordLe" e1
+        unary_op "Pointer.readWord ~big_endian:false" e1
     | E1 (ReadWord BigEndian, e1) ->
-        unary_op "Pointer.readWordBe" e1
+        unary_op "Pointer.readWord ~big_endian:true" e1
     | E1 (ReadDWord LittleEndian, e1) ->
-        unary_op "Pointer.readDWordLe" e1
+        unary_op "Pointer.readDWord ~big_endian:false" e1
     | E1 (ReadDWord BigEndian, e1) ->
-        unary_op "Pointer.readDWordBe" e1
+        unary_op "Pointer.readDWord ~big_endian:true" e1
     | E1 (ReadQWord LittleEndian, e1) ->
-        unary_op "Pointer.readQWordLe" e1
+        unary_op "Pointer.readQWord ~big_endian:false" e1
     | E1 (ReadQWord BigEndian, e1) ->
-        unary_op "Pointer.readQWordBe" e1
+        unary_op "Pointer.readQWord ~big_endian:true" e1
     | E1 (ReadOWord LittleEndian, e1) ->
-        unary_op "Pointer.readOWordLe" e1
+        unary_op "Pointer.readOWord ~big_endian:false" e1
     | E1 (ReadOWord BigEndian, e1) ->
-        unary_op "Pointer.readOWordBe" e1
+        unary_op "Pointer.readOWord ~big_endian:true" e1
     | E2 (ReadBytes, e1, e2) ->
         binary_op "Pointer.readBytes" e1 e2
     | E2 (PeekByte, e1, e2) ->
         binary_op "Pointer.peekByte" e1 e2
     | E2 (PeekWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekWorkLe" e1 e2
+        binary_op "Pointer.peekWork ~big_endian:false" e1 e2
     | E2 (PeekWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekWorkBe" e1 e2
+        binary_op "Pointer.peekWork ~big_endian:true" e1 e2
     | E2 (PeekDWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekDWorkLe" e1 e2
+        binary_op "Pointer.peekDWork ~big_endian:false" e1 e2
     | E2 (PeekDWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekDWorkBe" e1 e2
+        binary_op "Pointer.peekDWork ~big_endian:true" e1 e2
     | E2 (PeekQWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekQWorkLe" e1 e2
+        binary_op "Pointer.peekQWork ~big_endian:false" e1 e2
     | E2 (PeekQWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekQWorkBe" e1 e2
+        binary_op "Pointer.peekQWork ~big_endian:true" e1 e2
     | E2 (PeekOWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekOWorkLe" e1 e2
+        binary_op "Pointer.peekOWork ~big_endian:false" e1 e2
     | E2 (PeekOWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekOWorkBe" e1 e2
+        binary_op "Pointer.peekOWork ~big_endian:true" e1 e2
     | E2 (WriteByte, e1, e2) ->
         binary_op "Pointer.writeByte" e1 e2
     | E2 (WriteWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeWordLe" e1 e2
+        binary_op "Pointer.writeWord ~big_endian:false" e1 e2
     | E2 (WriteWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeWordBe" e1 e2
+        binary_op "Pointer.writeWord ~big_endian:true" e1 e2
     | E2 (WriteDWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeDWordLe" e1 e2
+        binary_op "Pointer.writeDWord ~big_endian:false" e1 e2
     | E2 (WriteDWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeDWordBe" e1 e2
+        binary_op "Pointer.writeDWord ~big_endian:true" e1 e2
     | E2 (WriteQWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeQWordLe" e1 e2
+        binary_op "Pointer.writeQWord ~big_endian:false" e1 e2
     | E2 (WriteQWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeQWordBe" e1 e2
+        binary_op "Pointer.writeQWord ~big_endian:true" e1 e2
     | E2 (WriteOWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeOWordLe" e1 e2
+        binary_op "Pointer.writeOWord ~big_endian:false" e1 e2
     | E2 (WriteOWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeOWordBe" e1 e2
+        binary_op "Pointer.writeOWord ~big_endian:true" e1 e2
     | E2 (WriteBytes, e1, e2) ->
         binary_op "Pointer.writeBytes" e1 e2
     | E2 (PokeByte, e1, e2) ->
