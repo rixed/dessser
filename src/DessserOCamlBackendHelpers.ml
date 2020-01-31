@@ -63,6 +63,7 @@ struct
       { bytes ; offset = 0 ; length }
 
   let add s1 b =
+    let b = Char.chr (Uint8.to_int b) in
     if s1.offset + s1.length < Bytes.length s1.bytes &&
        Bytes.get s1.bytes (s1.offset + s1.length) = b
     then
