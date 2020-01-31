@@ -998,8 +998,8 @@ and type_of l e0 =
   | E2 (And, _, _) -> bool
   | E2 (Or, _, _) -> bool
   | E1 (Not, _) -> bool
-  | E1 (ToU8, _) -> i8
-  | E1 (ToI8, _) -> u8
+  | E1 (ToU8, _) -> u8
+  | E1 (ToI8, _) -> i8
   | E1 (ToU16, _) -> u16
   | E1 (ToI16, _) -> i16
   | E1 (ToU24, _) -> u24
