@@ -53,6 +53,8 @@ struct
        s1.offset + s1.length = s2.offset
     then
       { s1 with length = s1.length + s2.length }
+    else if s1.length = 0 then s2
+    else if s2.length = 0 then s1
     else
       let length = s1.length + s2.length in
       let bytes = Bytes.create length in

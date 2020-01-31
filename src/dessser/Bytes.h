@@ -30,14 +30,28 @@ struct Bytes {
     memcpy(buffer.get(), s.c_str(), size);
   }
 
+  // To be used by below constructors:
+  void CopyFrom(Bytes const &b)
+  {
+    capa = b.capa;
+    buffer = b.buffer;
+    offset = b.offset;
+    size = b.size;
+  }
+
+  // Concatenate two other Bytes:
   Bytes(Bytes const &b1, Bytes const &b2)
   {
     if (b1.buffer == b2.buffer &&
-        b1.offset + b1.size == b2.offset) { /* fast path */
+        b1.offset + b1.size == b2.offset) { /* fast paths first */
       capa = b1.capa;
       buffer = b1.buffer;
       offset = b1.offset;
       size = b1.size + b2.size;
+    } else if (b1.size == 0) {
+      CopyFrom(b2);
+    } else if (b2.size == 0) {
+      CopyFrom(b1);
     } else { /* slow path */
       capa = size = b1.size + b2.size;
       buffer = std::shared_ptr<Byte[]>(new Byte[size]);
