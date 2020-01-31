@@ -711,6 +711,7 @@ struct
           indent_more p (fun () ->
             ppi oc "let rec read_while_loop accum ptr =" ;
             indent_more p (fun () ->
+              ppi oc "if Pointer.remSize ptr <= 0 then (accum, ptr) else" ;
               ppi oc "let next_byte = Pointer.peekByte ptr 0 in" ;
               ppi oc "if not (%s next_byte) then (accum, ptr) else" cond ;
               ppi oc "let accum = %s accum next_byte in" reduce ;

@@ -220,8 +220,10 @@ type e3 =
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
 
 type e4 =
-  | ReadWhile (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
-                   Result ('a*ptr) *)
+  | ReadWhile
+      (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
+           Result ('a*ptr)
+        Read whenever cond returns true, or the input stream is exhausted *)
   | Repeat (* From * To * body (idx->'a->'a) * Init value *)
 
 type e =

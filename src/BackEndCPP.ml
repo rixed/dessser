@@ -13,7 +13,8 @@ struct
   let compile_cmd ~optim ~link src dst =
     let optim = cap 0 3 optim in
     Printf.sprintf
-      "g++ -std=c++17 -g -O%d -W -Wall -Wno-unused-parameter \
+      "g++ -std=c++17 -g -O%d -W -Wall \
+           -Wno-unused-parameter -Wno-unused-variable \
            -Wno-shift-negative-value -I src %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
@@ -532,12 +533,15 @@ struct
         ppi p.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
         ppi p.def "while (true) {" ;
         indent_more p (fun () ->
-          ppi p.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
-          ppi p.def "if (%s(next_byte_)) {" cond ;
+          ppi p.def "if (%s.rem() <= 0) break else {" ptr ;
           indent_more p (fun () ->
-            ppi p.def "%s = %s(%s, next_byte_);" res reduce res ;
-            ppi p.def "%s = %s.skip(1);" ptr ptr) ;
-          ppi p.def "} else break;") ;
+            ppi p.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
+            ppi p.def "if (%s(next_byte_)) {" cond ;
+            indent_more p (fun () ->
+              ppi p.def "%s = %s(%s, next_byte_);" res reduce res ;
+              ppi p.def "%s = %s.skip(1);" ptr ptr) ;
+            ppi p.def "} else break;") ;
+          ppi p.def "}") ;
         ppi p.def "}" ;
         emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | E3 (LoopWhile, e1, e2, e3) ->
