@@ -69,13 +69,13 @@ sig
   val print_binding :
     string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
 
-  val print_comment : 'a IO.output -> string -> unit
-
   val print_binding_toplevel :
     emitter -> string -> print_state -> (e * typ) list -> e -> unit
 
   val print_identifier_declaration :
     string -> print_state -> (e * typ) list -> e -> unit
+
+  val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
 
   val print : ?name:string -> emitter -> print_state -> (e * typ) list -> e -> string
 
@@ -92,7 +92,7 @@ let gen_sym =
 
 module Make (C : CONFIG) : BACKEND =
 struct
-
+  let print_comment = C.print_comment
   let preferred_def_extension = C.preferred_def_extension
   let preferred_decl_extension = C.preferred_decl_extension
   let compile_cmd = C.compile_cmd

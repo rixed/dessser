@@ -14,7 +14,8 @@ struct
     let optim = cap 2 3 optim in
     Printf.sprintf
       "ocamlfind ocamlopt -g -annot -O%d -w -26 -I src -package stdint,batteries \
-       -linkpkg src/DessserOCamlBackendHelpers.cmx %s %S -o %S"
+       -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackendHelpers.cmx \
+       %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
   let tuple_field_name i = "field_"^ string_of_int i
@@ -213,8 +214,8 @@ struct
   let print_binding n tn f oc =
     pp oc "let %s : %s = %t in" n tn f
 
-  let print_comment oc s =
-    pp oc "(* %s *)" s
+  let print_comment oc fmt =
+    pp oc ("(* " ^^ fmt ^^ " *)")
 
   let print_float_literal v oc =
     (* printf "%F" would not work for infinity:

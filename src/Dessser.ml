@@ -457,8 +457,10 @@ module type BACKEND =
 sig
   type state
   val make_state : unit -> state
-  val print_definitions : state -> 'a IO.output -> unit
-  val print_declarations : state -> 'a IO.output -> unit
+  val print_definitions : state -> unit IO.output -> unit
+  val print_declarations : state -> unit IO.output -> unit
+  val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
+
   (* Returns the new state, the Identifier expression to use in new expressions,
    * and the identifier name in the source code.
    * Expression is not allowed to have the null type (which would make little
@@ -468,8 +470,3 @@ sig
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
 end
-
-let compile ?(optim=3) ~link backend src_fname dest_fname =
-  let module BE = (val backend : BACKEND) in
-  let cmd = BE.compile_cmd ~optim ~link src_fname dest_fname in
-  run_cmd cmd

@@ -10,6 +10,7 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 open DessserTools
+open DessserDSTools
 open DessserCompilConfig
 open Ops
 

@@ -97,8 +97,8 @@ struct
   let print_binding n tn f oc =
     pp oc "%s %s(%t);" tn n f
 
-  let print_comment oc s =
-    pp oc "/* %s */" s
+  let print_comment oc fmt =
+    pp oc ("/* "^^ fmt ^^" */")
 
   let rec deref_path v vt = function
     | [] -> v
@@ -320,9 +320,12 @@ struct
     | E1 (U56OfString, e1)
     | E1 (I56OfString, e1)
     | E1 (U64OfString, e1)
-    | E1 (I64OfString, e1)
+    | E1 (I64OfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
     | E1 (U128OfString, e1)
     | E1 (I128OfString, e1) ->
+        (* TODO: larger values will crash: *)
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
     | E1 (FloatOfQWord, e1) ->
@@ -656,7 +659,8 @@ include BackEndCLike.Make (Config)
   open DessserTypes
   open DessserExpressions
   open Dessser
-  open DessserTools *)
+  open DessserTools
+  open DessserDSTools *)
 
 (*$R
   let e = List.hd (Parser.expr "(alloc-value \"{crfgfc: U32[9]}?\")") in

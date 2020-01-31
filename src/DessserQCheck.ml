@@ -4,6 +4,7 @@ open Stdint
 open QCheck
 open DessserTypes
 open DessserTools
+open DessserFloatTools
 
 (*
  * Some misc generators
@@ -429,6 +430,7 @@ let expression =
 (*$inject
   open Dessser
   open DessserTools
+  open DessserDSTools
 
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
@@ -555,14 +557,13 @@ let sexpr mn =
 (* A program that convert from s-expr to s-expr for the given schema [mn],
  * to check s-expr is reliable before using it in further tests: *)
 (*$inject
-  open DessserDSTools
   open QCheck
   module S2S = Dessser.DesSer (SExpr.Des) (SExpr.Ser)
   let sexpr_to_sexpr be mn =
     let e =
       func2 TDataPtr TDataPtr (fun src dst ->
         S2S.desser mn src dst) in
-    make_converter be e
+    make_converter be ~mn e
 
   let ocaml_be = (module BackEndOCaml : BACKEND)
   let cpp_be = (module BackEndCPP : BACKEND)

@@ -45,11 +45,6 @@ let list_split_last lst =
   | [] -> invalid_arg "list_split_last"
   | hd :: tl -> List.rev tl, hd
 
-let hexstring_of_float = Legacy.Printf.sprintf "%h"
-let float_of_hexstring s = Legacy.Scanf.sscanf s "%h" identity
-let float_of_anystring s =
-  try float_of_hexstring s with _ -> float_of_string s
-
 let cap mi ma x =
   if x < mi then mi else if x > ma then ma else x
 

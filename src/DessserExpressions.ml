@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 open DessserTypes
 open DessserTools
+open DessserFloatTools
 
 (*$inject
   open Batteries

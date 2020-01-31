@@ -7,12 +7,17 @@ open Dessser
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
+let compile ?(optim=3) ~link backend src_fname dest_fname =
+  let module BE = (val backend : BACKEND) in
+  let cmd = BE.compile_cmd ~optim ~link src_fname dest_fname in
+  run_cmd cmd
+
 (* [convert] is a filter, aka a function from a pair of src*dst data-ptrs to
  * another such pair, as returned by DesSer.desser function. From that a
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
  * into stdout and stops (for tests). *)
-let make_converter ?exe_fname backend convert =
+let make_converter ?exe_fname ?mn backend convert =
   let module BE = (val backend : BACKEND) in
   type_check [] convert ;
   let state = BE.make_state () in
@@ -23,6 +28,12 @@ let make_converter ?exe_fname backend convert =
     | None -> Filename.temp_file "dessser_converter_" "" in
   let src_fname = change_ext BE.preferred_def_extension exe_fname in
   write_source ~src_fname (fun oc ->
+    Option.may (fun mn ->
+      BE.print_comment oc "Converter for values of type:\n  %a\n"
+        T.print_maybe_nullable mn
+    ) mn ;
+    BE.print_comment oc "Compile with:\n  %s\n"
+      (BE.compile_cmd ~optim:0 ~link:true src_fname exe_fname) ;
     BE.print_definitions state oc ;
     if BE.preferred_def_extension = "cc" then
       String.print oc (FragmentsCPP.converter entry_point)

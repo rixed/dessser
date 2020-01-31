@@ -4,6 +4,7 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 open DessserTools
+open DessserDSTools
 open Ops
 module T = DessserTypes
 

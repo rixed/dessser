@@ -88,6 +88,7 @@ doc:
 
 LIBDESSSER_SOURCES = \
 	src/DessserTools.ml \
+	src/DessserFloatTools.ml \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
@@ -194,6 +195,7 @@ TESTABLE_SOURCES = \
 	src/DessserQCheck.ml
 
 LINKED_FOR_TESTS = \
+	src/DessserFloatTools.ml \
 	src/DessserTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
