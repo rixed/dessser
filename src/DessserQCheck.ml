@@ -25,9 +25,11 @@ let field_name_gen =
 
 let let_name_gen = field_name_gen
 
-(* Useful when generate random comments: avoids including a closing comment *)
-let printable_no_star =
-  Gen.(map (fun c -> if c = '*' then 'X' else c) printable)
+(* Useful when generate random comments: avoids including a closing comment
+ * or an unterminated string *)
+let printable_for_comments =
+  Gen.(map (fun c ->
+    if c = '*' || c = '"' then 'X' else c) printable)
 
 (*
  * Random types generator
@@ -345,7 +347,7 @@ and e1_gen l depth =
           ) (expression_gen (l, depth - 1))
         ) (tiny_array maybe_nullable_gen)
       ) ;
-    1, map2 comment (string ~gen:printable_no_star) expr ;
+    1, map2 comment (string ~gen:printable_for_comments) expr ;
     1, map2 field_is_null path_gen expr ;
     1, map2 get_field path_gen expr ;
     1, map2 read_word endianness_gen expr ;
