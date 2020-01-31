@@ -448,7 +448,7 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "Uint64.of_int64 (BatInt64.bits_of_float %s)" n)
     | E1 (StringOfFloat, e1) ->
-        unary_op "string_of_float" e1
+        unary_op "hexstring_of_float" e1
     | E1 (StringOfChar, e1) ->
         unary_mod_op "of_char" e1
     | E1 (CharOfString, e1) ->
@@ -663,7 +663,12 @@ struct
         | None ->
             valid_identifier s)
     | E2 (Let n, e1, e2) ->
-        let _ = print ~name:n emit p l e1 in
+        (* Most of definitions we can actually choose the name (with ?name),
+         * so we save a let. But for a few [e1] we will have no such choice,
+         * so then another let is required: *)
+        let n1 = print ~name:n emit p l e1 in
+        if n1 <> n then
+          ignore (emit ?name:(Some n) p l e (fun oc -> String.print oc n1)) ;
         let t = type_of l e1 in
         let l = (E0 (Identifier n), t) :: l in
         print ?name emit p l e2

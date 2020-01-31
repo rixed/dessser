@@ -4,6 +4,7 @@ open Dessser
 open DessserTypes
 open DessserExpressions
 open DessserTools
+open DessserDSTools
 open Ops
 module T = DessserTypes
 
@@ -94,95 +95,6 @@ let () =
                     pair src (snd src_dst')) ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
-  type_check [] convert ;
-  let state = BE.make_state () in
-  let state, _, entry_point =
-    BE.identifier_of_expression state ~name:"convert" convert in
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in
-  let src_fname = change_ext BE.preferred_def_extension exe_fname in
-  write_source ~src_fname (fun oc ->
-    BE.print_definitions state oc ;
-    let out_buf_size = 10000 in
-    if BE.preferred_def_extension = "cc" then
-      Printf.fprintf oc {|
-static std::string readWholeFile(std::string const fname)
-{
-  std::ifstream t(fname);
-  std::string str(std::istreambuf_iterator<char>(t),
-                  (std::istreambuf_iterator<char>()));
-  return str;
-}
-
-int main(int numArgs, char **args)
-{
-  char const *fname = "/dev/stdin";
-  char delim = '\n';
-
-  for (int a = 1; a < numArgs; a++) {
-    if (a < numArgs - 1 && (
-          0 == strcasecmp(args[a], "--delim") ||
-          0 == strcasecmp(args[a], "-d")
-        )) {
-      delim = args[a+1][0];
-    } else {
-      fname = args[a];
-    }
-  }
-
-  std::string input = readWholeFile(fname);
-  Pointer src(input);
-
-  while (src.rem() > 0) {
-    Size outSz(%d);
-    Pointer dst(outSz);
-
-    std::pair<Pointer, Pointer> ptrs = %s(src, dst);
-
-    // Print serialized:
-    assert(ptrs.second.offset < ptrs.second.size-1);
-    if (ptrs.second.buffer) {
-      fwrite(ptrs.second.buffer.get(), 1, ptrs.second.offset, stdout);
-      if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
-    } // else it's a heap value
-
-    src = ptrs.first;
-  }
-
-  return 0;
-}
-|} out_buf_size entry_point
-      else
-        Printf.fprintf oc {|
-let read_whole_file fname =
-  File.with_file_in ~mode:[`text] fname IO.read_all
-
-let () =
-  let fname = ref "/dev/stdin" in
-  let delim = ref '\n' in
-  Array.iteri (fun i arg ->
-    if i < Array.length Sys.argv - 1 && (
-         String.icompare arg "--delim" = 0 ||
-         String.icompare arg "-d" = 0
-       ) then
-      delim := Sys.argv.(i + 1).[0]
-    else if i > 0 then
-      fname := arg
-  ) Sys.argv ;
-
-  let input = read_whole_file !fname in
-  let src = Pointer.of_string input in
-
-  let rec loop src =
-    if Pointer.remSize src <= 0 then src else (
-      let sz = %d in
-      let dst = Pointer.make sz in
-      let src, dst = %s src dst in
-      assert (dst.offset < dst.length) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
-      Char.print stdout !delim ;
-      flush stdout ;
-      loop src
-    ) in
-  loop src |> ignore
-|} out_buf_size entry_point) ;
-  compile ~optim:3 ~link:true backend src_fname exe_fname
+  let exe_fname = make_converter ~exe_fname backend convert in
+  Printf.printf "executable in %s" exe_fname

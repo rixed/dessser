@@ -21,8 +21,8 @@ struct
      * run [op] to convert from a string: *)
     let cond = func1 T.byte (fun b ->
       (* No other options as we would meet a space before a '(' or '"': *)
-      not_ (or_ (eq b (char ' '))
-                (eq b (char ')'))))
+      not_ (or_ (eq b (byte_of_const_char ' '))
+                (eq b (byte_of_const_char ')'))))
     and init = bytes_of_string (string "")
     and reduce = func2 T.bytes T.byte append_byte in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
@@ -36,7 +36,7 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = func1 T.byte (fun b -> not_ (eq b (char '"')))
+    let cond = func1 T.byte (fun b -> not_ (eq b (byte_of_const_char '"')))
     and init = bytes_of_string (string "")
     and reduce = func2 T.bytes T.byte append_byte in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
@@ -84,7 +84,11 @@ struct
   let vec_cls () p = skip1 p
   let vec_sep _n () p = skip1 p
 
-  let list_opn () _ p = skip1 p
+  let list_opn =
+    UnknownSize (
+      (fun () _ p -> skip1 p),
+      (fun () p ->
+        eq (peek_byte p (size 0)) (byte_of_const_char ')')))
   let list_cls () p = skip1 p
   let list_sep () p = skip1 p
 
@@ -171,19 +175,19 @@ struct
     write_byte p (byte_of_const_char ' ')
 
   let vec_opn () _ _ p =
-    write_byte p (byte_of_const_char '[')
+    write_byte p (byte_of_const_char '(')
 
   let vec_cls () p =
-    write_byte p (byte_of_const_char ']')
+    write_byte p (byte_of_const_char ')')
 
   let vec_sep _n () p =
     write_byte p (byte_of_const_char ' ')
 
   let list_opn () _ p _n =
-    write_byte p (byte_of_const_char '[')
+    write_byte p (byte_of_const_char '(')
 
   let list_cls () p =
-    write_byte p (byte_of_const_char ']')
+    write_byte p (byte_of_const_char ')')
 
   let list_sep () p =
     write_byte p (byte_of_const_char ' ')

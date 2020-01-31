@@ -18,7 +18,7 @@ let () =
             (String.icompare arg "--input" = 0 ||
              String.icompare arg "-i" = 0)
     then
-      fname := argv.(i + 1)
+      fname := Sys.argv.(i + 1)
     else if i > 0 then
       single_input := arg
   ) Sys.argv ;

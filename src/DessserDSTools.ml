@@ -33,9 +33,14 @@ let make_converter ?exe_fname backend convert =
 
 (* Write an input to some single-shot converter program and return its
  * output: *)
-let run_converter exe param =
+let run_converter ?timeout exe param =
   let str = IO.output_string () in
-  with_stdout_from_command exe [| exe ; param |] (fun ic ->
+  let cmd, args = match timeout with
+    | None -> exe, [| exe ; param |]
+    | Some t ->
+        let timeout_cmd = "/usr/bin/timeout" in
+        timeout_cmd, [| timeout_cmd ; string_of_int t ; exe ; param |] in
+  with_stdout_from_command cmd args (fun ic ->
     let i = IO.input_channel ic in
     IO.copy i str) ;
   IO.close_out str

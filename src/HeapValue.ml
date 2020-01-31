@@ -200,10 +200,10 @@ struct
 
   let vec_sep _ (path, _) p = next path ; p
 
-  let list_opn (path, _ as st) _ p =
+  let list_opn = KnownSize (fun (path, _ as st) _ p ->
     enter path ;
     let lst = get_field st p in
-    pair (list_length lst) p
+    pair (list_length lst) p)
 
   let list_cls (path, _) p = leave path ; p
 

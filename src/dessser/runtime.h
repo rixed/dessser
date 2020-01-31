@@ -1,10 +1,11 @@
 #ifndef RUNTIME_H_191025
 #define RUNTIME_H_191025
-#include <string>
-#include <optional> // for nullable types
 #include <iostream> // for dump
-#include <utility>  // for pair
 #include <limits>   // for std::numeric_limits
+#include <optional> // for nullable types
+#include <sstream>
+#include <string>
+#include <utility>  // for pair
 #include "dessser/typedefs.h"
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
@@ -25,6 +26,13 @@ inline double floatOfQword(uint64_t v)
   static_assert(sizeof(v) == sizeof(res));
   memcpy(&res, &v, sizeof(v));
   return res;
+}
+
+inline std::string hexStringOfFloat(double f)
+{
+  std::ostringstream so;
+  so << std::hexfloat << f;
+  return so.str();
 }
 
 /* Conversion from 128 bits wide integers to strings.

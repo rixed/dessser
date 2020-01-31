@@ -5,6 +5,19 @@ open DessserExpressions
 open DessserTools
 module T = DessserTypes
 
+(* Used by deserializers to "open" lists: *)
+type 'a list_opener =
+  (* When a list size is known from the beginning, implement this that
+   * returns both the list size and the new src pointer: *)
+  | KnownSize of ('a -> maybe_nullable -> (*ptr*) e -> (* (nn * ptr) *) e)
+  (* Whereas when the list size is not known beforehand, rather implement
+   * this pair of functions, one to parse the ilst header and return the new
+   * src pointer and one that will be called before any new token and must
+   * return true if the list is finished: *)
+  | UnknownSize of
+      ('a -> maybe_nullable -> (*ptr*) e -> (*ptr*) e) *
+      ('a -> (*ptr*) e -> (*bool*) e)
+
 (* Given the above we can built interesting expressions.
  * A DES(serializer) is a module that implements a particular serialization
  * format in such a way that it provides simple expressions for the basic
@@ -60,7 +73,7 @@ sig
   val vec_opn : state -> (*dim*) int -> maybe_nullable -> (*ptr*) e -> (*ptr*) e
   val vec_cls : state -> (*ptr*) e -> (*ptr*) e
   val vec_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
-  val list_opn : state -> maybe_nullable -> (*ptr*) e -> (* (nn * ptr) *) e
+  val list_opn : state list_opener
   val list_cls : state -> (*ptr*) e -> (*ptr*) e
   val list_sep : state -> (*ptr*) e -> (*ptr*) e
 
@@ -308,27 +321,63 @@ struct
     let pair_ptrs = TPair (Des.ptr vtyp0, Ser.ptr vtyp0) in
     comment "Convert a List"
       (with_sploded_pair "dslist1" src_dst (fun src dst ->
-        let dim_src = Des.list_opn dstate vtyp src in
-        with_sploded_pair "dslist2" dim_src (fun dim src ->
-          let dst = Ser.list_opn sstate vtyp dst dim in
-          let src_dst =
-            repeat ~from:(i32 0l) ~to_:(to_i32 dim)
-              ~body:(comment "Convert a list item"
-                (func2 T.i32 pair_ptrs (fun n src_dst ->
-                  let src_dst =
-                    choose
-                      ~cond:(eq n (i32 0l))
-                      src_dst
-                      (with_sploded_pair "dslist" src_dst (fun psrc pdst ->
+        (* FIXME: for some deserializers (such as SExpr) it's not easy to
+         * know the list length in advance. For those, it would be better
+         * to call a distinct 'end-of-list' function returning a bool and
+         * read until this returns true. We could simply have both, and
+         * here we would repeat_while ~cond:(n<count && not end_of_list),
+         * then SEpxr would merely return a very large number of entries
+         * (better than to return a single condition in list_opn for non
+         * functional backends such as, eventually, C?) *)
+        let src_dst =
+          match Des.list_opn with
+          | KnownSize list_opn ->
+              let dim_src = list_opn dstate vtyp src in
+              with_sploded_pair "dslist2" dim_src (fun dim src ->
+                let dst = Ser.list_opn sstate vtyp dst dim in
+                repeat ~from:(i32 0l) ~to_:(to_i32 dim)
+                  ~body:(comment "Convert a list item"
+                    (func2 T.i32 pair_ptrs (fun n src_dst ->
+                      let src_dst =
+                        choose
+                          ~cond:(eq n (i32 0l))
+                          src_dst
+                          (with_sploded_pair "dslist3" src_dst (fun psrc pdst ->
+                            pair
+                              (Des.list_sep dstate psrc)
+                              (Ser.list_sep sstate pdst))) in
+                      desser_ vtyp sstate dstate vtyp0 src_dst)))
+                  ~init:(pair src dst))
+          | UnknownSize (list_opn, end_of_list) ->
+              let t_fst_src_dst = TPair (T.bool, pair_ptrs) in
+              let src = list_opn dstate vtyp src in
+              let fst_src_dst =
+                loop_while
+                  ~cond:(comment "Test end of list"
+                    (func1 t_fst_src_dst (fun fst_src_dst ->
+                      let src_dst = snd fst_src_dst in
+                      end_of_list dstate (fst src_dst))))
+                  ~body:(comment "Convert a list item"
+                    (func1 t_fst_src_dst (fun fst_src_dst ->
+                      with_sploded_pair "dslist4" fst_src_dst (fun is_fst src_dst ->
+                        let src_dst =
+                          choose
+                            ~cond:is_fst
+                            src_dst
+                            (with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
+                              pair
+                                (Des.list_sep dstate psrc)
+                                (Ser.list_sep sstate pdst))) in
                         pair
-                          (Des.list_sep dstate psrc)
-                          (Ser.list_sep sstate pdst))) in
-                  desser_ vtyp sstate dstate vtyp0 src_dst)))
-              ~init:(pair src dst) in
-          with_sploded_pair "dslist2" src_dst (fun src dst ->
-            pair
-              (Des.vec_cls dstate src)
-              (Ser.vec_cls sstate dst)))))
+                          (bool false)
+                          (desser_ vtyp sstate dstate vtyp0 src_dst)))))
+                  ~init:(pair (bool true) (pair src dst)) in
+              snd fst_src_dst
+        in
+        with_sploded_pair "dslist6" src_dst (fun src dst ->
+          pair
+            (Des.vec_cls dstate src)
+            (Ser.vec_cls sstate dst))))
 
   and desser_value_type = function
     | Mac TFloat -> dsfloat

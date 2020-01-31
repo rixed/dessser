@@ -319,7 +319,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "qwordOfFloat(%s)" n)
     | E1 (StringOfFloat, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "hexStringOfFloat(%s)" n)
     | E1 (StringOfChar, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "std::string(%s)" n)
@@ -533,7 +533,7 @@ struct
         ppi p.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
         ppi p.def "while (true) {" ;
         indent_more p (fun () ->
-          ppi p.def "if (%s.rem() <= 0) break else {" ptr ;
+          ppi p.def "if (%s.rem() <= 0) { break; } else {" ptr ;
           indent_more p (fun () ->
             ppi p.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
             ppi p.def "if (%s(next_byte_)) {" cond ;

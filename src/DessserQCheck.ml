@@ -1,12 +1,23 @@
 (* Random genrator for types and expressions *)
 open Batteries
 open Stdint
-open DessserTypes
 open QCheck
+open DessserTypes
+open DessserTools
 
 (*
  * Some misc generators
  *)
+
+let ui128_gen =
+  let open Gen in
+  map2 (fun lo hi ->
+    Uint128.((shift_left (of_int64 hi) 64) + of_int64 lo)
+  ) ui64 ui64
+
+let i128_gen =
+  let open Gen in
+  map Int128.of_uint128 ui128_gen
 
 let tiny_int =
   Gen.int_range 1 10
@@ -199,7 +210,7 @@ let maybe_nullable =
    module T = DessserTypes
    module E = DessserExpressions *)
 
-(*$Q maybe_nullable & ~count:10_000
+(*$Q maybe_nullable & ~count:10
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_maybe_nullable mn in \
     let mn' = T.Parser.maybe_nullable_of_string str in \
@@ -298,9 +309,7 @@ let rec e0_gen l depth =
     1, map Ops.word (int_bound 65535) ;
     1, map (Ops.dword % Uint32.of_int32) ui32 ;
     1, map (Ops.qword % Uint64.of_int64) ui64 ;
-    1, map2 (fun lo hi ->
-         oword (Uint128.((shift_left (of_int64 hi) 64) + of_int64 lo))
-       ) ui64 ui64 ;
+    1, map oword ui128_gen ;
     1, map data_ptr_of_string small_string ;
     1, map alloc_value maybe_nullable_gen ;
   ] in
@@ -409,7 +418,7 @@ let expression =
   and small = size_of_expression in
   make ~print ~small expression_gen
 
-(*$Q expression & ~count:10_000
+(*$Q expression & ~count:10
   expression (fun e -> \
     let str = IO.to_string E.print_expr e in \
     match E.Parser.expr str with \
@@ -441,7 +450,7 @@ let expression =
     can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
 *)
 
-(*$Q expression & ~count:100
+(*$Q expression & ~count:10
   expression (fun e -> \
     match type_check [] e with \
     | exception _ -> true \
@@ -459,4 +468,117 @@ let expression =
          zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" in
   let e = List.hd e in
   assert_bool "Cannot compile deep type" (can_be_compiled e)
+*)
+
+(*
+ * Random S-Expression generator
+ *)
+
+let int_string_gen mi ma =
+  let open Gen in
+  map (fun i ->
+    let ui =
+      Uint64.(
+        add (of_int64 mi)
+            (rem (of_int64 i)
+                 (sub (of_int64 ma) (of_int64 mi)))) in
+    (* if mi was < 0 then this is meant as a signed integer: *)
+    if mi >= 0L then Uint64.to_string ui
+    else Int64.(to_string (of_uint64 ui))
+  ) ui64
+
+let to_sexpr lst = "("^ String.join " " lst ^")"
+
+let rec sexpr_of_vtyp_gen vtyp =
+  let open Gen in
+  match vtyp with
+  | Mac TFloat ->
+      map hexstring_of_float float
+  | Mac TString ->
+      map String.quote (string_size ~gen:printable (int_range 3 15))
+  | Mac TBool ->
+      map (function true -> "T" | false -> "F") bool
+  | Mac TChar
+  | Mac TU8 -> int_string_gen 0L 255L
+  | Mac TU16 -> int_string_gen 0L 65535L
+  | Mac TU24 -> int_string_gen 0L 16777215L
+  | Mac TU32 -> int_string_gen 0L 4294967295L
+  | Mac TU40 -> int_string_gen 0L 1099511627775L
+  | Mac TU48 -> int_string_gen 0L 281474976710655L
+  | Mac TU56 -> int_string_gen 0L 72057594037927935L
+  | Mac TU64 -> map Int64.to_string ui64
+  | Mac TU128 -> map Uint128.to_string ui128_gen
+  | Mac TI8 -> int_string_gen (-128L) 127L
+  | Mac TI16 -> int_string_gen (-32768L) 32767L
+  | Mac TI24 -> int_string_gen (-8388608L) 8388607L
+  | Mac TI32 -> int_string_gen (-2147483648L) 2147483647L
+  | Mac TI40 -> int_string_gen (-549755813888L) 549755813887L
+  | Mac TI48 -> int_string_gen (-140737488355328L) 140737488355327L
+  | Mac TI56 -> int_string_gen (-36028797018963968L) 36028797018963967L
+  | Mac TI64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
+  | Mac TI128 -> map Int128.to_string i128_gen
+  | Usr ut -> sexpr_of_vtyp_gen ut.def
+  | TVec (dim, mn) ->
+      list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
+  | TList mn ->
+      tiny_list (sexpr_of_mn_gen mn) |> map to_sexpr
+  | TTup mns ->
+      tup_gen mns
+  | TRec mns ->
+      tup_gen (Array.map Pervasives.snd mns)
+  | TMap (k, v) ->
+      sexpr_of_vtyp_gen (TList (NotNullable (TTup [| k ; v |])))
+
+and tup_gen mns st =
+  "("^ (
+    Array.fold_left (fun sexpr mn ->
+      (if sexpr = "" then "" else (sexpr ^ " ")) ^ sexpr_of_mn_gen mn st
+    ) "" mns
+  ) ^")"
+
+and sexpr_of_mn_gen mn =
+  let open Gen in
+  match mn with
+  | Nullable vt ->
+      join (
+        (* Note: This "null" must obviously match the one used in SExpr.ml *)
+        map (function true -> return "null"
+                   | false -> sexpr_of_vtyp_gen vt) bool)
+  | NotNullable vt ->
+      sexpr_of_vtyp_gen vt
+
+let sexpr mn =
+  let print = identity
+  and small = String.length in
+  make ~print ~small (sexpr_of_mn_gen mn)
+
+(* A program that convert from s-expr to s-expr for the given schema [mn],
+ * to check s-expr is reliable before using it in further tests: *)
+(*$inject
+  open DessserDSTools
+  open QCheck
+  module S2S = Dessser.DesSer (SExpr.Des) (SExpr.Ser)
+  let sexpr_to_sexpr be mn =
+    let e =
+      func2 TDataPtr TDataPtr (fun src dst ->
+        S2S.desser mn src dst) in
+    make_converter be e
+*)
+
+(* Finally, given a type and a backend, build a converter from s-expr to
+ * s-expr for that type, and test it using many generated random s-exprs of
+ * that type: *)
+(*$R
+  let test_sexpr be mn =
+    let exe = sexpr_to_sexpr be mn in
+    Gen.generate ~n:1 (sexpr_of_mn_gen mn) |>
+    List.iter (fun s ->
+      Printf.eprintf "Will test s-expr %S of type %a\n%!"
+        s T.print_maybe_nullable mn ;
+      let s' = String.trim (run_converter ~timeout:2 exe s) in
+      assert_equal ~printer:identity s s') in
+  Gen.generate ~n:10 maybe_nullable_gen |>
+  List.iter (fun mn ->
+    test_sexpr (module BackEndOCaml : BACKEND) mn ;
+    test_sexpr (module BackEndCPP : BACKEND) mn)
 *)

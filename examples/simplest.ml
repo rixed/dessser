@@ -57,11 +57,11 @@ struct
   let vec_opn () _ _ src = src
   let vec_cls () src = src
   let vec_sep _ () src = src
-  let list_opn () _ src =
+  let list_opn = KnownSize (fun () _ src ->
     let b_src = read_byte src in
     map_pair b_src
       (func2 T.byte T.dataptr (fun b p ->
-        pair (to_u32 (u8_of_byte b)) p))
+        pair (to_u32 (u8_of_byte b)) p)))
   let list_cls () src = src
   let list_sep () src = src
   let is_null () src =

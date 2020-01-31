@@ -154,9 +154,10 @@ struct
   let vec_cls () p = p
   let vec_sep _n () p = p
 
-  let list_opn () _ p =
-    with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
-      pair (u32_of_size dim) p)
+  let list_opn = KnownSize
+    (fun () _ p ->
+      with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
+        pair (u32_of_size dim) p))
 
   let list_cls () p = p
   let list_sep () p = p
