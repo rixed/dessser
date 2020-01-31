@@ -182,7 +182,7 @@ struct
    * [vtyp0] denotes the maybe_nullable of the whole value. *)
   let ds ser des typ sstate dstate _vtyp0 src_dst =
     let what = IO.to_string print_typ typ in
-    with_sploded_pair "ds" src_dst (fun src dst ->
+    with_sploded_pair "ds1" src_dst (fun src dst ->
       let v_src = des dstate src in
       with_sploded_pair "ds2" v_src (fun v src ->
         let open Ops in
@@ -231,7 +231,7 @@ struct
   let rec dstup vtyps sstate dstate vtyp0 src_dst =
     let open Ops in
     let src_dst = comment "Convert a Tuple"
-      (with_sploded_pair "dstup" src_dst (fun src dst ->
+      (with_sploded_pair "dstup1" src_dst (fun src dst ->
         pair
           (Des.tup_opn dstate vtyps src)
           (Ser.tup_opn sstate vtyps dst))) in
@@ -256,7 +256,7 @@ struct
   and dsrec vtyps sstate dstate vtyp0 src_dst =
     let open Ops in
     let src_dst =
-      with_sploded_pair "dsrec" src_dst (fun src dst ->
+      with_sploded_pair "dsrec1" src_dst (fun src dst ->
         pair
           (Des.rec_opn dstate vtyps src)
           (Ser.rec_opn sstate vtyps dst)) in
@@ -274,7 +274,7 @@ struct
             desser_ vtyp sstate dstate vtyp0 src_dst)
       ) src_dst vtyps in
     let src_dst = comment "Convert a Record" src_dst in
-    with_sploded_pair "dsrec2" src_dst (fun src dst ->
+    with_sploded_pair "dsrec3" src_dst (fun src dst ->
       pair
         (Des.rec_cls dstate src)
         (Ser.rec_cls sstate dst))
@@ -285,7 +285,7 @@ struct
   and dsvec dim vtyp sstate dstate vtyp0 src_dst =
     let open Ops in
     let src_dst =
-      with_sploded_pair "dsvec" src_dst (fun src dst ->
+      with_sploded_pair "dsvec1" src_dst (fun src dst ->
         pair
           (Des.vec_opn dstate dim vtyp src)
           (Ser.vec_opn sstate dim vtyp dst)) in

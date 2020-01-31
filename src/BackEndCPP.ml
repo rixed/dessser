@@ -501,7 +501,7 @@ struct
           ppi p.def "%s %s(%s);" tn (valid_identifier n) n1 ;
           let tmp = print emit p l e2 in
           ppi p.def "%s = %s;" res tmp) ;
-        pp p.def "%s}" p.indent ;
+        ppi p.def "}" ;
         res
     | E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->

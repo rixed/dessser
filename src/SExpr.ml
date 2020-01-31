@@ -124,6 +124,7 @@ struct
   let sstring () v p =
     let quo = byte_of_const_char '"' in
     let p = write_byte p quo in
+    (* FIXME: escape double quotes: *)
     let v = bytes_of_string v in
     let p = write_bytes p v in
     write_byte p quo
