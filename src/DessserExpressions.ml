@@ -959,7 +959,7 @@ and type_of l e0 =
   | E1 (BoolOfBit, _) -> bool
   | E1 (U8OfBool, _) -> u8
   | E1 (BoolOfU8, _) -> bool
-  | E2 (AppendByte, _, _) -> byte
+  | E2 (AppendByte, _, _) -> bytes
   | E2 (AppendBytes, _, _) -> bytes
   | E2 (AppendString, _, _) -> string
   | E1 (StringLength, _) -> u32
