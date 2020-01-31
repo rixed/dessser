@@ -377,8 +377,8 @@ struct
         in
         with_sploded_pair "dslist6" src_dst (fun src dst ->
           pair
-            (Des.vec_cls dstate src)
-            (Ser.vec_cls sstate dst))))
+            (Des.list_cls dstate src)
+            (Ser.list_cls sstate dst))))
 
   and desser_value_type = function
     | Mac TFloat -> dsfloat
