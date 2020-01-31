@@ -13,7 +13,7 @@ struct
   let compile_cmd ~optim ~link src dst =
     let optim = cap 2 3 optim in
     Printf.sprintf
-      "ocamlfind ocamlopt -g -annot -O%d -I src -package stdint,batteries \
+      "ocamlfind ocamlopt -g -annot -O%d -w -26 -I src -package stdint,batteries \
        -linkpkg src/DessserOCamlBackendHelpers.cmx %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
@@ -717,7 +717,7 @@ struct
               ppi oc "let accum = %s accum next_byte in" reduce ;
               ppi oc "let ptr = Pointer.skip ptr 1 in" ;
               ppi oc "read_while_loop accum ptr in") ;
-            ppi oc "read_while_loop %s %s" accum ptr))
+            pp oc "%sread_while_loop %s %s" p.indent accum ptr))
     | E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
         and body = print emit p l e2
@@ -729,7 +729,7 @@ struct
             indent_more p (fun () ->
               ppi oc "if not (%s accum) then accum else" cond ;
               ppi oc "loop_while (%s accum) in" body) ;
-            ppi oc "loop_while %s" accum))
+            pp oc "%sloop_while %s" p.indent accum))
     | E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
         and cond = print emit p l e2
@@ -741,7 +741,7 @@ struct
             indent_more p (fun () ->
               ppi oc "let accum = %s accum in" body ;
               ppi oc "if %s accum then loop_until accum else accum in" cond) ;
-            ppi oc "loop_until %s" accum))
+            pp oc "%sloop_until %s" p.indent accum))
     | E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2
@@ -754,7 +754,7 @@ struct
             indent_more p (fun () ->
               ppi oc "if n >= %s then accum else" to_ ;
               ppi oc "loop_repeat (Int32.succ n) (%s accum) in" body) ;
-            ppi oc "loop_repeat %s %s" from accum))
+            pp oc "%sloop_repeat %s %s" p.indent from accum))
     | E2 (SetField path, e1, e2) ->
         let ptr = print ?name emit p l e1
         and v = print emit p l e2 in

@@ -89,8 +89,9 @@ struct
   let list_sep () p = skip1 p
 
   let is_null () p =
-    (* For this to work even when there is less than 4 bytes to read [and_]
+    (* TODO: For this to work even when there is less than 4 bytes to read [and_]
      * must short cut! *)
+    (* NULL *)
     and_ (eq (peek_byte p (size 0)) (byte 0x6e))
          (and_ (eq (peek_byte p (size 1)) (byte 0x75))
                (and_ (eq (peek_byte p (size 2)) (byte 0x6c))

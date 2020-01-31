@@ -375,7 +375,7 @@ struct
           choose ~cond
             (dsnull t sstate dstate vtyp0 src dst)
             (dsnotnull t sstate dstate vtyp0 src dst |>
-            desser_value_type t sstate dstate vtyp0))
+             desser_value_type t sstate dstate vtyp0))
     | NotNullable t ->
         desser_value_type t sstate dstate vtyp0 src_dst
 

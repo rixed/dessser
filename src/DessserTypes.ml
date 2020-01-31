@@ -132,10 +132,10 @@ let rec print_value_type oc = function
       pp oc "%a[]" print_maybe_nullable vt
   | TTup vts ->
       pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:";" print_maybe_nullable) vts
+        (Array.print ~first:"(" ~last:")" ~sep:"; " print_maybe_nullable) vts
   | TRec vts ->
       pp oc "%a"
-        (Array.print ~first:"{" ~last:"}" ~sep:";"
+        (Array.print ~first:"{" ~last:"}" ~sep:"; "
           (fun oc (n, t) ->
             pp oc "%s: %a" n print_maybe_nullable t)
         ) vts
@@ -216,7 +216,7 @@ let rec print_typ oc =
       pp oc "( -> %a)" print_typ t1
   | TFunction (ts, t2) ->
       pp oc "(%a -> %a)"
-        (Array.print ~first:"" ~last:"" ~sep:"->" print_typ) ts
+        (Array.print ~first:"" ~last:"" ~sep:" -> " print_typ) ts
         print_typ t2
 
 let typ_to_nullable = function

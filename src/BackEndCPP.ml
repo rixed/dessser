@@ -487,7 +487,7 @@ struct
           ppi p.def "%s %s(%s);" tn (valid_identifier n) n1 ;
           let tmp = print emit p l e2 in
           ppi p.def "%s = %s;" res tmp) ;
-        ppi p.def "}" ;
+        pp p.def "%s}" p.indent ;
         res
     | E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
@@ -518,7 +518,7 @@ struct
         indent_more p (fun () ->
           let n = print emit p l e3 in
           ppi p.def "%s = %s;" res n) ;
-        ppi p.def "}" ;
+        pp p.def "%s}" p.indent ;
         res
     | E4 (ReadWhile, e1, e2, e3, e4) ->
         let cond = print emit p l e1
@@ -542,7 +542,7 @@ struct
               ppi p.def "%s = %s.skip(1);" ptr ptr) ;
             ppi p.def "} else break;") ;
           ppi p.def "}") ;
-        ppi p.def "}" ;
+        pp p.def "%s}" p.indent ;
         emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
@@ -554,7 +554,7 @@ struct
         ppi p.def "while (%s(%s)) {" cond res ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        ppi p.def "}" ;
+        pp p.def "%s}" p.indent ;
         res
     | E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
@@ -566,7 +566,7 @@ struct
         ppi p.def "do {" ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        ppi p.def "} while (%s(%s));" cond res ;
+        pp p.def "%s} while (%s(%s));" p.indent cond res ;
         res
     | E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
@@ -579,7 +579,7 @@ struct
         ppi p.def "for (int32_t idx_ = %s; idx != %s; idx++) {" from to_ ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
-        ppi p.def "}" ;
+        pp p.def "%s}" p.indent ;
         res
     | E2 (SetField path, e1, e2) ->
         let ptr = print ?name emit p l e1

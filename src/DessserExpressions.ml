@@ -1346,7 +1346,7 @@ let type_check l e =
     | E3 (Choose, e1, e2, e3) ->
         check_eq l e1 bool ;
         check_same_types l e2 e3
-    | E4 (ReadWhile, e1, e2, e3, e4) ->
+    | E4 (ReadWhile, e1 (*byte->bool*), e2 (*'a->byte->'a*), e3 (*'a*), e4 (*ptr*)) ->
         check_params1 l e1 (fun t1 t2 ->
           check_param e1 0 t1 byte ;
           check_param e1 1 t2 bool) ;
@@ -1355,7 +1355,7 @@ let type_check l e =
           check_param e2 1 t2 byte ;
           check_eq l e3 t3) ;
         check_eq l e4 dataptr
-    | E3 (LoopWhile, e1, e2, e3) ->
+    | E3 (LoopWhile, e1 (*'a->bool*), e2 (*'a->'a*), e3 (*'a*)) ->
         check_params1 l e1 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_param e1 1 t2 bool) ;

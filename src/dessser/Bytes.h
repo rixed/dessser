@@ -31,7 +31,7 @@ struct Bytes {
   }
 
   // To be used by below constructors:
-  void CopyFrom(Bytes const &b)
+  void copyFrom(Bytes const &b)
   {
     capa = b.capa;
     buffer = b.buffer;
@@ -49,9 +49,9 @@ struct Bytes {
       offset = b1.offset;
       size = b1.size + b2.size;
     } else if (b1.size == 0) {
-      CopyFrom(b2);
+      copyFrom(b2);
     } else if (b2.size == 0) {
-      CopyFrom(b1);
+      copyFrom(b1);
     } else { /* slow path */
       capa = size = b1.size + b2.size;
       buffer = std::shared_ptr<Byte[]>(new Byte[size]);
