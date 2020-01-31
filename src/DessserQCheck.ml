@@ -563,6 +563,9 @@ let sexpr mn =
       func2 TDataPtr TDataPtr (fun src dst ->
         S2S.desser mn src dst) in
     make_converter be e
+
+  let ocaml_be = (module BackEndOCaml : BACKEND)
+  let cpp_be = (module BackEndCPP : BACKEND)
 *)
 
 (* Finally, given a type and a backend, build a converter from s-expr to
@@ -579,6 +582,21 @@ let sexpr mn =
       assert_equal ~printer:identity s s') in
   Gen.generate ~n:10 maybe_nullable_gen |>
   List.iter (fun mn ->
-    test_sexpr (module BackEndOCaml : BACKEND) mn ;
-    test_sexpr (module BackEndCPP : BACKEND) mn)
+    test_sexpr ocaml_be mn ;
+    test_sexpr cpp_be mn)
+*)
+
+(* Non regression tests: *)
+
+(* A function to test specifically a given value of a given type for a given
+ * back-end: *)
+(*$inject
+  let check_sexpr be mn s =
+    let exe = sexpr_to_sexpr be mn in
+    String.trim (run_converter ~timeout:2 exe s)
+*)
+(* Check that the AND is shortcutting, otherwise deser.is_null is going to
+ * read past the input end: *)
+(*$= check_sexpr & ~printer:identity
+  "1" (check_sexpr ocaml_be T.(Nullable (Mac TU8)) "1")
 *)

@@ -296,6 +296,19 @@ struct
       let n1 = print emit p l e1
       and n2 = print emit p l e2 in
       emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
+    let shortcutting_binary_infix_op e1 op e2 =
+      emit ?name p l e (fun oc ->
+        ppi oc "(" ;
+        indent_more p (fun () ->
+          let n1 = print emit p l e1 in
+          ppi oc "%s" n1
+        ) ;
+        ppi oc ") %s (" op ;
+        indent_more p (fun () ->
+          let n2 = print emit p l e2 in
+          ppi oc "%s" n2
+        ) ;
+        pp oc "%s)" p.indent) in
     let binary_mod_op op e1 e2 =
       let op = mod_name (type_of l e) ^"."^ op in
       binary_op op e1 e2 in
@@ -631,9 +644,9 @@ struct
     | E1 (RemSize, e1) ->
         unary_op "Pointer.remSize" e1
     | E2 (And, e1, e2) ->
-        binary_infix_op e1 "&&" e2
+        shortcutting_binary_infix_op e1 "&&" e2
     | E2 (Or, e1, e2) ->
-        binary_infix_op e1 "||" e2
+        shortcutting_binary_infix_op e1 "||" e2
     | E1 (Not, e1) ->
         unary_op "not" e1
     | E0 (AllocValue vtyp) ->

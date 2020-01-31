@@ -158,6 +158,20 @@ struct
       let n1 = print emit p l e1
       and n2 = print emit p l e2 in
       emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
+    let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
+      let n1 = print emit p l e1 in
+      let res = gen_sym ?name "shortcut_res_" in
+      let t1 = type_of l e1 in
+      ppi p.def "%s %s;" (type_identifier p t1) res ;
+      ppi p.def "if (%s == %b) {" n1 short_cond_on_e1 ;
+      indent_more p (fun () ->
+        ppi p.def "%s = %s;" res n1) ;
+      ppi p.def "} else {" ;
+      indent_more p (fun () ->
+        let n2 = print emit p l e2 in
+        ppi p.def "%s = %s;" res n2) ;
+      ppi p.def "}" ;
+      res in
     let method_call e1 m args =
       let n1 = print emit p l e1
       and ns = List.map (print emit p l) args in
@@ -445,9 +459,9 @@ struct
     | E1 (RemSize, e1) ->
         method_call e1 "remSize" []
     | E2 (And, e1, e2) ->
-        binary_infix_op e1 "&&" e2
+        shortcutting_binary_infix_op e1 e2 false
     | E2 (Or, e1, e2) ->
-        binary_infix_op e1 "||" e2
+        shortcutting_binary_infix_op e1 e2 true
     | E1 (Not, e1) ->
         unary_op "!" e1
     | E0 (AllocValue vtyp) ->
