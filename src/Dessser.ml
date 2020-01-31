@@ -357,7 +357,7 @@ struct
                   ~cond:(comment "Test end of list"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
                       let src_dst = snd fst_src_dst in
-                      end_of_list dstate (fst src_dst))))
+                      not_ (end_of_list dstate (fst src_dst)))))
                   ~body:(comment "Convert a list item"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
                       with_sploded_pair "dslist4" fst_src_dst (fun is_fst src_dst ->
