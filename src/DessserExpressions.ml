@@ -1120,8 +1120,8 @@ let type_check l e =
       match type_of l e with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
       | TValue (NotNullable (Mac (
-          TU8 | TU16 | TU32 | TU64 | TU128 |
-          TI8 | TI16 | TI32 | TI64 | TI128))) -> ()
+          TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+          TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128))) -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let check_param fe n act exp =
       if act <> exp then
