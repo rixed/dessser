@@ -197,6 +197,9 @@ struct
   let vec_sep _idx _st p = p
 
   let list_opn st vtyp n p =
+    let n = match n with
+      | Some n -> n
+      | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
     let outermost = st.nullmasks = [] in
     let p = write_dword LittleEndian p (dword_of_u32 n) in
     let nullmask_bits =

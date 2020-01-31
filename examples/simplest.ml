@@ -115,7 +115,7 @@ struct
   let vec_opn () _ _ dst = dst
   let vec_cls () dst = dst
   let vec_sep _i () dst = dst
-  let list_opn () _ dst _n = dst
+  let list_opn () _ _n dst = dst
   let list_cls () dst = dst
   let list_sep () dst = dst
   let nullable () dst = dst

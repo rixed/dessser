@@ -131,7 +131,7 @@ sig
   val vec_opn : state -> (*dim*) int -> maybe_nullable -> (*ptr*) e -> (*ptr*) e
   val vec_cls : state -> (*ptr*) e -> (*ptr*) e
   val vec_sep : int (* before *) -> state -> (*ptr*) e -> (*ptr*) e
-  val list_opn : state -> maybe_nullable -> (*ptr*) e -> (*nn*) e -> (*ptr*) e
+  val list_opn : state -> maybe_nullable -> (*nn*) e option -> (*ptr*) e -> (*ptr*) e
   val list_cls : state -> (*ptr*) e -> (*ptr*) e
   val list_sep : state -> (*ptr*) e -> (*ptr*) e
 
@@ -334,7 +334,7 @@ struct
           | KnownSize list_opn ->
               let dim_src = list_opn dstate vtyp src in
               with_sploded_pair "dslist2" dim_src (fun dim src ->
-                let dst = Ser.list_opn sstate vtyp dst dim in
+                let dst = Ser.list_opn sstate vtyp (Some dim) dst in
                 repeat ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
                     (func2 T.i32 pair_ptrs (fun n src_dst ->
@@ -351,6 +351,7 @@ struct
           | UnknownSize (list_opn, end_of_list) ->
               let t_fst_src_dst = TPair (T.bool, pair_ptrs) in
               let src = list_opn dstate vtyp src in
+              let dst = Ser.list_opn sstate vtyp None dst in
               let fst_src_dst =
                 loop_while
                   ~cond:(comment "Test end of list"

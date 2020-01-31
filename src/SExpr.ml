@@ -184,7 +184,7 @@ struct
   let vec_sep _n () p =
     write_byte p (byte_of_const_char ' ')
 
-  let list_opn () _ p _n =
+  let list_opn () _ _n p =
     write_byte p (byte_of_const_char '(')
 
   let list_cls () p =

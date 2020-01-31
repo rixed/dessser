@@ -274,6 +274,9 @@ struct
   let vec_sep _idx () p = p
 
   let list_opn () _ n p =
+    let n = match n with
+      | Some n -> n
+      | None -> failwith "RowBinary.Ser needs list size upfront" in
     write_leb128 p (size_of_u32 n)
 
   let list_cls () p = p
