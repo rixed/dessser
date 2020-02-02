@@ -508,7 +508,7 @@ let rec sexpr_of_vtyp_gen vtyp =
   | Mac TU40 -> int_string_gen 0L 1099511627775L
   | Mac TU48 -> int_string_gen 0L 281474976710655L
   | Mac TU56 -> int_string_gen 0L 72057594037927935L
-  | Mac TU64 -> map Int64.to_string ui64
+  | Mac TU64 -> map Uint64.(to_string % of_int64) ui64
   | Mac TU128 -> map Uint128.to_string ui128_gen
   | Mac TI8 -> int_string_gen (-128L) 127L
   | Mac TI16 -> int_string_gen (-32768L) 32767L
