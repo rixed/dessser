@@ -346,7 +346,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "hexStringOfFloat(%s)" n)
     | E1 (StringOfChar, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::string(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "1, %s" n)
     | E1 (CharOfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s[0]" n)
