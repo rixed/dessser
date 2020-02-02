@@ -306,28 +306,35 @@ struct
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
     | E1 (U8OfString, e1)
-    | E1 (I8OfString, e1)
     | E1 (U16OfString, e1)
-    | E1 (I16OfString, e1)
     | E1 (U24OfString, e1)
-    | E1 (I24OfString, e1)
-    | E1 (U32OfString, e1)
-    | E1 (I32OfString, e1)
+    | E1 (U32OfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "std::stoul(%s)" n)
     | E1 (U40OfString, e1)
-    | E1 (I40OfString, e1)
     | E1 (U48OfString, e1)
-    | E1 (I48OfString, e1)
     | E1 (U56OfString, e1)
+    | E1 (U64OfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "std::stoull(%s)" n)
+    | E1 (I8OfString, e1)
+    | E1 (I16OfString, e1)
+    | E1 (I24OfString, e1)
+    | E1 (I32OfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "std::stol(%s)" n)
+    | E1 (I40OfString, e1)
+    | E1 (I48OfString, e1)
     | E1 (I56OfString, e1)
-    | E1 (U64OfString, e1)
     | E1 (I64OfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
-    | E1 (U128OfString, e1)
-    | E1 (I128OfString, e1) ->
-        (* TODO: larger values will crash: *)
+    | E1 (U128OfString, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
+        emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
+    | E1 (I128OfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
     | E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "floatOfQword(%s)" n)
