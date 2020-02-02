@@ -59,7 +59,7 @@ all: $(INSTALLED) examples
 .SUFFIXES: .ml .mli .mlo .cmi .cmx .cmo .cmt .html .adoc
 .PHONY: \
   clean distclean all dep doc examples \
-  check unit-check examples-check \
+  check unit-check examples-check cpp-check \
   install uninstall reinstall
 
 %.cmi: %.mli
@@ -236,7 +236,13 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	 echo "manual_codegen c++ OK"
 	@echo SUCCESS
 
-check: unit-check examples-check
+src/cpp_tests: src/cpp_tests.cc src/dessser/runtime.h
+	g++ -std=c++17 -g -O0 -W -Wall -I src $< -o $@
+
+cpp-check: src/cpp_tests
+	src/cpp_tests
+
+check: unit-check examples-check cpp-check
 
 # Installation
 

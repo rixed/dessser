@@ -48,3 +48,4 @@ examples/example.ml
 examples/rowbinary2sexpr.*
 src/dessserc
 src/DessserCompilConfig.ml
+src/cpp_tests

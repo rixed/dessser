@@ -59,6 +59,7 @@ inline std::string string_of_u128(uint128_t const u128)
 inline uint128_t u128_of_string(std::string const &s)
 {
   size_t const len = s.length();
+  assert(len > 0);
   if (len <= E10_UINT64) return std::stoull(s);
   size_t const hi_len(len - E10_UINT64);
   uint128_t const hi(u128_of_string(s.substr(0, hi_len)));
@@ -83,14 +84,20 @@ inline std::string string_of_i128(int128_t const i128)
   }
 }
 
+inline bool is_sign(char const x) { return x == '-' || x == '+'; }
+
 inline int128_t i128_of_string(std::string const &s)
 {
+  // FIXME: do not split just after the leading minus sign!
   size_t const len = s.length();
-  if (len <= E10_INT64) return std::stoll(s);
+  assert(len > 0);
+  size_t const max_len(E10_INT64 + (is_sign(s[0]) ? 1:0));
+  if (len <= max_len) return std::stoll(s);
   size_t const hi_len(len - E10_INT64);
   int128_t const hi(i128_of_string(s.substr(0, hi_len)));
   int128_t const lo(i128_of_string(s.substr(hi_len, E10_INT64)));
-  return hi * P10_INT64 + lo;
+  return
+    hi >= 0 ? hi * P10_INT64 + lo : hi * P10_INT64 - lo;
 }
 
 /* Pretty printers for everything so that Dump can rely on the '<<' operator: */
