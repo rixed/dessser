@@ -43,6 +43,11 @@ let printable_for_comments =
   Gen.(map (fun c ->
     if c = '*' || c = '"' then 'X' else c) printable)
 
+(* For s-expr strings, as long as escaping is not supported: *)
+let printable_no_quote =
+  Gen.(map (fun c ->
+    if c = '"' then 'X' else c) printable)
+
 (*
  * Random types generator
  *)
@@ -497,9 +502,10 @@ let rec sexpr_of_vtyp_gen vtyp =
   | Mac TFloat ->
       map hexstring_of_float float
   | Mac TString ->
-      map String.quote (string_size ~gen:printable (int_range 3 15))
+      (* FIXME: support escaping in quotes: *)
+      map String.quote (string_size ~gen:printable_no_quote (int_range 3 15))
   | Mac TChar ->
-      map String.quote (string_size ~gen:printable (int_range 1 1))
+      map String.quote (string_size ~gen:printable_no_quote (int_range 1 1))
   | Mac TBool ->
       map (function true -> "T" | false -> "F") bool
   | Mac TU8 -> int_string_gen 0L 255L
