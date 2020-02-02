@@ -1642,4 +1642,6 @@ struct
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)
   let float_of_string e1 = E1 (FloatOfString, e1)
+  let char_of_string e1 = E1 (CharOfString, e1)
+  let string_of_char e1 = E1 (StringOfChar, e1)
 end

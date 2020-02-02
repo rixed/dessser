@@ -498,9 +498,10 @@ let rec sexpr_of_vtyp_gen vtyp =
       map hexstring_of_float float
   | Mac TString ->
       map String.quote (string_size ~gen:printable (int_range 3 15))
+  | Mac TChar ->
+      map String.quote (string_size ~gen:printable (int_range 1 1))
   | Mac TBool ->
       map (function true -> "T" | false -> "F") bool
-  | Mac TChar
   | Mac TU8 -> int_string_gen 0L 255L
   | Mac TU16 -> int_string_gen 0L 65535L
   | Mac TU24 -> int_string_gen 0L 16777215L

@@ -1,3 +1,4 @@
+open Batteries
 open Stdint
 open Dessser
 open DessserTypes
@@ -31,7 +32,12 @@ struct
 
   let dfloat = di float_of_string
 
-  let dstring () p =
+  let dbool () p =
+    with_sploded_pair "dbool" (read_byte p) (fun b p ->
+      pair (eq b (byte_of_const_char 'T')) p)
+
+  (* Read a string of bytes and process them through [conv]: *)
+  let dbytes conv p =
     (* Skip the double-quote: *)
     let p = skip1 p in
     (* Read up to next double-quote: *)
@@ -43,15 +49,11 @@ struct
     with_sploded_pair "dfloat" str_p (fun str p ->
       (* Skip the closing double-quote: *)
       let p = skip1 p in
-      pair (string_of_bytes str) p)
+      pair (conv str) p)
 
-  let dbool () p =
-    with_sploded_pair "dbool" (read_byte p) (fun b p ->
-      pair (eq b (byte_of_const_char 'T')) p)
-
-  let dchar () p =
-    with_sploded_pair "dchar" (read_byte p) (fun b p ->
-      pair (char_of_u8 (u8_of_byte b)) p)
+  let dstring () p = dbytes string_of_bytes p
+  (* Chars are encoded as single char strings *)
+  let dchar () p = dbytes (char_of_string % string_of_bytes) p
 
   let di8 = di i8_of_string
   let du8 = di u8_of_string
@@ -121,13 +123,15 @@ struct
   let sfloat () v p =
     write_bytes p (bytes_of_string (string_of_float v))
 
-  let sstring () v p =
+  let sbytes v p =
     let quo = byte_of_const_char '"' in
     let p = write_byte p quo in
     (* FIXME: escape double quotes: *)
-    let v = bytes_of_string v in
     let p = write_bytes p v in
     write_byte p quo
+
+  let sstring () v p = sbytes (bytes_of_string v) p
+  let schar () v p = sbytes (bytes_of_string (string_of_char v)) p
 
   let sbool () v p =
     write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
@@ -153,8 +157,6 @@ struct
   let su56 = si
   let su64 = si
   let su128 = si
-
-  let schar () v p = si () (byte_of_char v) p
 
   (* Could also write the field names with the value in a pair... *)
   let tup_opn () _ p =
