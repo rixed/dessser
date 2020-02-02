@@ -22,7 +22,7 @@ struct Bytes {
     offset(offset_)
   {}
 
-  Bytes(std::string s)
+  Bytes(std::string const s)
   {
     capa = size = s.size();
     buffer = std::shared_ptr<Byte[]>(new Byte[size]);

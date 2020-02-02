@@ -12,6 +12,9 @@
 #include "dessser/Vec.h"
 #include "dessser/List.h"
 
+#define _STRIZE(arg) #arg
+#define STRIZE(x)  _STRIZE(x)
+
 inline uint64_t qwordOfFloat(double v)
 {
   uint64_t res;
