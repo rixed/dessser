@@ -44,9 +44,11 @@ let printable_for_comments =
     if c = '*' || c = '"' then 'X' else c) printable)
 
 (* For s-expr strings, as long as escaping is not supported: *)
-let printable_no_quote =
+let printable_no_escape =
   Gen.(map (fun c ->
-    if c = '"' then 'X' else c) printable)
+    if c = '\\' || c = '"' || c = '\'' || c = '\n' || c = '\r' || c = '\t' ||
+       c = '\b'
+    then 'X' else c) printable)
 
 (*
  * Random types generator
@@ -216,7 +218,7 @@ let maybe_nullable =
    module T = DessserTypes
    module E = DessserExpressions *)
 
-(*$Q maybe_nullable & ~count:10
+(*$Q maybe_nullable & ~count:100
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_maybe_nullable mn in \
     let mn' = T.Parser.maybe_nullable_of_string str in \
@@ -424,7 +426,7 @@ let expression =
   and small = size_of_expression in
   make ~print ~small expression_gen
 
-(*$Q expression & ~count:10
+(*$Q expression & ~count:100
   expression (fun e -> \
     let str = IO.to_string E.print_expr e in \
     match E.Parser.expr str with \
@@ -457,7 +459,7 @@ let expression =
     can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
 *)
 
-(*$Q expression & ~count:10
+(*$Q expression & ~count:100
   expression (fun e -> \
     match type_check [] e with \
     | exception _ -> true \
@@ -503,9 +505,9 @@ let rec sexpr_of_vtyp_gen vtyp =
       map hexstring_of_float float
   | Mac TString ->
       (* FIXME: support escaping in quotes: *)
-      map String.quote (string_size ~gen:printable_no_quote (int_range 3 15))
+      map String.quote (string_size ~gen:printable_no_escape (int_range 3 15))
   | Mac TChar ->
-      map String.quote (string_size ~gen:printable_no_quote (int_range 1 1))
+      map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
   | Mac TBool ->
       map (function true -> "T" | false -> "F") bool
   | Mac TU8 -> int_string_gen 0L 255L
@@ -582,7 +584,7 @@ let sexpr mn =
 (*$R
   let test_sexpr be mn =
     let exe = sexpr_to_sexpr be mn in
-    Gen.generate ~n:1 (sexpr_of_mn_gen mn) |>
+    Gen.generate ~n:1000 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
       Printf.eprintf "Will test s-expr %S of type %a\n%!"
         s T.print_maybe_nullable mn ;

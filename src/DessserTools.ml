@@ -105,7 +105,8 @@ let wait_log () =
   | _, WEXITED 126 ->
       Printf.eprintf "couldn't execve after fork\n%!"
   | _, WEXITED code ->
-      Printf.eprintf "Child process existed with status code %d\n%!" code
+      if code <> 0 then
+        Printf.eprintf "Child process existed with status code %d\n%!" code
   | _, WSIGNALED sign ->
       Printf.eprintf "Child process killed by signal %s\n%!" (name_of_signal sign)
   | _, WSTOPPED sign ->
