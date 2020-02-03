@@ -592,29 +592,34 @@ let path_of_string s =
   String.split_on_char '/' s |>
   List.map int_of_string
 
-let rec type_of_path t path =
-  match path with
-  | [] -> t
-  | i :: path ->
-      let rec type_of_not_nullable = function
-        | NotNullable (Mac _ | TMap _) ->
-            assert false
-        | NotNullable (Usr t) ->
-            type_of_not_nullable (NotNullable t.def)
-        | NotNullable (TVec (dim, vt)) ->
-            assert (i < dim) ;
-            type_of_path vt path
-        | NotNullable (TList vt) ->
-            type_of_path vt path
-        | NotNullable (TTup vts) ->
-            assert (i < Array.length vts) ;
-            type_of_path vts.(i) path
-        | NotNullable (TRec vts) ->
-            assert (i < Array.length vts) ;
-            type_of_path (snd vts.(i)) path
-        | Nullable x ->
-            type_of_not_nullable (NotNullable x) in
-      type_of_not_nullable t
+(* Return both the type and field name: *)
+let type_and_name_of_path t path =
+  let rec loop field_name t = function
+    | [] -> t, field_name
+    | i :: path ->
+        let rec type_of_not_nullable = function
+          | NotNullable (Mac _ | TMap _) ->
+              assert false
+          | NotNullable (Usr t) ->
+              type_of_not_nullable (NotNullable t.def)
+          | NotNullable (TVec (dim, vt)) ->
+              assert (i < dim) ;
+              loop (string_of_int i) vt path
+          | NotNullable (TList vt) ->
+              loop (string_of_int i) vt path
+          | NotNullable (TTup vts) ->
+              assert (i < Array.length vts) ;
+              loop ("field_"^ string_of_int i) vts.(i) path
+          | NotNullable (TRec vts) ->
+              assert (i < Array.length vts) ;
+              loop (fst vts.(i)) (snd vts.(i)) path
+          | Nullable x ->
+              type_of_not_nullable (NotNullable x) in
+        type_of_not_nullable t in
+  loop "" t path
+
+let type_of_path t path =
+  fst (type_and_name_of_path t path)
 
 (*$inject
   let test_t = NotNullable (TTup [|
