@@ -56,6 +56,7 @@ type e0 =
   | QWord of Uint64.t
   | OWord of Uint128.t
   | DataPtrOfString of string
+  | DataPtrOfBuffer of int
   (* To build heap values: *)
   (* Allocate a default values value.
    * For backends that can alloc uninitialized values:
@@ -335,6 +336,7 @@ let string_of_e0 = function
   | QWord n -> "qword "^ Uint64.to_string n
   | OWord n -> "oword "^ Uint128.to_string n
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
+  | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
   | AllocValue mn ->
       "alloc-value "^ String.quote (IO.to_string print_maybe_nullable mn)
   | Identifier s -> "identifier "^ String.quote s
@@ -653,6 +655,8 @@ struct
       | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
       | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
       | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
+      | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
+          E0 (DataPtrOfBuffer (int_of_string n))
       | Lst [ Sym "alloc-value" ; Str mn ] ->
           E0 (AllocValue (Parser.maybe_nullable_of_string mn))
       | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
@@ -970,6 +974,7 @@ and type_of l e0 =
   | E1 (BytesOfString, _) -> bytes
   | E1 (ListLength, _) -> u32
   | E0 (DataPtrOfString _) -> dataptr
+  | E0 (DataPtrOfBuffer _) -> dataptr
   | E2 (TestBit, _, _) -> bit
   | E3 (SetBit, _, _, _) -> dataptr
   | E1 (ReadByte, _) -> pair byte dataptr
@@ -1194,7 +1199,7 @@ let type_check l e =
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-         | DataPtrOfString _ | AllocValue _
+         | DataPtrOfString _ | DataPtrOfBuffer _ | AllocValue _
          | Identifier _| Param _)
     | E1 ((Comment _ | Dump | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
@@ -1626,6 +1631,7 @@ struct
   let data_ptr_push e1 = E1 (DataPtrPush, e1)
   let data_ptr_pop e1 = E1 (DataPtrPop, e1)
   let data_ptr_of_string s = E0 (DataPtrOfString s)
+  let data_ptr_of_buffer n = E0 (DataPtrOfBuffer n)
   let string_length e1 = E1 (StringLength, e1)
   let list_length e1 = E1 (ListLength, e1)
   let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)

@@ -106,6 +106,12 @@ struct
       length = String.length s ;
       stack = [] }
 
+  let of_buffer n =
+    { bytes = Bytes.create n ;
+      offset = 0 ;
+      length = n ;
+      stack = [] }
+
   (* Check that the given offset is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput (o - l))
