@@ -8,6 +8,7 @@ open DessserTools
 
 module Config =
 struct
+  let valid_identifier = BackEndCLike.valid_identifier
   let preferred_def_extension = "cc"
   let preferred_decl_extension = "h"
   let compile_cmd ~optim ~link src dst =

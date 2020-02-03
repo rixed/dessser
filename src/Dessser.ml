@@ -473,6 +473,8 @@ sig
   val print_declarations : state -> unit IO.output -> unit
   val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
 
+  val add_external_identifier : state -> string -> typ -> state
+
   (* Returns the new state, the Identifier expression to use in new expressions,
    * and the identifier name in the source code.
    * Expression is not allowed to have the null type (which would make little

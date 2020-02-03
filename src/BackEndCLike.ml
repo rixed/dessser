@@ -60,6 +60,7 @@ let valid_identifier s =
 
 module type CONFIG =
 sig
+  val valid_identifier : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
@@ -103,14 +104,15 @@ struct
     { public : bool ; expr : e }
 
   type state =
-    { identifiers : (string * identifier) list }
+    { identifiers : (string * identifier) list ;
+      external_identifiers : (string * typ) list }
 
   let make_state () =
-    { identifiers = [] }
+    { identifiers = [] ; external_identifiers = [] }
 
   (* Find references to external identifiers: *)
-  let get_depends e =
-    fold_expr [] [] (fun lst l -> function
+  let get_depends l e =
+    fold_expr [] l (fun lst l -> function
       | E0 (Identifier s) as e ->
           assert (s <> "") ;
           if List.mem_assoc e l || List.mem s lst then lst else (
@@ -121,6 +123,10 @@ struct
       | _ -> lst
     ) e
 
+  let add_external_identifier state name typ =
+    { state with external_identifiers =
+        (name, typ) :: state.external_identifiers }
+
   let identifier_of_expression state ?name expr =
     let name, public =
       match name with
@@ -129,12 +135,21 @@ struct
       | Some name ->
           name, true in
     let identifier = { public ; expr } in
-    (* TODO: add already defined identifiers in the environment: *)
-    let l = [] in
+    (* Start with external identifiers: *)
+    let l =
+      List.map (fun (name, typ) ->
+        Ops.identifier name, typ
+      ) state.external_identifiers in
+    (* ...and already defined identifiers in the environment: *)
+    let l =
+      List.fold_left (fun l (name, id) ->
+        (Ops.identifier name, type_of l id.expr) :: l
+      ) l state.identifiers in
     type_check l expr ;
     if type_of l expr = TVoid then
       invalid_arg "identifier_of_expression of type void" ;
-    { identifiers = (name, identifier) :: state.identifiers },
+    { state with
+        identifiers = (name, identifier) :: state.identifiers },
     E0 (Identifier name),
     valid_identifier name
 
@@ -161,7 +176,12 @@ struct
      * as long as dependencies are defined before used. *)
     let identifiers =
       List.map (fun (name, identifier) ->
-        name, get_depends identifier.expr, identifier.expr
+        let l =
+          List.map (fun (name, typ) ->
+            Ops.identifier name, typ
+          ) state.external_identifiers in
+        let deps = get_depends l identifier.expr in
+        name, deps, identifier.expr
       ) state.identifiers in
     if debug then
       pp stdout "Identifiers:\n%a\n%!"
@@ -196,7 +216,7 @@ struct
             let defined = (name, t) :: defined in
             loop true defined left_overs rest
           ) in
-    loop false [] [] identifiers ;
+    loop false state.external_identifiers [] identifiers ;
     Printf.fprintf oc
       "%s\n\n\
        %a\n\

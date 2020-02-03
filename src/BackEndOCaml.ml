@@ -8,6 +8,11 @@ open DessserTools
 
 module Config =
 struct
+  let valid_identifier s =
+    if s = "" then "v" else
+    if s.[0] = '!' then s
+    else BackEndCLike.valid_identifier s
+
   let preferred_def_extension = "ml"
   let preferred_decl_extension = "mli"
   let compile_cmd ~optim ~link src dst =
