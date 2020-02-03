@@ -602,8 +602,8 @@ struct
         and body = print emit p l e3
         and accum = print emit p l e4 in
         let res = gen_sym ?name "repeat_res_" in
-        let t3 = type_of l e3 in
-        ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
+        let t4 = type_of l e4 in
+        ppi p.def "%s %s(%s);" (type_identifier p t4) res accum ;
         ppi p.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
