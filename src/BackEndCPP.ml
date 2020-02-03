@@ -603,7 +603,7 @@ struct
         let res = gen_sym ?name "repeat_res_" in
         let t3 = type_of l e3 in
         ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
-        ppi p.def "for (int32_t idx_ = %s; idx != %s; idx++) {" from to_ ;
+        ppi p.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
         pp p.def "%s}" p.indent ;
