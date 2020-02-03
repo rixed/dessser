@@ -1370,7 +1370,7 @@ let type_check l e =
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_param e2 1 t2 bool) ;
-    | E4 (Repeat, e1, e2, e3, e4) ->
+    | E4 (Repeat, e1 (*from*), e2 (*to*), e3 (*idx->'a->'a*), e4 (*'a*)) ->
         check_eq l e1 i32 ;
         check_eq l e2 i32 ;
         check_params2 l e3 (fun t1 t2 t3 ->

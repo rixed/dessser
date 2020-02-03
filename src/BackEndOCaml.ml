@@ -777,7 +777,7 @@ struct
             ppi oc "let rec loop_repeat n accum =" ;
             indent_more p (fun () ->
               ppi oc "if n >= %s then accum else" to_ ;
-              ppi oc "loop_repeat (Int32.succ n) (%s accum) in" body) ;
+              ppi oc "loop_repeat (Int32.succ n) (%s n accum) in" body) ;
             pp oc "%sloop_repeat %s %s" p.indent from accum))
     | E2 (SetField path, e1, e2) ->
         let ptr = print ?name emit p l e1
