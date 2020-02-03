@@ -220,7 +220,7 @@ struct
     pp oc "let %s : %s = %t in" n tn f
 
   let print_comment oc fmt =
-    pp oc ("(* " ^^ fmt ^^ " *)")
+    pp oc ("(* " ^^ fmt ^^ " *)\n")
 
   let print_float_literal v oc =
     (* printf "%F" would not work for infinity:

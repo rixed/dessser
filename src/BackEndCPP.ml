@@ -99,7 +99,7 @@ struct
     pp oc "%s %s(%t);" tn n f
 
   let print_comment oc fmt =
-    pp oc ("/* "^^ fmt ^^" */")
+    pp oc ("/* "^^ fmt ^^" */\n")
 
   let rec deref_path v vt = function
     | [] -> v
