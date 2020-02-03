@@ -21,6 +21,7 @@ struct
     with_sploded_pair "dfloat" w_p (fun w p ->
       pair (float_of_qword w) p)
 
+  (* Returns a size and a dataptr: *)
   let read_leb128 p =
     let t_u32_u8 = TPair (T.u32, T.u8) in
     let_ "leb_shft_ptr"
@@ -187,6 +188,7 @@ struct
   let sfloat () _ _ v p =
     write_qword LittleEndian p (qword_of_float v)
 
+  (* v must be a u32: *)
   let write_leb128 p v =
     let t_ptr_sz = TPair (TDataPtr, T.u32) in
     fst (
@@ -195,15 +197,16 @@ struct
           (func1 t_ptr_sz (fun p_wlen ->
             with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
               let b =
-                choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
-                  (log_and (to_u8 wlen) (u8 127))
-                  (log_or (to_u8 wlen) (u8 128)) in
+                byte_of_u8 (
+                  choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
+                    (log_and (to_u8 wlen) (u8 127))
+                    (log_or (to_u8 wlen) (u8 128))) in
               pair
                 (write_byte p b)
                 (right_shift wlen (u8 7))))))
         ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
           (func1 t_ptr_sz (fun ptr_sz -> gt (snd ptr_sz) (u32 Uint32.zero))))
-        ~init:(pair p (u32_of_size v)))
+        ~init:(pair p v))
 
   let sstring () _ _ v p =
     let p = write_leb128 p (string_length v) in
@@ -277,7 +280,7 @@ struct
     let n = match n with
       | Some n -> n
       | None -> failwith "RowBinary.Ser needs list size upfront" in
-    write_leb128 p (size_of_u32 n)
+    write_leb128 p n
 
   let list_cls () _ _ p = p
   let list_sep () _ _ p = p
@@ -344,7 +347,7 @@ struct
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ v =
     DynSize (
-      let_ "wlen" (u32_of_size (string_length v))
+      let_ "wlen" (string_length v)
         (add (ssize_of_leb128 (identifier "wlen"))
              (identifier "wlen")))
 end

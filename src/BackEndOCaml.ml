@@ -563,7 +563,7 @@ struct
     | E1 (BytesOfString, e1) ->
         unary_op "Slice.of_string" e1
     | E1 (ListLength, e1) ->
-        unary_op "Array.length" e1
+        unary_op "Uint32.of_int @@ Array.length" e1
     | E0 (DataPtrOfString s) ->
         emit ?name p l e (fun oc -> pp oc "Pointer.of_string %S" s)
     | E2 (TestBit, e1, e2) ->
