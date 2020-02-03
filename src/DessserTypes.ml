@@ -575,11 +575,15 @@ let () =
   register_user_type "Cidrv6" (TTup [| NotNullable (Usr (get_user_type "Ipv6")) ;
                                        NotNullable (Mac TU8) |])
 
-(* Paths are used to locate subfields within compound types.
+(* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
- * the index of the grandchild, and so on. *)
+ * the index of the grandchild, and so on.
+ * Lists and vectors are entered but need only one index: 0, as all
+ * indices share the same subtype. *)
 (* FIXME: a data structure that can be appended/prepended/matched from both ends *)
 type path = int list
+
+let path_append i path = path @ [i]
 
 let print_path oc p =
   List.print ~first:"" ~last:"" ~sep:"/" Int.print oc p

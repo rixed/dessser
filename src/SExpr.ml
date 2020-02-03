@@ -13,11 +13,11 @@ struct
 
   let start _mn p = (), p
   let stop () p = p
-  type des = state -> e -> e
+  type des = state -> maybe_nullable -> path -> e -> e
 
   let skip1 p = data_ptr_add p (size 1)
 
-  let di op () p =
+  let di op () _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
     let cond = func1 T.byte (fun b ->
@@ -32,7 +32,7 @@ struct
 
   let dfloat = di float_of_string
 
-  let dbool () p =
+  let dbool () _ _ p =
     with_sploded_pair "dbool" (read_byte p) (fun b p ->
       pair (eq b (byte_of_const_char 'T')) p)
 
@@ -51,9 +51,9 @@ struct
       let p = skip1 p in
       pair (conv str) p)
 
-  let dstring () p = dbytes string_of_bytes p
+  let dstring () _ _ p = dbytes string_of_bytes p
   (* Chars are encoded as single char strings *)
-  let dchar () p = dbytes (char_of_string % string_of_bytes) p
+  let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
 
   let di8 = di i8_of_string
   let du8 = di u8_of_string
@@ -74,27 +74,27 @@ struct
   let di128 = di i128_of_string
   let du128 = di u128_of_string
 
-  let tup_opn () _ p = skip1 p
-  let tup_cls () p = skip1 p
-  let tup_sep _n () p = skip1 p
+  let tup_opn () _ _ _ p = skip1 p
+  let tup_cls () _ _ p = skip1 p
+  let tup_sep _n () _ _ p = skip1 p
 
-  let rec_opn () _ p = skip1 p
-  let rec_cls () p = skip1 p
-  let rec_sep _n () p = skip1 p
+  let rec_opn () _ _ _ p = skip1 p
+  let rec_cls () _ _ p = skip1 p
+  let rec_sep _n () _ _ p = skip1 p
 
-  let vec_opn () _ _ p = skip1 p
-  let vec_cls () p = skip1 p
-  let vec_sep _n () p = skip1 p
+  let vec_opn () _ _ _ _ p = skip1 p
+  let vec_cls () _ _ p = skip1 p
+  let vec_sep _n () _ _ p = skip1 p
 
   let list_opn =
     UnknownSize (
-      (fun () _ p -> skip1 p),
-      (fun () p ->
+      (fun () _ _ _ p -> skip1 p),
+      (fun () _ _ p ->
         eq (peek_byte p (size 0)) (byte_of_const_char ')')))
-  let list_cls () p = skip1 p
-  let list_sep () p = skip1 p
+  let list_cls () _ _ p = skip1 p
+  let list_sep () _ _ p = skip1 p
 
-  let is_null () p =
+  let is_null () _ _ p =
     (* TODO: For this to work even when there is less than 4 bytes to read [and_]
      * must short cut! *)
     (* NULL *)
@@ -103,10 +103,10 @@ struct
                (and_ (eq (peek_byte p (size 2)) (byte 0x6c))
                      (eq (peek_byte p (size 3)) (byte 0x6c))))
 
-  let dnull _t () p =
+  let dnull _t () _ _ p =
     data_ptr_add p (size 4)
 
-  let dnotnull _t () p = p
+  let dnotnull _t () _ _ p = p
 end
 
 module Ser : SER =
@@ -118,9 +118,9 @@ struct
   let start _v p = (), p
   let stop () p = p
 
-  type ser = state -> e -> e -> e
+  type ser = state -> maybe_nullable -> path -> e -> e -> e
 
-  let sfloat () v p =
+  let sfloat () _ _ v p =
     write_bytes p (bytes_of_string (string_of_float v))
 
   let sbytes v p =
@@ -130,13 +130,13 @@ struct
     let p = write_bytes p v in
     write_byte p quo
 
-  let sstring () v p = sbytes (bytes_of_string v) p
-  let schar () v p = sbytes (bytes_of_string (string_of_char v)) p
+  let sstring () _ _ v p = sbytes (bytes_of_string v) p
+  let schar () _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
 
-  let sbool () v p =
+  let sbool () _ _ v p =
     write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
-  let si () v p =
+  let si () _ _ v p =
     write_bytes p (bytes_of_string (string_of_int v))
 
   let si8 = si
@@ -159,48 +159,48 @@ struct
   let su128 = si
 
   (* Could also write the field names with the value in a pair... *)
-  let tup_opn () _ p =
+  let tup_opn () _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let tup_cls () p =
+  let tup_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let tup_sep _idx () p =
+  let tup_sep _idx () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let rec_opn () _ p =
+  let rec_opn () _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let rec_cls () p =
+  let rec_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let rec_sep _idx () p =
+  let rec_sep _idx () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let vec_opn () _ _ p =
+  let vec_opn () _ _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let vec_cls () p =
+  let vec_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let vec_sep _n () p =
+  let vec_sep _n () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let list_opn () _ _n p =
+  let list_opn () _ _ _ _n p =
     write_byte p (byte_of_const_char '(')
 
-  let list_cls () p =
+  let list_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let list_sep () p =
+  let list_sep () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let nullable () p = p
+  let nullable () _ _ p = p
 
-  let snull _t () p =
+  let snull _t () _ _ p =
     write_dword LittleEndian p (dword (Uint32.of_int32 0x6c_6c_75_6el))
 
-  let snotnull _t () p = p
+  let snotnull _t () _ _ p = p
 
   type ssizer = maybe_nullable -> path -> e -> ssize
   let todo_ssize () = failwith "TODO: ssize for SExpr"

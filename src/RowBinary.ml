@@ -14,9 +14,9 @@ struct
 
   let start _vtyp p = (), p
   let stop () p = p
-  type des = state -> e -> e
+  type des = state -> maybe_nullable -> path -> e -> e
 
-  let dfloat () p =
+  let dfloat () _ _ p =
     let w_p = read_qword LittleEndian p in
     with_sploded_pair "dfloat" w_p (fun w p ->
       pair (float_of_qword w) p)
@@ -51,125 +51,125 @@ struct
    * TTup type: *)
   let des typ = ignore typ
 
-  let dstring () p =
+  let dstring () _ _ p =
     with_sploded_pair "dstring" (read_leb128 p) (fun len p ->
       with_sploded_pair "dstring" (read_bytes p len) (fun bs p ->
         pair (string_of_bytes bs) p))
 
-  let dbool () p =
+  let dbool () _ _ p =
     with_sploded_pair "dbool" (read_byte p) (fun b p ->
       pair (not_ (eq (u8_of_byte b) (u8 0))) p)
 
-  let dchar () p =
+  let dchar ()_ _  p =
     with_sploded_pair "dchar" (read_byte p) (fun b p ->
       pair (char_of_u8 (u8_of_byte b)) p)
 
-  let di8 () p =
+  let di8 () _ _ p =
     with_sploded_pair "di8" (read_byte p) (fun b p ->
       pair (to_i8 (u8_of_byte b)) p)
 
-  let du8 () p =
+  let du8 () _ _ p =
     with_sploded_pair "du8" (read_byte p) (fun b p ->
       pair (u8_of_byte b) p)
 
-  let di16 () p =
+  let di16 () _ _ p =
     with_sploded_pair "di16" (read_word LittleEndian p) (fun w p ->
       pair (to_i16 (u16_of_word w)) p)
 
-  let du16 () p =
+  let du16 () _ _ p =
     with_sploded_pair "du16" (read_word LittleEndian p) (fun w p ->
       pair (u16_of_word w) p)
 
-  let di24 () p =
+  let di24 () _ _ p =
     with_sploded_pair "di24" (read_dword LittleEndian p) (fun w p ->
       pair (to_i24 (u32_of_dword w)) p)
 
-  let du24 () p =
+  let du24 () _ _ p =
     with_sploded_pair "du24" (read_dword LittleEndian p) (fun w p ->
       pair (to_u24 (u32_of_dword w)) p)
 
-  let di32 () p =
+  let di32 () _ _ p =
     with_sploded_pair "di32" (read_dword LittleEndian p) (fun w p ->
       pair (to_i32 (u32_of_dword w)) p)
 
-  let du32 () p =
+  let du32 () _ _ p =
     with_sploded_pair "du32" (read_dword LittleEndian p) (fun w p ->
       pair (u32_of_dword w) p)
 
-  let di40 () p =
+  let di40 () _ _ p =
     with_sploded_pair "di40" (read_qword LittleEndian p) (fun w p ->
       pair (to_i40 (u64_of_qword w)) p)
 
-  let du40 () p =
+  let du40 () _ _ p =
     with_sploded_pair "du40" (read_qword LittleEndian p) (fun w p ->
       pair (to_u40 (u64_of_qword w)) p)
 
-  let di48 () p =
+  let di48 () _ _ p =
     with_sploded_pair "di48" (read_qword LittleEndian p) (fun w p ->
       pair (to_i48 (u64_of_qword w)) p)
 
-  let du48 () p =
+  let du48 () _ _ p =
     with_sploded_pair "du48" (read_qword LittleEndian p) (fun w p ->
       pair (to_u48 (u64_of_qword w)) p)
 
-  let di56 () p =
+  let di56 () _ _ p =
     with_sploded_pair "di56" (read_qword LittleEndian p) (fun w p ->
       pair (to_i56 (u64_of_qword w)) p)
 
-  let du56 () p =
+  let du56 () _ _ p =
     with_sploded_pair "du56" (read_qword LittleEndian p) (fun w p ->
       pair (to_u56 (u64_of_qword w)) p)
 
-  let di64 () p =
+  let di64 () _ _ p =
     with_sploded_pair "di64" (read_qword LittleEndian p) (fun w p ->
       pair (to_i64 (u64_of_qword w)) p)
 
-  let du64 () p =
+  let du64 () _ _ p =
     with_sploded_pair "du64" (read_qword LittleEndian p) (fun w p ->
       pair (u64_of_qword w) p)
 
-  let di128 () p =
+  let di128 () _ _ p =
     with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
       pair (to_i128 (u128_of_oword w)) p)
 
-  let du128 () p =
+  let du128 () _ _ p =
     with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
       pair (u128_of_oword w) p)
 
   (* Items of a tuples are just concatenated together: *)
-  let tup_opn () _ p = p
-  let tup_cls () p = p
-  let tup_sep _n () p = p
+  let tup_opn () _ _ _ p = p
+  let tup_cls () _ _ p = p
+  let tup_sep _n () _ _ p = p
 
-  let rec_opn () _ p = p
-  let rec_cls () p = p
-  let rec_sep _n () p = p
+  let rec_opn () _ _ _ p = p
+  let rec_cls () _ _ p = p
+  let rec_sep _n () _ _ p = p
 
   (* Vectors: ClickHouse does not distinguish between vectors (of known
    * dimension) and lists (of variable length). But it has varchars, which
    * are close to our vectors, and that come without any length on the wire.
    * So we assume vectors are not prefixed by any length, and our lists are
    * what ClickHouse refers to as arrays. *)
-  let vec_opn () _ _ p = p
-  let vec_cls () p = p
-  let vec_sep _n () p = p
+  let vec_opn () _ _ _ _ p = p
+  let vec_cls () _ _ p = p
+  let vec_sep _n () _ _ p = p
 
   let list_opn = KnownSize
-    (fun () _ p ->
+    (fun () _ _ _ p ->
       with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
         pair (u32_of_size dim) p))
 
-  let list_cls () p = p
-  let list_sep () p = p
+  let list_cls () _ _ p = p
+  let list_sep () _ _ p = p
 
   (* "For NULL support, an additional byte containing 1 or 0 is added before
    * each Nullable value. If 1, then the value is NULL and this byte is
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
-  let is_null () p =
+  let is_null () _ _ p =
     eq (peek_byte p (size 0)) (byte 1)
 
-  let dnull _t () p =
+  let dnull _t () _ _ p =
     data_ptr_add p (size 1)
 
   let dnotnull = dnull
@@ -182,9 +182,9 @@ struct
 
   let start _vtyp p = (), p
   let stop () p = p
-  type ser = state -> e -> e -> e
+  type ser = state -> maybe_nullable -> path -> e -> e -> e
 
-  let sfloat () v p =
+  let sfloat () _ _ v p =
     write_qword LittleEndian p (qword_of_float v)
 
   let write_leb128 p v =
@@ -205,28 +205,28 @@ struct
           (func1 t_ptr_sz (fun ptr_sz -> gt (snd ptr_sz) (u32 Uint32.zero))))
         ~init:(pair p (u32_of_size v)))
 
-  let sstring () v p =
+  let sstring () _ _ v p =
     let p = write_leb128 p (string_length v) in
     write_bytes p (bytes_of_string v)
 
-  let sbool () v p =
+  let sbool () _ _ v p =
     write_byte p (byte_of_u8 (u8_of_bool v))
 
-  let schar () v p =
+  let schar () _ _ v p =
     write_byte p (byte_of_u8 (u8_of_char v))
 
-  let si8 () v p =
+  let si8 () _ _ v p =
     write_byte p (byte_of_u8 (to_u8 v))
 
-  let si16 () v p =
+  let si16 () _ _ v p =
     write_word LittleEndian p (word_of_u16 (to_u16 v))
 
-  let si32 () v p =
+  let si32 () _ _ v p =
     write_dword LittleEndian p (dword_of_u32 (to_u32 v))
 
   let si24 = si32
 
-  let si64 () v p =
+  let si64 () _ _ v p =
     write_qword LittleEndian p (qword_of_u64 (to_u64 v))
 
   let si40 = si64
@@ -235,21 +235,21 @@ struct
 
   let si56 = si64
 
-  let si128 () v p =
+  let si128 () _ _ v p =
     write_oword LittleEndian p (oword_of_u128 (to_u128 v))
 
-  let su8 () v p =
+  let su8 () _ _ v p =
     write_byte p (byte_of_u8 v)
 
-  let su16 () v p =
+  let su16 () _ _ v p =
     write_word LittleEndian p (word_of_u16 v)
 
-  let su32 () v p =
+  let su32 () _ _ v p =
     write_dword LittleEndian p (dword_of_u32 v)
 
   let su24 = su32
 
-  let su64 () v p =
+  let su64 () _ _ v p =
     write_qword LittleEndian p (qword_of_u64 v)
 
   let su40 = su64
@@ -258,36 +258,36 @@ struct
 
   let su56 = su64
 
-  let su128 () v p =
+  let su128 () _ _ v p =
     write_oword LittleEndian p (oword_of_u128 v)
 
-  let tup_opn () _ p = p
-  let tup_cls () p = p
-  let tup_sep _idx () p = p
+  let tup_opn () _ _ _ p = p
+  let tup_cls () _ _ p = p
+  let tup_sep _idx () _ _ p = p
 
-  let rec_opn () _ p = p
-  let rec_cls () p = p
-  let rec_sep _idx () p = p
+  let rec_opn () _ _ _ p = p
+  let rec_cls () _ _ p = p
+  let rec_sep _idx () _ _ p = p
 
-  let vec_opn () _ _  p = p
-  let vec_cls () p = p
-  let vec_sep _idx () p = p
+  let vec_opn () _ _ _ _  p = p
+  let vec_cls () _ _ p = p
+  let vec_sep _idx () _ _ p = p
 
-  let list_opn () _ n p =
+  let list_opn () _ _ _ n p =
     let n = match n with
       | Some n -> n
       | None -> failwith "RowBinary.Ser needs list size upfront" in
     write_leb128 p (size_of_u32 n)
 
-  let list_cls () p = p
-  let list_sep () p = p
+  let list_cls () _ _ p = p
+  let list_sep () _ _ p = p
 
-  let nullable () p = p
+  let nullable () _ _ p = p
 
-  let snull _t () p =
+  let snull _t () _ _ p =
     write_byte p (byte 1)
 
-  let snotnull _t () p =
+  let snotnull _t () _ _ p =
     write_byte p (byte 0)
 
   type ssizer = maybe_nullable -> path -> e -> ssize

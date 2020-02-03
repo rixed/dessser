@@ -61,41 +61,41 @@ struct
     let p = blit_byte p (byte 0) sz in
     align_dyn p sz
 
-  type ser = state -> e -> e -> e
+  type ser = state -> maybe_nullable -> path -> e -> e -> e
 
-  let sfloat _st v p =
+  let sfloat _st _ _ v p =
     write_qword LittleEndian p (qword_of_float v)
 
-  let sstring _st v p =
+  let sstring _st _ _ v p =
     let len = string_length v in
     let p = write_dword LittleEndian p (dword_of_u32 len) in
     let bytes = bytes_of_string v in
     let p = write_bytes p bytes in
     align_dyn p (size_of_u32 len)
 
-  let sbool _st v p =
+  let sbool _st _ _ v p =
     let p = write_byte p (byte_of_u8 (u8_of_bool v)) in
     align_const p 1
 
-  let schar _st v p =
+  let schar _st _ _ v p =
     let p = write_byte p (byte_of_u8 (u8_of_char v)) in
     align_const p 1
 
-  let si8 _st v p =
+  let si8 _st _ _ v p =
     let p = write_byte p (byte_of_u8 v) in
     align_const p 1
 
-  let si16 _st v p =
+  let si16 _st _ _ v p =
     let p = write_word LittleEndian p (word_of_u16 v) in
     align_const p 2
 
-  let si32 _st v p =
+  let si32 _st _ _ v p =
     let p = write_dword LittleEndian p (dword_of_u32 (to_u32 v)) in
     align_const p 4
 
   let si24 = si32
 
-  let si64 _st v p =
+  let si64 _st _ _ v p =
     let p = write_qword LittleEndian p (qword_of_u64 (to_u64 v)) in
     align_const p 8
 
@@ -105,35 +105,36 @@ struct
 
   let si56 = si64
 
-  let si128 _st v p =
+  let si128 _st _ _ v p =
     let p = write_oword LittleEndian p (oword_of_u128 (to_u128 v)) in
     align_const p 16
 
-  let su8 _st v p =
+  let su8 _st _ _ v p =
     let p = write_byte p (byte_of_u8 v) in
     align_const p 1
 
-  let su16 _st v p =
+  let su16 _st _ _ v p =
     let p = write_word LittleEndian p (word_of_u16 v) in
     align_const p 2
 
-  let su32 _st v p =
+  let su32 _st _ _ v p =
     let p = write_dword LittleEndian p (dword_of_u32 v) in
     align_const p 4
 
-  let su24 st v p = su32 st (to_u32 v) p
+  let su24 st vt0 path v p =
+    su32 st vt0 path (to_u32 v) p
 
-  let su64 _st v p =
+  let su64 _st _ _ v p =
     let p = write_qword LittleEndian p (qword_of_u64 v) in
     align_const p 8
 
-  let su40 st v p = su64 st (to_u64 v) p
+  let su40 st vt0 path v p = su64 st vt0 path (to_u64 v) p
 
-  let su48 st v p = su64 st (to_u64 v) p
+  let su48 st vt0 path v p = su64 st vt0 path (to_u64 v) p
 
-  let su56 st v p = su64 st (to_u64 v) p
+  let su56 st vt0 path v p = su64 st vt0 path (to_u64 v) p
 
-  let su128 _st v p =
+  let su128 _st _ _ v p =
     let p = write_oword LittleEndian p (oword_of_u128 v) in
     align_const p 16
 
@@ -150,13 +151,13 @@ struct
     let p = push_nullmask st p in
     zero_nullmask_const nullmask_bits p
 
-  let tup_opn st vtyps p =
+  let tup_opn st _ _ vtyps p =
     tup_opn_with_typs vtyps st p
 
-  let tup_cls st p =
+  let tup_cls st _ _ p =
     pop_nullmask st p
 
-  let tup_sep _idx _st p = p
+  let tup_sep _idx _st _ _ p = p
 
   let is_private name =
     String.length name > 0 && name.[0] = '_'
@@ -172,16 +173,16 @@ struct
     Array.fast_sort record_field_cmp vtyps ;
     Array.map Pervasives.snd vtyps
 
-  let rec_opn st vtyps p =
+  let rec_opn st _ _ vtyps p =
     let vtyps = tuple_typs_of_record vtyps in
     tup_opn_with_typs vtyps st p
 
-  let rec_cls st p =
+  let rec_cls st _ _ p =
     pop_nullmask st p
 
-  let rec_sep _fname _st p = p
+  let rec_sep _fname _st _ _ p = p
 
-  let vec_opn st dim vtyp p =
+  let vec_opn st _ _ dim vtyp p =
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
@@ -191,12 +192,12 @@ struct
     let p = push_nullmask st p in
     zero_nullmask_const nullmask_bits p
 
-  let vec_cls st p =
+  let vec_cls st _ _ p =
     pop_nullmask st p
 
-  let vec_sep _idx _st p = p
+  let vec_sep _idx _st _ _ p = p
 
-  let list_opn st vtyp n p =
+  let list_opn st _ _ vtyp n p =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
@@ -210,14 +211,14 @@ struct
     let p = push_nullmask st p in
     zero_nullmask_dyn nullmask_bits p
 
-  let list_cls st p =
+  let list_cls st _ _ p =
     pop_nullmask st p
 
-  let list_sep _st p = p
+  let list_sep _st _ _ p = p
 
   (* This is called before serializing the null/notnull, but that's
    * our best opportunity to increment the bit index: *)
-  let nullable st p =
+  let nullable st _ _ p =
     (match st.nullmasks with
     | [] -> ()
     | bi :: r ->
@@ -225,9 +226,9 @@ struct
     comment "Advance nullmask bit index" p
 
   (* The nullmask has been zeroed already: *)
-  let snull _t _st p = p
+  let snull _t _st _ _ p = p
 
-  let snotnull _t st p =
+  let snotnull _t st _ _ p =
     (* When we encode a non-null nullable value we must also set its bit in
      * the nullmask: *)
     match st.nullmasks with

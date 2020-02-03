@@ -13,96 +13,77 @@ open DessserExpressions
 open Ops
 module T = DessserTypes
 
-type heapvalue_state = path ref
-
-let next path =
-  match List.rev !path with
-  | [] -> ()
-  | i::rest -> path := List.rev ((i+1) :: rest)
-
-let enter path =
-  path := !path @ [0]
-
-let leave path =
-  match List.rev !path with
-  | [] -> assert false
-  | _::rest -> path := List.rev rest
-
 module Ser : SER =
 struct
-  type state = heapvalue_state * maybe_nullable
+  type state = unit
   let ptr vtyp = valueptr vtyp
 
   (* [p] must ben a ValuePtr. *)
-  let start vtyp p =
-    (ref [], vtyp), p
+  let start _vtyp0 p = (), p
 
-  let stop (path, _) p =
-    assert (!path = []) ;
-    p
+  let stop () p = p
 
-  type ser = state -> e -> e -> e
+  type ser = state -> maybe_nullable -> path -> e -> e -> e
 
-  let set_field_ (path_ref, vtyp) v p =
-    let path = !path_ref in
-    let v = if is_nullable (type_of_path vtyp path) then to_nullable v else v in
+  let set_field_ vtyp0 path v p =
+    let v = if is_nullable (type_of_path vtyp0 path) then to_nullable v else v in
     set_field path p v
 
-  let sfloat st id p = set_field_ st id p
-  let sstring st id p = set_field_ st id p
-  let sbool st id p = set_field_ st id p
-  let si8 st id p = set_field_ st id p
-  let si16 st id p = set_field_ st id p
-  let si24 st id p = set_field_ st id p
-  let si32 st id p = set_field_ st id p
-  let si40 st id p = set_field_ st id p
-  let si48 st id p = set_field_ st id p
-  let si56 st id p = set_field_ st id p
-  let si64 st id p = set_field_ st id p
-  let si128 st id p = set_field_ st id p
-  let su8 st id p = set_field_ st id p
-  let su16 st id p = set_field_ st id p
-  let su24 st id p = set_field_ st id p
-  let su32 st id p = set_field_ st id p
-  let su40 st id p = set_field_ st id p
-  let su48 st id p = set_field_ st id p
-  let su56 st id p = set_field_ st id p
-  let su64 st id p = set_field_ st id p
-  let su128 st id p = set_field_ st id p
-  let schar st id p = set_field_ st id p
+  let sfloat () = set_field_
+  let sstring () = set_field_
+  let sbool () = set_field_
+  let si8 () = set_field_
+  let si16 () = set_field_
+  let si24 () = set_field_
+  let si32 () = set_field_
+  let si40 () = set_field_
+  let si48 () = set_field_
+  let si56 () = set_field_
+  let si64 () = set_field_
+  let si128 () = set_field_
+  let su8 () = set_field_
+  let su16 () = set_field_
+  let su24 () = set_field_
+  let su32 () = set_field_
+  let su40 () = set_field_
+  let su48 () = set_field_
+  let su56 () = set_field_
+  let su64 () = set_field_
+  let su128 () = set_field_
+  let schar () = set_field_
 
-  let tup_opn (path, _) _ p = enter path ; p
+  let tup_opn () _ _ _ p = p
 
-  let tup_cls (path, _) p = leave path ; p
+  let tup_cls () _ _ p = p
 
-  let tup_sep _n (path, _) p = next path ; p
+  let tup_sep _n () _ _ p = p
 
-  let rec_opn (path, _) _ p = enter path ; p
+  let rec_opn () _ _ _ p = p
 
-  let rec_cls (path, _) p = leave path ; p
+  let rec_cls () _ _ p = p
 
-  let rec_sep _n (path, _) p = next path ; p
+  let rec_sep _n () _ _ p = p
 
-  let vec_opn (path, _) _ _ p = enter path ; p
+  let vec_opn () _ _ _ _ p = p
 
-  let vec_cls (path, _) p = leave path ; p
+  let vec_cls () _ _ p = p
 
-  let vec_sep _idx (path, _) p = next path ; p
+  let vec_sep _idx () _ _ p = p
 
-  let list_opn (path, _) _ _ p = enter path ; p
+  let list_opn () _ _ _ _ p = p
 
-  let list_cls (path, _) p = leave path ; p
+  let list_cls () _ _ p = p
 
-  let list_sep (path, _) p = next path ; p
+  let list_sep () _ _ p = p
 
-  let nullable _ p = p
+  let nullable () _ _ p = p
 
   (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
-  let snull t (path, _) p =
-    set_field !path p (null t)
+  let snull t () _ path p =
+    set_field path p (null t)
 
-  let snotnull _t _st p = p
+  let snotnull _t () _ _ p = p
 
   type ssizer = maybe_nullable -> path -> e -> ssize
   let todo_ssize () = failwith "TODO: ssize for HeapValue"
@@ -137,87 +118,82 @@ end
 
 module Des : DES =
 struct
-  type state = heapvalue_state * maybe_nullable
+  type state = unit
   let ptr vtyp = valueptr vtyp
 
   (* The pointer that's given to us must have been obtained from a
    * HeapValue.Ser. *)
-  let start vtyp p =
-    (ref [], vtyp), p
+  let start _vtyp0 p = (), p
 
-  let stop (path, _) p =
-    assert (!path = []) ;
-    p
+  let stop () p = p
 
-  type des = state -> e -> e
+  type des = state -> maybe_nullable -> path -> e -> e
 
   (* Beware that Dessser expect deserializers to return only not-nullables. *)
-  let get_field (path_ref, vtyp) p =
-    let path = !path_ref in
+  let get_field vtyp0 path p =
     let v = get_field path p in
     let v =
-      if is_nullable (type_of_path vtyp path) then to_not_nullable v else v in
+      if is_nullable (type_of_path vtyp0 path) then to_not_nullable v else v in
     pair v p
 
-  let dfloat st p = get_field st p
-  let dstring st p = get_field st p
-  let dbool st p = get_field st p
-  let di8 st p = get_field st p
-  let di16 st p = get_field st p
-  let di24 st p = get_field st p
-  let di32 st p = get_field st p
-  let di40 st p = get_field st p
-  let di48 st p = get_field st p
-  let di56 st p = get_field st p
-  let di64 st p = get_field st p
-  let di128 st p = get_field st p
-  let du8 st p = get_field st p
-  let du16 st p = get_field st p
-  let du24 st p = get_field st p
-  let du32 st p = get_field st p
-  let du40 st p = get_field st p
-  let du48 st p = get_field st p
-  let du56 st p = get_field st p
-  let du64 st p = get_field st p
-  let du128 st p = get_field st p
-  let dchar st p = get_field st p
+  let dfloat () vtyp0 path p = get_field vtyp0 path p
+  let dstring () = get_field
+  let dbool () = get_field
+  let di8 () = get_field
+  let di16 () = get_field
+  let di24 () = get_field
+  let di32 () = get_field
+  let di40 () = get_field
+  let di48 () = get_field
+  let di56 () = get_field
+  let di64 () = get_field
+  let di128 () = get_field
+  let du8 () = get_field
+  let du16 () = get_field
+  let du24 () = get_field
+  let du32 () = get_field
+  let du40 () = get_field
+  let du48 () = get_field
+  let du56 () = get_field
+  let du64 () = get_field
+  let du128 () = get_field
+  let dchar () = get_field
 
-  let tup_opn (path, _) _ p = enter path ; p
+  let tup_opn () _ _ _ p = p
 
-  let tup_cls (path, _) p = leave path ; p
+  let tup_cls () _ _ p = p
 
-  let tup_sep _idx (path, _) p = next path ; p
+  let tup_sep _idx () _ _ p = p
 
-  let rec_opn (path, _) _ p = enter path ; p
+  let rec_opn () _ _ _ p = p
 
-  let rec_cls (path, _) p = leave path ; p
+  let rec_cls () _ _ p = p
 
-  let rec_sep _n (path, _) p = next path ; p
+  let rec_sep _n () _ _ p = p
 
-  let vec_opn (path, _) _ _ p = enter path ; p
+  let vec_opn () _ _ _ _ p = p
 
-  let vec_cls (path, _) p = leave path ; p
+  let vec_cls () _ _ p = p
 
-  let vec_sep _ (path, _) p = next path ; p
+  let vec_sep _ () _ _ p = p
 
-  let list_opn = KnownSize (fun (path, _ as st) _ p ->
-    enter path ;
-    let lst = get_field st p in
+  let list_opn = KnownSize (fun () vtyp0 path _ p ->
+    let lst = get_field vtyp0 path p in
     pair (list_length lst) p)
 
-  let list_cls (path, _) p = leave path ; p
+  let list_cls () _ _ p = p
 
-  let list_sep (path, _) p = next path ; p
+  let list_sep () _ _ p = p
 
   (* Will be called on every nullable fields before any attempt to deserialize
    * the value: *)
-  let is_null (path, _) p =
-    field_is_null !path p
+  let is_null () _ path p =
+    field_is_null path p
 
   (* Do not update the path as it's done in the other branch of the alternative
    * (see note in dessser function). *)
-  let dnull _t _st p = p
-  let dnotnull _t _st p = p
+  let dnull _t () _ _ p = p
+  let dnotnull _t () _ _ p = p
 end
 
 (* Module to compute the sersize of a heap value: *)
