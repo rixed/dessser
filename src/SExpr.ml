@@ -6,6 +6,8 @@ open DessserExpressions
 open Ops
 module T = DessserTypes
 
+let list_prefix_length = true
+
 module Des : DES =
 struct
   type state = unit
@@ -15,7 +17,8 @@ struct
   let stop () p = p
   type des = state -> maybe_nullable -> path -> e -> e
 
-  let skip1 p = data_ptr_add p (size 1)
+  let skip n p = data_ptr_add p (size n)
+  let skip1 = skip 1
 
   let di op () _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
@@ -87,10 +90,15 @@ struct
   let vec_sep _n () _ _ p = skip1 p
 
   let list_opn =
-    UnknownSize (
-      (fun () _ _ _ p -> skip1 p),
-      (fun () _ _ p ->
-        eq (peek_byte p (size 0)) (byte_of_const_char ')')))
+    if list_prefix_length then
+      KnownSize (fun () vtyp0 path _ p ->
+        with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
+          pair v (skip 2 p)))
+    else
+      UnknownSize (
+        (fun () _ _ _ p -> skip1 p),
+        (fun () _ _ p ->
+          eq (peek_byte p (size 0)) (byte_of_const_char ')')))
   let list_cls () _ _ p = skip1 p
   let list_sep () _ _ p = skip1 p
 
@@ -186,7 +194,17 @@ struct
   let vec_sep _n () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let list_opn () _ _ _ _n p =
+  let list_opn () vtyp0 path _ n p =
+    let p =
+      if list_prefix_length then
+        match n with
+        | Some n ->
+            let p = su32 () vtyp0 path n p in
+            write_byte p (byte_of_const_char ' ')
+        | None ->
+            failwith "SExpr.Set needs list length upfront"
+      else
+        p in
     write_byte p (byte_of_const_char '(')
 
   let list_cls () _ _ p =
