@@ -341,6 +341,8 @@ struct
           (match type_of l e1 with
           | TValue (NotNullable (Mac TString)) ->
               "print_string %s;"
+          | TValue (NotNullable (Mac TChar)) ->
+              "print_char %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
           p.indent n ;
