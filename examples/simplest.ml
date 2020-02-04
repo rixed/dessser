@@ -161,10 +161,10 @@ let test_desser () =
                                   NotNullable (Mac TChar) |]) in
   let src = data_ptr_of_string "\001X"
   and dst = data_ptr_of_string "_____" in
-  let_ "e" (TestDesSer.desser vtyp src dst)
-    (seq [ dump (identifier "e") ;
-           dump (string "\n") ;
-           identifier "e" ])
+  let1 (TestDesSer.desser vtyp src dst) (fun e ->
+    seq [ dump e ;
+          dump (string "\n") ;
+          e ])
 
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =

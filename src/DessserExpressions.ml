@@ -276,33 +276,6 @@ and expr_eq e1 e2 =
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
 
-(* Create a function expression and return its id: *)
-let func =
-  let next_id = ref 0 in
-  fun typs f ->
-    let id = !next_id in
-    incr next_id ;
-    E1 (Function (id, typs), f id)
-
-(* Specialized to a given arity: *)
-let func1 t1 f =
-  func [| t1 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0)) in
-    f p1)
-
-let func2 t1 t2 f =
-  func [| t1 ; t2 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1)) in
-    f p1 p2)
-
-let func3 t1 t2 t3 f =
-  func [| t1 ; t2 ; t3 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1))
-    and p3 = E0 (Param (fid, 2)) in
-    f p1 p2 p3)
-
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
@@ -1429,23 +1402,67 @@ let with_sploded_pair what e f =
       E2 (Let n2, E1 (Snd, E0 (Identifier pair_id)),
         f (E0 (Identifier n1)) (E0 (Identifier n2)))))
 
+(* Create a function expression and return its id: *)
+let func =
+  let next_id = ref 0 in
+  fun typs f ->
+    let id = !next_id in
+    incr next_id ;
+    E1 (Function (id, typs), f id)
+
+(* Specialized to a given arity: *)
+let func1 t1 f =
+  func [| t1 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0)) in
+    f p1)
+
+let func2 t1 t2 f =
+  func [| t1 ; t2 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1)) in
+    f p1 p2)
+
+let func3 t1 t2 t3 f =
+  func [| t1 ; t2 ; t3 |] (fun fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1))
+    and p3 = E0 (Param (fid, 2)) in
+    f p1 p2 p3)
+
+let let1 ?name v f =
+  let n = match name with Some n -> n | None -> gen_id () in
+  E2 (Let n, v, f (E0 (Identifier n)))
+
+let let2 ?name1 v1 ?name2 v2 f =
+  let n1 = match name1 with Some n -> n | None -> gen_id () in
+  let n2 = match name2 with Some n -> n | None -> gen_id () in
+  E2 (Let n1, v1,
+    E2 (Let n2, v2, f (E0 (Identifier n1)) (E0 (Identifier n2))))
+
+let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
+  let n1 = match name1 with Some n -> n | None -> gen_id () in
+  let n2 = match name2 with Some n -> n | None -> gen_id () in
+  let n3 = match name3 with Some n -> n | None -> gen_id () in
+  E2 (Let n1, v1,
+    E2 (Let n2, v2,
+      E2 (Let n3, v3, f (E0 (Identifier n1)) (E0 (Identifier n2))
+                        (E0 (Identifier n3)))))
+
 (*$< DessserTypes *)
 (*$inject
   let vptr = TValuePtr (Nullable (Mac TString))
   let func2 =
     let open Ops in
     E1 (Function (14, [|vptr; TDataPtr|]),
-      let_ "gen9_ds" (pair (get_field [] (param 14 0))
-                           (param 14 0))
-        (let_ "gen9_ds_0" (fst (identifier "gen9_ds"))
-          (let_ "gen9_ds_1" (snd (identifier "gen9_ds"))
-            (pair (identifier "gen9_ds_1")
-                  (comment "Serialize a String"
-                    (write_byte
-                      (write_bytes
-                        (write_byte (param 14 1) (byte_of_const_char '"'))
-                        (bytes_of_string (to_not_nullable (identifier "gen9_ds_0"))))
-                      (byte_of_const_char '"')))))))
+      let_ "gen9_ds_0" (get_field [] (param 14 0))
+        (let_ "gen9_ds_1" (param 14 0)
+          (pair (identifier "gen9_ds_1")
+                (comment "Serialize a String"
+                  (write_byte
+                    (write_bytes
+                      (write_byte (param 14 1) (byte_of_const_char '"'))
+                      (bytes_of_string (to_not_nullable (identifier "gen9_ds_0"))))
+                    (byte_of_const_char '"'))))))
 *)
 (*$= type_of & ~printer:(IO.to_string print_typ)
   (TFunction ([|vptr; TDataPtr|], TPair (vptr, TDataPtr))) (type_of [] func2)
