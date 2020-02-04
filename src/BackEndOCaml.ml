@@ -689,7 +689,7 @@ struct
          * so then another let is required: *)
         let n1 = print ~name:n emit p l e1 in
         if n1 <> n then
-          ignore (emit ?name:(Some n) p l e (fun oc -> String.print oc n1)) ;
+          ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1)) ;
         let t = type_of l e1 in
         let l = (E0 (Identifier n), t) :: l in
         print ?name emit p l e2
