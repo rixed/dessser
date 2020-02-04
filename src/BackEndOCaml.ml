@@ -667,7 +667,7 @@ struct
     | E2 (Pair, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "(%s, %s)" n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E1 (Fst, e1) ->
         unary_op "fst" e1
     | E1 (Snd, e1) ->

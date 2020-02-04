@@ -118,7 +118,7 @@ struct
 
   let skip p n =
     if debug then
-      Printf.printf "Advance from %d to %d\n%!" p.offset (p.offset + n) ;
+      Printf.eprintf "Advance from %d to %d\n%!" p.offset (p.offset + n) ;
     check_input_length (p.offset + n) p.length ;
     { p with offset = p.offset + n }
 
@@ -134,7 +134,7 @@ struct
     check_input_length (p.offset + at + 1) p.length ;
     let c = Bytes.get p.bytes (p.offset + at) in
     if debug then
-      Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (p.offset+at) ;
+      Printf.eprintf "PeekByte 0x%02x at %d\n%!" (Char.code c) (p.offset+at) ;
     Uint8.of_int (Char.code c)
 
   let peekWord ?(big_endian=false) p at =
@@ -194,12 +194,16 @@ struct
   let pokeWord ?(big_endian=false) p at v =
     let fst, snd = v, Uint16.shift_right_logical v 8 in
     let fst, snd = if big_endian then snd, fst else fst, snd in
+    if debug then
+      Printf.eprintf "PokeWord 0x%04x at %d\n%!" (Uint16.to_int v) (p.offset + at) ;
     pokeByte p at (Uint16.to_uint8 fst) ;
     pokeByte p (at+1) (Uint16.to_uint8 snd)
 
   let pokeDWord ?(big_endian=false) p at v =
     let fst, snd = v, Uint32.shift_right_logical v 16 in
     let fst, snd = if big_endian then snd, fst else fst, snd in
+    if debug then
+      Printf.eprintf "PokeDWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (p.offset + at) ;
     pokeWord ~big_endian p at (Uint32.to_uint16 fst) ;
     pokeWord ~big_endian p (at+2) (Uint32.to_uint16 snd)
 
