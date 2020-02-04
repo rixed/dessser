@@ -470,13 +470,16 @@ let expression =
 
 (* Non regression tests: *)
 (*$R
-  let e = Parser.expr
+  let compile_check s =
+    let e = Parser.expr s |> List.hd in
+    let msg = "Cannot compile "^ s in
+    assert_bool msg (can_be_compiled e) in
+
+  compile_check
     "(alloc-value \"(I48?;\
         {ksryai: U40;qthlta: (U48?)?;\
          gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?};\
-         zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" in
-  let e = List.hd e in
-  assert_bool "Cannot compile deep type" (can_be_compiled e)
+         zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" ;
 *)
 
 (*
@@ -571,34 +574,70 @@ let sexpr mn =
  * to check s-expr is reliable before using it in further tests: *)
 (*$inject
   open QCheck
-  module S2S = Dessser.DesSer (SExpr.Des) (SExpr.Ser)
   let sexpr_to_sexpr be mn =
+    let module S2S = DesSer (SExpr.Des) (SExpr.Ser) in
     let e =
       func2 TDataPtr TDataPtr (fun src dst ->
         S2S.desser mn src dst) in
+    make_converter be ~mn e
+
+  let test_desser be mn des ser =
+    let module Des = (val des : DES) in
+    let module Ser = (val ser : SER) in
+    let module S2T = DesSer (SExpr.Des) (Ser : SER) in
+    let module T2S = DesSer (Des : DES) (SExpr.Ser) in
+    let e =
+      func2 TDataPtr TDataPtr (fun src dst ->
+        let open Ops in
+        let1 (data_ptr_of_buffer 50_000) (fun tdst ->
+          let src = fst (S2T.desser mn src tdst) in
+          let dst = snd (T2S.desser mn tdst dst) in
+          pair src dst)) in
+    Printf.eprintf "Expression:\n  %a\n" (print_expr ?max_depth:None) e ;
     make_converter be ~mn e
 
   let ocaml_be = (module BackEndOCaml : BACKEND)
   let cpp_be = (module BackEndCPP : BACKEND)
 *)
 
-(* Finally, given a type and a backend, build a converter from s-expr to
- * s-expr for that type, and test it using many generated random s-exprs of
- * that type: *)
+(* Given a type and a backend, build a converter from s-expr to s-expr for
+ * that type, and test it using many generated random s-exprs of that
+ * type: *)
 (*$R
   let test_sexpr be mn =
     let exe = sexpr_to_sexpr be mn in
-    Gen.generate ~n:1000 (sexpr_of_mn_gen mn) |>
+    Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
       Printf.eprintf "Will test s-expr %S of type %a\n%!"
         s T.print_maybe_nullable mn ;
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       assert_equal ~printer:identity s s') in
-  Gen.generate ~n:10 maybe_nullable_gen |>
+  Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     test_sexpr ocaml_be mn ;
     test_sexpr cpp_be mn)
 *)
+
+(* Now that we trust the s-expr ser/des, we can use it to create random
+ * values or arbitrary type in the other formats: *)
+(*$R
+  let test_format be mn des ser format =
+    let exe = test_desser be mn des ser in
+    Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
+    List.iter (fun s ->
+      Printf.eprintf "Will test %s %S of type %a\n%!"
+        format s T.print_maybe_nullable mn ;
+      let s' = String.trim (run_converter ~timeout:2 exe s) in
+      assert_equal ~printer:identity s s') in
+  Gen.generate ~n:5 maybe_nullable_gen |>
+  List.iter (fun mn ->
+    let format = "RowBinary" in
+    test_format ocaml_be mn
+                (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
+    test_format cpp_be mn
+                (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format)
+*)
+
 
 (* Non regression tests: *)
 
@@ -608,9 +647,19 @@ let sexpr mn =
   let check_sexpr be mn s =
     let exe = sexpr_to_sexpr be mn in
     String.trim (run_converter ~timeout:2 exe s)
+  let check_rowbinary be mn s =
+    let des = (module RowBinary.Des : DES)
+    and ser = (module RowBinary.Ser : SER) in
+    let exe = test_desser be mn des ser in
+    String.trim (run_converter ~timeout:2 exe s)
 *)
-(* Check that the AND is shortcutting, otherwise deser.is_null is going to
+(* Check that the AND is short-cutting, otherwise [is_null] is going to
  * read past the input end: *)
 (*$= check_sexpr & ~printer:identity
-  "1" (check_sexpr ocaml_be T.(Nullable (Mac TU8)) "1")
+  "1" (check_sexpr ocaml_be (Nullable (Mac TU8)) "1")
+  "15134052" (check_sexpr ocaml_be (NotNullable (Mac (TU24))) "15134052")
+*)
+(*$= check_rowbinary & ~printer:identity
+  "15134052" (check_rowbinary ocaml_be (NotNullable (Mac (TU24))) "15134052")
+  "15134052" (check_rowbinary cpp_be (NotNullable (Mac (TU24))) "15134052")
 *)

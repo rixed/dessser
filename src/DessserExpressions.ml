@@ -1377,7 +1377,7 @@ let type_check l e =
     try type_check [] e ; true
     with _ -> false *)
 
-(*$T type_check
+(*$T pass_type_check
   not (pass_type_check (E2 (Coalesce, E0 (Null (Mac TString)), E0 (I56 4L))))
  *)
 
@@ -1490,6 +1490,7 @@ let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
 *)
 (*$= type_of & ~printer:(IO.to_string print_typ)
   (TFunction ([|vptr; TDataPtr|], TPair (vptr, TDataPtr))) (type_of [] func2)
+  (TPair (u24, TDataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
 *)
 
 (* Users can define additional expressions, defined in terms of the above
