@@ -18,6 +18,8 @@ AC_CHECK_OCAML_PKG(batteries)
 AC_CHECK_OCAML_PKG(parsercombinator)
 AC_CHECK_OCAML_PKG(stdint)
 AC_CHECK_OCAML_PKG(cmdliner)
+AC_CHECK_OCAML_PKG(parsercombinator)
+AC_CHECK_OCAML_PKG(qcheck)
 
 AC_CONFIG_FILES([
   Makefile
