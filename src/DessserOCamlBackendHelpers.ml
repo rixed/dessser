@@ -131,7 +131,7 @@ struct
     Size.of_int (p.length - p.offset)
 
   let peekByte p at =
-    check_input_length (p.offset + at - 1) p.length ;
+    check_input_length (p.offset + at + 1) p.length ;
     let c = Bytes.get p.bytes (p.offset + at) in
     if debug then
       Printf.printf "Peek byte %02x at %d\n%!" (Char.code c) (p.offset+at) ;
