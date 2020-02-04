@@ -227,16 +227,18 @@ struct
   let si32 () _ _ v p =
     write_dword LittleEndian p (dword_of_u32 (to_u32 v))
 
-  let si24 = si32
+  let si24 () vtyp0 path v p =
+    si32 () vtyp0 path (to_i32 v) p
 
   let si64 () _ _ v p =
     write_qword LittleEndian p (qword_of_u64 (to_u64 v))
 
-  let si40 = si64
+  let si40 () vtyp0 path v p =
+    si64 () vtyp0 path (to_i64 v) p
 
-  let si48 = si64
+  let si48 = si40
 
-  let si56 = si64
+  let si56 = si40
 
   let si128 () _ _ v p =
     write_oword LittleEndian p (oword_of_u128 (to_u128 v))
@@ -250,16 +252,18 @@ struct
   let su32 () _ _ v p =
     write_dword LittleEndian p (dword_of_u32 v)
 
-  let su24 = su32
+  let su24 () vtyp0 path v p =
+    su32 () vtyp0 path (to_u32 v) p
 
   let su64 () _ _ v p =
     write_qword LittleEndian p (qword_of_u64 v)
 
-  let su40 = su64
+  let su40 () vtyp0 path v p =
+    su64 () vtyp0 path (to_u64 v) p
 
-  let su48 = su64
+  let su48 = su40
 
-  let su56 = su64
+  let su56 = su40
 
   let su128 () _ _ v p =
     write_oword LittleEndian p (oword_of_u128 v)
