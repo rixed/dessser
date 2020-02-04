@@ -1081,6 +1081,20 @@ let type_check l e =
       match type_of l e with
       | TValue (NotNullable _) -> ()
       | t -> raise (Type_error (e0, e, t, "not be nullable")) in
+    let check_same_valuetype l e1 e2 =
+      let t1 = type_of l e1
+      and t2 = type_of l e2 in
+      match to_value_type (to_maybe_nullable t1) with
+      | exception _ ->
+          raise (Type_error (e0, e1, t1, "be a value type"))
+      | vt1 ->
+          let fail () =
+            let msg = Printf.sprintf2 "be %a" print_typ t1 in
+            raise (Type_error (e0, e2, t2, msg)) in
+          (match to_value_type (to_maybe_nullable (t2)) with
+          | exception _ -> fail ()
+          | vt2 ->
+              if not (value_type_eq vt1 vt2) then fail ()) in
     let check_comparable l e =
       match type_of l e with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
@@ -1186,7 +1200,8 @@ let type_check l e =
         check_nullable l e
     | E2 (Coalesce, e1, e2) ->
         check_nullable l e1 ;
-        check_not_nullable l e2
+        check_not_nullable l e2 ;
+        check_same_valuetype l e1 e2
     | E1 (ToNullable, e) ->
         check_not_nullable l e
     | E1 (ToNotNullable, e) ->
@@ -1356,6 +1371,15 @@ let type_check l e =
           check_eq l e4 t2 ;
           check_eq l e4 t3)
   ) e
+
+(*$inject
+  let pass_type_check e =
+    try type_check [] e ; true
+    with _ -> false *)
+
+(*$T type_check
+  not (pass_type_check (E2 (Coalesce, E0 (Null (Mac TString)), E0 (I56 4L))))
+ *)
 
 let size_of_expr l e =
   fold_expr 0 l (fun n _l _e0 -> n + 1) e

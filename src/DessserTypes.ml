@@ -180,6 +180,10 @@ type typ =
   | TPair of typ * typ
   | TFunction of typ array * (* result: *) typ
 
+let to_maybe_nullable = function
+  | TValue mn -> mn
+  | _ -> invalid_arg "to_maybe_nullable"
+
 let rec typ_eq t1 t2 =
   match t1, t2 with
   | TValue mn1, TValue mn2
