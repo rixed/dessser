@@ -22,7 +22,7 @@ PACKAGES = \
 	batteries,parsercombinator,stdint,qcheck
 
 META_REQUIRES = \
-	findlib $(PACKAGES)
+	findlib,$(PACKAGES)
 
 INSTALLED_BIN = \
 	src/dessserc
