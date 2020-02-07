@@ -193,7 +193,7 @@ type e2 =
   | AppendByte
   | AppendBytes
   | AppendString
-  | TestBit
+  | GetBit
   | ReadBytes
   | PeekByte
   | WriteByte
@@ -429,7 +429,7 @@ let string_of_e2 = function
   | AppendByte -> "append-byte"
   | AppendBytes -> "append-bytes"
   | AppendString -> "append-string"
-  | TestBit -> "test-bit"
+  | GetBit -> "get-bit"
   | ReadBytes -> "read-bytes"
   | PeekByte -> "peek-byte"
   | WriteByte -> "write-byte"
@@ -760,7 +760,7 @@ struct
       | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
       | Lst [ Sym "append-bytes" ; x1 ; x2 ] -> E2 (AppendBytes, e x1, e x2)
       | Lst [ Sym "append-string" ; x1 ; x2 ] -> E2 (AppendString, e x1, e x2)
-      | Lst [ Sym "test-bit" ; x1 ; x2 ] -> E2 (TestBit, e x1, e x2)
+      | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
       | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
       | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
       | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
@@ -948,7 +948,7 @@ and type_of l e0 =
   | E1 (ListLength, _) -> u32
   | E0 (DataPtrOfString _) -> dataptr
   | E0 (DataPtrOfBuffer _) -> dataptr
-  | E2 (TestBit, _, _) -> bit
+  | E2 (GetBit, _, _) -> bit
   | E3 (SetBit, _, _, _) -> dataptr
   | E1 (ReadByte, _) -> pair byte dataptr
   | E1 (ReadWord _, _) -> pair word dataptr
@@ -1274,7 +1274,7 @@ let type_check l e =
         check_eq l e bytes
     | E1 (ListLength, e) ->
         check_list l e
-    | E2 (TestBit, e1, e2) ->
+    | E2 (GetBit, e1, e2) ->
         check_eq l e1 dataptr ;
         check_eq l e2 size
     | E3 (SetBit, e1, e2, e3) ->
@@ -1678,6 +1678,7 @@ struct
   let list_length e1 = E1 (ListLength, e1)
   let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
+  let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let to_nullable e1 = E1 (ToNullable, e1)
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
   let set_field p e1 e2 = E2 (SetField p, e1, e2)

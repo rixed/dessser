@@ -570,7 +570,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "Pointer.of_string %S" s)
     | E0 (DataPtrOfBuffer n) ->
         emit ?name p l e (fun oc -> pp oc "Pointer.of_buffer %d" n)
-    | E2 (TestBit, e1, e2) ->
+    | E2 (GetBit, e1, e2) ->
         binary_op "Pointer.getBit" e1 e2
     | E3 (SetBit, e1, e2, e3) ->
         let ptr = print ?name emit p l e1

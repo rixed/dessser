@@ -396,7 +396,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "%S" s)
     | E0 (DataPtrOfBuffer n) ->
         emit ?name p l e (fun oc -> pp oc "%d" n)
-    | E2 (TestBit, e1, e2) ->
+    | E2 (GetBit, e1, e2) ->
         method_call e1 "getBit" [ e2 ]
     | E3 (SetBit, e1, e2, e3) ->
         method_call e1 "setBit" [ e2 ; e3 ]
