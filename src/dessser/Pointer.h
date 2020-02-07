@@ -53,6 +53,7 @@ struct Pointer {
     buffer(that.buffer),
     size(that.size),
     offset(that.offset),
+    stack(that.stack),
     value(that.value)
   {}
 
