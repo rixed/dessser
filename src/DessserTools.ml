@@ -45,6 +45,9 @@ let list_split_last lst =
   | [] -> invalid_arg "list_split_last"
   | hd :: tl -> List.rev tl, hd
 
+let list_drop_last lst =
+  fst (list_split_last lst)
+
 let cap mi ma x =
   if x < mi then mi else if x > ma then ma else x
 

@@ -1,5 +1,6 @@
 open Batteries
 open Stdint
+open DessserTools
 
 module PConfig = ParsersPositions.LineCol (Parsers.SimpleConfig (Char))
 module P = Parsers.Make (PConfig)
@@ -624,6 +625,10 @@ let type_and_name_of_path t path =
 
 let type_of_path t path =
   fst (type_and_name_of_path t path)
+
+let type_of_parent t path =
+  let path = list_drop_last path in
+  type_of_path t path
 
 (*$inject
   let test_t = NotNullable (TTup [|

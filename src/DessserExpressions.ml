@@ -1693,6 +1693,10 @@ struct
   let float_of_string e1 = E1 (FloatOfString, e1)
   let char_of_string e1 = E1 (CharOfString, e1)
   let string_of_char e1 = E1 (StringOfChar, e1)
+  let size_of_dword = size_of_u32 % u32_of_dword
   let bool_of_byte = bool_of_u8 % u8_of_byte
   let byte_of_bool = byte_of_u8 % u8_of_bool
+  let char_of_byte = char_of_u8 % u8_of_byte
+  let byte_of_char = byte_of_u8 % u8_of_char
+  let bool_of_bit e1 = E1 (BoolOfBit, e1)
 end
