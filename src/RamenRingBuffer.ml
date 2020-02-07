@@ -237,7 +237,7 @@ struct
         comment "Set the nullmask bit"
           (Seq [
             ignore_
-              (set_bit (data_ptr_pop p) (u32 (Uint32.of_int (bi-1))) (bit true)) ;
+              (set_bit (data_ptr_pop p) (size (bi-1)) (bit true)) ;
             p ])
 
   type ssizer = maybe_nullable -> path -> e -> ssize

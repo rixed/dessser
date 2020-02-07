@@ -1279,7 +1279,7 @@ let type_check l e =
         check_eq l e2 size
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 dataptr ;
-        check_eq l e2 u32 ;
+        check_eq l e2 size ;
         check_eq l e3 bit
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
         check_eq l e dataptr
