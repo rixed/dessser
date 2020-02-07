@@ -10,9 +10,9 @@ module Des : DES =
 struct
 
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _mn = dataptr
 
-  let start _vtyp p = (), p
+  let start _mn p = (), p
   let stop () p = p
   type des = state -> maybe_nullable -> path -> e -> e
 
@@ -53,8 +53,8 @@ struct
   let des typ = ignore typ
 
   let dstring () _ _ p =
-    with_sploded_pair "dstring" (read_leb128 p) (fun len p ->
-      with_sploded_pair "dstring" (read_bytes p len) (fun bs p ->
+    with_sploded_pair "dstring1" (read_leb128 p) (fun len p ->
+      with_sploded_pair "dstring2" (read_bytes p len) (fun bs p ->
         pair (string_of_bytes bs) p))
 
   let dbool () _ _ p =
@@ -179,9 +179,9 @@ end
 module Ser : SER =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _mn = dataptr
 
-  let start _vtyp p = (), p
+  let start _mn p = (), p
   let stop () p = p
   type ser = state -> maybe_nullable -> path -> e -> e -> e
 

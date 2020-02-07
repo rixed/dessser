@@ -15,9 +15,9 @@ struct
     (* That int count the nullable fields (ie. bit index of the next nullable
      * in the nullmask) *)
     { mutable nullmasks : int list }
-  let ptr _vtyp = dataptr
+  let ptr _mn = dataptr
 
-  let start _vtyp p =
+  let start _mn p =
     { nullmasks = [] }, p
 
   let stop _st p = p
@@ -74,7 +74,7 @@ struct
     align_dyn p (size_of_u32 len)
 
   let sbool _st _ _ v p =
-    let p = write_byte p (byte_of_u8 (u8_of_bool v)) in
+    let p = write_byte p (byte_of_bool v) in
     align_const p 1
 
   let schar _st _ _ v p =
@@ -138,21 +138,21 @@ struct
     let p = write_oword LittleEndian p (oword_of_u128 v) in
     align_const p 16
 
-  let tup_opn_with_typs vtyps st p =
+  let tup_rec_opn mns st p =
     (* inside tuples have one nullmask bit per item regardless of nullability *)
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
         Array.fold_left (fun c typ ->
           if is_nullable typ then c + 1 else c
-        ) 0 vtyps
+        ) 0 mns
       else
-        Array.length vtyps in
+        Array.length mns in
     let p = push_nullmask st p in
     zero_nullmask_const nullmask_bits p
 
-  let tup_opn st _ _ vtyps p =
-    tup_opn_with_typs vtyps st p
+  let tup_opn st _ _ mns p =
+    tup_rec_opn mns st p
 
   let tup_cls st _ _ p =
     pop_nullmask st p
@@ -173,20 +173,20 @@ struct
     Array.fast_sort record_field_cmp vtyps ;
     Array.map Pervasives.snd vtyps
 
-  let rec_opn st _ _ vtyps p =
-    let vtyps = tuple_typs_of_record vtyps in
-    tup_opn_with_typs vtyps st p
+  let rec_opn st _ _ mns p =
+    let mns = tuple_typs_of_record mns in
+    tup_rec_opn mns st p
 
   let rec_cls st _ _ p =
     pop_nullmask st p
 
   let rec_sep _fname _st _ _ p = p
 
-  let vec_opn st _ _ dim vtyp p =
+  let vec_opn st _ _ dim mn p =
     let outermost = st.nullmasks = [] in
     let nullmask_bits =
       if outermost then
-        if is_nullable vtyp then dim else 0
+        if is_nullable mn then dim else 0
       else
         dim in
     let p = push_nullmask st p in
@@ -197,7 +197,7 @@ struct
 
   let vec_sep _idx _st _ _ p = p
 
-  let list_opn st _ _ vtyp n p =
+  let list_opn st _ _ mn n p =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
@@ -205,7 +205,7 @@ struct
     let p = write_dword LittleEndian p (dword_of_u32 n) in
     let nullmask_bits =
       if outermost then
-        if is_nullable vtyp then n else u32 Uint32.zero
+        if is_nullable mn then n else u32 Uint32.zero
       else
         n in
     let p = push_nullmask st p in
@@ -258,76 +258,76 @@ struct
 
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
-  let unless_private vtyp path k =
-    let rec loop path vtyp =
+  let unless_private mn path k =
+    let rec loop path mn =
       match path with
       | [] ->
           (* Reached the leaf type without meeting a private field name *)
           k ()
       | idx :: rest ->
-        (match vtyp with
-        | Nullable (TRec vtyps)
-        | NotNullable (TRec vtyps) ->
-            let name, vtyp = vtyps.(idx) in
+        (match mn with
+        | Nullable (TRec mns)
+        | NotNullable (TRec mns) ->
+            let name, mn = mns.(idx) in
             if is_private name then
               ConstSize 0
             else
-              loop rest vtyp
-        | Nullable (TTup vtyps)
-        | NotNullable (TTup vtyps) ->
-            loop rest vtyps.(idx)
-        | Nullable (TVec (d, vtyp))
-        | NotNullable (TVec (d, vtyp)) ->
+              loop rest mn
+        | Nullable (TTup mns)
+        | NotNullable (TTup mns) ->
+            loop rest mns.(idx)
+        | Nullable (TVec (d, mn))
+        | NotNullable (TVec (d, mn)) ->
             assert (idx < d) ;
-            loop rest vtyp
-        | Nullable (TList vtyp)
-        | NotNullable (TList vtyp) ->
-            loop rest vtyp
+            loop rest mn
+        | Nullable (TList mn)
+        | NotNullable (TList mn) ->
+            loop rest mn
         | _ ->
             assert false)
     in
-    loop path vtyp
+    loop path mn
 
   (* SerSize of the whole string: *)
-  let ssize_of_string vtyp path id =
-    unless_private vtyp path (fun () ->
+  let ssize_of_string mn path id =
+    unless_private mn path (fun () ->
       let sz = size_of_u32 (string_length id) in
       let headsz = size !ringbuf_word_size in
       DynSize (add headsz (round_up_dyn sz)))
 
   (* SerSize of the list header: *)
-  let ssize_of_list vtyp path _id =
-    unless_private vtyp path (fun () ->
+  let ssize_of_list mn path _id =
+    unless_private mn path (fun () ->
       ConstSize !ringbuf_word_size)
 
-  let ssize_of_float vtyp path _ = unless_private vtyp path (fun () -> round_up_const 8)
-  let ssize_of_bool vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
-  let ssize_of_i8 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
-  let ssize_of_i16 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 2)
-  let ssize_of_i24 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 3)
-  let ssize_of_i32 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 4)
-  let ssize_of_i40 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 5)
-  let ssize_of_i48 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 6)
-  let ssize_of_i56 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 7)
-  let ssize_of_i64 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 8)
-  let ssize_of_i128 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 16)
-  let ssize_of_u8 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 1)
-  let ssize_of_u16 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 2)
-  let ssize_of_u24 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 3)
-  let ssize_of_u32 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 4)
-  let ssize_of_u40 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 5)
-  let ssize_of_u48 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 6)
-  let ssize_of_u56 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 7)
-  let ssize_of_u64 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 8)
-  let ssize_of_u128 vtyp path _ = unless_private vtyp path (fun () -> round_up_const 16)
-  let ssize_of_char vtyp path _ = unless_private vtyp path (fun () -> round_up_const_bits 1)
+  let ssize_of_float mn path _ = unless_private mn path (fun () -> round_up_const 8)
+  let ssize_of_bool mn path _ = unless_private mn path (fun () -> round_up_const 1)
+  let ssize_of_i8 mn path _ = unless_private mn path (fun () -> round_up_const 1)
+  let ssize_of_i16 mn path _ = unless_private mn path (fun () -> round_up_const 2)
+  let ssize_of_i24 mn path _ = unless_private mn path (fun () -> round_up_const 3)
+  let ssize_of_i32 mn path _ = unless_private mn path (fun () -> round_up_const 4)
+  let ssize_of_i40 mn path _ = unless_private mn path (fun () -> round_up_const 5)
+  let ssize_of_i48 mn path _ = unless_private mn path (fun () -> round_up_const 6)
+  let ssize_of_i56 mn path _ = unless_private mn path (fun () -> round_up_const 7)
+  let ssize_of_i64 mn path _ = unless_private mn path (fun () -> round_up_const 8)
+  let ssize_of_i128 mn path _ = unless_private mn path (fun () -> round_up_const 16)
+  let ssize_of_u8 mn path _ = unless_private mn path (fun () -> round_up_const 1)
+  let ssize_of_u16 mn path _ = unless_private mn path (fun () -> round_up_const 2)
+  let ssize_of_u24 mn path _ = unless_private mn path (fun () -> round_up_const 3)
+  let ssize_of_u32 mn path _ = unless_private mn path (fun () -> round_up_const 4)
+  let ssize_of_u40 mn path _ = unless_private mn path (fun () -> round_up_const 5)
+  let ssize_of_u48 mn path _ = unless_private mn path (fun () -> round_up_const 6)
+  let ssize_of_u56 mn path _ = unless_private mn path (fun () -> round_up_const 7)
+  let ssize_of_u64 mn path _ = unless_private mn path (fun () -> round_up_const 8)
+  let ssize_of_u128 mn path _ = unless_private mn path (fun () -> round_up_const 16)
+  let ssize_of_char mn path _ = unless_private mn path (fun () -> round_up_const_bits 1)
 
-  let ssize_of_tup vtyp path _ =
-    unless_private vtyp path (fun () ->
+  let ssize_of_tup mn path _ =
+    unless_private mn path (fun () ->
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match type_of_path vtyp path with
+        match type_of_path mn path with
         | Nullable (TTup typs)
         | NotNullable (TTup typs) ->
             typs
@@ -340,12 +340,12 @@ struct
             if is_nullable typ then c + 1 else c
           ) 0 typs))
 
-  let ssize_of_rec vtyp path _ =
-    unless_private vtyp path (fun () ->
+  let ssize_of_rec mn path _ =
+    unless_private mn path (fun () ->
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match type_of_path vtyp path with
+        match type_of_path mn path with
         | Nullable (TRec typs)
         | NotNullable (TRec typs) ->
             typs
@@ -361,11 +361,11 @@ struct
             if is_nullable typ then c + 1 else c
           ) 0 typs))
 
-  let ssize_of_vec vtyp path _ =
-    unless_private vtyp path (fun () ->
+  let ssize_of_vec mn path _ =
+    unless_private mn path (fun () ->
       let is_outermost = path = []
       and dim, typ =
-        match type_of_path vtyp path with
+        match type_of_path mn path with
         | Nullable (TVec (dim, typ))
         | NotNullable (TVec (dim, typ)) ->
             dim, typ
@@ -373,5 +373,5 @@ struct
       round_up_const_bits (
         if is_outermost || is_nullable typ then dim else 0))
 
-  let ssize_of_null _vtyp _path = ConstSize 0
+  let ssize_of_null _mn _path = ConstSize 0
 end

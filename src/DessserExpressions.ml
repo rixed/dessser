@@ -1693,4 +1693,6 @@ struct
   let float_of_string e1 = E1 (FloatOfString, e1)
   let char_of_string e1 = E1 (CharOfString, e1)
   let string_of_char e1 = E1 (StringOfChar, e1)
+  let bool_of_byte = bool_of_u8 % u8_of_byte
+  let byte_of_bool = byte_of_u8 % u8_of_bool
 end
