@@ -576,7 +576,7 @@ struct
         let ptr = print ?name emit p l e1
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
-        ppi p.def "Pointer.setBit %s (Uint32.to_int %s) %s;" ptr n2 n3 ;
+        ppi p.def "Pointer.setBit %s %s %s;" ptr n2 n3 ;
         ptr
     | E1 (ReadByte, e1) ->
         unary_op "Pointer.readByte" e1

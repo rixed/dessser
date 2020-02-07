@@ -205,7 +205,7 @@ struct
     let p = write_dword LittleEndian p (dword_of_u32 n) in
     let nullmask_bits =
       if outermost then
-        if is_nullable mn then n else u32 Uint32.zero
+        if is_nullable mn then n else size 0
       else
         n in
     let p = push_nullmask st p in
