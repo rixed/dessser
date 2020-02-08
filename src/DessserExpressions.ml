@@ -1581,6 +1581,10 @@ struct
   let u8_of_byte e1 = E1 (U8OfByte, e1)
   let u8_of_char e1 = E1 (U8OfChar, e1)
   let u8_of_bool e1 = E1 (U8OfBool, e1)
+  let bool_of_bit e1 = E1 (BoolOfBit, e1)
+  let bit_of_bool e1 = E1 (BitOfBool, e1)
+  let u8_of_bit = u8_of_bool % bool_of_bit
+  let bit_of_u8 = bit_of_bool % bool_of_u8
   let char_of_u8 e1 = E1 (CharOfU8, e1)
   let u32_of_size e1 = E1 (U32OfSize, e1)
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
@@ -1699,5 +1703,5 @@ struct
   let byte_of_bool = byte_of_u8 % u8_of_bool
   let char_of_byte = char_of_u8 % u8_of_byte
   let byte_of_char = byte_of_u8 % u8_of_char
-  let bool_of_bit e1 = E1 (BoolOfBit, e1)
+  let u32_of_int n = u32 (Uint32.of_int n)
 end
