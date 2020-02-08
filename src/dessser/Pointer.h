@@ -432,6 +432,12 @@ struct Pointer {
     ptr.stack.pop();
     return ptr;
   }
+
+  Size remSize() const
+  {
+    assert(size >= offset);
+    return (Size)(size - offset);
+  }
 };
 
 #include <iostream>
