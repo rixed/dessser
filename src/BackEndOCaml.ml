@@ -347,6 +347,8 @@ struct
               "print_string (Batteries.dump %s);") ^^"\n")
           p.indent n ;
         "()"
+    | E1 (Debug, e1) ->
+        print ?name emit p l (E1 ((if !dump_debug then Dump else Ignore), e1))
     | E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s <> Null" n)
@@ -653,6 +655,8 @@ struct
         unary_op "Pointer.pop" e1
     | E1 (RemSize, e1) ->
         unary_op "Pointer.remSize" e1
+    | E1 (DataPtrOffset, e1) ->
+        unary_op "Pointer.offset" e1
     | E2 (And, e1, e2) ->
         shortcutting_binary_infix_op e1 "&&" e2
     | E2 (Or, e1, e2) ->

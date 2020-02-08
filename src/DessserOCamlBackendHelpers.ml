@@ -132,6 +132,9 @@ struct
   let remSize p =
     Size.of_int (p.length - p.offset)
 
+  let offset p =
+    Size.of_int p.offset
+
   let peekByte p at =
     check_input_length (p.offset + at + 1) p.length ;
     let c = Bytes.get p.bytes (p.offset + at) in

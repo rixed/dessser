@@ -9,6 +9,9 @@ open DessserFloatTools
   open Stdint
   module T = DessserTypes *)
 
+(* Controls whether Debug translate into Dump or Ignore: *)
+let dump_debug = ref true
+
 type endianness = LittleEndian | BigEndian
 
 let string_of_endianness = function
@@ -77,6 +80,7 @@ type e1 =
   | FieldIsNull of path
   | GetField of path
   | Dump
+  | Debug
   | Ignore
   | IsNull
   (* Turn e into a nullable: *)
@@ -156,6 +160,7 @@ type e1 =
   | DataPtrPush
   | DataPtrPop
   | RemSize
+  | DataPtrOffset
   | Not
   (* Get the value pointed by a valueptr: *)
   | DerefValuePtr
@@ -325,6 +330,7 @@ let string_of_e1 = function
   | FieldIsNull p -> "field-is-null "^ string_of_path p
   | GetField p -> "get-field "^ string_of_path p
   | Dump -> "dump"
+  | Debug -> "debug"
   | Ignore -> "ignore"
   | IsNull -> "is-null"
   | ToNullable -> "to-nullable"
@@ -399,6 +405,7 @@ let string_of_e1 = function
   | DataPtrPush -> "data-ptr-push"
   | DataPtrPop -> "data-ptr-pop"
   | RemSize -> "rem-size"
+  | DataPtrOffset -> "data-ptr-offset"
   | Not -> "not"
   | DerefValuePtr -> "deref-value-ptr"
   | Fst -> "fst"
@@ -652,6 +659,7 @@ struct
       | Lst [ Sym "get-field" ; Sym p ; x ] ->
           E1 (GetField (path_of_string p), e x)
       | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
+      | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
       | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
       | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
       | Lst [ Sym "to-nullable" ; x ] -> E1 (ToNullable, e x)
@@ -726,6 +734,7 @@ struct
       | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
       | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
       | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
+      | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
       | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
       | Lst [ Sym "deref-value-ptr" ; x ] -> E1 (DerefValuePtr, e x)
       | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
@@ -837,9 +846,8 @@ let rec vtype_of_valueptr e0 l e =
 (* [e] must have been type checked already: *)
 and type_of l e0 =
   match e0 with
-  | E1 (Dump, _)
   | Seq []
-  | E1 (Ignore, _) ->
+  | E1 ((Dump | Debug | Ignore), _) ->
       void
   | Seq es ->
       type_of l (List.last es)
@@ -974,6 +982,7 @@ and type_of l e0 =
   | E1 (DataPtrPush, _) -> dataptr
   | E1 (DataPtrPop, _) -> dataptr
   | E1 (RemSize, _) -> size
+  | E1 (DataPtrOffset, _) -> size
   | E2 (And, _, _) -> bool
   | E2 (Or, _, _) -> bool
   | E1 (Not, _) -> bool
@@ -1188,7 +1197,7 @@ let type_check l e =
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | DataPtrOfString _ | DataPtrOfBuffer _ | AllocValue _
          | Identifier _| Param _)
-    | E1 ((Comment _ | Dump | Ignore | Function _), _)
+    | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
     | Seq es ->
@@ -1317,7 +1326,7 @@ let type_check l e =
         check_eq l e2 dataptr
     | E1 ((DataPtrPush | DataPtrPop), e1) ->
         check_eq l e1 dataptr
-    | E1 (RemSize, e) ->
+    | E1 ((RemSize | DataPtrOffset), e) ->
         check_eq l e dataptr ;
     | E2 ((And | Or), e1, e2) ->
         check_eq l e1 bool ;
@@ -1532,6 +1541,8 @@ module Ops =
 struct
   let ignore_ e1 = E1 (Ignore, e1)
   let dump e1 = E1 (Dump, e1)
+  let debug e1 = E1 (Debug, e1)
+  let debugs es = Seq (List.map debug es)
   let is_null e1 = E1 (IsNull, e1)
   let coalesce e1 e2 = E2 (Coalesce, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
@@ -1679,6 +1690,8 @@ struct
   let data_ptr_pop e1 = E1 (DataPtrPop, e1)
   let data_ptr_of_string s = E0 (DataPtrOfString s)
   let data_ptr_of_buffer n = E0 (DataPtrOfBuffer n)
+  let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
+  let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)
   let list_length e1 = E1 (ListLength, e1)
   let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)

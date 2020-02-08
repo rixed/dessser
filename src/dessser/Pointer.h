@@ -438,6 +438,11 @@ struct Pointer {
     assert(size >= offset);
     return (Size)(size - offset);
   }
+
+  Size getOffset() const
+  {
+    return (Size)offset;
+  }
 };
 
 #include <iostream>
