@@ -96,6 +96,10 @@ let to_nullable = function
   | NotNullable t -> Nullable t
   | Nullable _ as x -> x
 
+let to_not_nullable = function
+  | Nullable t -> NotNullable t
+  | NotNullable _ as x -> x
+
 let print_mac_type oc =
   let sp = String.print oc in
   function
