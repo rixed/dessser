@@ -68,7 +68,7 @@ struct
 
   let vec_cls () _ _ p = p
 
-  let vec_sep _idx () _ _ p = p
+  let vec_sep _n () _ _ p = p
 
   let list_opn () _ _ _ _ p = p
 
@@ -136,7 +136,7 @@ struct
       if is_nullable (type_of_path vtyp0 path) then to_not_nullable v else v in
     pair v p
 
-  let dfloat () vtyp0 path p = get_field vtyp0 path p
+  let dfloat () = get_field
   let dstring () = get_field
   let dbool () = get_field
   let di8 () = get_field

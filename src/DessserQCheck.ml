@@ -631,35 +631,62 @@ let sexpr mn =
       assert_equal ~printer:identity s s') in
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
+    (* RamenRingBuffer cannot encore nullable outermost values (FIXME) *)
+    let nn = T.to_not_nullable mn in
+    let format = "RamenRingBuf" in
+    test_format ocaml_be nn
+      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format)
+*)
+(*
+    test_format cpp_be nn
+      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     let format = "RowBinary" in
     test_format ocaml_be mn
-                (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
+      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
     test_format cpp_be mn
-                (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format)
+      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format)
 *)
-
 
 (* Non regression tests: *)
 
 (* A function to test specifically a given value of a given type for a given
  * back-end: *)
 (*$inject
-  let check_sexpr be mn s =
+  let check_sexpr be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
     let exe = sexpr_to_sexpr be mn in
-    String.trim (run_converter ~timeout:2 exe s)
-  let check_rowbinary be mn s =
+    String.trim (run_converter ~timeout:2 exe vs)
+  let check_rowbinary be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
     let des = (module RowBinary.Des : DES)
     and ser = (module RowBinary.Ser : SER) in
     let exe = test_desser be mn des ser in
-    String.trim (run_converter ~timeout:2 exe s)
+    String.trim (run_converter ~timeout:2 exe vs)
+  let check_ringbuffer be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let des = (module RamenRingBuffer.Des : DES)
+    and ser = (module RamenRingBuffer.Ser : SER) in
+    let exe = test_desser be mn des ser in
+    String.trim (run_converter ~timeout:2 exe vs)
 *)
 (* Check that the AND is short-cutting, otherwise [is_null] is going to
  * read past the input end: *)
 (*$= check_sexpr & ~printer:identity
-  "1" (check_sexpr ocaml_be (Nullable (Mac TU8)) "1")
-  "15134052" (check_sexpr ocaml_be (NotNullable (Mac (TU24))) "15134052")
+  "1" (check_sexpr ocaml_be "u8?" "1")
+  "15134052" (check_sexpr ocaml_be "u24" "15134052")
+  "1 (2)" (check_sexpr ocaml_be "I8[]" "1 (2)")
+  "1 ((2 1))" (check_sexpr ocaml_be "(I8?; I40?)[]" "1 ((2 1))")
 *)
 (*$= check_rowbinary & ~printer:identity
-  "15134052" (check_rowbinary ocaml_be (NotNullable (Mac (TU24))) "15134052")
-  "15134052" (check_rowbinary cpp_be (NotNullable (Mac (TU24))) "15134052")
+  "15134052" (check_rowbinary ocaml_be "u24" "15134052")
+  "15134052" (check_rowbinary cpp_be "u24" "15134052")
+*)
+(*$= check_ringbuffer & ~printer:identity
+  "\"foo\"" (check_ringbuffer ocaml_be "String" "\"foo\"")
+  "(\"foo\" 1)" (check_ringbuffer ocaml_be "(String?; I40?)" "(\"foo\" 1)")
+  "1 ((\"foo\" 1))" (check_ringbuffer ocaml_be "(String?; I40?)[]" "1 ((\"foo\" 1))")
+  "1 ((2 1))" (check_ringbuffer ocaml_be "(I8?; I40?)[]" "1 ((2 1))")
+  "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
+  "((\"a\") 1)" (check_ringbuffer ocaml_be "(String[1]; u8)" "((\"a\") 1)")
+  "2 (null 1)" (check_ringbuffer ocaml_be "u8?[]" "2 (null 1)")
 *)

@@ -16,7 +16,7 @@ struct
 
   let start _vtyp src = (), src
   let stop () src = src
-  type des = state -> maybe_nullable -> path -> (*dataptr*) e -> (* (nn * dataptr) *) e
+  type des = state -> maybe_nullable -> path -> (*dataptr*) e -> (* (v * dataptr) *) e
 
   let from_byte v1 v2 _ _ src =
     let b_src = read_byte src in
@@ -79,7 +79,7 @@ struct
 
   let start _v dst = (), dst
   let stop () dst = dst
-  type ser = state -> maybe_nullable -> path -> (*nn*) e -> (*dataptr*) e -> (*dataptr*) e
+  type ser = state -> maybe_nullable -> path -> (*v*) e -> (*dataptr*) e -> (*dataptr*) e
 
   let from_bool b dst =
     write_byte dst (byte_of_u8 (u8_of_bool b))

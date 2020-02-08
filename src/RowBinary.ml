@@ -270,15 +270,15 @@ struct
 
   let tup_opn () _ _ _ p = p
   let tup_cls () _ _ p = p
-  let tup_sep _idx () _ _ p = p
+  let tup_sep _n () _ _ p = p
 
   let rec_opn () _ _ _ p = p
   let rec_cls () _ _ p = p
-  let rec_sep _idx () _ _ p = p
+  let rec_sep _n () _ _ p = p
 
   let vec_opn () _ _ _ _  p = p
   let vec_cls () _ _ p = p
-  let vec_sep _idx () _ _ p = p
+  let vec_sep _n () _ _ p = p
 
   let list_opn () _ _ _ n p =
     let n = match n with

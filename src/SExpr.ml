@@ -103,8 +103,6 @@ struct
   let list_sep () _ _ p = skip1 p
 
   let is_null () _ _ p =
-    (* TODO: For this to work even when there is less than 4 bytes to read [and_]
-     * must short cut! *)
     (* NULL *)
     and_ (eq (peek_byte p (size 0)) (byte 0x6e))
          (and_ (eq (peek_byte p (size 1)) (byte 0x75))
@@ -173,7 +171,7 @@ struct
   let tup_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let tup_sep _idx () _ _ p =
+  let tup_sep _n () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let rec_opn () _ _ _ p =
@@ -182,7 +180,7 @@ struct
   let rec_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let rec_sep _idx () _ _ p =
+  let rec_sep _n () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let vec_opn () _ _ _ _ p =
@@ -202,7 +200,7 @@ struct
             let p = su32 () vtyp0 path n p in
             write_byte p (byte_of_const_char ' ')
         | None ->
-            failwith "SExpr.Set needs list length upfront"
+            failwith "SExpr.Ser needs list length upfront"
       else
         p in
     write_byte p (byte_of_const_char '(')

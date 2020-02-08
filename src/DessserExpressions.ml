@@ -10,7 +10,7 @@ open DessserFloatTools
   module T = DessserTypes *)
 
 (* Controls whether Debug translate into Dump or Ignore: *)
-let dump_debug = ref true
+let dump_debug = ref false
 
 type endianness = LittleEndian | BigEndian
 

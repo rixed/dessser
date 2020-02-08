@@ -9,7 +9,7 @@ module T = DessserTypes
 type 'a list_opener =
   (* When a list size is known from the beginning, implement this that
    * returns both the list size and the new src pointer: *)
-  | KnownSize of ('a -> maybe_nullable -> path -> maybe_nullable -> (*ptr*) e -> (* (nn * ptr) *) e)
+  | KnownSize of ('a -> maybe_nullable -> path -> maybe_nullable -> (*ptr*) e -> (* (u32 * ptr) *) e)
   (* Whereas when the list size is not known beforehand, rather implement
    * this pair of functions, one to parse the ilst header and return the new
    * src pointer and one that will be called before any new token and must
@@ -28,18 +28,20 @@ sig
   (* No need for a backend (BE) since we merely compute expressions *)
   (* RW state passed to every deserialization operations *)
   type state
-  val ptr : maybe_nullable -> typ (* either dataptr or valueptr *)
+  val ptr : maybe_nullable -> typ (* either dataptr or valueptr, or whatever really  *)
 
-  val start : maybe_nullable -> (*ptr*) e -> state * (*ptr*) e
-  val stop : state -> (*ptr*) e -> (*ptr*) e
+  val start : maybe_nullable -> (*ptr*) e -> state * (*ptr?*) e
+  val stop : state -> (*ptr?*) e -> (*ptr*) e
 
   (* A basic value deserializer takes a state, an expression
    * yielding a pointer (either a CodePtr pointing at a byte stream or a
    * ValuePtr pointing at a heap value of type ['b]), and returns two
    * expressions: one yielding the advanced pointer (of the exact same type) and
-   * one yielding the value that's been deserialized from the given location: *)
+   * one yielding the value that's been deserialized from the given location.
+   * The [maybe_nullable] and [path] values are in the fully fledged global
+   * type and therefore must be used cautiously! *)
   (* FIXME: make this type "private": *)
-  type des = state -> maybe_nullable -> path -> (*ptr*) e -> (* (nn * ptr) *) e
+  type des = state -> maybe_nullable -> path -> (*ptr*) e -> (*v*ptr*) e
 
   val dfloat : des
   val dstring : des
@@ -64,6 +66,14 @@ sig
   val du64 : des
   val du128 : des
 
+  (* Paths passed to opn/cls/sep functions are the path of the compound structure
+   * itself *)
+
+  (* TODO: not sure the _sep function need all the extra parameters that they
+   * better not use (esp the index, that's wrong!)
+   * Get rid of the _seps (in SExpr, use a state to add a separator before any
+   * value instead). That would make the code generated for dessser significantly
+   * simpler, and even more so when runtime fieldmasks enter the stage! *)
   val tup_opn : state -> maybe_nullable -> path -> maybe_nullable array -> (*ptr*) e -> (*ptr*) e
   val tup_cls : state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
   val tup_sep : int (* before *) -> state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
@@ -97,7 +107,7 @@ sig
   val stop : state -> (*ptr*) e -> (*ptr*) e
 
   (* FIXME: make this type "private": *)
-  type ser = state -> maybe_nullable -> path -> (*nn*) e -> (*ptr*) e -> (*ptr*) e
+  type ser = state -> maybe_nullable -> path -> (*v*) e -> (*ptr*) e -> (*ptr*) e
 
   val sfloat : ser
   val sstring : ser
@@ -122,6 +132,12 @@ sig
   val su64 : ser
   val su128 : ser
 
+  (* NOTE regarding _opn functions:
+   * When dessser handle fieldmasks, subtypes and vectors dim will not be so
+   * relevant anymore, nor could they easily be trimmed down according to the
+   * fieldmask. RingBuff SER still does need it to compute the width of the
+   * bitmask though. So the SER will need to be given the full representation
+   * of the current fieldmask (as in CodeGen_OCaml). *)
   val tup_opn : state -> maybe_nullable -> path -> maybe_nullable array -> (*ptr*) e -> (*ptr*) e
   val tup_cls : state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
   val tup_sep : int (* before *) -> state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
@@ -131,7 +147,7 @@ sig
   val vec_opn : state -> maybe_nullable -> path -> (*dim*) int -> maybe_nullable -> (*ptr*) e -> (*ptr*) e
   val vec_cls : state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
   val vec_sep : int (* before *) -> state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
-  val list_opn : state -> maybe_nullable -> path -> maybe_nullable -> (*nn*) e option -> (*ptr*) e -> (*ptr*) e
+  val list_opn : state -> maybe_nullable -> path -> maybe_nullable -> (*u32*) e option -> (*ptr*) e -> (*ptr*) e
   val list_cls : state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
   val list_sep : state -> maybe_nullable -> path -> (*ptr*) e -> (*ptr*) e
 
@@ -239,16 +255,16 @@ struct
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _vtyp ->
         comment ("Convert tuple field "^ Pervasives.string_of_int i)
-          (let path = path_append i path in
+          (let subpath = path_append i path in
           if i = 0 then
-            desser_ transform sstate dstate vtyp0 path src_dst
+            desser_ transform sstate dstate vtyp0 subpath src_dst
           else
             let src_dst =
               with_sploded_pair "dstup2" src_dst (fun src dst ->
                 pair
                   (Des.tup_sep i dstate vtyp0 path src)
                   (Ser.tup_sep i sstate vtyp0 path dst)) in
-            desser_ transform sstate dstate vtyp0 path src_dst)
+            desser_ transform sstate dstate vtyp0 subpath src_dst)
       ) src_dst vtyps in
     with_sploded_pair "dstup3" src_dst (fun src dst ->
       pair
@@ -263,18 +279,18 @@ struct
           (Des.rec_opn dstate vtyp0 path vtyps src)
           (Ser.rec_opn sstate vtyp0 path vtyps dst)) in
     let src_dst =
-      BatArray.fold_lefti (fun src_dst i (name, _vtyp) ->
-        comment ("Convert record field "^ name)
-          (let path = path_append i path in
-          if i = 0 then
-            desser_ transform sstate dstate vtyp0 path src_dst
-          else
-            let src_dst =
-              with_sploded_pair "dsrec2" src_dst (fun src dst ->
-                pair
-                  (Des.rec_sep name dstate vtyp0 path src)
-                  (Ser.rec_sep name sstate vtyp0 path dst)) in
-            desser_ transform sstate dstate vtyp0 path src_dst)
+      BatArray.fold_lefti (fun src_dst i (name, _mn) ->
+          comment ("Convert record field "^ name)
+            (let subpath = path_append i path in
+            if i = 0 then
+              desser_ transform sstate dstate vtyp0 subpath src_dst
+            else
+              let src_dst =
+                with_sploded_pair "dsrec2" src_dst (fun src dst ->
+                  pair
+                    (Des.rec_sep name dstate vtyp0 path src)
+                    (Ser.rec_sep name sstate vtyp0 path dst)) in
+              desser_ transform sstate dstate vtyp0 subpath src_dst)
       ) src_dst vtyps in
     let src_dst = comment "Convert a Record" src_dst in
     with_sploded_pair "dsrec3" src_dst (fun src dst ->
@@ -295,7 +311,7 @@ struct
     let rec loop src_dst i =
       (* Not really required to keep the actual index, as all indices share the
        * same type, but helps with debugging: *)
-      let path = path_append i path in
+      let subpath = path_append i path in
       if i >= dim then
         with_sploded_pair "dsvec2" src_dst (fun src dst ->
           pair
@@ -313,7 +329,7 @@ struct
         (* FIXME: comment is poorly located: *)
         let src_dst =
           comment ("Convert field #"^ Pervasives.string_of_int i)
-            (desser_ transform sstate dstate vtyp0 path src_dst) in
+            (desser_ transform sstate dstate vtyp0 subpath src_dst) in
         loop src_dst (i + 1)
       )
     in
@@ -327,7 +343,36 @@ struct
     let pair_ptrs = TPair (Des.ptr vtyp0, Ser.ptr vtyp0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
-    let path = path_append 0 path in
+    let subpath = path_append 0 path in
+    (* FIXME: nope. The code emitted in the function bolow (repeat's body)
+     * need to be able to count the nullmask bit index. For this is need
+     * either an accurate path or a distinct call to Ser.nullable (to maintain
+     * sstate) per element.
+     * So, given we generate a loop, the easier and cleaner is actualy to have
+     * a dynamic path (ie a path component can be either a compile time int
+     * or a run time int).
+     * Like we have a runtime fieldmask index in CodeGen_OCaml.
+     * Actually, this whole dynamic fieldmask is still missing. We would like
+     * dessser to use and maintain a _runtime_ fieldmask and DES should then have
+     * a skip method).
+     * So for each des/ser callback, it would provide:
+     * 1. the typ0 of the underlying fully populated type (compile type)
+     * 2. the compile time known path to the current value (as of now) with
+     *    unset indices for lists/vectors (ie -1) because they are not needed
+     *    to find out the type and field name
+     * 3. a runtime unsigned integer giving the actual index in the current
+     *    compound container, with which RingBuffer.SER need no state any longer,
+     *    therefore we can do away with that state!
+     *    Actually, instead of passing it to each type callback it's enough to
+     *    pass it to the null/notnull callback but why not all callbacks since
+     *    we have it anyway
+     * 4. the SER must have a skip in addition to the null callback
+     * 5. the DES must also have a skip function called instead of isnull
+     * In the short term when fieldmask is just a copy-all, we can keep dessser
+     * like it is and merely implements points 3. alone so RingBuffer works
+     * and will need no more states.
+     * Yet we must not remove states, as heapvalue will need one once fieldmask
+     * enter the stage. *)
     comment "Convert a List"
       (with_sploded_pair "dslist1" src_dst (fun src dst ->
         (* FIXME: for some deserializers (such as SExpr) it's not easy to
@@ -355,7 +400,7 @@ struct
                             pair
                               (Des.list_sep dstate vtyp0 path psrc)
                               (Ser.list_sep sstate vtyp0 path pdst))) in
-                      desser_ transform sstate dstate vtyp0 path src_dst)))
+                      desser_ transform sstate dstate vtyp0 subpath src_dst)))
                   ~init:(pair src dst))
           | UnknownSize (list_opn, end_of_list) ->
               let t_fst_src_dst = TPair (T.bool, pair_ptrs) in
@@ -369,10 +414,10 @@ struct
                       not_ (end_of_list dstate vtyp0 path (fst src_dst)))))
                   ~body:(comment "Convert a list item"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
-                      with_sploded_pair "dslist4" fst_src_dst (fun is_fst src_dst ->
+                      with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
                         let src_dst =
                           choose
-                            ~cond:is_fst
+                            ~cond:is_first
                             src_dst
                             (with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
                               pair
@@ -380,7 +425,7 @@ struct
                                 (Ser.list_sep sstate vtyp0 path pdst))) in
                         pair
                           (bool false)
-                          (desser_ transform sstate dstate vtyp0 path src_dst)))))
+                          (desser_ transform sstate dstate vtyp0 subpath src_dst)))))
                   ~init:(pair (bool true) (pair src dst)) in
               snd fst_src_dst
         in
@@ -435,12 +480,12 @@ struct
           choose ~cond
             (dsnull t sstate dstate vtyp0 path src dst)
             (dsnotnull t sstate dstate vtyp0 path src dst |>
-             desser_value_type t transform sstate dstate vtyp0 path))
+             desser_value_type t transform sstate dstate vtyp0 path ))
     | NotNullable t ->
         desser_value_type t transform sstate dstate vtyp0 path src_dst
 
   let desser vtyp0 ?transform src dst =
-    let no_transform _oc _frames v = v in
+    let no_transform _vtyp0 _path v = v in
     let transform = transform |? no_transform in
     let open Ops in
     let sstate, dst = Ser.start vtyp0 dst
