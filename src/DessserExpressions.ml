@@ -29,6 +29,7 @@ let endianness_of_string = function
 type e0 =
   | Param of (*function id*) int * (*param no*) int
   | Null of value_type
+  | EndOfList of typ
   | Float of float
   | String of string
   | Bool of bool
@@ -169,6 +170,8 @@ type e1 =
    * Instead, use MapPair or Let *)
   | Fst
   | Snd
+  | Head
+  | Tail
   | ReadWord of endianness
   | ReadDWord of endianness
   | ReadQWord of endianness
@@ -208,6 +211,7 @@ type e2 =
   | DataPtrSub
   | And
   | Or
+  | Cons
   | Pair
   | MapPair (* the pair * the function2 *)
   | PeekWord of endianness
@@ -245,6 +249,8 @@ let rec e0_eq e1 e2 =
   match e1, e2 with
   | Null vt1, Null vt2 ->
       value_type_eq vt1 vt2
+  | EndOfList t1, EndOfList t2 ->
+      typ_eq t1 t2
   | AllocValue mn1, AllocValue mn2 ->
       maybe_nullable_eq mn1 mn2
   | e1, e2 ->
@@ -284,6 +290,7 @@ and expr_eq e1 e2 =
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
+  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string print_typ t)
   | Float f -> "float "^ hexstring_of_float f
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
@@ -410,6 +417,8 @@ let string_of_e1 = function
   | DerefValuePtr -> "deref-value-ptr"
   | Fst -> "fst"
   | Snd -> "snd"
+  | Head -> "head"
+  | Tail -> "tail"
   | ReadWord en -> "read-word "^ string_of_endianness en
   | ReadDWord en -> "read-dword "^ string_of_endianness en
   | ReadQWord en -> "read-qword "^ string_of_endianness en
@@ -446,6 +455,7 @@ let string_of_e2 = function
   | DataPtrSub -> "data-ptr-sub"
   | And -> "and"
   | Or -> "or"
+  | Cons -> "cons"
   | Pair -> "pair"
   | MapPair -> "map-pair"
   | PeekWord en -> "peek-word "^ string_of_endianness en
@@ -605,6 +615,8 @@ struct
           E0 (Param (int_of_string fid, int_of_string n))
       | Lst [ Sym "null" ; Str vt ] ->
           E0 (Null (Parser.maybe_nullable_of_string vt |> to_value_type))
+      | Lst [ Sym "end-of-list" ; Str vt ] ->
+          E0 (EndOfList (Parser.typ_of_string vt))
       | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
       | Lst [ Sym "string" ; Str s ] -> E0 (String s)
       | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
@@ -739,6 +751,8 @@ struct
       | Lst [ Sym "deref-value-ptr" ; x ] -> E1 (DerefValuePtr, e x)
       | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
       | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
+      | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
+      | Lst [ Sym "tail" ; x ] -> E1 (Tail, e x)
       | Lst [ Sym "read-word" ; Sym en ; x ] ->
           E1 (ReadWord (endianness_of_string en), e x)
       | Lst [ Sym "read-dword" ; Sym en ; x ] ->
@@ -779,6 +793,7 @@ struct
       | Lst [ Sym "data-ptr-sub" ; x1 ; x2 ] -> E2 (DataPtrSub, e x1, e x2)
       | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
       | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
+      | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
       | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
       | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
       | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
@@ -870,7 +885,8 @@ and type_of l e0 =
   | E1 (ToNotNullable, e) ->
       typ_to_not_nullable (type_of l e)
   | E1 (IsNull, _) -> bool
-  | E0 (Null t) -> TValue (Nullable t)
+  | E0 (Null vt) -> TValue (Nullable vt)
+  | E0 (EndOfList t) -> TSList t
   | E0 (Float _) -> float
   | E0 (String _) -> string
   | E0 (Bool _) -> bool
@@ -1012,6 +1028,8 @@ and type_of l e0 =
   | E1 (GetField path, e) ->
       let vt = vtype_of_valueptr e0 l e in
       TValue (type_of_path vt path)
+  | E2 (Cons, e1, _e2) ->
+      slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
       pair (type_of l e1) (type_of l e2)
   | E1 (Fst, e) ->
@@ -1022,6 +1040,14 @@ and type_of l e0 =
       (match type_of l e with
       | TPair (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
+  | E1 (Head, e) ->
+      (match type_of l e with
+      | TSList t -> t
+      | t -> raise (Type_error (e0, e, t, "be a slist")))
+  | E1 (Tail, e) ->
+      (match type_of l e with
+      | TSList _ as t -> t
+      | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E2 (MapPair, _, e) ->
       (match type_of l e with
       | TFunction (_, t) -> t
@@ -1143,6 +1169,14 @@ let type_check l e =
       match type_of l e with
       | TValue (NotNullable TList _) -> ()
       | t -> raise (Type_error (e0, e, t, "be a list")) in
+    let check_slist l e =
+      match type_of l e with
+      | TSList _ -> ()
+      | t -> raise (Type_error (e0, e, t, "be a slist")) in
+    let check_slist_same_type e1 l e =
+      match type_of l e with
+      | TSList t -> check_eq l e1 t
+      | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_pair l e =
       match type_of l e with
       | TPair _ -> ()
@@ -1191,7 +1225,7 @@ let type_check l e =
             raise (Type_error_path (e0, e, path, "be "^ expected))
       | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
     match e0 with
-    | E0 (Null _ | Float _ | String _ | Bool _ | Char _
+    | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
@@ -1343,6 +1377,12 @@ let type_check l e =
         check_pair l e
     | E1 (Snd, e) ->
         check_pair l e
+    | E1 (Head, e) ->
+        check_slist l e
+    | E1 (Tail, e) ->
+        check_slist l e
+    | E2 (Cons, e1, e2) ->
+        check_slist_same_type e1 l e2
     | E2 (MapPair, e1, e2) ->
         check_pair l e1 ;
         check_function 2 l e2
@@ -1599,7 +1639,8 @@ struct
   let char_of_u8 e1 = E1 (CharOfU8, e1)
   let u32_of_size e1 = E1 (U32OfSize, e1)
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
-  let null t = E0 (Null t)
+  let null vt = E0 (Null vt)
+  let eol t = E0 (EndOfList t)
   let bit n = E0 (Bit n)
   let bool n = E0 (Bool n)
   let i8 n = E0 (I8 n)
@@ -1633,7 +1674,6 @@ struct
   let byte_of_const_char e1 = byte_of_char (char e1)
   let choose ~cond e2 e3 =  E3 (Choose, cond, e2, e3)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
-  let pair e1 e2 = E2 (Pair, e1, e2)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
   let qword_of_float e1 = E1 (QWordOfFloat, e1)
   let let_ n e1 e2 = E2 (Let n, e1, e2)
@@ -1676,8 +1716,13 @@ struct
   let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
   let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
   let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
+  let pair e1 e2 = E2 (Pair, e1, e2)
   let fst e1 = E1 (Fst, e1)
   let snd e1 = E1 (Snd, e1)
+  let cons e1 e2 = E2 (Cons, e1, e2)
+  let end_of_list t = E0 (EndOfList t)
+  let head e1 = E1 (Head, e1)
+  let tail e1 = E1 (Tail, e1)
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let not_ e1 = E1 (Not, e1)

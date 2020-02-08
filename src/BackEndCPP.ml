@@ -74,6 +74,8 @@ struct
         assert false (* No value of map type *)
     | TPair (t1, t2) ->
         "std::pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
+    | TSList t1 ->
+        "std::shared_ptr<SList<"^ type_identifier p t1 ^">>"
     | TFunction (args, ret) ->
         "std::function<"^ type_identifier p ret ^
           IO.to_string (
@@ -487,6 +489,16 @@ struct
         emit ?name p l e (fun oc -> Printf.fprintf oc "new %s" tn)
     | E1 (DerefValuePtr, e1) ->
         print ?name emit p l e1
+    | E0 (EndOfList _) ->
+        emit ?name p l e ignore
+    | E2 (Cons, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
+    | E1 (Head, e1) ->
+        method_call e1 "head" []
+    | E1 (Tail, e1) ->
+        method_call e1 "tail" []
     | E2 (Pair, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

@@ -11,6 +11,7 @@
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"
 #include "dessser/List.h"
+#include "dessser/SList.h"
 
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)

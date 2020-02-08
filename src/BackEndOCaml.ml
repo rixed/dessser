@@ -91,6 +91,8 @@ struct
     | TBytes -> "Slice.t"
     | TPair (t1, t2) ->
         "("^ type_identifier p t1 ^" * "^ type_identifier p t2 ^")"
+    | TSList t1 ->
+        type_identifier p t1 ^" list"
     | TFunction ([||], t) ->
         "(() -> "^ type_identifier p t ^")"
     | TFunction (args, ret) ->
@@ -668,6 +670,14 @@ struct
     | E1 (DerefValuePtr, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "!%s" n1)
+    | E2 (Cons, e1, e2) ->
+        binary_infix_op e1 "::" e2
+    | E0 (EndOfList _) ->
+        emit ?name p l e (fun oc -> pp oc "[]")
+    | E1 (Head, e1) ->
+        unary_op "List.hd" e1
+    | E1 (Tail, e1) ->
+        unary_op "List.tl" e1
     | E2 (Pair, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

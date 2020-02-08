@@ -183,6 +183,15 @@ type typ =
   | TOWord
   | TBytes
   | TPair of typ * typ
+  (* We'd like the DES/SERializer to be able to use complex types as their
+   * "pointer", part of those types being actual pointers. Therefore, we cannot
+   * use the value-types, as we cannot embed a pointer in there. So here we
+   * define another TLIST which is a simple persistent list (as opposed to the
+   * TValue TList, which is just an array in disguise and serve another purpose
+   * (namely, to compactly store a bunch of read only values).
+   * Therefore this one is named TSList, as in "single-chaned" list, and is
+   * written using "{}" instead of "[]". *)
+  | TSList of typ
   | TFunction of typ array * (* result: *) typ
 
 let to_maybe_nullable = function
@@ -196,6 +205,8 @@ let rec typ_eq t1 t2 =
       maybe_nullable_eq mn1 mn2
   | TPair (t11, t12), TPair (t21, t22) ->
       typ_eq t11 t21 && typ_eq t12 t22
+  | TSList t1, TSList t2 ->
+      typ_eq t1 t2
   | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
       Array.for_all2 typ_eq pt1 pt2 && typ_eq rt1 rt2
   | t1, t2 -> t1 = t2
@@ -221,6 +232,8 @@ let rec print_typ oc =
       pp oc "(%a * %a)"
         print_typ t1
         print_typ t2
+  | TSList t1 ->
+      pp oc "%a{}" print_typ t1
   | TFunction ([||], t1) ->
       pp oc "( -> %a)" print_typ t1
   | TFunction (ts, t2) ->
@@ -534,6 +547,10 @@ struct
           fun (t1, t2) -> TPair (t1, t2)
       ) |||
       (
+        char '{' -- opt_blanks -+ typ +- opt_blanks +- char '}' >>:
+          fun t -> TSList t
+      ) |||
+      (
         let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
         char '(' -+
           repeat ~sep typ +- sep ++ typ +- opt_blanks +-
@@ -686,3 +703,4 @@ let bytes = TBytes
 let dataptr = TDataPtr
 let valueptr t = TValuePtr t
 let pair t1 t2 = TPair (t1, t2)
+let slist t = TSList t
