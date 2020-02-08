@@ -304,7 +304,7 @@ struct
       emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
     let shortcutting_binary_infix_op e1 op e2 =
       emit ?name p l e (fun oc ->
-        ppi oc "(" ;
+        pp oc "(\n" ;
         indent_more p (fun () ->
           let n1 = print emit p l e1 in
           ppi oc "%s" n1

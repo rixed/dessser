@@ -1453,6 +1453,7 @@ let func3 t1 t2 t3 f =
     and p3 = E0 (Param (fid, 2)) in
     f p1 p2 p3)
 
+(* FIXME: letn [name*value] f *)
 let let1 ?name v f =
   let n = match name with Some n -> n | None -> gen_id () in
   E2 (Let n, v, f (E0 (Identifier n)))

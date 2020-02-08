@@ -9,14 +9,15 @@ let option_get = function
 
 exception NotImplemented of string
 (* Parameter is the minimum length of the missing part: *)
-exception NotEnoughInput of int
+exception NotEnoughInput of { offset : int ; missing : int }
 
 let () =
   Printexc.register_printer (function
     | NotEnoughInput b ->
         Some (
-          Printf.sprintf "NotEnoughInput: %d byte%s missing"
-            b (if b > 1 then "s" else ""))
+          Printf.sprintf "NotEnoughInput: %d byte%s missing at offset %d"
+            b.missing (if b.missing > 1 then "s" else "")
+            b.offset)
     | _ ->
         None)
 
@@ -78,6 +79,7 @@ struct
 
   let to_string s =
     Bytes.sub_string s.bytes s.offset s.length
+
   let of_string s =
     make (Bytes.of_string s) 0 (String.length s)
 end
@@ -114,7 +116,7 @@ struct
 
   (* Check that the given offset is not past the end; But end position is OK *)
   let check_input_length o l =
-    if o > l then raise (NotEnoughInput (o - l))
+    if o > l then raise (NotEnoughInput { missing = o - l ; offset = o })
 
   let skip p n =
     if debug then
