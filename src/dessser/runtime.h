@@ -12,6 +12,7 @@
 #include "dessser/Vec.h"
 #include "dessser/List.h"
 #include "dessser/SList.h"
+#include "dessser/Pair.h"
 
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)
@@ -102,17 +103,6 @@ inline int128_t i128_of_string(std::string const &s)
   int128_t const lo(i128_of_string(s.substr(hi_len, E10_INT64)));
   return
     hi >= 0 ? hi * P10_INT64 + lo : hi * P10_INT64 - lo;
-}
-
-/* Pretty printers for everything so that Dump can rely on the '<<' operator: */
-
-#include <iostream>
-
-template <typename T1, typename T2>
-std::ostream &operator<<(std::ostream &os, std::pair<T1,T2> const &p)
-{
-  os << '<' << p.first << ", " << p.second << ">";
-  return os;
 }
 
 #endif

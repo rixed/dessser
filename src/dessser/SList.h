@@ -2,35 +2,48 @@
 #define SLIST_H_200208
 #include <cassert>
 #include <memory>
-#include <optional>
 #include "dessser/typedefs.h"
 
 template<class T>
 struct SList {
-  std::optional<
-    std::pair<
-      T,  // head
-      std::shared_ptr< SList<T> > // tail
-    >
-  > cell;
+  struct Cell {
+    T val;
+    SList<T> next;
+    Cell(T v, SList<T> n) : val(v), next(n) {}
+  };
+
+  std::shared_ptr<Cell> cells;
 
   // The empty list:
   SList() {};
 
+  // From another SList (sharing cells)
+  SList(SList<T> const &other)
+    : cells(other.cells) {}
+
   // Cons:
   SList(T hd, SList<T> tl)
-    : cell(hd, std::make_shared<SList<T>>(tl)) {}
+    : cells(std::make_shared<Cell>(hd, tl)) {}
 
-  bool is_empty() const { return cell.has_value(); }
+  bool empty() const { return !cells; }
 
-  T head() const {
-    assert(! is_empty());
-    return cell->first;
+  T head() const
+  {
+    assert(! empty());
+    return cells->val;
   }
 
-  std::shared_ptr<SList<T>> tail() const {
-    assert(! is_empty());
-    return cell->second;
+  SList<T> tail() const
+  {
+    assert(! empty());
+    return cells->next;
+  }
+
+  // For debugging:
+  size_t length() const
+  {
+    if (empty()) return 0;
+    else return 1 + cells->next.length();
   }
 };
 

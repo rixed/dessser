@@ -73,9 +73,9 @@ struct
     | TValue (NotNullable (TMap _)) ->
         assert false (* No value of map type *)
     | TPair (t1, t2) ->
-        "std::pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
+        "Pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
     | TSList t1 ->
-        "std::shared_ptr<SList<"^ type_identifier p t1 ^">>"
+        "SList<"^ type_identifier p t1 ^">"
     | TFunction (args, ret) ->
         "std::function<"^ type_identifier p ret ^
           IO.to_string (
@@ -98,7 +98,10 @@ struct
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
   let print_binding n tn f oc =
-    pp oc "%s %s(%t);" tn n f
+    if tn = "void" then (
+      pp oc "%t;" f
+    ) else
+      pp oc "%s %s(%t);" tn n f
 
   let print_comment oc fmt =
     pp oc ("/* "^^ fmt ^^" */\n")
@@ -490,7 +493,13 @@ struct
     | E1 (DerefValuePtr, e1) ->
         print ?name emit p l e1
     | E0 (EndOfList _) ->
-        emit ?name p l e ignore
+        (* Default constructor cannot be called with no-args as that would
+         * not be C++ish enough: *)
+        let res = gen_sym ?name "endoflist_" in
+        let t = type_of l e in
+        let tn = type_identifier p t in
+        ppi p.def "%s %s;" tn res ;
+        res
     | E2 (Cons, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -504,13 +513,13 @@ struct
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E1 (Fst, e1) ->
-        member e1 "first"
+        member e1 "v1"
     | E1 (Snd, e1) ->
-        member e1 "second"
+        member e1 "v2"
     | E2 (MapPair, e1, e2) ->
         let pair = print emit p l e1
         and func = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s(%s.first, %s.second)" func pair pair)
+        emit ?name p l e (fun oc -> pp oc "%s(%s.v1, %s.v2)" func pair pair)
     | E0 (Identifier s) ->
         (match name with
         | Some _ ->
@@ -562,7 +571,7 @@ struct
         indent_more p (fun () ->
           let n = print emit p l e3 in
           ppi p.def "%s = %s;" res n) ;
-        pp p.def "%s}" p.indent ;
+        pp p.def "%s}\n" p.indent ;
         res
     | E4 (ReadWhile, e1, e2, e3, e4) ->
         let cond = print emit p l e1
@@ -586,7 +595,7 @@ struct
               ppi p.def "%s = %s.skip(1);" ptr ptr) ;
             ppi p.def "} else break;") ;
           ppi p.def "}") ;
-        pp p.def "%s}" p.indent ;
+        pp p.def "%s}\n" p.indent ;
         emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
@@ -598,7 +607,7 @@ struct
         ppi p.def "while (%s(%s)) {" cond res ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        pp p.def "%s}" p.indent ;
+        pp p.def "%s}\n" p.indent ;
         res
     | E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
@@ -610,7 +619,7 @@ struct
         ppi p.def "do {" ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        pp p.def "%s} while (%s(%s));" p.indent cond res ;
+        pp p.def "%s} while (%s(%s));\n" p.indent cond res ;
         res
     | E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
@@ -623,7 +632,7 @@ struct
         ppi p.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
-        pp p.def "%s}" p.indent ;
+        pp p.def "%s}\n" p.indent ;
         res
     | E2 (SetField path, e1, e2) ->
         let ptr = print ?name emit p l e1

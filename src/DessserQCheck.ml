@@ -635,9 +635,7 @@ let sexpr mn =
     let nn = T.to_not_nullable mn in
     let format = "RamenRingBuf" in
     test_format ocaml_be nn
-      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format)
-*)
-(*
+      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     test_format cpp_be nn
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     let format = "RowBinary" in
@@ -689,4 +687,6 @@ let sexpr mn =
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
   "((\"a\") 1)" (check_ringbuffer ocaml_be "(String[1]; u8)" "((\"a\") 1)")
   "2 (null 1)" (check_ringbuffer ocaml_be "u8?[]" "2 (null 1)")
+  "0 ()" (check_ringbuffer cpp_be "Bool[]" "0 ()")
+  "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
 *)

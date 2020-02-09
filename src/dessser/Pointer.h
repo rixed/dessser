@@ -5,6 +5,7 @@
 #include <cstring>
 #include <stack>
 #include "dessser/Bytes.h"
+#include "dessser/Pair.h"
 #include "dessser/typedefs.h"
 
 /* We have 2 types of pointers:
@@ -91,19 +92,19 @@ struct Pointer {
   {
     size_t const off = offset + b / 8;
     size_t const bit = b & 7;
-    checkOffset(off);
+    checkOffset(off + 1);
     return !!(buffer[off] & (1 << bit));
   }
 
   Byte peekByte(size_t at = 0) const
   {
-    checkOffset(offset + at);
+    checkOffset(offset + at + 1);
     return buffer[offset + at];
   }
 
-  std::pair<Byte, Pointer> readByte() const
+  Pair<Byte, Pointer> readByte() const
   {
-    return std::make_pair<Byte, Pointer>(
+    return Pair<Byte, Pointer>(
       peekByte(), skip(1));
   }
 
@@ -114,9 +115,9 @@ struct Pointer {
            buffer[offset];
   }
 
-  std::pair<Word, Pointer> readWordLe() const
+  Pair<Word, Pointer> readWordLe() const
   {
-    return std::make_pair<Word, Pointer>(
+    return Pair<Word, Pointer>(
       peekWordLe(), skip(2));
   }
 
@@ -127,45 +128,45 @@ struct Pointer {
            buffer[offset + 1];
   }
 
-  std::pair<Word, Pointer> readWordBe() const
+  Pair<Word, Pointer> readWordBe() const
   {
-    return std::make_pair<Word, Pointer>(
+    return Pair<Word, Pointer>(
       peekWordBe(), skip(2));
   }
 
   DWord peekDWordLe() const
   {
-    checkOffset(offset + 3);
+    checkOffset(offset + 4);
     return (((DWord)buffer[offset + 3]) << 24) |
            (((DWord)buffer[offset + 2]) << 16) |
            (((DWord)buffer[offset + 1]) << 8) |
            buffer[offset];
   }
 
-  std::pair<DWord, Pointer> readDWordLe() const
+  Pair<DWord, Pointer> readDWordLe() const
   {
-    return std::make_pair<DWord, Pointer>(
+    return Pair<DWord, Pointer>(
       peekDWordLe(), skip(4));
   }
 
   DWord peekDWordBe() const
   {
-    checkOffset(offset + 3);
+    checkOffset(offset + 4);
     return (((DWord)buffer[offset]) << 24) |
            (((DWord)buffer[offset + 1]) << 16) |
            (((DWord)buffer[offset + 2]) << 8) |
            buffer[offset + 3];
   }
 
-  std::pair<DWord, Pointer> readDWordBe() const
+  Pair<DWord, Pointer> readDWordBe() const
   {
-    return std::make_pair<DWord, Pointer>(
+    return Pair<DWord, Pointer>(
       peekDWordBe(), skip(4));
   }
 
   QWord peekQWordLe() const
   {
-    checkOffset(offset + 7);
+    checkOffset(offset + 8);
     return (((QWord)buffer[offset + 7]) << 56) |
            (((QWord)buffer[offset + 6]) << 48) |
            (((QWord)buffer[offset + 5]) << 40) |
@@ -176,15 +177,15 @@ struct Pointer {
            buffer[offset];
   }
 
-  std::pair<QWord, Pointer> readQWordLe() const
+  Pair<QWord, Pointer> readQWordLe() const
   {
-    return std::make_pair<QWord, Pointer>(
+    return Pair<QWord, Pointer>(
       peekQWordLe(), skip(8));
   }
 
   QWord peekQWordBe() const
   {
-    checkOffset(offset + 7);
+    checkOffset(offset + 8);
     return (((QWord)buffer[offset]) << 56) |
            (((QWord)buffer[offset + 1]) << 48) |
            (((QWord)buffer[offset + 2]) << 40) |
@@ -195,15 +196,15 @@ struct Pointer {
            buffer[offset + 7];
   }
 
-  std::pair<QWord, Pointer> readQWordBe() const
+  Pair<QWord, Pointer> readQWordBe() const
   {
-    return std::make_pair<QWord, Pointer>(
+    return Pair<QWord, Pointer>(
       peekQWordBe(), skip(8));
   }
 
   OWord peekOWordLe() const
   {
-    checkOffset(offset + 15);
+    checkOffset(offset + 16);
     return (((OWord)buffer[offset + 15]) << 120) |
            (((OWord)buffer[offset + 14]) << 112) |
            (((OWord)buffer[offset + 13]) << 104) |
@@ -222,16 +223,16 @@ struct Pointer {
            buffer[offset];
   }
 
-  std::pair<OWord, Pointer> readOWordLe() const
+  Pair<OWord, Pointer> readOWordLe() const
   {
-    checkOffset(offset + 15);
-    return std::make_pair<OWord, Pointer>(
+    checkOffset(offset + 16);
+    return Pair<OWord, Pointer>(
       peekOWordLe(), skip(16));
   }
 
   OWord peekOWordBe() const
   {
-    checkOffset(offset + 15);
+    checkOffset(offset + 16);
     return (((OWord)buffer[offset]) << 120) |
            (((OWord)buffer[offset + 1]) << 112) |
            (((OWord)buffer[offset + 2]) << 104) |
@@ -250,17 +251,17 @@ struct Pointer {
            buffer[offset + 15];
   }
 
-  std::pair<OWord, Pointer> readOWordBe() const
+  Pair<OWord, Pointer> readOWordBe() const
   {
-    checkOffset(offset + 15);
-    return std::make_pair<OWord, Pointer>(
+    checkOffset(offset + 16);
+    return Pair<OWord, Pointer>(
       peekOWordBe(), skip(16));
   }
 
-  std::pair<Bytes, Pointer> readBytes(Size const &sz) const
+  Pair<Bytes, Pointer> readBytes(Size const &sz) const
   {
-    checkOffset(offset + sz - 1);
-    return std::make_pair<Bytes, Pointer>(
+    checkOffset(offset + sz);
+    return Pair<Bytes, Pointer>(
       Bytes(buffer, sz, offset),
       skip(sz));
   }
@@ -269,7 +270,7 @@ struct Pointer {
   {
     size_t const off = offset + b / 8;
     size_t const bit = b & 7;
-    checkOffset(off);
+    checkOffset(off + 1);
     Byte const mask = 1 << bit;
     buffer[off] =
       v ? buffer[off] | mask :
@@ -278,7 +279,7 @@ struct Pointer {
 
   void pokeByte(Byte v)
   {
-    checkOffset(offset);
+    checkOffset(offset + 1);
     buffer[offset] = v;
   }
 
@@ -290,7 +291,7 @@ struct Pointer {
 
   Pointer writeWordLe(Word v)
   {
-    checkOffset(offset + 1);
+    checkOffset(offset + 2);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     return (skip(2));
@@ -298,7 +299,7 @@ struct Pointer {
 
   Pointer writeWordBe(Word v)
   {
-    checkOffset(offset + 1);
+    checkOffset(offset + 2);
     buffer[offset+1] = v;
     buffer[offset] = v >> 8;
     return (skip(2));
@@ -306,7 +307,7 @@ struct Pointer {
 
   Pointer writeDWordLe(DWord v)
   {
-    checkOffset(offset + 3);
+    checkOffset(offset + 4);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -316,7 +317,7 @@ struct Pointer {
 
   Pointer writeDWordBe(DWord v)
   {
-    checkOffset(offset + 3);
+    checkOffset(offset + 4);
     buffer[offset+3] = v;
     buffer[offset+2] = v >> 8;
     buffer[offset+1] = v >> 16;
@@ -326,7 +327,7 @@ struct Pointer {
 
   Pointer writeQWordLe(QWord v)
   {
-    checkOffset(offset + 7);
+    checkOffset(offset + 8);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -340,7 +341,7 @@ struct Pointer {
 
   Pointer writeQWordBe(QWord v)
   {
-    checkOffset(offset + 7);
+    checkOffset(offset + 8);
     buffer[offset+7] = v;
     buffer[offset+6] = v >> 8;
     buffer[offset+5] = v >> 16;
@@ -354,7 +355,7 @@ struct Pointer {
 
   Pointer writeOWordLe(OWord v)
   {
-    checkOffset(offset + 15);
+    checkOffset(offset + 16);
     buffer[offset] = v;
     buffer[offset+1] = v >> 8;
     buffer[offset+2] = v >> 16;
@@ -376,7 +377,7 @@ struct Pointer {
 
   Pointer writeOWordBe(OWord v)
   {
-    checkOffset(offset + 15);
+    checkOffset(offset + 16);
     buffer[offset+15] = v;
     buffer[offset+14] = v >> 8;
     buffer[offset+13] = v >> 16;
@@ -398,14 +399,14 @@ struct Pointer {
 
   Pointer writeBytes(Bytes const &v)
   {
-    checkOffset(offset + v.size - 1);
+    checkOffset(offset + v.size);
     memcpy(buffer.get() + offset, v.buffer.get() + v.offset, v.size);
     return skip(v.size);
   }
 
   Pointer blitBytes(Byte const b, Size const &sz)
   {
-    checkOffset(offset + sz - 1);
+    checkOffset(offset + sz);
     memset(buffer.get() + offset, b, sz);
     return skip(sz);
   }

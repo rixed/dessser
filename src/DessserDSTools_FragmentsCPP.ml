@@ -44,16 +44,16 @@ int main(int numArgs, char **args)
     Size outSz(%d);
     Pointer dst(outSz);
 
-    std::pair<Pointer, Pointer> ptrs = %s(src, dst);
+    Pair<Pointer, Pointer> ptrs = %s(src, dst);
 
     // Print serialized:
-    assert(ptrs.second.offset < ptrs.second.size-1);
-    if (ptrs.second.buffer) {
-      fwrite(ptrs.second.buffer.get(), 1, ptrs.second.offset, stdout);
+    assert(ptrs.v2.offset < ptrs.v2.size-1);
+    if (ptrs.v2.buffer) {
+      fwrite(ptrs.v2.buffer.get(), 1, ptrs.v2.offset, stdout);
       if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
     } // else it's a heap value
 
-    src = ptrs.first;
+    src = ptrs.v1;
 
     if (single_input && src.rem() > 0) {
       std::cerr << src.rem() << " bytes left of input" << std::endl;
