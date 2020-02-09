@@ -957,7 +957,7 @@ and type_of l e0 =
   | E0 (DataPtrOfString _) -> dataptr
   | E0 (DataPtrOfBuffer _) -> dataptr
   | E2 (GetBit, _, _) -> bit
-  | E3 (SetBit, _, _, _) -> dataptr
+  | E3 (SetBit, _, _, _) -> void
   | E1 (ReadByte, _) -> pair byte dataptr
   | E1 (ReadWord _, _) -> pair word dataptr
   | E1 (ReadDWord _, _) -> pair dword dataptr

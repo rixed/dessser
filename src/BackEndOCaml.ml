@@ -579,7 +579,7 @@ struct
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
         ppi p.def "Pointer.setBit %s %s %s;" ptr n2 n3 ;
-        ptr
+        "()"
     | E1 (ReadByte, e1) ->
         unary_op "Pointer.readByte" e1
     | E1 (ReadWord LittleEndian, e1) ->
