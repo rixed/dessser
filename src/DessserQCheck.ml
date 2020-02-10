@@ -37,11 +37,11 @@ let field_name_gen =
 
 let let_name_gen = field_name_gen
 
-(* Useful when generate random comments: avoids including a closing comment
+(* Useful when generate random comments: avoids including another comment
  * or an unterminated string *)
 let printable_for_comments =
   Gen.(map (fun c ->
-    if c = '*' || c = '"' then 'X' else c) printable)
+    if c = '*' || c = '"' || c = '|' then 'X' else c) printable)
 
 (* For s-expr strings, as long as escaping is not supported: *)
 let printable_no_escape =
