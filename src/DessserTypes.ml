@@ -55,6 +55,13 @@ and maybe_nullable =
   | Nullable of value_type
   | NotNullable of value_type
 
+(* In many occasions we want the items of a record to be deterministically
+ * ordered so they can be compared etc: *)
+let sorted_rec fields =
+  let fields = Array.copy fields in
+  Array.sort (fun (n1, _) (n2, _) -> String.compare n1 n2) fields ;
+  fields
+
 let rec value_type_eq vt1 vt2 =
   match vt1, vt2 with
   | Mac mt1, Mac mt2 ->
@@ -72,7 +79,7 @@ let rec value_type_eq vt1 vt2 =
       Array.length mn1s = Array.length mn2s &&
       Array.for_all2 (fun (n1, mn1) (n2, mn2) ->
         n1 = n2 && maybe_nullable_eq mn1 mn2
-      ) mn1s mn2s
+      ) (sorted_rec mn1s) (sorted_rec mn2s)
   | TMap (k1, v1), TMap (k2, v2) ->
       maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
   | _ ->
@@ -126,34 +133,38 @@ let print_mac_type oc =
   | TI64 -> sp "I64"
   | TI128 -> sp "I128"
 
-let rec print_value_type oc = function
+let rec print_value_type ?(sorted=false) oc = function
   | Mac t ->
       print_mac_type oc t
   | Usr t ->
       t.print oc
   | TVec (dim, vt) ->
-      pp oc "%a[%d]" print_maybe_nullable vt dim
+      pp oc "%a[%d]" (print_maybe_nullable ~sorted) vt dim
   | TList vt ->
-      pp oc "%a[]" print_maybe_nullable vt
+      pp oc "%a[]" (print_maybe_nullable ~sorted) vt
   | TTup vts ->
       pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:"; " print_maybe_nullable) vts
+        (Array.print ~first:"(" ~last:")" ~sep:"; "
+          (print_maybe_nullable ~sorted)) vts
   | TRec vts ->
+      (* When the string repr is used to identify the type (see BackEndCLike)
+       * every equivalent record types must then be printed the same, thus the
+       * optional sort: *)
       pp oc "%a"
         (Array.print ~first:"{" ~last:"}" ~sep:"; "
           (fun oc (n, t) ->
-            pp oc "%s: %a" n print_maybe_nullable t)
-        ) vts
+            pp oc "%s: %a" n (print_maybe_nullable ~sorted) t)
+        ) (if sorted then sorted_rec vts else vts)
   | TMap (k, v) ->
       pp oc "%a[%a]"
-        print_maybe_nullable v
-        print_maybe_nullable k
+        (print_maybe_nullable ~sorted) v
+        (print_maybe_nullable ~sorted) k
 
-and print_maybe_nullable oc = function
+and print_maybe_nullable ?sorted oc = function
   | Nullable t ->
-      pp oc "%a?" print_value_type t
+      pp oc "%a?" (print_value_type ?sorted) t
   | NotNullable t ->
-      print_value_type oc t
+      print_value_type ?sorted oc t
 
 let user_types = Hashtbl.create 50
 
@@ -211,15 +222,15 @@ let rec typ_eq t1 t2 =
       Array.for_all2 typ_eq pt1 pt2 && typ_eq rt1 rt2
   | t1, t2 -> t1 = t2
 
-let rec print_typ oc =
+let rec print_typ ?sorted oc =
   let sp = String.print oc in
   function
   | TValue vt ->
-      print_maybe_nullable oc vt
+      print_maybe_nullable oc ?sorted vt
   | TVoid -> sp "Void"
   | TDataPtr -> sp "DataPtr"
   | TValuePtr mn ->
-      pp oc "(%a ValuePtr)" print_maybe_nullable mn
+      pp oc "(%a ValuePtr)" (print_maybe_nullable ?sorted) mn
   | TSize -> sp "Size"
   | TBit -> sp "Bit"
   | TByte -> sp "Byte"
@@ -230,16 +241,23 @@ let rec print_typ oc =
   | TBytes -> sp "Bytes"
   | TPair (t1, t2) ->
       pp oc "(%a * %a)"
-        print_typ t1
-        print_typ t2
+        (print_typ ?sorted) t1
+        (print_typ ?sorted) t2
   | TSList t1 ->
-      pp oc "%a{}" print_typ t1
+      pp oc "%a{}" (print_typ ?sorted) t1
   | TFunction ([||], t1) ->
-      pp oc "( -> %a)" print_typ t1
+      pp oc "( -> %a)" (print_typ ?sorted) t1
   | TFunction (ts, t2) ->
       pp oc "(%a -> %a)"
-        (Array.print ~first:"" ~last:"" ~sep:" -> " print_typ) ts
-        print_typ t2
+        (Array.print ~first:"" ~last:"" ~sep:" -> " (print_typ ?sorted)) ts
+        (print_typ ?sorted) t2
+
+let print_typ_sorted oc = print_typ ~sorted:true oc
+let print_typ oc = print_typ ~sorted:false oc
+let print_maybe_nullable_sorted oc = print_maybe_nullable ~sorted:true oc
+let print_maybe_nullable oc = print_maybe_nullable ~sorted:false oc
+let print_value_type_sorted oc = print_value_type ~sorted:true oc
+let print_value_type oc = print_value_type ~sorted:false oc
 
 let typ_to_nullable = function
   | TValue (NotNullable t) -> TValue (Nullable t)

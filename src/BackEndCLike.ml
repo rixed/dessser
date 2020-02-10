@@ -28,7 +28,7 @@ let indent_more p f =
 
 let declared_type p t f =
   let id =
-    dump t |>
+    IO.to_string print_typ_sorted t |>
     Digest.string |>
     Digest.to_hex in
   if Set.String.mem id p.declared then id
