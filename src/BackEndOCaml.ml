@@ -382,7 +382,7 @@ struct
         print ?name emit p l (E1 ((if !dump_debug then Dump else Ignore), e1))
     | E1 (IsNull, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s <> Null" n)
+        emit ?name p l e (fun oc -> pp oc "%s <> None" n)
     | E2 (Coalesce, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
