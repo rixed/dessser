@@ -191,8 +191,26 @@ struct
     | E1 (Comment c, e1) ->
         pp p.def "%s/* %s */\n" p.indent c ;
         print ?name emit p l e1
-    | Seq es ->
+    | E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "" es
+    | E0S ((MakeVec | MakeList | MakeTup), es) ->
+        let inits = List.map (print emit p l) es in
+        emit ?name p l e (fun oc ->
+          List.print ~first:"{ " ~last:" }" ~sep:", " String.print oc inits)
+    | E0S (MakeRec, es) ->
+        let _, inits =
+          List.fold_left (fun (prev_name, inits) e ->
+            match prev_name with
+            | None ->
+                Some (field_name_of_expr e), inits
+            | Some name ->
+                let n = print emit p l e in
+                None, (valid_identifier name, n) :: inits
+          ) (None, []) es in
+        emit ?name p l e (fun oc ->
+          List.print ~first:"{ " ~last:" }" ~sep:", "
+            (fun oc (name, n) ->
+              Printf.fprintf oc ".%s = %s" name n) oc inits)
     | E1 (Ignore, e1) ->
         let n = print emit p l e1 in
         pp p.def "%s(void)%s;\n" p.indent n ;

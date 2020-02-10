@@ -64,12 +64,14 @@ struct
     | NotNullable (TVec (_, t))
     | NotNullable (TList t) ->
         value_type_identifier p t ^" array"
-    | NotNullable (TTup vts) as t ->
-        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
-        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
+    | NotNullable (TTup mns) as mn ->
+        let t = TValue mn in
+        let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
+        declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
-    | NotNullable (TRec vts) as t ->
-        declared_type p t (fun oc type_id -> print_record p oc type_id vts) |>
+    | NotNullable (TRec mns) as mn ->
+        let t = TValue mn in
+        declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
     | NotNullable (TMap _) ->
         assert false (* no value of map type *)
@@ -331,8 +333,35 @@ struct
     | E1 (Comment c, e1) ->
         pp p.def "%s(* %s *)\n" p.indent c ;
         print ?name emit p l e1
-    | Seq es ->
+    | E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "()" es
+    | E0S ((MakeVec | MakeList), es) ->
+        let inits = List.map (print emit p l) es in
+        emit ?name p l e (fun oc ->
+          List.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
+    | E0S (MakeTup, es) ->
+        let inits = List.map (print emit p l) es in
+        (* TODO: There is no good reason any longer to avoid using actual
+         * OCaml tuples to represent tuples *)
+        let i = ref 0 in
+        emit ?name p l e (fun oc ->
+          List.print ~first:"{ " ~last:" }" ~sep:"; " (fun oc n ->
+            Printf.fprintf oc "%s = %s" (tuple_field_name !i) n ;
+            incr i) oc inits)
+    | E0S (MakeRec, es) ->
+        let _, inits =
+          List.fold_left (fun (prev_name, inits) e ->
+            match prev_name with
+            | None ->
+                Some (field_name_of_expr e), inits
+            | Some name ->
+                let n = print emit p l e in
+                None, (valid_identifier name, n) :: inits
+          ) (None, []) es in
+        emit ?name p l e (fun oc ->
+          List.print ~first:"{ " ~last:" }" ~sep:", "
+            (fun oc (name, n) ->
+              Printf.fprintf oc "%s = %s" name n) oc inits)
     | E1 (Ignore, e1) ->
         let n = print emit p l e1 in
         pp p.def "%signore %s;\n" p.indent n ;

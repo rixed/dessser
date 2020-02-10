@@ -335,6 +335,30 @@ let rec e0_gen l depth =
     else lst in
   frequency lst
 
+and e0s_gen l depth =
+  let open Gen in
+  let expr = expression_gen (l, depth - 1) in
+  let lst = [
+    1, map Ops.seq (tiny_list expr) ;
+    1, map Ops.make_vec (tiny_list expr) ;
+    1, map Ops.make_list (tiny_list expr) ;
+    1, map Ops.make_tup (tiny_list expr) ;
+    1, map Ops.make_rec (tiny_list expr) ;
+  ] in
+  let lst =
+    if depth > 0 then
+      (1,
+        pick_from_env l depth (function
+          | E0 (Identifier _) -> true
+          | _ -> false)) ::
+      (1, (
+        pick_from_env l depth (function
+          | E0 (Param _) -> true
+          | _ -> false))) ::
+      lst
+    else lst in
+  frequency lst
+
 (* Pick a param or identifier at random in the environment: *)
 and pick_from_env l depth f =
   let open Gen in
@@ -407,6 +431,7 @@ and expression_gen (l, depth) =
       frequency [
         1, map seq (list_size tiny_int expr) ;
         5, e0_gen l depth ;
+        5, e0s_gen l depth ;
         5, e1_gen l depth ;
         5, e2_gen l depth ;
         5, e3_gen l depth ;
@@ -480,6 +505,12 @@ let expression =
         {ksryai: U40;qthlta: (U48?)?;\
          gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?};\
          zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" ;
+
+  compile_check
+    "(make-vec (u8 1) (u8 2) (u8 3))" ;
+
+  compile_check
+    "(make-tup (u16 61159) (u128 5) (null \"((String?; String?; I128?; U32)[8]?; ((I48; I40?))?; Float[9]?[])\") (u48 7) (u8 188))"
 *)
 
 (*

@@ -75,6 +75,14 @@ type e0 =
    * generators in exchange for an expression: *)
   | Identifier of string
 
+type e0s =
+  | Seq
+  (* Data constructors: *)
+  | MakeVec
+  | MakeList
+  | MakeTup
+  | MakeRec
+
 type e1 =
   | Function of (*function id*) int * (*args*) typ array
   | Comment of string
@@ -238,8 +246,8 @@ type e4 =
   | Repeat (* From * To * body (idx->'a->'a) * Init value *)
 
 type e =
-  | Seq of e list
   | E0 of e0
+  | E0S of (e0s * e list)
   | E1 of e1 * e
   | E2 of e2 * e * e
   | E3 of e3 * e * e * e
@@ -259,6 +267,8 @@ let rec e0_eq e1 e2 =
        * encounter functional values: *)
       e1 = e2
 
+and e0s_eq e1 e2 = e1 = e2
+
 and e1_eq e1 e2 =
   match e1, e2 with
   | Function (fid1, typ1), Function (fid2, typ2) ->
@@ -273,10 +283,12 @@ and e4_eq e1 e2 = e1 = e2
 
 and expr_eq e1 e2 =
   match e1, e2 with
-  | Seq e1s, Seq e2s ->
-      List.for_all2 expr_eq e1s e2s
   | E0 op1, E0 op2 ->
       e0_eq op1 op2
+  | E0S (op1, e1s), E0S (op2, e2s) ->
+      e0s_eq op1 op2 &&
+      (try List.for_all2 (expr_eq) e1s e2s
+      with Invalid_argument _ -> false)
   | E1 (op1, e11), E1 (op2, e21) ->
       e1_eq op1 op2 && expr_eq e11 e21
   | E2 (op1, e11, e12), E2 (op2, e21, e22) ->
@@ -327,6 +339,13 @@ let string_of_e0 = function
   | Identifier s -> "identifier "^ String.quote s
 
 let string_of_path = IO.to_string print_path
+
+let string_of_e0s =function
+  | Seq -> "seq"
+  | MakeVec -> "make-vec"
+  | MakeList -> "make-list"
+  | MakeTup -> "make-tup"
+  | MakeRec -> "make-rec"
 
 let string_of_e1 = function
   | Function (fid, typs) ->
@@ -485,9 +504,12 @@ let rec print_expr ?max_depth oc e =
     let max_depth = Option.map pred max_depth in
     let p = print_expr ?max_depth in
     match e with
-    | Seq es ->
-        pp oc "(seq %a)" (List.print ~first:"" ~last:"" ~sep:" " p) es
-    | E0 op -> pp oc "(%s)" (string_of_e0 op)
+    | E0 op ->
+        pp oc "(%s)" (string_of_e0 op)
+    | E0S (op, es) ->
+        pp oc "(%s %a)"
+          (string_of_e0s op)
+          (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E1 (op, e1) ->
         pp oc "(%s %a)" (string_of_e1 op) p e1
     | E2 (op, e1, e2) ->
@@ -609,7 +631,6 @@ struct
 
   let expr str =
     let rec e = function
-      | Lst (Sym "seq" :: xs) -> Seq (List.map e xs)
       (* e0 *)
       | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
           E0 (Param (int_of_string fid, int_of_string n))
@@ -652,6 +673,12 @@ struct
       | Lst [ Sym "alloc-value" ; Str mn ] ->
           E0 (AllocValue (Parser.maybe_nullable_of_string mn))
       | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
+      (* e0s *)
+      | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
+      | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
+      | Lst (Sym "make-list" :: xs) -> E0S (MakeList, List.map e xs)
+      | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
+      | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
       (* e1 *)
       | Lst (Sym "function" :: Sym fid :: (_ :: _ :: _ as tail)) ->
           let typs, x = list_split_last tail in
@@ -844,6 +871,8 @@ struct
       (expr "(seq (u16 45134) (u64 6))")
     [ Ops.comment "foo" (Ops.u32 (Uint32.of_int 2)) ] \
       (expr "(comment \"foo\" (u32 2))")
+    [ Ops.(make_vec [ u8 1 ; u8 2 ]) ] \
+      (expr "(make-vec (u8 1) (u8 2))")
   *)
 
   (*$>*)
@@ -852,6 +881,12 @@ end
 exception Type_error of e * e * typ * string
 exception Type_error_param of e * e * int * typ * string
 exception Type_error_path of e * e * path * string
+exception Struct_error of e * string
+
+(* expr must be a plain string: *)
+let field_name_of_expr = function
+  | E0 (String s) -> s
+  | e -> raise (Struct_error (e, "record names must be constant strings"))
 
 let rec vtype_of_valueptr e0 l e =
   match type_of l e with
@@ -860,12 +895,38 @@ let rec vtype_of_valueptr e0 l e =
 
 (* [e] must have been type checked already: *)
 and type_of l e0 =
+  let maybe_nullable_of l e =
+    type_of l e |> to_maybe_nullable in
   match e0 with
-  | Seq []
+  | E0S (Seq, [])
   | E1 ((Dump | Debug | Ignore), _) ->
       void
-  | Seq es ->
+  | E0S (Seq, es) ->
       type_of l (List.last es)
+  | E0S (MakeVec, []) ->
+      raise (Struct_error (e0, "vector dimension must be > 1"))
+  | E0S (MakeVec, (e0::_ as es)) ->
+      TValue (NotNullable (TVec (List.length es, maybe_nullable_of l e0)))
+  | E0S (MakeList, []) ->
+      raise (Struct_error (e0, "list length must be > 0"))
+  | E0S (MakeList, e0::_) ->
+      TValue (NotNullable (TList (maybe_nullable_of l e0)))
+  | E0S (MakeTup, es) ->
+      TValue (NotNullable (TTup (List.map (maybe_nullable_of l) es |>
+                                 Array.of_list)))
+  | E0S (MakeRec, es) ->
+      let prev_name, mns =
+        List.fold_left (fun (prev_name, mns) e ->
+          match prev_name with
+          | None ->
+              Some (field_name_of_expr e), mns
+          | Some name ->
+              None, (name, maybe_nullable_of l e) :: mns
+        ) (None, []) es in
+      if prev_name <> None then
+        raise (Struct_error (e0,
+          "record expressions must have an even number of values")) ;
+      TValue (NotNullable (TRec (Array.of_list mns)))
   | E1 (Comment _, e)
   | E2 (Coalesce, _, e)
   | E2 (Add, e, _)
@@ -1081,10 +1142,10 @@ and type_of l e0 =
 let rec fold_expr u l f e =
   let u = f u l e in
   match e with
-  | Seq es ->
-      List.fold_left (fun u e1 -> fold_expr u l f e1) u es
   | E0 _ ->
       u
+  | E0S (_, es) ->
+      List.fold_left (fun u e1 -> fold_expr u l f e1) u es
   | E1 (Function (id, ts), e1) ->
       let l = Array.fold_lefti (fun l i t ->
         (E0 (Param (id, i)), t) :: l
@@ -1165,6 +1226,13 @@ let type_check l e =
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
       check_eq l e2 t1 in
+    let check_all_same_types l e1 e2s =
+      List.iter (check_same_types l e1) e2s in
+    let check_maybe_nullable l e =
+      match type_of l e with
+      | TValue _ -> ()
+      | t -> raise (Type_error (e0, e, t,
+               "be a possibly nullable value type")) in
     let check_list l e =
       match type_of l e with
       | TValue (NotNullable TList _) -> ()
@@ -1234,11 +1302,36 @@ let type_check l e =
     | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
-    | Seq es ->
+    | E0S (Seq, es) ->
         let rec loop = function
           | [] | [_] -> ()
           | e::es -> check_void l e ; loop es in
         loop es
+    | E0S (MakeVec, []) ->
+        raise (Struct_error (e0, "vector dimension must be > 0"))
+    | E0S (MakeVec, e1 :: e2s) ->
+        check_maybe_nullable l e1 ;
+        check_all_same_types l e1 e2s
+    | E0S (MakeList, []) ->
+        raise (Struct_error (e0, "list length must be > 0"))
+    | E0S (MakeList, e1 :: e2s) ->
+        check_maybe_nullable l e1 ;
+        check_all_same_types l e1 e2s
+    | E0S (MakeTup, es) ->
+        if List.compare_length_with es 2 < 0 then
+          raise (Struct_error (e0, "tuple dimension must be ≥ 2")) ;
+        List.iter (check_maybe_nullable l) es
+    | E0S (MakeRec, es) ->
+        let len = List.length es in
+        if len mod 2 <> 0 then
+          raise (Struct_error (e0,
+            "record expressions must have an even number of values")) ;
+        if len <= 2 then
+          raise (Struct_error (e0, "record dimension must be ≥ 2")) ;
+        List.iteri (fun i e ->
+          if i mod 2 = 0 then ignore (field_name_of_expr e)
+          else check_maybe_nullable l e
+        ) es
     | E1 (IsNull, e) ->
         check_nullable l e
     | E2 (Coalesce, e1, e2) ->
@@ -1452,6 +1545,11 @@ let () =
           Printf.sprintf2
             "Type Error: In expression %a, path %a of expression %a should %s"
             (print_expr ~max_depth) e0 print_path path (print_expr ~max_depth) e s)
+    | Struct_error (e0, s) ->
+        Some (
+          Printf.sprintf2
+            "Invalid type structure: In expression %a, %s"
+            (print_expr ~max_depth) e0 s)
     | _ ->
         None)
 
@@ -1582,7 +1680,7 @@ struct
   let ignore_ e1 = E1 (Ignore, e1)
   let dump e1 = E1 (Dump, e1)
   let debug e1 = E1 (Debug, e1)
-  let debugs es = Seq (List.map debug es)
+  let debugs es = E0S (Seq, List.map debug es)
   let is_null e1 = E1 (IsNull, e1)
   let coalesce e1 e2 = E2 (Coalesce, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
@@ -1748,7 +1846,11 @@ struct
   let get_field p e1 = E1 (GetField p, e1)
   let field_is_null p e1 = E1 (FieldIsNull p, e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
-  let seq es = Seq es
+  let seq es = E0S (Seq, es)
+  let make_vec es = E0S (MakeVec, es)
+  let make_list es = E0S (MakeList, es)
+  let make_tup es = E0S (MakeTup, es)
+  let make_rec es = E0S (MakeRec, es)
   let alloc_value mn = E0 (AllocValue mn)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
