@@ -185,38 +185,38 @@ struct
         String.print oc "Uint64.zero"
     | NotNullable (Mac TU128) ->
         String.print oc "Uint128.zero"
-    | NotNullable (Usr t) ->
-        print_default_value indent oc (NotNullable t.def)
-    | NotNullable (TTup vts) ->
+    | NotNullable (Usr nn) ->
+        print_default_value indent oc (NotNullable nn.def)
+    | NotNullable (TTup mns) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
-          (fun oc (i, t) ->
+          (fun oc (i, mn) ->
             let fname = tuple_field_name i in
             Printf.fprintf oc "%s = %a"
-              fname (print_default_value (indent^"  ")) t)
-          oc (Array.mapi (fun i t -> (i, t)) vts)
-    | NotNullable (TRec vts) ->
+              fname (print_default_value (indent^"  ")) mn)
+          oc (Array.mapi (fun i mn -> (i, mn)) mns)
+    | NotNullable (TRec mns) ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
-          (fun oc (fname, t) ->
+          (fun oc (fname, mn) ->
             Printf.fprintf oc "%s = %a"
               (valid_identifier fname)
-              (print_default_value (indent^"  ")) t)
-          oc vts
-    | NotNullable (TVec (dim, t)) ->
+              (print_default_value (indent^"  ")) mn)
+          oc mns
+    | NotNullable (TVec (dim, mn)) ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
           Printf.fprintf oc "%a; "
-            (print_default_value (indent^"  ")) t
+            (print_default_value (indent^"  ")) mn
         done ;
         Printf.fprintf oc "%s|]" indent
     | NotNullable (TList _) ->
         String.print oc "[||]"
     | NotNullable (TMap _) ->
         assert false (* no value of map type *)
-    | Nullable t ->
+    | Nullable nn ->
         (* Unfortunately we cannot start with None as we want the whole tree
          * of values to be populated. *)
         Printf.fprintf oc "Some (%a)"
-          (print_default_value indent) (NotNullable t)
+          (print_default_value indent) (NotNullable nn)
 
   let print_binding n tn f oc =
     pp oc "let %s : %s = %t in" n tn f
@@ -801,8 +801,8 @@ struct
         let ptr = print ?name emit p l e1
         and v = print emit p l e2 in
         (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path (ptr ^".contents") vt path in
+        | TValuePtr mn ->
+            let a = deref_path (ptr ^".contents") mn path in
             ppi p.def "%s <- %s;" a v ;
             ptr
         | _ -> assert false)

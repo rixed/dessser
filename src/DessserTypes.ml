@@ -218,8 +218,8 @@ let rec print_typ oc =
       print_maybe_nullable oc vt
   | TVoid -> sp "Void"
   | TDataPtr -> sp "DataPtr"
-  | TValuePtr t ->
-      pp oc "(%a ValuePtr)" print_maybe_nullable t
+  | TValuePtr mn ->
+      pp oc "(%a ValuePtr)" print_maybe_nullable mn
   | TSize -> sp "Size"
   | TBit -> sp "Bit"
   | TByte -> sp "Byte"
@@ -645,12 +645,12 @@ let type_and_name_of_path t path =
         type_of_not_nullable t in
   loop "" t path
 
-let type_of_path t path =
-  fst (type_and_name_of_path t path)
+let type_of_path mn path =
+  fst (type_and_name_of_path mn path)
 
-let type_of_parent t path =
+let type_of_parent mn path =
   let path = list_drop_last path in
-  type_of_path t path
+  type_of_path mn path
 
 (*$inject
   let test_t = NotNullable (TTup [|
@@ -702,6 +702,6 @@ let qword = TQWord
 let oword = TOWord
 let bytes = TBytes
 let dataptr = TDataPtr
-let valueptr t = TValuePtr t
+let valueptr mn = TValuePtr mn
 let pair t1 t2 = TPair (t1, t2)
 let slist t = TSList t

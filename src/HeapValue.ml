@@ -16,41 +16,45 @@ module T = DessserTypes
 module Ser : SER =
 struct
   type state = unit
-  let ptr vtyp = valueptr vtyp
+  let ptr mn = valueptr mn
 
   (* [p] must ben a ValuePtr. *)
-  let start _vtyp0 p = (), p
+  let start _mn0 p = (), p
 
   let stop () p = p
 
   type ser = state -> maybe_nullable -> path -> e -> e -> e
 
-  let set_field_ vtyp0 path v p =
-    let v = if is_nullable (type_of_path vtyp0 path) then to_nullable v else v in
+  let sfield mn0 path v p =
+    let v =
+      if is_nullable (type_of_path mn0 path) then
+        to_nullable v
+      else v in
+    (* FIXME: same as in gfield, path is wrong within lists! *)
     set_field path p v
 
-  let sfloat () = set_field_
-  let sstring () = set_field_
-  let sbool () = set_field_
-  let si8 () = set_field_
-  let si16 () = set_field_
-  let si24 () = set_field_
-  let si32 () = set_field_
-  let si40 () = set_field_
-  let si48 () = set_field_
-  let si56 () = set_field_
-  let si64 () = set_field_
-  let si128 () = set_field_
-  let su8 () = set_field_
-  let su16 () = set_field_
-  let su24 () = set_field_
-  let su32 () = set_field_
-  let su40 () = set_field_
-  let su48 () = set_field_
-  let su56 () = set_field_
-  let su64 () = set_field_
-  let su128 () = set_field_
-  let schar () = set_field_
+  let sfloat () = sfield
+  let sstring () = sfield
+  let sbool () = sfield
+  let si8 () = sfield
+  let si16 () = sfield
+  let si24 () = sfield
+  let si32 () = sfield
+  let si40 () = sfield
+  let si48 () = sfield
+  let si56 () = sfield
+  let si64 () = sfield
+  let si128 () = sfield
+  let su8 () = sfield
+  let su16 () = sfield
+  let su24 () = sfield
+  let su32 () = sfield
+  let su40 () = sfield
+  let su48 () = sfield
+  let su56 () = sfield
+  let su64 () = sfield
+  let su128 () = sfield
+  let schar () = sfield
 
   let tup_opn () _ _ _ p = p
 
@@ -119,21 +123,23 @@ end
 module Des : DES =
 struct
   type state = unit
-  let ptr vtyp = valueptr vtyp
+  let ptr mn = valueptr mn
 
   (* The pointer that's given to us must have been obtained from a
    * HeapValue.Ser. *)
-  let start _vtyp0 p = (), p
+  let start _mn0 p = (), p
 
   let stop () p = p
 
   type des = state -> maybe_nullable -> path -> e -> e
 
   (* Beware that Dessser expect deserializers to return only not-nullables. *)
-  let dfield vtyp0 path p =
+  let dfield mn0 path p =
+    (* FIXME: get_field won't work within lists because the path index is then
+     * always 0! *)
     let v = get_field path p in
     let v =
-      if is_nullable (type_of_path vtyp0 path) then
+      if is_nullable (type_of_path mn0 path) then
         to_not_nullable v
       else v in
     pair v p
@@ -179,9 +185,15 @@ struct
 
   let vec_sep _ () _ _ p = p
 
-  let list_opn = KnownSize (fun () _mn0 path _ p ->
+  let list_opn = KnownSize (fun () mn0 path _ p ->
     let lst = get_field path p in
-    pair (list_length lst) p)
+    pair
+      (list_length (
+        if is_nullable (type_of_path mn0 path) then
+          to_not_nullable lst
+        else
+          lst))
+      p)
 
   let list_cls () _ _ p = p
 
