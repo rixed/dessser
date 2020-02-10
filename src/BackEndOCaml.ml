@@ -283,7 +283,7 @@ struct
               let name = valid_identifier (fst vts.(i)) in
               deref_path (v ^"."^ name) (snd vts.(i)) path
           | Nullable x ->
-              deref_not_nullable ("(Option.get "^ v ^")") (NotNullable x) in
+              deref_not_nullable ("(option_get "^ v ^")") (NotNullable x) in
         deref_not_nullable v vt
 
   let rec print ?name emit p l e =
@@ -363,7 +363,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)
     | E1 (ToNotNullable, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> Printf.fprintf oc "Option.get %s" n1)
+        emit ?name p l e (fun oc -> Printf.fprintf oc "option_get %s" n1)
     | E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "None")
     | E0 (Float f) ->
@@ -475,7 +475,7 @@ struct
     | E1 (StringOfFloat, e1) ->
         unary_op "hexstring_of_float" e1
     | E1 (StringOfChar, e1) ->
-        unary_mod_op "of_char" e1
+        unary_op "string_of_char" e1
     | E1 (CharOfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
@@ -835,8 +835,7 @@ struct
     pp p.def "%sval %s : %s\n" p.indent n tn
 
   let source_intro =
-    "open Batteries\n\
-     open Stdint\n\
+    "open Stdint\n\
      open DessserOCamlBackendHelpers\n"
 end
 

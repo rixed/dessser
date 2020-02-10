@@ -7,6 +7,8 @@ let option_get = function
   | Some x -> x
   | None -> invalid_arg "option_get"
 
+let string_of_char c = String.make 1 c
+
 exception NotImplemented of string
 (* Parameter is the minimum length of the missing part: *)
 exception NotEnoughInput of { offset : int ; missing : int }

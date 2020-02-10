@@ -1,5 +1,7 @@
 let converter ?(out_buf_size=50_000) entry_point =
   Printf.sprintf {|
+open Batteries
+
 let read_whole_file fname =
   File.with_file_in ~mode:[`text] fname IO.read_all
 
