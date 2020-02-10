@@ -130,34 +130,36 @@ struct
   type des = state -> maybe_nullable -> path -> e -> e
 
   (* Beware that Dessser expect deserializers to return only not-nullables. *)
-  let get_field vtyp0 path p =
+  let dfield vtyp0 path p =
     let v = get_field path p in
     let v =
-      if is_nullable (type_of_path vtyp0 path) then to_not_nullable v else v in
+      if is_nullable (type_of_path vtyp0 path) then
+        to_not_nullable v
+      else v in
     pair v p
 
-  let dfloat () = get_field
-  let dstring () = get_field
-  let dbool () = get_field
-  let di8 () = get_field
-  let di16 () = get_field
-  let di24 () = get_field
-  let di32 () = get_field
-  let di40 () = get_field
-  let di48 () = get_field
-  let di56 () = get_field
-  let di64 () = get_field
-  let di128 () = get_field
-  let du8 () = get_field
-  let du16 () = get_field
-  let du24 () = get_field
-  let du32 () = get_field
-  let du40 () = get_field
-  let du48 () = get_field
-  let du56 () = get_field
-  let du64 () = get_field
-  let du128 () = get_field
-  let dchar () = get_field
+  let dfloat () = dfield
+  let dstring () = dfield
+  let dbool () = dfield
+  let di8 () = dfield
+  let di16 () = dfield
+  let di24 () = dfield
+  let di32 () = dfield
+  let di40 () = dfield
+  let di48 () = dfield
+  let di56 () = dfield
+  let di64 () = dfield
+  let di128 () = dfield
+  let du8 () = dfield
+  let du16 () = dfield
+  let du24 () = dfield
+  let du32 () = dfield
+  let du40 () = dfield
+  let du48 () = dfield
+  let du56 () = dfield
+  let du64 () = dfield
+  let du128 () = dfield
+  let dchar () = dfield
 
   let tup_opn () _ _ _ p = p
 
@@ -177,8 +179,8 @@ struct
 
   let vec_sep _ () _ _ p = p
 
-  let list_opn = KnownSize (fun () vtyp0 path _ p ->
-    let lst = get_field vtyp0 path p in
+  let list_opn = KnownSize (fun () _mn0 path _ p ->
+    let lst = get_field path p in
     pair (list_length lst) p)
 
   let list_cls () _ _ p = p
