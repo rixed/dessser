@@ -612,10 +612,11 @@ type path = int list
 let path_append i path = path @ [i]
 
 let print_path oc p =
-  List.print ~first:"" ~last:"" ~sep:"/" Int.print oc p
+  List.print ~first:"/" ~last:"" ~sep:"/" Int.print oc p
 
 let path_of_string s =
-  String.split_on_char '/' s |>
+  String.lchop s |>
+  String.split_on_char '/' |>
   List.map int_of_string
 
 (* Return both the type and field name: *)
