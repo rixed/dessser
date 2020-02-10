@@ -448,6 +448,8 @@ let expression_gen =
 let size_of_expression e =
   fold_expr 0 [] (fun n _ _ -> succ n) e
 
+(* TODO: try to shrink expressions by replacing terms with constants of the
+ * same type *)
 let expression =
   let print = IO.to_string print_expr
   and small = size_of_expression in
@@ -496,23 +498,20 @@ let expression =
 *)
 
 (* Non regression tests: *)
-(*$R
+(*$inject
   let compile_check s =
     let e = Parser.expr s |> List.hd in
-    let msg = "Cannot compile "^ s in
-    assert_bool msg (can_be_compiled e) in
-
-  compile_check
-    "(alloc-value \"(I48?;\
-        {ksryai: U40;qthlta: (U48?)?;\
-         gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?};\
-         zkcjdi: Ipv4?;qcrck: String}[9]?)?\")" ;
-
-  compile_check
-    "(make-vec (u8 1) (u8 2) (u8 3))" ;
-
-  compile_check
+    can_be_compiled e
+*)
+(*$T compile_check
+  compile_check \
+    "(alloc-value \"(I48?; {ksryai: U40;qthlta: (U48?)?; gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?}; zkcjdi: Ipv4?;qcrck: String}[9]?)?\")"
+  compile_check \
+    "(make-vec (u8 1) (u8 2) (u8 3))"
+  compile_check \
     "(make-tup (u16 61159) (u128 5) (null \"((String?; String?; I128?; U32)[8]?; ((I48; I40?))?; Float[9]?[])\") (u48 7) (u8 188))"
+  compile_check \
+    "(is-null (null \"Bool\"))"
 *)
 
 (*

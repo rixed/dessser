@@ -96,7 +96,7 @@ type e1 =
   | IsNull
   (* Turn e into a nullable: *)
   | ToNullable
-  (* Turn e into a not-nullable: *)
+  (* Turn e into a not-nullable (or fail): *)
   | ToNotNullable
   (* Convert from/to string for all base value types: *)
   | StringOfFloat
@@ -504,6 +504,7 @@ let string_of_e4 = function
   | ReadWhile -> "read-while"
   | Repeat -> "repeat"
 
+(* Display in a single line to help with tests. TODO: pretty_print_expr *)
 let rec print_expr ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
     pp oc "…"

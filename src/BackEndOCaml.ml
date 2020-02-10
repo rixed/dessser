@@ -25,14 +25,14 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_record p oc id vts =
+  let rec print_record p oc id mns =
     let id = valid_identifier id in
     pp oc "%stype %s = {\n" p.indent id ;
     indent_more p (fun () ->
-      Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier p (TValue vt) in
-      ) vts
+      Array.iter (fun (field_name, mn) ->
+        let typ_id = type_identifier p (TValue mn) in
         pp oc "%smutable %s : %s;\n" p.indent (valid_identifier field_name) typ_id
+      ) mns
     ) ;
     pp oc "%s}\n\n" p.indent
 
@@ -79,10 +79,10 @@ struct
         value_type_identifier p (NotNullable t) ^" option"
 
   and type_identifier p = function
-    | TValue vt -> value_type_identifier p vt
+    | TValue mn -> value_type_identifier p mn
     | TVoid -> "unit"
     | TDataPtr -> "Pointer.t"
-    | TValuePtr vt -> value_type_identifier p vt ^ " ref"
+    | TValuePtr mn -> value_type_identifier p mn ^ " ref"
     | TSize -> "Size.t"
     | TBit -> "bool"
     | TByte -> "Uint8.t"
@@ -141,8 +141,7 @@ struct
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
-  let rec print_default_value indent oc vtyp =
-    match vtyp with
+  let rec print_default_value indent oc = function
     | NotNullable (Mac TFloat) ->
         String.print oc "0."
     | NotNullable (Mac TString) ->
@@ -268,7 +267,7 @@ struct
       pp oc "Int128.of_bytes_little_endian (Bytes.of_string %S) 0"
         (Bytes.to_string bytes))
 
-  let rec deref_path v vt = function
+  let rec deref_path v mn = function
     | [] -> v
     | i :: path ->
         let rec deref_not_nullable v = function
@@ -276,17 +275,17 @@ struct
               assert false
           | NotNullable (Usr t) ->
               deref_not_nullable v (NotNullable t.def)
-          | NotNullable (TVec (_, vt))
-          | NotNullable (TList vt) ->
-              deref_path (v ^".("^ string_of_int i ^")") vt path
-          | NotNullable (TTup vts) ->
-              deref_path (v ^"."^ tuple_field_name i) vts.(i) path
-          | NotNullable (TRec vts) ->
-              let name = valid_identifier (fst vts.(i)) in
-              deref_path (v ^"."^ name) (snd vts.(i)) path
+          | NotNullable (TVec (_, mn))
+          | NotNullable (TList mn) ->
+              deref_path (v ^".("^ string_of_int i ^")") mn path
+          | NotNullable (TTup mns) ->
+              deref_path (v ^"."^ tuple_field_name i) mns.(i) path
+          | NotNullable (TRec mns) ->
+              let name = valid_identifier (fst mns.(i)) in
+              deref_path (v ^"."^ name) (snd mns.(i)) path
           | Nullable x ->
               deref_not_nullable ("(option_get "^ v ^")") (NotNullable x) in
-        deref_not_nullable v vt
+        deref_not_nullable v mn
 
   let rec print ?name emit p l e =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
@@ -331,7 +330,7 @@ struct
     in
     match e with
     | E1 (Comment c, e1) ->
-        pp p.def "%s(* %s *)\n" p.indent c ;
+        ppi p.def "(* %s *)" c ;
         print ?name emit p l e1
     | E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "()" es
@@ -384,9 +383,7 @@ struct
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s <> None" n)
     | E2 (Coalesce, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s |? %s" n1 n2)
+        binary_infix_op e1 "|?" e2
     | E2 (Nth, e1, e2) ->
         binary_op "Array.get" e1 e2
     | E1 (ToNullable, e1) ->
@@ -696,8 +693,9 @@ struct
         shortcutting_binary_infix_op e1 "||" e2
     | E1 (Not, e1) ->
         unary_op "not" e1
-    | E0 (AllocValue vtyp) ->
-        emit ?name p l e (fun oc -> pp oc "ref (%a)" (print_default_value p.indent) vtyp)
+    | E0 (AllocValue mn) ->
+        emit ?name p l e (fun oc ->
+          pp oc "ref (%a)" (print_default_value p.indent) mn)
     | E1 (DerefValuePtr, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "!%s" n1)
@@ -840,15 +838,15 @@ struct
     | E1 (FieldIsNull path, e1) ->
         let ptr = print emit p l e1 in
         (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path ("!"^ ptr) vt path in
+        | TValuePtr mn ->
+            let a = deref_path ("!"^ ptr) mn path in
             emit ?name p l e (fun oc -> pp oc "%s = None" a)
         | _ -> assert false)
     | E1 (GetField path, e1) ->
         let ptr = print emit p l e1 in
         (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path ("!"^ ptr) vt path in
+        | TValuePtr mn ->
+            let a = deref_path ("!"^ ptr) mn path in
             emit ?name p l e (fun oc -> pp oc "%s" a)
         | _ -> assert false)
     | E1 (GetItem n, e1) ->
