@@ -51,7 +51,8 @@ let run_converter ?timeout exe param =
     | Some t ->
         let timeout_cmd = "/usr/bin/timeout" in
         timeout_cmd, [| timeout_cmd ; string_of_int t ; exe ; param |] in
-  with_stdout_from_command cmd args (fun ic ->
+  let env = [| "OCAMLRUNPARAM=b" |] in
+  with_stdout_from_command ~env cmd args (fun ic ->
     let i = IO.input_channel ic in
     IO.copy i str) ;
   IO.close_out str
