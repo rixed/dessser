@@ -387,6 +387,8 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s |? %s" n1 n2)
+    | E2 (Nth, e1, e2) ->
+        binary_op "Array.get" e1 e2
     | E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)
@@ -849,6 +851,26 @@ struct
             let a = deref_path ("!"^ ptr) vt path in
             emit ?name p l e (fun oc -> pp oc "%s" a)
         | _ -> assert false)
+    | E1 (GetItem n, e1) ->
+        let n1 = print emit p l e1 in
+(*      TODO: For when tuples are actual tuples:
+        let res = gen_sym ?name "get_item_" in
+        let max_n =
+          match type_of l e1 with
+          | TValue (NotNullable (TTup mns)) -> Array.length mns
+          | _ -> assert false in
+        ppi p.def "let %t = %s\n"
+          (fun oc ->
+            for i = 0 to max_n - 1 do
+              if i > 0 then String.print oc ", " ;
+              String.print oc (if i = n then res else "_")
+            done) *)
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
+      | E1 (GetField_ s, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 s)
 
   let print_binding_toplevel emit n p l e =
     let t = type_of l e in

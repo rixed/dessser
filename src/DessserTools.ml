@@ -26,6 +26,9 @@ let array_print_i ?first ?last ?sep p oc a =
   Array.print ?first ?last ?sep (fun oc x ->
     p !i oc x ; incr i) oc a
 
+let array_assoc n a =
+  Array.find (fun (n', _) -> n' = n) a |> snd
+
 let read_whole_file fname =
   File.with_file_in ~mode:[`text] fname IO.read_all
 

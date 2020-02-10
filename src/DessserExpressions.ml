@@ -88,6 +88,8 @@ type e1 =
   | Comment of string
   | FieldIsNull of path
   | GetField of path
+  | GetItem of int (* for tuples *)
+  | GetField_ of string (* For records *)
   | Dump
   | Debug
   | Ignore
@@ -191,6 +193,8 @@ type e2 =
    * this location. *)
   | SetField of path
   | Coalesce
+  (* Deconstructor for vectors/lists: *)
+  | Nth
   (* Comparators: *)
   | Gt
   | Ge
@@ -355,6 +359,8 @@ let string_of_e1 = function
   | Comment s -> "comment "^ String.quote s
   | FieldIsNull p -> "field-is-null "^ string_of_path p
   | GetField p -> "get-field "^ string_of_path p
+  | GetItem n -> "get-item "^ string_of_int n
+  | GetField_ s -> "get-field_ "^ String.quote s
   | Dump -> "dump"
   | Debug -> "debug"
   | Ignore -> "ignore"
@@ -447,6 +453,7 @@ let string_of_e2 = function
   | Let s -> "let "^ String.quote s
   | SetField p -> "set-field "^ string_of_path p
   | Coalesce -> "coalesce"
+  | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
   | Eq -> "eq"
@@ -697,6 +704,10 @@ struct
           E1 (FieldIsNull (path_of_string p), e x)
       | Lst [ Sym "get-field" ; Sym p ; x ] ->
           E1 (GetField (path_of_string p), e x)
+      | Lst [ Sym "get-item" ; Sym n ; x ] ->
+          E1 (GetItem (int_of_string n), e x)
+      | Lst [ Sym "get-field_" ; Str s ; x ] ->
+          E1 (GetField_ s, e x)
       | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
       | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
       | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
@@ -793,6 +804,7 @@ struct
       | Lst [ Sym "set-field" ; Sym p ; x1 ; x2 ] ->
           E2 (SetField (path_of_string p), e x1, e x2)
       | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
+      | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
       | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
       | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
       | Lst [ Sym "eq" ; x1 ; x2 ] -> E2 (Eq, e x1, e x2)
@@ -927,6 +939,27 @@ and type_of l e0 =
         raise (Struct_error (e0,
           "record expressions must have an even number of values")) ;
       TValue (NotNullable (TRec (Array.of_list mns)))
+  | E1 (GetItem n, e1) ->
+      (match type_of l e1 with
+      | TValue (NotNullable (TTup mns)) ->
+          let max_n = Array.length mns in
+          if n >= max_n then
+            raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
+                                     string_of_int max_n ^" items)")) ;
+          TValue mns.(n)
+      | t -> raise (Type_error (e0, e1, t, "be a tuple")))
+  | E1 ((GetField_ name), e1) ->
+      (match type_of l e1 with
+      | TValue (NotNullable (TRec mns)) ->
+          (match array_assoc name mns with
+          | exception Not_found ->
+              raise (Struct_error (e0, "no field named "^ name))
+          | mn -> TValue mn)
+      | t -> raise (Type_error (e0, e1, t, "be a record")))
+  | E2 (Nth, e1, _) ->
+      (match type_of l e1 with
+      | TValue (NotNullable (TVec (_, mn) | TList mn)) -> TValue mn
+      | t -> raise (Type_error (e0, e1, t, "be a vector or list")))
   | E1 (Comment _, e)
   | E2 (Coalesce, _, e)
   | E2 (Add, e, _)
@@ -1338,6 +1371,9 @@ let type_check l e =
         check_nullable l e1 ;
         check_not_nullable l e2 ;
         check_same_valuetype l e1 e2
+    | E2 (Nth, e1, e2) ->
+        check_list l e1 ;
+        check_integer l e2
     | E1 (ToNullable, e) ->
         check_not_nullable l e
     | E1 (ToNotNullable, e) ->
@@ -1466,6 +1502,9 @@ let type_check l e =
         check_valueptr_path_nullable l e path true
     | E1 (GetField path, e) ->
         check_valueptr_path l e path
+    | E1 (GetItem _, _)
+    | E1 (GetField_ _, _) ->
+        ignore (type_of l e) (* everything checks already performed in [type_of] *)
     | E1 (Fst, e) ->
         check_pair l e
     | E1 (Snd, e) ->
@@ -1683,6 +1722,7 @@ struct
   let debugs es = E0S (Seq, List.map debug es)
   let is_null e1 = E1 (IsNull, e1)
   let coalesce e1 e2 = E2 (Coalesce, e1, e2)
+  let nth e1 e2 = E2 (Nth, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
   let read_word en e1 = E1 (ReadWord en, e1)
   let read_dword en e1 = E1 (ReadDWord en, e1)
@@ -1844,6 +1884,8 @@ struct
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
   let set_field p e1 e2 = E2 (SetField p, e1, e2)
   let get_field p e1 = E1 (GetField p, e1)
+  let get_item n e1 = E1 (GetItem n, e1)
+  let get_field_ s e1 = E1 (GetField_ s, e1)
   let field_is_null p e1 = E1 (FieldIsNull p, e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let seq es = E0S (Seq, es)

@@ -271,10 +271,10 @@ let e1_of_int n =
 
 let e2_of_int n =
   let e2s =
-    [| Coalesce ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ; LogAnd ;
-       LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ; AppendString ;
-       GetBit ; ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
-       DataPtrAdd ; DataPtrSub ; And ; Or ; Pair ; MapPair |] in
+    [| Coalesce ; Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
+       LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
+       AppendString ; GetBit ; ReadBytes ; PeekByte ; WriteByte ; WriteBytes ;
+       PokeByte ; DataPtrAdd ; DataPtrSub ; And ; Or ; Pair ; MapPair |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
@@ -391,6 +391,8 @@ and e1_gen l depth =
     1, map2 comment (string ~gen:printable_for_comments) expr ;
     1, map2 field_is_null path_gen expr ;
     1, map2 get_field path_gen expr ;
+    1, map2 get_item tiny_int expr ;
+    1, map2 get_field_ field_name_gen expr ;
     1, map2 read_word endianness_gen expr ;
     1, map2 read_dword endianness_gen expr ;
     1, map2 read_qword endianness_gen expr ;

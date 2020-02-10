@@ -228,6 +228,10 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
+    | E2 (Nth, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s[%s]" n1 n2)
     | E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> String.print oc n1)
@@ -675,6 +679,14 @@ struct
             let a = deref_path ("(*"^ ptr ^")") vt path in
             emit ?name p l e (fun oc -> pp oc "%s" a)
         | _ -> assert false)
+    | E1 (GetItem n, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
+      | E1 (GetField_ s, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 s)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
