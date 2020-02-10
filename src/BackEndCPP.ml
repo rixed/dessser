@@ -27,7 +27,7 @@ struct
     indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier p (TValue vt) in
-        pp oc "%s%s %s;\n" p.indent typ_id field_name
+        pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
       ) vts
     ) ;
     pp oc "%s};\n\n" p.indent
