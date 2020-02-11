@@ -606,27 +606,30 @@ let sexpr mn =
  * to check s-expr is reliable before using it in further tests: *)
 (*$inject
   open QCheck
+  open Ops
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (SExpr.Des) (SExpr.Ser) in
     let e =
-      func2 TDataPtr TDataPtr (fun src dst ->
+      func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun src dst ->
         S2S.desser mn src dst) in
     make_converter be ~mn e
 
-  let test_desser be mn des ser =
+  let test_desser alloc_dst be mn des ser =
     let module Des = (val des : DES) in
     let module Ser = (val ser : SER) in
     let module S2T = DesSer (SExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (SExpr.Ser) in
     let e =
-      func2 TDataPtr TDataPtr (fun src dst ->
-        let open Ops in
-        let1 (data_ptr_of_buffer 50_000) (fun tdst ->
+      func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun src dst ->
+        let1 alloc_dst (fun tdst ->
           let src = fst (S2T.desser mn src tdst) in
           let dst = snd (T2S.desser mn tdst dst) in
           pair src dst)) in
-    Printf.eprintf "Expression:\n  %a\n" (print_expr ?max_depth:None) e ;
+    Printf.eprintf "Expression:\n%a\n" (print_expr ?max_depth:None) e ;
     make_converter be ~mn e
+
+  let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
+  let test_heap_desser be mn = test_desser (alloc_value mn) be mn
 
   let ocaml_be = (module BackEndOCaml : BACKEND)
   let cpp_be = (module BackEndCPP : BACKEND)
@@ -653,27 +656,36 @@ let sexpr mn =
 (* Now that we trust the s-expr ser/des, we can use it to create random
  * values or arbitrary type in the other formats: *)
 (*$R
-  let test_format be mn des ser format =
-    let exe = test_desser be mn des ser in
+  let test_format test_desser_ be mn des ser format =
+    let exe = test_desser_ be mn des ser in
     Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
       Printf.eprintf "Will test %s %S of type %a\n%!"
         format s T.print_maybe_nullable mn ;
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       assert_equal ~printer:identity s s') in
+  let test_data_format = test_format test_data_desser in
+  let test_heap_format = test_format test_heap_desser in
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encore nullable outermost values (FIXME) *)
     let nn = T.to_not_nullable mn in
+    let format = "HeapValue" in
+    test_heap_format ocaml_be mn
+      (module HeapValue.Des : DES) (module HeapValue.Ser : SER) format)
+*)
+(*
+    test_heap_format cpp_be mn
+      (module HeapValue.Des : DES) (module HeapValue.Ser : SER) format ;
     let format = "RamenRingBuf" in
-    test_format ocaml_be nn
+    test_data_format ocaml_be nn
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
-    test_format cpp_be nn
+    test_data_format cpp_be nn
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     let format = "RowBinary" in
-    test_format ocaml_be mn
+    test_data_format ocaml_be mn
       (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
-    test_format cpp_be mn
+    test_data_format cpp_be mn
       (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format)
 *)
 
@@ -690,13 +702,19 @@ let sexpr mn =
     let mn = T.Parser.maybe_nullable_of_string ts in
     let des = (module RowBinary.Des : DES)
     and ser = (module RowBinary.Ser : SER) in
-    let exe = test_desser be mn des ser in
+    let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_ringbuffer be ts vs =
     let mn = T.Parser.maybe_nullable_of_string ts in
     let des = (module RamenRingBuffer.Des : DES)
     and ser = (module RamenRingBuffer.Ser : SER) in
-    let exe = test_desser be mn des ser in
+    let exe = test_data_desser be mn des ser in
+    String.trim (run_converter ~timeout:2 exe vs)
+  let check_heapvalue be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let des = (module HeapValue.Des : DES)
+    and ser = (module HeapValue.Ser : SER) in
+    let exe = test_heap_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
 (* Check that the AND is short-cutting, otherwise [is_null] is going to
@@ -721,4 +739,7 @@ let sexpr mn =
   "2 (null 1)" (check_ringbuffer ocaml_be "u8?[]" "2 (null 1)")
   "0 ()" (check_ringbuffer cpp_be "Bool[]" "0 ()")
   "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
+*)
+(*$= check_heapvalue & ~printer:identity
+  "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
 *)
