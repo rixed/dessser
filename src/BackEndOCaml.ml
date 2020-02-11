@@ -385,7 +385,7 @@ struct
     | E2 (Coalesce, e1, e2) ->
         binary_infix_op e1 "|?" e2
     | E2 (Nth, e1, e2) ->
-        binary_op "Array.get" e1 e2
+        binary_op "Array.get" e2 e1
     | E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)

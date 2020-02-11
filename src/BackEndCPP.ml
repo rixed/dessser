@@ -231,7 +231,7 @@ struct
     | E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s[%s]" n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s[%s]" n2 n1)
     | E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> String.print oc n1)

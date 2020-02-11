@@ -957,10 +957,10 @@ and type_of l e0 =
               raise (Struct_error (e0, "no field named "^ name))
           | mn -> TValue mn)
       | t -> raise (Type_error (e0, e1, t, "be a record")))
-  | E2 (Nth, e1, _) ->
-      (match type_of l e1 with
+  | E2 (Nth, _, e2) ->
+      (match type_of l e2 with
       | TValue (NotNullable (TVec (_, mn) | TList mn)) -> TValue mn
-      | t -> raise (Type_error (e0, e1, t, "be a vector or list")))
+      | t -> raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
   | E2 (Coalesce, _, e)
   | E2 (Add, e, _)
@@ -1271,6 +1271,10 @@ let type_check l e =
       match type_of l e with
       | TValue (NotNullable TList _) -> ()
       | t -> raise (Type_error (e0, e, t, "be a list")) in
+    let check_list_or_vector l e =
+      match type_of l e with
+      | TValue (NotNullable (TVec _ | TList _)) -> ()
+      | t -> raise (Type_error (e0, e, t, "be a vector or list")) in
     let check_slist l e =
       match type_of l e with
       | TSList _ -> ()
@@ -1373,8 +1377,8 @@ let type_check l e =
         check_not_nullable l e2 ;
         check_same_valuetype l e1 e2
     | E2 (Nth, e1, e2) ->
-        check_list l e1 ;
-        check_integer l e2
+        check_list_or_vector l e2 ;
+        check_integer l e1
     | E1 (ToNullable, e) ->
         check_not_nullable l e
     | E1 (ToNotNullable, e) ->
