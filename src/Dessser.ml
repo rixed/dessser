@@ -194,21 +194,21 @@ module DesSer (Des : DES) (Ser : SER) =
 struct
   (* Most of the functions below return the src and dst pointers advanced to
    * point to the next value to read/write.
-   * [vtyp] denotes the maybe_nullable of the current subfields, whereas
-   * [vtyp0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des typ transform sstate dstate vtyp0 path src_dst =
+   * [mn] denotes the maybe_nullable of the current subfields, whereas
+   * [mn0] denotes the maybe_nullable of the whole value. *)
+  let ds ser des typ transform sstate dstate mn0 path src_dst =
     let what = IO.to_string print_typ typ in
     with_sploded_pair "ds1" src_dst (fun src dst ->
-      let v_src = des dstate vtyp0 path src in
+      let v_src = des dstate mn0 path src in
       with_sploded_pair "ds2" v_src (fun v src ->
-        let v = transform vtyp0 path v in
+        let v = transform mn0 path v in
         let open Ops in
         (* dessser handle nulls itself, so that DES/SER implementations
          * do not have to care for nullability. NotNullable is just a cast
          * and has no other effect outside of type_check. *)
         pair
           (comment ("Desserialize a "^ what) src)
-          (comment ("Serialize a "^ what) (ser sstate vtyp0 path v dst))))
+          (comment ("Serialize a "^ what) (ser sstate mn0 path v dst))))
 
   let dsfloat = ds Ser.sfloat Des.dfloat float
   let dsstring = ds Ser.sstring Des.dstring string
@@ -233,81 +233,81 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 u64
   let dsu128 = ds Ser.su128 Des.du128 u128
 
-  let dsnull t sstate dstate vtyp0 path src dst =
+  let dsnull t sstate dstate mn0 path src dst =
     let open Ops in
     pair
-      (comment "Desserialize NULL" (Des.dnull t dstate vtyp0 path src))
-      (comment "Serialize NULL" (Ser.snull t sstate vtyp0 path dst))
+      (comment "Desserialize NULL" (Des.dnull t dstate mn0 path src))
+      (comment "Serialize NULL" (Ser.snull t sstate mn0 path dst))
 
-  let dsnotnull t sstate dstate vtyp0 path src dst =
+  let dsnotnull t sstate dstate mn0 path src dst =
     let open Ops in
     pair
-      (comment "Desserialize NonNull" (Des.dnotnull t dstate vtyp0 path src))
-      (comment "Serialize NonNull" (Ser.snotnull t sstate vtyp0 path dst))
+      (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path src))
+      (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path dst))
 
-  let rec dstup vtyps transform sstate dstate vtyp0 path src_dst =
+  let rec dstup mns transform sstate dstate mn0 path src_dst =
     let open Ops in
     let src_dst = comment "Convert a Tuple"
       (with_sploded_pair "dstup1" src_dst (fun src dst ->
         pair
-          (Des.tup_opn dstate vtyp0 path vtyps src)
-          (Ser.tup_opn sstate vtyp0 path vtyps dst))) in
+          (Des.tup_opn dstate mn0 path mns src)
+          (Ser.tup_opn sstate mn0 path mns dst))) in
     let src_dst =
-      BatArray.fold_lefti (fun src_dst i _vtyp ->
+      BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Pervasives.string_of_int i)
           (let subpath = path_append i path in
           if i = 0 then
-            desser_ transform sstate dstate vtyp0 subpath src_dst
+            desser_ transform sstate dstate mn0 subpath src_dst
           else
             let src_dst =
               with_sploded_pair "dstup2" src_dst (fun src dst ->
                 pair
-                  (Des.tup_sep i dstate vtyp0 path src)
-                  (Ser.tup_sep i sstate vtyp0 path dst)) in
-            desser_ transform sstate dstate vtyp0 subpath src_dst)
-      ) src_dst vtyps in
+                  (Des.tup_sep i dstate mn0 path src)
+                  (Ser.tup_sep i sstate mn0 path dst)) in
+            desser_ transform sstate dstate mn0 subpath src_dst)
+      ) src_dst mns in
     with_sploded_pair "dstup3" src_dst (fun src dst ->
       pair
-        (Des.tup_cls dstate vtyp0 path src)
-        (Ser.tup_cls sstate vtyp0 path dst))
+        (Des.tup_cls dstate mn0 path src)
+        (Ser.tup_cls sstate mn0 path dst))
 
-  and dsrec vtyps transform sstate dstate vtyp0 path src_dst =
+  and dsrec mns transform sstate dstate mn0 path src_dst =
     let open Ops in
     let src_dst =
       with_sploded_pair "dsrec1" src_dst (fun src dst ->
         pair
-          (Des.rec_opn dstate vtyp0 path vtyps src)
-          (Ser.rec_opn sstate vtyp0 path vtyps dst)) in
+          (Des.rec_opn dstate mn0 path mns src)
+          (Ser.rec_opn sstate mn0 path mns dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
             (let subpath = path_append i path in
             if i = 0 then
-              desser_ transform sstate dstate vtyp0 subpath src_dst
+              desser_ transform sstate dstate mn0 subpath src_dst
             else
               let src_dst =
                 with_sploded_pair "dsrec2" src_dst (fun src dst ->
                   pair
-                    (Des.rec_sep name dstate vtyp0 path src)
-                    (Ser.rec_sep name sstate vtyp0 path dst)) in
-              desser_ transform sstate dstate vtyp0 subpath src_dst)
-      ) src_dst vtyps in
+                    (Des.rec_sep name dstate mn0 path src)
+                    (Ser.rec_sep name sstate mn0 path dst)) in
+              desser_ transform sstate dstate mn0 subpath src_dst)
+      ) src_dst mns in
     let src_dst = comment "Convert a Record" src_dst in
     with_sploded_pair "dsrec3" src_dst (fun src dst ->
       pair
-        (Des.rec_cls dstate vtyp0 path src)
-        (Ser.rec_cls sstate vtyp0 path dst))
+        (Des.rec_cls dstate mn0 path src)
+        (Ser.rec_cls sstate mn0 path dst))
 
   (* This will generates a long linear code with one block per array
    * item, which should be ok since vector dimension is expected to be small.
    * TODO: use one of the loop expressions instead if the dimension is large *)
-  and dsvec dim vtyp transform sstate dstate vtyp0 path src_dst =
+  and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open Ops in
     let src_dst =
       with_sploded_pair "dsvec1" src_dst (fun src dst ->
         pair
-          (Des.vec_opn dstate vtyp0 path dim vtyp src)
-          (Ser.vec_opn sstate vtyp0 path dim vtyp dst)) in
+          (Des.vec_opn dstate mn0 path dim mn src)
+          (Ser.vec_opn sstate mn0 path dim mn dst)) in
     let rec loop src_dst i =
       (* Not really required to keep the actual index, as all indices share the
        * same type, but helps with debugging: *)
@@ -315,8 +315,8 @@ struct
       if i >= dim then
         with_sploded_pair "dsvec2" src_dst (fun src dst ->
           pair
-            (Des.vec_cls dstate vtyp0 path src)
-            (Ser.vec_cls sstate vtyp0 path dst))
+            (Des.vec_cls dstate mn0 path src)
+            (Ser.vec_cls sstate mn0 path dst))
       else (
         let src_dst =
           if i = 0 then
@@ -324,23 +324,23 @@ struct
           else
             with_sploded_pair "dsvec3" src_dst (fun src dst ->
               pair
-                (Des.vec_sep i dstate vtyp0 path src)
-                (Ser.vec_sep i sstate vtyp0 path dst)) in
+                (Des.vec_sep i dstate mn0 path src)
+                (Ser.vec_sep i sstate mn0 path dst)) in
         (* FIXME: comment is poorly located: *)
         let src_dst =
           comment ("Convert field #"^ Pervasives.string_of_int i)
-            (desser_ transform sstate dstate vtyp0 subpath src_dst) in
+            (desser_ transform sstate dstate mn0 subpath src_dst) in
         loop src_dst (i + 1)
       )
     in
     let what =
       Printf.sprintf2 "Convert a vector of %d %a"
-        dim print_maybe_nullable vtyp in
+        dim print_maybe_nullable mn in
     comment what (loop src_dst 0)
 
-  and dslist vtyp transform sstate dstate vtyp0 path src_dst =
+  and dslist mn transform sstate dstate mn0 path src_dst =
     let open Ops in
-    let pair_ptrs = TPair (Des.ptr vtyp0, Ser.ptr vtyp0) in
+    let pair_ptrs = TPair (Des.ptr mn0, Ser.ptr mn0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     let subpath = path_append 0 path in
@@ -386,9 +386,9 @@ struct
         let src_dst =
           match Des.list_opn with
           | KnownSize list_opn ->
-              let dim_src = list_opn dstate vtyp0 path vtyp src in
+              let dim_src = list_opn dstate mn0 path mn src in
               with_sploded_pair "dslist2" dim_src (fun dim src ->
-                let dst = Ser.list_opn sstate vtyp0 path vtyp (Some dim) dst in
+                let dst = Ser.list_opn sstate mn0 path mn (Some dim) dst in
                 repeat ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
                     (func2 T.i32 pair_ptrs (fun n src_dst ->
@@ -398,20 +398,20 @@ struct
                           src_dst
                           (with_sploded_pair "dslist3" src_dst (fun psrc pdst ->
                             pair
-                              (Des.list_sep dstate vtyp0 path psrc)
-                              (Ser.list_sep sstate vtyp0 path pdst))) in
-                      desser_ transform sstate dstate vtyp0 subpath src_dst)))
+                              (Des.list_sep dstate mn0 path psrc)
+                              (Ser.list_sep sstate mn0 path pdst))) in
+                      desser_ transform sstate dstate mn0 subpath src_dst)))
                   ~init:(pair src dst))
           | UnknownSize (list_opn, end_of_list) ->
               let t_fst_src_dst = TPair (T.bool, pair_ptrs) in
-              let src = list_opn dstate vtyp0 path vtyp src in
-              let dst = Ser.list_opn sstate vtyp0 path vtyp None dst in
+              let src = list_opn dstate mn0 path mn src in
+              let dst = Ser.list_opn sstate mn0 path mn None dst in
               let fst_src_dst =
                 loop_while
                   ~cond:(comment "Test end of list"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
                       let src_dst = secnd fst_src_dst in
-                      not_ (end_of_list dstate vtyp0 path (first src_dst)))))
+                      not_ (end_of_list dstate mn0 path (first src_dst)))))
                   ~body:(comment "Convert a list item"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
                       with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
@@ -421,18 +421,18 @@ struct
                             src_dst
                             (with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
                               pair
-                                (Des.list_sep dstate vtyp0 path psrc)
-                                (Ser.list_sep sstate vtyp0 path pdst))) in
+                                (Des.list_sep dstate mn0 path psrc)
+                                (Ser.list_sep sstate mn0 path pdst))) in
                         pair
                           (bool false)
-                          (desser_ transform sstate dstate vtyp0 subpath src_dst)))))
+                          (desser_ transform sstate dstate mn0 subpath src_dst)))))
                   ~init:(pair (bool true) (pair src dst)) in
               secnd fst_src_dst
         in
         with_sploded_pair "dslist6" src_dst (fun src dst ->
           pair
-            (Des.list_cls dstate vtyp0 path src)
-            (Ser.list_cls sstate vtyp0 path dst))))
+            (Des.list_cls dstate mn0 path src)
+            (Ser.list_cls sstate mn0 path dst))))
 
   and desser_value_type = function
     | Mac TFloat -> dsfloat
@@ -457,41 +457,41 @@ struct
     | Mac TU56 -> dsu56
     | Mac TU64 -> dsu64
     | Mac TU128 -> dsu128
-    | Usr t -> desser_value_type t.def
-    | TTup vtyps -> dstup vtyps
-    | TRec vtyps -> dsrec vtyps
-    | TVec (dim, vtyp) -> dsvec dim vtyp
-    | TList vtyp -> dslist vtyp
+    | Usr vt -> desser_value_type vt.def
+    | TTup mns -> dstup mns
+    | TRec mns -> dsrec mns
+    | TVec (dim, mn) -> dsvec dim mn
+    | TList mn -> dslist mn
     | TMap _ -> assert false (* No value of map type *)
 
-  and desser_ transform sstate dstate vtyp0 path src_dst =
+  and desser_ transform sstate dstate mn0 path src_dst =
     let open Ops in
-    let vtyp = type_of_path vtyp0 path in
-    match vtyp with
-    | Nullable t ->
+    let mn = type_of_path mn0 path in
+    match mn with
+    | Nullable vt ->
         with_sploded_pair "desser_" src_dst (fun src dst ->
-          let cond = Des.is_null dstate vtyp0 path src in
+          let cond = Des.is_null dstate mn0 path src in
           (* Des can use [is_null] to prepare for a nullable, but Ser might also
            * have some work to do: *)
-          let dst = Ser.nullable sstate vtyp0 path dst in
+          let dst = Ser.nullable sstate mn0 path dst in
           (* XXX WARNING XXX
            * if any of dnull/snull/snotnull/etc update the state, they will
            * do so in both branches of this alternative. *)
           choose ~cond
-            (dsnull t sstate dstate vtyp0 path src dst)
-            (dsnotnull t sstate dstate vtyp0 path src dst |>
-             desser_value_type t transform sstate dstate vtyp0 path ))
-    | NotNullable t ->
-        desser_value_type t transform sstate dstate vtyp0 path src_dst
+            (dsnull vt sstate dstate mn0 path src dst)
+            (dsnotnull vt sstate dstate mn0 path src dst |>
+             desser_value_type vt transform sstate dstate mn0 path ))
+    | NotNullable vt ->
+        desser_value_type vt transform sstate dstate mn0 path src_dst
 
-  let desser vtyp0 ?transform src dst =
-    let no_transform _vtyp0 _path v = v in
+  let desser mn0 ?transform src dst =
+    let no_transform _mn0 _path v = v in
     let transform = transform |? no_transform in
     let open Ops in
-    let sstate, dst = Ser.start vtyp0 dst
-    and dstate, src = Des.start vtyp0 src in
+    let sstate, dst = Ser.start mn0 dst
+    and dstate, src = Des.start mn0 src in
     let src_dst = pair src dst in
-    let src_dst = desser_ transform sstate dstate vtyp0 [] src_dst in
+    let src_dst = desser_ transform sstate dstate mn0 [] src_dst in
     with_sploded_pair "desser" src_dst (fun src dst ->
       pair
         (Des.stop dstate src)
