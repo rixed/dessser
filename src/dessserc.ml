@@ -68,94 +68,10 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
   Printf.printf "declarations in %S\n" decl_fname ;
   Printf.printf "definitions in %S\n" def_fname
 
-let convert_main_for_cpp =
-  format_of_string {|
-static std::string readWholeFile(std::string const fname)
-{
-  std::ifstream t(fname);
-  std::string str(std::istreambuf_iterator<char>(t),
-                  (std::istreambuf_iterator<char>()));
-  return str;
-}
-
-int main(int numArgs, char **args)
-{
-  char const *fname = "/dev/stdin";
-  char delim = '\n';
-
-  for (int a = 1; a < numArgs; a++) {
-    if (a < numArgs - 1 && (
-          0 == strcasecmp(args[a], "--delim") ||
-          0 == strcasecmp(args[a], "-d")
-        )) {
-      delim = args[a+1][0];
-    } else {
-      fname = args[a];
-    }
-  }
-
-  std::string input = readWholeFile(fname);
-  Pointer src(input);
-
-  while (src.rem() > 0) {
-    Size outSz(1024);
-    Pointer dst(outSz);
-
-    Pair<Pointer, Pointer> ptrs = %s(src, dst);
-
-    // Print serialized:
-    assert(ptrs.v2.offset < ptrs.v2.size-1);
-    if (ptrs.v2.buffer) {
-      fwrite(ptrs.v2.buffer.get(), 1, ptrs.v2.offset, stdout);
-      if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
-    } // else it's a heap value
-
-    src = ptrs.v1;
-  }
-
-  return 0;
-}
-|}
-
-let convert_main_for_ocaml =
-  format_of_string {|
-let read_whole_file fname =
-  File.with_file_in ~mode:[`text] fname IO.read_all
-
-let () =
-  let fname = ref "/dev/stdin" in
-  let delim = ref '\n' in
-  Array.iteri (fun i arg ->
-    if i < Array.length Sys.argv - 1 && (
-         String.icompare arg "--delim" = 0 ||
-         String.icompare arg "-d" = 0
-       ) then
-      delim := Sys.argv.(i + 1).[0]
-    else if i > 0 then
-      fname := arg
-  ) Sys.argv ;
-
-  let input = read_whole_file !fname in
-  let src = Pointer.of_string input in
-
-  let rec loop src =
-    if Pointer.remSize src <= 0 then src else (
-      let sz = 1024 in
-      let dst = Pointer.make sz in
-      let src, dst = %s src dst in
-      let b, o, l = dst in
-      assert (o < l) ;
-      String.print stdout (Bytes.sub_string b 0 o) ;
-      Char.print stdout !delim ;
-      flush stdout ;
-      loop src
-    ) in
-  loop src |> ignore
-|}
-
-let convert_main_for ext =
-  if ext = "cc" then convert_main_for_cpp
-  else convert_main_for_ocaml
+let convert_main_for ext entry_point =
+  (if ext = "cc" then DessserDSTools_FragmentsCPP.converter
+                 else DessserDSTools_FragmentsOCaml.converter)
+    entry_point
 
 let target_converter schema backend encoding_in encoding_out dest_fname =
   let module BE = (val backend : BACKEND) in
@@ -172,7 +88,7 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   write_source ~src_fname:def_fname (fun oc ->
     BE.print_definitions state oc ;
-    Printf.fprintf oc (convert_main_for BE.preferred_def_extension) convert_id
+    String.print oc (convert_main_for BE.preferred_def_extension convert_id)
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
