@@ -46,7 +46,7 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
     (* convert from a heapvalue into encoding_out. *)
     func2 (TValuePtr schema) TDataPtr (fun vptr dst ->
       let src_dst = OfValue.desser schema vptr dst in
-      snd src_dst) in
+      secnd src_dst) in
   if debug then (
     type_check [] convert ;
     type_check [] to_value ;

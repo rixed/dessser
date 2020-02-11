@@ -41,7 +41,7 @@ let tuple_typs_of_record mns =
   let mns =
     Array.filter (fun (name, _typ) -> not (is_private name)) mns in
   Array.fast_sort record_field_cmp mns ;
-  Array.map Pervasives.snd mns
+  Array.map snd mns
 
 (* We use a stack of "frames" at pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
@@ -167,7 +167,7 @@ struct
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
-    fst p_stk
+    first p_stk
 
   type ser = state -> maybe_nullable -> path -> e -> e -> e
 
@@ -544,7 +544,7 @@ struct
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
-    fst p_stk
+    first p_stk
 
   type des = state -> maybe_nullable -> path -> e -> e
 
@@ -745,7 +745,7 @@ struct
     (* TODO: assert stk <> end_of_list *)
     (* Do not advance the nullbit index as it's already done on a per
      * value basis: *)
-    with_sploded_pair "is_null2" (head (snd p_stk)) (fun p bi ->
+    with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
       let1 (not_ (bool_of_bit (get_bit p bi))) (fun b ->
         seq [ debug (string "des: get nullbit at ") ;
               debug (string_of_int bi) ;

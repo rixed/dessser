@@ -92,7 +92,7 @@ let () =
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
                     let src_dst' = DS2.desser typ valueptr dst in
-                    pair src (snd src_dst')) ])))))
+                    pair src (secnd src_dst')) ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in

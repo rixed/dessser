@@ -410,8 +410,8 @@ struct
                 loop_while
                   ~cond:(comment "Test end of list"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
-                      let src_dst = snd fst_src_dst in
-                      not_ (end_of_list dstate vtyp0 path (fst src_dst)))))
+                      let src_dst = secnd fst_src_dst in
+                      not_ (end_of_list dstate vtyp0 path (first src_dst)))))
                   ~body:(comment "Convert a list item"
                     (func1 t_fst_src_dst (fun fst_src_dst ->
                       with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
@@ -427,7 +427,7 @@ struct
                           (bool false)
                           (desser_ transform sstate dstate vtyp0 subpath src_dst)))))
                   ~init:(pair (bool true) (pair src dst)) in
-              snd fst_src_dst
+              secnd fst_src_dst
         in
         with_sploded_pair "dslist6" src_dst (fun src dst ->
           pair

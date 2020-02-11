@@ -31,8 +31,8 @@ struct
         ~reduce:(comment "Reducer for read_leb128"
           (func2 t_u32_u8 T.byte (fun leb_shft b ->
             let byte = log_and (u8_of_byte b) (u8 127) in
-            let leb = fst leb_shft
-            and shft = snd leb_shft in
+            let leb = first leb_shft
+            and shft = secnd leb_shft in
             pair (add  (left_shift (to_u32 byte) shft) leb)
                  (add shft (u8 7)))))
         ~init:(pair (u32 Uint32.zero) (u8 0))
@@ -43,8 +43,8 @@ struct
           with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->
             pair
               (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))
-                                            (snd leb_shft))
-                                (fst leb_shft)))
+                                            (secnd leb_shft))
+                                (first leb_shft)))
               ptr))))
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
@@ -191,7 +191,7 @@ struct
   (* v must be a u32: *)
   let write_leb128 p v =
     let t_ptr_sz = TPair (TDataPtr, T.u32) in
-    fst (
+    first (
       loop_until
         ~body:(comment "Loop body for write_leb128"
           (func1 t_ptr_sz (fun p_wlen ->
@@ -205,7 +205,7 @@ struct
                 (write_byte p b)
                 (right_shift wlen (u8 7))))))
         ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
-          (func1 t_ptr_sz (fun ptr_sz -> gt (snd ptr_sz) (u32 Uint32.zero))))
+          (func1 t_ptr_sz (fun ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
         ~init:(pair p v))
 
   let sstring () _ _ v p =
@@ -327,7 +327,7 @@ struct
 
   let ssize_of_leb128 n =
     let t_u32_u32 = TPair (T.u32, T.u32) in
-    size_of_u32 (fst (
+    size_of_u32 (first (
       loop_while
         ~cond:(comment "Condition for ssize_of_leb128"
           (func1 t_u32_u32 (fun lebsz_n ->

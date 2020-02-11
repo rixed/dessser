@@ -575,7 +575,7 @@ let rec sexpr_of_vtyp_gen vtyp =
   | TTup mns ->
       tup_gen mns
   | TRec mns ->
-      tup_gen (Array.map Pervasives.snd mns)
+      tup_gen (Array.map snd mns)
   | TMap (k, v) ->
       sexpr_of_vtyp_gen (TList (NotNullable (TTup [| k ; v |])))
 
