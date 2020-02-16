@@ -404,6 +404,8 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s" n)
     | E1 (ListOfSList, e1) ->
         method_call e1 "toList" []
+    | E1 (ListOfSListRev, e1) ->
+        method_call e1 "toListRev" []
     | E2 (AppendByte, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

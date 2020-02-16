@@ -40,7 +40,7 @@ struct SList {
     return cells->next;
   }
 
-  // For debugging:
+  // FIXME: need to be faster so store the length in the cell:
   size_t length() const
   {
     if (empty()) return 0;
@@ -52,6 +52,16 @@ struct SList {
     List<T> l;
     for (SList<T> const &sl = this; !sl.empty(); sl.cells->next) {
       l.push_back(sl.head());
+    }
+  }
+
+  List<T> toListRev() const
+  {
+    List<T> l;
+    size_t i = length();
+    l.resize(i);
+    for (SList<T> const &sl = this; !sl.empty(); sl.cells->next) {
+      l[--i] = sl.head();
     }
   }
 };

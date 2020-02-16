@@ -149,6 +149,7 @@ type e1 =
   | BitOfBool
   | BoolOfBit
   | ListOfSList
+  | ListOfSListRev
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
@@ -369,6 +370,7 @@ let string_of_e1 = function
   | BitOfBool -> "bit-of-bool"
   | BoolOfBit -> "bool-of-bit"
   | ListOfSList -> "list-of-slist"
+  | ListOfSListRev -> "list-of-slist-rev"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -747,6 +749,7 @@ struct
       | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
       | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
       | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
+      | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
       | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
       | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
       | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
@@ -1019,7 +1022,7 @@ let rec type_of l e0 =
   | E1 (U32OfSize, _) -> u32
   | E1 (BitOfBool, _) -> bit
   | E1 (BoolOfBit, _) -> bool
-  | E1 (ListOfSList, e) ->
+  | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e with
       | TSList (TValue mn) -> TValue (NotNullable (TList mn))
       | t -> raise (Type_error (e0, e, t, "be a slist of maybe nullable values")))
@@ -1375,7 +1378,7 @@ let rec type_check l e =
         check_eq l e bool
     | E1 (BoolOfBit, e) ->
         check_eq l e bit
-    | E1 (ListOfSList, e) ->
+    | E1 ((ListOfSList | ListOfSListRev), e) ->
         check_slist_of_maybe_nullable l e
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 bytes ;
@@ -1814,6 +1817,7 @@ struct
   let make_vec es = E0S (MakeVec, es)
   let make_list es = E0S (MakeList, es)
   let list_of_slist e1 = E1 (ListOfSList, e1)
+  let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let make_tup es = E0S (MakeTup, es)
   let make_rec es = E0S (MakeRec, es)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)

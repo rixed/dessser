@@ -9,6 +9,24 @@ let option_get = function
 
 let string_of_char c = String.make 1 c
 
+let array_of_list_rev l =
+  let a = Array.of_list l in
+  let len = Array.length a in
+  for i = 0 to len/2 - 1 do
+    let tmp = a.(i) in
+    let j = len - i - 1 in
+    a.(i) <- a.(j) ;
+    a.(j) <- tmp
+  done ;
+  a
+
+(*$= array_of_list_rev & ~printer:(BatIO.to_string (Array.print Int.print))
+  [||] (array_of_list_rev [])
+  [|1|] (array_of_list_rev [1])
+  [| 2;1 |] (array_of_list_rev [ 1;2 ])
+  [| 3;2;1 |] (array_of_list_rev [ 1;2;3 ])
+*)
+
 exception NotImplemented of string
 (* Parameter is the minimum length of the missing part: *)
 exception NotEnoughInput of { offset : int ; missing : int }

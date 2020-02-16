@@ -57,7 +57,7 @@ struct
                       pair (cons v inits) src))))
               ~init:(pair (end_of_list init_t) src)) in
           with_sploded_pair "dlist4" inits_src (fun inits src ->
-            pair (list_of_slist inits) src)
+            pair (list_of_slist_rev inits) src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let fst_inits_src_t = TPair (T.bool, inits_src_t) in
         let src = list_opn dstate mn0 path mn src in
@@ -82,7 +82,7 @@ struct
                     pair (bool false) inits_src))))
             ~init:(pair (bool true) (pair (end_of_list init_t) src)) in
         with_sploded_pair "dlist9" (secnd fst_inits_src) (fun inits src ->
-          pair (list_of_slist inits) src)
+          pair (list_of_slist_rev inits) src)
 
   and dtup mns dstate mn0 path src =
     let src = Des.tup_opn dstate mn0 path mns src in

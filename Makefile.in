@@ -192,7 +192,8 @@ TESTABLE_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/BackEndCPP.ml \
-	src/DessserQCheck.ml
+	src/DessserQCheck.ml \
+	src/DessserOCamlBackendHelpers.ml
 
 LINKED_FOR_TESTS = \
 	src/DessserFloatTools.ml \
@@ -203,6 +204,7 @@ LINKED_FOR_TESTS = \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
 	src/DessserDSTools.ml \
+	src/DessserOCamlBackendHelpers.ml \
 	src/BackEndCLike.ml \
 	src/BackEndCPP.ml \
 	src/BackEndOCaml.ml \

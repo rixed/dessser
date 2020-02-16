@@ -532,6 +532,8 @@ struct
         unary_op "Uint32.of_int" e1
     | E1 (ListOfSList, e1) ->
         unary_op "Array.of_list" e1
+    | E1 (ListOfSListRev, e1) ->
+        unary_op "array_of_list_rev" e1
     | E1 (ToU8, e1) ->
         let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint8") e1

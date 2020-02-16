@@ -752,4 +752,5 @@ let sexpr mn =
 *)
 (*$= check_heapvalue & ~printer:identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
+  "3 (1 2 3)" (check_heapvalue ocaml_be "U16[]" "3 (1 2 3)")
 *)
