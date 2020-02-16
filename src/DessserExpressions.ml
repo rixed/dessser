@@ -1211,12 +1211,12 @@ let rec type_check l e =
           TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128))) -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let check_param fe n act exp =
-      if act <> exp then
+      if not (typ_eq act exp) then
         let expected = IO.to_string print_typ act in
         raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
     let check_eq l e exp =
       let act = type_of l e in
-      if act <> exp then
+      if not (typ_eq act exp) then
         let expected = IO.to_string print_typ exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
     let check_same_types l e1 e2 =
