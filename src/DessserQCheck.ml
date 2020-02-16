@@ -24,7 +24,8 @@ let tiny_int =
   Gen.int_range 1 10
 
 let tiny_array gen =
-  Gen.(array_size (int_range 1 5) gen)
+  (* Used for tuple/record arguments so must be longer than 2 *)
+  Gen.(array_size (int_range 2 5) gen)
 
 let tiny_list gen =
   Gen.(list_size (int_range 1 5) gen)
