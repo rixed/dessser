@@ -61,16 +61,6 @@ type e0 =
   | OWord of Uint128.t
   | DataPtrOfString of string
   | DataPtrOfBuffer of int
-  (* To build heap values: *)
-  (* Allocate a default values value.
-   * For backends that can alloc uninitialized values:
-   *   Will define the type, then alloc an uninitialized value of that
-   *   type and return an identifier for it. Fields will be initialized
-   *   as serialization progresses.
-   * For backends that can not alloc uninitialized values:
-   *   Will define the type, then make up a name and return it. Construction
-   *   and allocation will happen as the serialize progresses. *)
-  | AllocValue of maybe_nullable
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -86,8 +76,6 @@ type e0s =
 type e1 =
   | Function of (*function id*) int * (*args*) typ array
   | Comment of string
-  | FieldIsNull of path
-  | GetField of path
   | GetItem of int (* for tuples *)
   | GetField_ of string (* For records *)
   | Dump
@@ -174,8 +162,6 @@ type e1 =
   | RemSize
   | DataPtrOffset
   | Not
-  (* Get the value pointed by a valueptr: *)
-  | DerefValuePtr
   (* WARNING: never use Fst and Snd on the same expression or that expression
    * will be computed twice!
    * Instead, use MapPair or Let *)
@@ -190,9 +176,6 @@ type e1 =
 
 type e2 =
   | Let of string
-  (* Set a field. There is no control that the field type match the type at
-   * this location. *)
-  | SetField of path
   | Coalesce
   (* Deconstructor for vectors/lists: *)
   | Nth
@@ -264,8 +247,6 @@ let rec e0_eq e1 e2 =
       value_type_eq vt1 vt2
   | EndOfList t1, EndOfList t2 ->
       typ_eq t1 t2
-  | AllocValue mn1, AllocValue mn2 ->
-      maybe_nullable_eq mn1 mn2
   | e1, e2 ->
       (* Assuming here and below that when the constructors are different
        * the generic equality does not look t the fields and therefore won't
@@ -319,8 +300,6 @@ let string_of_e1 = function
       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
         Printf.fprintf oc "%S" (IO.to_string print_typ t))) typs
   | Comment s -> "comment "^ String.quote s
-  | FieldIsNull p -> "field-is-null "^ string_of_path p
-  | GetField p -> "get-field "^ string_of_path p
   | GetItem n -> "get-item "^ string_of_int n
   | GetField_ s -> "get-field_ "^ String.quote s
   | Dump -> "dump"
@@ -402,7 +381,6 @@ let string_of_e1 = function
   | RemSize -> "rem-size"
   | DataPtrOffset -> "data-ptr-offset"
   | Not -> "not"
-  | DerefValuePtr -> "deref-value-ptr"
   | Fst -> "fst"
   | Snd -> "snd"
   | Head -> "head"
@@ -414,7 +392,6 @@ let string_of_e1 = function
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
-  | SetField p -> "set-field "^ string_of_path p
   | Coalesce -> "coalesce"
   | Nth -> "nth"
   | Gt -> "gt"
@@ -502,8 +479,6 @@ let rec string_of_e0 = function
   | OWord n -> "oword "^ Uint128.to_string n
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
   | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
-  | AllocValue mn ->
-      "alloc-value "^ String.quote (IO.to_string print_maybe_nullable mn)
   | Identifier s -> "identifier "^ String.quote s
 
 (* Display in a single line to help with tests. TODO: pretty_print_expr *)
@@ -680,8 +655,6 @@ struct
       | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
       | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
           E0 (DataPtrOfBuffer (int_of_string n))
-      | Lst [ Sym "alloc-value" ; Str mn ] ->
-          E0 (AllocValue (Parser.maybe_nullable_of_string mn))
       | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
       (* e0s *)
       | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
@@ -703,10 +676,6 @@ struct
           E1 (Function (int_of_string fid, typs), e x)
       | Lst [ Sym "comment" ; Str s ; x ] ->
           E1 (Comment s, e x)
-      | Lst [ Sym "field-is-null" ; Sym p ; x ] ->
-          E1 (FieldIsNull (path_of_string p), e x)
-      | Lst [ Sym "get-field" ; Sym p ; x ] ->
-          E1 (GetField (path_of_string p), e x)
       | Lst [ Sym "get-item" ; Sym n ; x ] ->
           E1 (GetItem (int_of_string n), e x)
       | Lst [ Sym "get-field_" ; Str s ; x ] ->
@@ -790,7 +759,6 @@ struct
       | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
       | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
       | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
-      | Lst [ Sym "deref-value-ptr" ; x ] -> E1 (DerefValuePtr, e x)
       | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
       | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
       | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
@@ -805,8 +773,6 @@ struct
           E1 (ReadOWord (endianness_of_string en), e x)
       (* e2 *)
       | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
-      | Lst [ Sym "set-field" ; Sym p ; x1 ; x2 ] ->
-          E2 (SetField (path_of_string p), e x1, e x2)
       | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
       | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
       | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
@@ -877,7 +843,6 @@ struct
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
     [ Ops.null T.(Mac TString) ] (expr "(null \"string\")")
-    [ Ops.alloc_value T.(Nullable (Mac TU24)) ] (expr "(alloc-value \"U24?\")")
     [ Ops.i56 (-1567305629568954678L) ] (expr "(i56 -1567305629568954678)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
@@ -904,13 +869,8 @@ let field_name_of_expr = function
   | E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
-let rec vtype_of_valueptr e0 l e =
-  match type_of l e with
-  | TValuePtr vt -> vt
-  | t -> raise (Type_error (e0, e, t, "be a ValuePtr"))
-
 (* [e] must have been type checked already: *)
-and type_of l e0 =
+let rec type_of l e0 =
   let maybe_nullable_of l e =
     type_of l e |> to_maybe_nullable in
   match e0 with
@@ -1122,14 +1082,6 @@ and type_of l e0 =
   | E1 (ToI64, _) -> i64
   | E1 (ToU128, _) -> u128
   | E1 (ToI128, _) -> i128
-  | E0 (AllocValue mn) -> valueptr mn
-  | E1 (DerefValuePtr, e) ->
-      TValue (vtype_of_valueptr e0 l e)
-  | E2 (SetField _, e1, _) -> type_of l e1
-  | E1 (FieldIsNull _, _) -> bool
-  | E1 (GetField path, e) ->
-      let vt = vtype_of_valueptr e0 l e in
-      TValue (type_of_path vt path)
   | E2 (Cons, e1, _e2) ->
       slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
@@ -1310,33 +1262,6 @@ let rec type_check l e =
       match type_of l e with
       | TFunction ([|t1; t2|], t3) -> f t1 t2 t3
       | t -> bad_arity 2 e t in
-    let check_valueptr l e  =
-      match type_of l e with
-      | TValuePtr _ -> ()
-      | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
-    let check_valueptr_path_same_types l e1 path e2 =
-      match type_of l e1 with
-      | TValuePtr vt ->
-          let exp = TValue (type_of_path vt path) in
-          check_eq l e2 exp
-      | t -> raise (Type_error (e0, e1, t, "be a ValuePtr")) in
-    let check_valueptr_path l e path =
-      match type_of l e with
-      | TValuePtr vt ->
-          (try ignore (type_of_path vt path)
-          with _ ->
-            let s = IO.to_string print_maybe_nullable vt in
-            raise (Type_error_path (e0, e, path, "stay within "^ s)))
-      | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
-    let check_valueptr_path_nullable l e path nullable =
-      match type_of l e with
-      | TValuePtr vt ->
-          let vt = type_of_path vt path in
-          let act = is_nullable vt in
-          if act <> nullable then
-            let expected = (if nullable then "" else "not") ^" nullable" in
-            raise (Type_error_path (e0, e, path, "be "^ expected))
-      | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
     let check_slist_of_maybe_nullable l e =
       match type_of l e with
       | TSList (TValue (NotNullable _)) -> ()
@@ -1347,7 +1272,7 @@ let rec type_check l e =
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-         | DataPtrOfString _ | DataPtrOfBuffer _ | AllocValue _
+         | DataPtrOfString _ | DataPtrOfBuffer _
          | Identifier _| Param _)
     | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
@@ -1513,14 +1438,6 @@ let rec type_check l e =
     | E2 ((And | Or), e1, e2) ->
         check_eq l e1 bool ;
         check_eq l e2 bool
-    | E1 (DerefValuePtr, e1) ->
-        check_valueptr l e1
-    | E2 (SetField path, e1, e2) ->
-        check_valueptr_path_same_types l e1 path e2
-    | E1 (FieldIsNull path, e) ->
-        check_valueptr_path_nullable l e path true
-    | E1 (GetField path, e) ->
-        check_valueptr_path l e path
     | E1 (GetItem _, _)
     | E1 (GetField_ _, _) ->
         ignore (type_of l e) (* everything checks already performed in [type_of] *)
@@ -1683,23 +1600,7 @@ let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
                         (E0 (Identifier n3)))))
 
 (*$< DessserTypes *)
-(*$inject
-  let vptr = TValuePtr (Nullable (Mac TString))
-  let func2 =
-    let open Ops in
-    E1 (Function (14, [|vptr; TDataPtr|]),
-      let_ "gen9_ds_0" (get_field [] (param 14 0))
-        (let_ "gen9_ds_1" (param 14 0)
-          (pair (identifier "gen9_ds_1")
-                (comment "Serialize a String"
-                  (write_byte
-                    (write_bytes
-                      (write_byte (param 14 1) (byte_of_const_char '"'))
-                      (bytes_of_string (to_not_nullable (identifier "gen9_ds_0"))))
-                    (byte_of_const_char '"'))))))
-*)
 (*$= type_of & ~printer:(IO.to_string print_typ)
-  (TFunction ([|vptr; TDataPtr|], TPair (vptr, TDataPtr))) (type_of [] func2)
   (TPair (u24, TDataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
 *)
 
@@ -1906,11 +1807,8 @@ struct
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let to_nullable e1 = E1 (ToNullable, e1)
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
-  let set_field p e1 e2 = E2 (SetField p, e1, e2)
-  let get_field p e1 = E1 (GetField p, e1)
   let get_item n e1 = E1 (GetItem n, e1)
   let get_field_ s e1 = E1 (GetField_ s, e1)
-  let field_is_null p e1 = E1 (FieldIsNull p, e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
@@ -1918,7 +1816,6 @@ struct
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let make_tup es = E0S (MakeTup, es)
   let make_rec es = E0S (MakeRec, es)
-  let alloc_value mn = E0 (AllocValue mn)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)

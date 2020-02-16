@@ -84,7 +84,6 @@ struct
           ) args ^">"
     | TVoid -> "void"
     | TDataPtr -> "Pointer"
-    | TValuePtr vt -> type_identifier p (TValue vt) ^"*"
     | TSize -> "Size"
     | TBit -> "bool"
     | TByte -> "uint8_t"
@@ -511,11 +510,6 @@ struct
         shortcutting_binary_infix_op e1 e2 true
     | E1 (Not, e1) ->
         unary_op "!" e1
-    | E0 (AllocValue vtyp) ->
-        let tn = type_identifier p (TValue vtyp) in
-        emit ?name p l e (fun oc -> Printf.fprintf oc "new %s" tn)
-    | E1 (DerefValuePtr, e1) ->
-        print ?name emit p l e1
     | E0 (EndOfList _) ->
         (* Default constructor cannot be called with no-args as that would
          * not be C++ish enough: *)
@@ -658,29 +652,6 @@ struct
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
         pp p.def "%s}\n" p.indent ;
         res
-    | E2 (SetField path, e1, e2) ->
-        let ptr = print ?name emit p l e1
-        and v = print emit p l e2 in
-        (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path ("(*"^ ptr ^")") vt path in
-            ppi p.def "%s = %s;" a v ;
-            ptr
-        | _ -> assert false)
-    | E1 (FieldIsNull path, e1) ->
-        let ptr = print emit p l e1 in
-        (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path ("(*"^ ptr ^")") vt path in
-            emit ?name p l e (fun oc -> pp oc "!%s.has_value()" a)
-        | _ -> assert false)
-    | E1 (GetField path, e1) ->
-        let ptr = print emit p l e1 in
-        (match type_of l e1 with
-        | TValuePtr vt ->
-            let a = deref_path ("(*"^ ptr ^")") vt path in
-            emit ?name p l e (fun oc -> pp oc "%s" a)
-        | _ -> assert false)
     | E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -721,29 +692,3 @@ struct
 end
 
 include BackEndCLike.Make (Config)
-
-(*$inject
-  open Batteries
-  open DessserTypes
-  open DessserExpressions
-  open Dessser
-  open DessserTools
-  open DessserDSTools *)
-
-(*$R
-  let e = List.hd (Parser.expr "(alloc-value \"{crfgfc: U32[9]}?\")") in
-  let state = make_state () in
-  let state, _, _ = identifier_of_expression state e in
-  let src_fname =
-    Filename.temp_file "dessserCPPTest_" ".cc" in
-  let obj_fname = Filename.remove_extension src_fname in
-  write_source ~src_fname (print_definitions state) ;
-  assert_bool "Cannot compile `(alloc-value \"{crfgfc: U32[9]}?\")`" (
-    let be = (module BackEndCPP : BACKEND) in
-    try compile ~optim:0 ~link:false be src_fname obj_fname ;
-        ignore_exceptions Unix.unlink src_fname ;
-        ignore_exceptions Unix.unlink obj_fname ;
-        true
-    with _ ->
-        false)
-*)

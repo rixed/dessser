@@ -82,7 +82,6 @@ struct
     | TValue mn -> value_type_identifier p mn
     | TVoid -> "unit"
     | TDataPtr -> "Pointer.t"
-    | TValuePtr mn -> value_type_identifier p mn ^ " ref"
     | TSize -> "Size.t"
     | TBit -> "bool"
     | TByte -> "Uint8.t"
@@ -702,12 +701,6 @@ struct
         shortcutting_binary_infix_op e1 "||" e2
     | E1 (Not, e1) ->
         unary_op "not" e1
-    | E0 (AllocValue mn) ->
-        emit ?name p l e (fun oc ->
-          pp oc "ref (%a)" (print_default_value p.indent) mn)
-    | E1 (DerefValuePtr, e1) ->
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "!%s" n1)
     | E2 (Cons, e1, e2) ->
         binary_infix_op e1 "::" e2
     | E0 (EndOfList _) ->
@@ -835,29 +828,6 @@ struct
               ppi oc "if n >= %s then accum else" to_ ;
               ppi oc "loop_repeat (Int32.succ n) (%s n accum) in" body) ;
             pp oc "%sloop_repeat %s %s" p.indent from accum))
-    | E2 (SetField path, e1, e2) ->
-        let ptr = print ?name emit p l e1
-        and v = print emit p l e2 in
-        (match type_of l e1 with
-        | TValuePtr mn ->
-            let a = deref_path (ptr ^".contents") mn path in
-            ppi p.def "%s <- %s;" a v ;
-            ptr
-        | _ -> assert false)
-    | E1 (FieldIsNull path, e1) ->
-        let ptr = print emit p l e1 in
-        (match type_of l e1 with
-        | TValuePtr mn ->
-            let a = deref_path ("!"^ ptr) mn path in
-            emit ?name p l e (fun oc -> pp oc "%s = None" a)
-        | _ -> assert false)
-    | E1 (GetField path, e1) ->
-        let ptr = print emit p l e1 in
-        (match type_of l e1 with
-        | TValuePtr mn ->
-            let a = deref_path ("!"^ ptr) mn path in
-            emit ?name p l e (fun oc -> pp oc "%s" a)
-        | _ -> assert false)
     | E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
 (*      TODO: For when tuples are actual tuples:

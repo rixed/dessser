@@ -265,7 +265,7 @@ let e1_of_int n =
        U64OfQWord ; QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ;
        CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ;
        BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; ListLength ;
-       ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; DerefValuePtr ;
+       ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ;
        Fst ; Snd |] in
   e1s.(n mod Array.length e1s)
 
@@ -319,7 +319,6 @@ let rec e0_gen l depth =
     1, map (Ops.qword % Uint64.of_int64) ui64 ;
     1, map oword ui128_gen ;
     1, map data_ptr_of_string small_string ;
-    1, map alloc_value maybe_nullable_gen ;
   ] in
   let lst =
     if depth > 0 then
@@ -389,8 +388,6 @@ and e1_gen l depth =
         ) (tiny_array maybe_nullable_gen)
       ) ;
     1, map2 comment (string ~gen:printable_for_comments) expr ;
-    1, map2 field_is_null path_gen expr ;
-    1, map2 get_field path_gen expr ;
     1, map2 get_item tiny_int expr ;
     1, map2 get_field_ field_name_gen expr ;
     1, map2 read_word endianness_gen expr ;
@@ -404,7 +401,6 @@ and e2_gen l depth =
   let open Gen in
   frequency [
     1, map3 let_ let_name_gen expr expr ;
-    1, map3 set_field path_gen expr expr ;
     1, map3 peek_word endianness_gen expr expr ;
     1, map3 peek_dword endianness_gen expr expr ;
     1, map3 peek_qword endianness_gen expr expr ;
@@ -504,8 +500,6 @@ let expression =
     can_be_compiled e
 *)
 (*$T compile_check
-  compile_check \
-    "(alloc-value \"(I48?; {ksryai: U40;qthlta: (U48?)?; gbjahd: {ehhd: I24;gdrnue: U16;kcpcg: I32?}; zkcjdi: Ipv4?;qcrck: String}[9]?)?\")"
   compile_check \
     "(make-vec (u8 1) (u8 2) (u8 3))"
   compile_check \

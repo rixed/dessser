@@ -177,12 +177,6 @@ type typ =
    * serialized into / deserialized from. The type of the value that's
    * being (de)serialized is kept nonetheless. *)
   | TDataPtr
-  (* ValuePtr are used to point at heap allocated values of a given type.
-   * The "offset" is then the location in that data structure, and it is
-   * "advanced" by hopping from subfield to subfields, traversing the
-   * structure depth first. The path is thus merely an integer, but the
-   * backend has to know how to locate each addressable leaves. *)
-  | TValuePtr of maybe_nullable
   (* A size in byte. *)
   | TSize
   (* Data access, may be just pointer to the actual serialized object: *)
@@ -211,8 +205,7 @@ let to_maybe_nullable = function
 
 let rec typ_eq t1 t2 =
   match t1, t2 with
-  | TValue mn1, TValue mn2
-  | TValuePtr mn1, TValuePtr mn2 ->
+  | TValue mn1, TValue mn2 ->
       maybe_nullable_eq mn1 mn2
   | TPair (t11, t12), TPair (t21, t22) ->
       typ_eq t11 t21 && typ_eq t12 t22
@@ -229,8 +222,6 @@ let rec print_typ ?sorted oc =
       print_maybe_nullable oc ?sorted vt
   | TVoid -> sp "Void"
   | TDataPtr -> sp "DataPtr"
-  | TValuePtr mn ->
-      pp oc "(%a ValuePtr)" (print_maybe_nullable ?sorted) mn
   | TSize -> sp "Size"
   | TBit -> sp "Bit"
   | TByte -> sp "Byte"
@@ -545,12 +536,6 @@ struct
       (maybe_nullable >>: fun mn -> TValue mn) |||
       (strinG "void" >>: fun () -> TVoid) |||
       (strinG "dataptr" >>: fun () -> TDataPtr) |||
-      (
-        char '(' -- opt_blanks -+
-          maybe_nullable +- !blanks +- strinG "valueptr" +-
-        opt_blanks +- char ')' >>:
-          fun mn -> TValuePtr mn
-      ) |||
       (strinG "size" >>: fun () -> TSize) |||
       (strinG "bit" >>: fun () -> TBit) |||
       (strinG "byte" >>: fun () -> TByte) |||
@@ -720,6 +705,5 @@ let qword = TQWord
 let oword = TOWord
 let bytes = TBytes
 let dataptr = TDataPtr
-let valueptr mn = TValuePtr mn
 let pair t1 t2 = TPair (t1, t2)
 let slist t = TSList t
