@@ -658,7 +658,7 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
-    | E1 (GetField_ s, e1) ->
+    | E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 s)

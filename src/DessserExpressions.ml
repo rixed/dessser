@@ -77,7 +77,7 @@ type e1 =
   | Function of (*function id*) int * (*args*) typ array
   | Comment of string
   | GetItem of int (* for tuples *)
-  | GetField_ of string (* For records *)
+  | GetField of string (* For records *)
   | Dump
   | Debug
   | Ignore
@@ -302,7 +302,7 @@ let string_of_e1 = function
         Printf.fprintf oc "%S" (IO.to_string print_typ t))) typs
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
-  | GetField_ s -> "get-field_ "^ String.quote s
+  | GetField s -> "get-field "^ String.quote s
   | Dump -> "dump"
   | Debug -> "debug"
   | Ignore -> "ignore"
@@ -680,8 +680,8 @@ struct
           E1 (Comment s, e x)
       | Lst [ Sym "get-item" ; Sym n ; x ] ->
           E1 (GetItem (int_of_string n), e x)
-      | Lst [ Sym "get-field_" ; Str s ; x ] ->
-          E1 (GetField_ s, e x)
+      | Lst [ Sym "get-field" ; Str s ; x ] ->
+          E1 (GetField s, e x)
       | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
       | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
       | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
@@ -915,7 +915,7 @@ let rec type_of l e0 =
                                      string_of_int max_n ^" items)")) ;
           TValue mns.(n)
       | t -> raise (Type_error (e0, e1, t, "be a tuple")))
-  | E1 ((GetField_ name), e1) ->
+  | E1 ((GetField name), e1) ->
       (match type_of l e1 with
       | TValue (NotNullable (TRec mns)) ->
           (match array_assoc name mns with
@@ -1442,7 +1442,7 @@ let rec type_check l e =
         check_eq l e1 bool ;
         check_eq l e2 bool
     | E1 (GetItem _, _)
-    | E1 (GetField_ _, _) ->
+    | E1 (GetField _, _) ->
         ignore (type_of l e) (* everything checks already performed in [type_of] *)
     | E1 (Fst, e) ->
         check_pair l e
@@ -1811,7 +1811,7 @@ struct
   let to_nullable e1 = E1 (ToNullable, e1)
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
   let get_item n e1 = E1 (GetItem n, e1)
-  let get_field_ s e1 = E1 (GetField_ s, e1)
+  let get_field s e1 = E1 (GetField s, e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)

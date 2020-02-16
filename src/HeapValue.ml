@@ -226,7 +226,7 @@ struct
         let dst = if i = 0 then dst else
                     Ser.rec_sep field sstate mn0 path dst in
         let_ "dst" dst (
-          ser1 sstate mn0 path mn (get_field_ field v) (identifier "dst"))
+          ser1 sstate mn0 path mn (get_field field v) (identifier "dst"))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
 
