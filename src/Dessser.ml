@@ -391,7 +391,7 @@ struct
                 let dst = Ser.list_opn sstate mn0 path mn (Some dim) dst in
                 repeat ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
-                    (func2 T.i32 pair_ptrs (fun n src_dst ->
+                    (func2 T.i32 pair_ptrs (fun _l n src_dst ->
                       let src_dst =
                         choose
                           ~cond:(eq n (i32 0l))
@@ -409,11 +409,11 @@ struct
               let fst_src_dst =
                 loop_while
                   ~cond:(comment "Test end of list"
-                    (func1 t_fst_src_dst (fun fst_src_dst ->
+                    (func1 t_fst_src_dst (fun _l fst_src_dst ->
                       let src_dst = secnd fst_src_dst in
                       not_ (end_of_list dstate mn0 path (first src_dst)))))
                   ~body:(comment "Convert a list item"
-                    (func1 t_fst_src_dst (fun fst_src_dst ->
+                    (func1 t_fst_src_dst (fun _l fst_src_dst ->
                       with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
                         let src_dst =
                           choose

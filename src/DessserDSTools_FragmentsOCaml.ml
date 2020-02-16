@@ -37,7 +37,7 @@ let () =
       let sz = %d in
       let dst = Pointer.make sz in
       let src, dst = %s src dst in
-      assert (dst.offset < dst.length) ;
+      assert (dst.Pointer.offset <= dst.Pointer.length) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
       Char.print stdout !delim ;
       flush stdout ;

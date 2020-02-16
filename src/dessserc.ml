@@ -27,26 +27,23 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
   let module Des = (val encoding_in : DES) in
   let module Ser = (val encoding_out : SER) in
   let module DS = DesSer (Des) (Ser) in
-  let module ToValue = DesSer (Des) (HeapValue.Ser) in
-  let module OfValue = DesSer (HeapValue.Des) (Ser) in
-  let module Sizer = HeapValue.SerSizer (Ser) in
+  let module ToValue = HeapValue.Materialize (Des) in
+  let module OfValue = HeapValue.Serialize (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func2 TDataPtr TDataPtr (DS.desser schema) in
+    func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    func1 TDataPtr (fun src ->
-      let vptr = alloc_value schema in
-      ToValue.desser schema src vptr) in
+    func1 TDataPtr (fun _l src ->
+      first (ToValue.make schema src)) in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    func1 (TValuePtr schema) (fun vptr ->
-      Sizer.sersize schema vptr) in
+    func1 (TValue schema) (fun _l v ->
+      OfValue.sersize schema v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    func2 (TValuePtr schema) TDataPtr (fun vptr dst ->
-      let src_dst = OfValue.desser schema vptr dst in
-      secnd src_dst) in
+    func2 (TValue schema) TDataPtr (fun _l v dst ->
+      OfValue.serialize schema v dst) in
   if debug then (
     type_check [] convert ;
     type_check [] to_value ;
@@ -80,7 +77,7 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   let module DS = DesSer (Des) (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func2 TDataPtr TDataPtr (DS.desser schema) in
+    func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
   if debug then type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_id =

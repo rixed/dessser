@@ -61,7 +61,7 @@ struct
   let list_opn = KnownSize (fun () _ _ _ src ->
     let b_src = read_byte src in
     map_pair b_src
-      (func2 T.byte T.dataptr (fun b p ->
+      (func2 T.byte T.dataptr (fun _l b p ->
         pair (to_u32 (u8_of_byte b)) p)))
   let list_cls () _ _ src = src
   let list_sep () _ _ src = src

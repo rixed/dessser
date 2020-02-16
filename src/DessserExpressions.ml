@@ -160,6 +160,7 @@ type e1 =
   | U32OfSize
   | BitOfBool
   | BoolOfBit
+  | ListOfSList
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
@@ -303,45 +304,6 @@ and expr_eq e1 e2 =
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
 
-let string_of_e0 = function
-  | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
-  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string print_typ t)
-  | Float f -> "float "^ hexstring_of_float f
-  | String s -> "string "^ String.quote s
-  | Bool b -> "bool "^ Bool.to_string b
-  | Char c -> "char "^ String.quote (String.of_char c)
-  | U8 n -> "u8 "^ string_of_int n
-  | U16 n -> "u16 "^ string_of_int n
-  | U24 n -> "u24 "^ string_of_int n
-  | U32 n -> "u32 "^ Uint32.to_string n
-  | U40 n -> "u40 "^ Uint40.to_string n
-  | U48 n -> "u48 "^ Uint48.to_string n
-  | U56 n -> "u56 "^ Uint56.to_string n
-  | U64 n -> "u64 "^ Uint64.to_string n
-  | U128 n -> "u128 "^ Uint128.to_string n
-  | I8 n -> "i8 "^ string_of_int n
-  | I16 n -> "i16 "^ string_of_int n
-  | I24 n -> "i24 "^ string_of_int n
-  | I32 n -> "i32 "^ Int32.to_string n
-  | I40 n -> "i40 "^ Int64.to_string n
-  | I48 n -> "i48 "^ Int64.to_string n
-  | I56 n -> "i56 "^ Int64.to_string n
-  | I64 n -> "i64 "^ Int64.to_string n
-  | I128 n -> "i128 "^ Int128.to_string n
-  | Bit b -> "bit "^ Bool.to_string b
-  | Size n -> "size "^ string_of_int n
-  | Byte n -> "byte "^ string_of_int n
-  | Word n -> "word "^ string_of_int n
-  | DWord n -> "dword "^ Uint32.to_string n
-  | QWord n -> "qword "^ Uint64.to_string n
-  | OWord n -> "oword "^ Uint128.to_string n
-  | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
-  | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
-  | AllocValue mn ->
-      "alloc-value "^ String.quote (IO.to_string print_maybe_nullable mn)
-  | Identifier s -> "identifier "^ String.quote s
-
 let string_of_path = IO.to_string print_path
 
 let string_of_e0s =function
@@ -427,6 +389,7 @@ let string_of_e1 = function
   | U32OfSize -> "u32-of-size"
   | BitOfBool -> "bit-of-bool"
   | BoolOfBit -> "bool-of-bit"
+  | ListOfSList -> "list-of-slist"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -504,8 +467,47 @@ let string_of_e4 = function
   | ReadWhile -> "read-while"
   | Repeat -> "repeat"
 
+let rec string_of_e0 = function
+  | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
+  | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
+  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string print_typ t)
+  | Float f -> "float "^ hexstring_of_float f
+  | String s -> "string "^ String.quote s
+  | Bool b -> "bool "^ Bool.to_string b
+  | Char c -> "char "^ String.quote (String.of_char c)
+  | U8 n -> "u8 "^ string_of_int n
+  | U16 n -> "u16 "^ string_of_int n
+  | U24 n -> "u24 "^ string_of_int n
+  | U32 n -> "u32 "^ Uint32.to_string n
+  | U40 n -> "u40 "^ Uint40.to_string n
+  | U48 n -> "u48 "^ Uint48.to_string n
+  | U56 n -> "u56 "^ Uint56.to_string n
+  | U64 n -> "u64 "^ Uint64.to_string n
+  | U128 n -> "u128 "^ Uint128.to_string n
+  | I8 n -> "i8 "^ string_of_int n
+  | I16 n -> "i16 "^ string_of_int n
+  | I24 n -> "i24 "^ string_of_int n
+  | I32 n -> "i32 "^ Int32.to_string n
+  | I40 n -> "i40 "^ Int64.to_string n
+  | I48 n -> "i48 "^ Int64.to_string n
+  | I56 n -> "i56 "^ Int64.to_string n
+  | I64 n -> "i64 "^ Int64.to_string n
+  | I128 n -> "i128 "^ Int128.to_string n
+  | Bit b -> "bit "^ Bool.to_string b
+  | Size n -> "size "^ string_of_int n
+  | Byte n -> "byte "^ string_of_int n
+  | Word n -> "word "^ string_of_int n
+  | DWord n -> "dword "^ Uint32.to_string n
+  | QWord n -> "qword "^ Uint64.to_string n
+  | OWord n -> "oword "^ Uint128.to_string n
+  | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
+  | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
+  | AllocValue mn ->
+      "alloc-value "^ String.quote (IO.to_string print_maybe_nullable mn)
+  | Identifier s -> "identifier "^ String.quote s
+
 (* Display in a single line to help with tests. TODO: pretty_print_expr *)
-let rec print_expr ?max_depth oc e =
+and print_expr ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
     pp oc "…"
   else
@@ -637,7 +639,7 @@ struct
       (sexpr_of_string "((pas \"glop\") (glop))")
   *)
 
-  let expr str =
+  let rec expr str =
     let rec e = function
       (* e0 *)
       | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
@@ -775,6 +777,7 @@ struct
       | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
       | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
       | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
+      | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
       | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
       | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
       | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
@@ -1056,6 +1059,10 @@ and type_of l e0 =
   | E1 (U32OfSize, _) -> u32
   | E1 (BitOfBool, _) -> bit
   | E1 (BoolOfBit, _) -> bool
+  | E1 (ListOfSList, e) ->
+      (match type_of l e with
+      | TSList (TValue mn) -> TValue (NotNullable (TList mn))
+      | t -> raise (Type_error (e0, e, t, "be a slist of maybe nullable values")))
   | E1 (U8OfBool, _) -> u8
   | E1 (BoolOfU8, _) -> bool
   | E2 (AppendByte, _, _) -> bytes
@@ -1115,7 +1122,7 @@ and type_of l e0 =
   | E1 (ToI64, _) -> i64
   | E1 (ToU128, _) -> u128
   | E1 (ToI128, _) -> i128
-  | E0 (AllocValue vtyp) -> valueptr vtyp
+  | E0 (AllocValue mn) -> valueptr mn
   | E1 (DerefValuePtr, e) ->
       TValue (vtype_of_valueptr e0 l e)
   | E2 (SetField _, e1, _) -> type_of l e1
@@ -1163,9 +1170,9 @@ and type_of l e0 =
   | E0 (Param (fid, n)) as e ->
       (try List.assoc e l
       with Not_found ->
-          Printf.eprintf "Cannot find parameter #%d of function %d in %a\n%!"
-            n fid (List.print (fun oc (e, _) -> print_expr oc e)) l ;
-          raise Not_found)
+          Printf.sprintf2 "Cannot find parameter #%d of function %d in %a\n%!"
+            n fid (List.print (fun oc (e, _) -> print_expr oc e)) l |>
+          failwith)
   | E3 (Choose, _, e, _) -> type_of l e
   | E4 (ReadWhile, _, _, e, _) -> pair (type_of l e) dataptr
   | E3 (LoopWhile, _, _, e) -> type_of l e
@@ -1197,7 +1204,7 @@ let rec fold_expr u l f e =
   | E4 (_, e1, e2, e3, e4) ->
       fold_expr (fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3) l f e4
 
-let type_check l e =
+let rec type_check l e =
   fold_expr () l (fun () l e0 ->
     let check_void l e =
       match type_of l e with
@@ -1216,7 +1223,7 @@ let type_check l e =
       and t2 = type_of l e2 in
       match to_value_type (to_maybe_nullable t1) with
       | exception _ ->
-          raise (Type_error (e0, e1, t1, "be a value type"))
+          raise (Type_error (e0, e1, t1, "be a value"))
       | vt1 ->
           let fail () =
             let msg = Printf.sprintf2 "be %a" print_typ t1 in
@@ -1266,7 +1273,7 @@ let type_check l e =
       match type_of l e with
       | TValue _ -> ()
       | t -> raise (Type_error (e0, e, t,
-               "be a possibly nullable value type")) in
+               "be a possibly nullable value")) in
     let check_list l e =
       match type_of l e with
       | TValue (NotNullable TList _) -> ()
@@ -1330,6 +1337,11 @@ let type_check l e =
             let expected = (if nullable then "" else "not") ^" nullable" in
             raise (Type_error_path (e0, e, path, "be "^ expected))
       | t -> raise (Type_error (e0, e, t, "be a ValuePtr")) in
+    let check_slist_of_maybe_nullable l e =
+      match type_of l e with
+      | TSList (TValue (NotNullable _)) -> ()
+      | t -> raise (Type_error (e0, e, t,
+               "be a slist of maybe nullable values")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -1438,6 +1450,8 @@ let type_check l e =
         check_eq l e bool
     | E1 (BoolOfBit, e) ->
         check_eq l e bit
+    | E1 (ListOfSList, e) ->
+        check_slist_of_maybe_nullable l e
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 bytes ;
         check_eq l e2 byte
@@ -1620,29 +1634,33 @@ let with_sploded_pair what e f =
 (* Create a function expression and return its id: *)
 let func =
   let next_id = ref 0 in
-  fun typs f ->
-    let id = !next_id in
+  fun ?(l=[]) typs f ->
+    let fid = !next_id in
     incr next_id ;
-    E1 (Function (id, typs), f id)
+    let l =
+      List.rev_append (List.init (Array.length typs) (fun i ->
+        E0 (Param (fid, i)), typs.(i))) l in
+    E1 (Function (fid, typs), f l fid)
 
 (* Specialized to a given arity: *)
-let func1 t1 f =
-  func [| t1 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0)) in
-    f p1)
 
-let func2 t1 t2 f =
-  func [| t1 ; t2 |] (fun fid ->
+let func1 ?l t1 f =
+  func ?l [| t1 |] (fun l fid ->
+    let p1 = E0 (Param (fid, 0)) in
+    f l p1)
+
+let func2 ?l t1 t2 f =
+  func ?l [| t1 ; t2 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1)) in
-    f p1 p2)
+    f l p1 p2)
 
-let func3 t1 t2 t3 f =
-  func [| t1 ; t2 ; t3 |] (fun fid ->
+let func3 ?l t1 t2 t3 f =
+  func ?l [| t1 ; t2 ; t3 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2)) in
-    f p1 p2 p3)
+    f l p1 p2 p3)
 
 (* FIXME: letn [name*value] f *)
 let let1 ?name v f =
@@ -1815,6 +1833,7 @@ struct
   let oword n = E0 (OWord n)
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
   let byte_of_const_char e1 = byte_of_char (char e1)
+  (* TODO: ~then_ ~else_: *)
   let choose ~cond e2 e3 =  E3 (Choose, cond, e2, e3)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
@@ -1896,6 +1915,7 @@ struct
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_list es = E0S (MakeList, es)
+  let list_of_slist e1 = E1 (ListOfSList, e1)
   let make_tup es = E0S (MakeTup, es)
   let make_rec es = E0S (MakeRec, es)
   let alloc_value mn = E0 (AllocValue mn)

@@ -1,321 +1,391 @@
-(* We might want to serialize into a value allocated on the heap.
- * The form of which depends on the backend of course, but every backend
- * must allow construction of arbitrarily nested data structures.
- * Of course, it is then also possible to serialize from a heap value
- * into anything else.
- *
- * For such a format, the pointers used to write/read during resp.
- * serialization/deserialization are unused. *)
+(* Dessser API is optimised to convert frmo one format into another without
+ * materializing complex values in memory.
+ * But when we do want to materialize the value in the heap, another API is
+ * more natural.
+ * These two modules are to unserialize into a materialized values and to
+ * serialize a materialized value. *)
 open Batteries
 open Dessser
 open DessserTypes
 open DessserExpressions
+open DessserTools
 open Ops
 module T = DessserTypes
 
-module Ser : SER =
-struct
-  type state = unit
-  let ptr mn = valueptr mn
-
-  (* [p] must ben a ValuePtr. *)
-  let start _mn0 p = (), p
-
-  let stop () p = p
-
-  type ser = state -> maybe_nullable -> path -> e -> e -> e
-
-  let sfield mn0 path v p =
-    let v =
-      if is_nullable (type_of_path mn0 path) then
-        to_nullable v
-      else v in
-    (* FIXME: same as in gfield, path is wrong within lists! *)
-    set_field path p v
-
-  let sfloat () = sfield
-  let sstring () = sfield
-  let sbool () = sfield
-  let si8 () = sfield
-  let si16 () = sfield
-  let si24 () = sfield
-  let si32 () = sfield
-  let si40 () = sfield
-  let si48 () = sfield
-  let si56 () = sfield
-  let si64 () = sfield
-  let si128 () = sfield
-  let su8 () = sfield
-  let su16 () = sfield
-  let su24 () = sfield
-  let su32 () = sfield
-  let su40 () = sfield
-  let su48 () = sfield
-  let su56 () = sfield
-  let su64 () = sfield
-  let su128 () = sfield
-  let schar () = sfield
-
-  let tup_opn () _ _ _ p = p
-
-  let tup_cls () _ _ p = p
-
-  let tup_sep _n () _ _ p = p
-
-  let rec_opn () _ _ _ p = p
-
-  let rec_cls () _ _ p = p
-
-  let rec_sep _n () _ _ p = p
-
-  let vec_opn () _ _ _ _ p = p
-
-  let vec_cls () _ _ p = p
-
-  let vec_sep _n () _ _ p = p
-
-  let list_opn () _ _ _ _ p = p
-
-  let list_cls () _ _ p = p
-
-  let list_sep () _ _ p = p
-
-  let nullable () _ _ p = p
-
-  (* Do not update the path as it's done in the other branch of the alternative
-   * (see note in dessser function). *)
-  let snull t () _ path p =
-    set_field path p (null t)
-
-  let snotnull _t () _ _ p = p
-
-  type ssizer = maybe_nullable -> path -> e -> ssize
-  let todo_ssize () = failwith "TODO: ssize for HeapValue"
-  let ssize_of_float _ _ _ = todo_ssize ()
-  let ssize_of_string _ _ _ = todo_ssize ()
-  let ssize_of_bool _ _ _ = todo_ssize ()
-  let ssize_of_char _ _ _ = todo_ssize ()
-  let ssize_of_i8 _ _ _ = todo_ssize ()
-  let ssize_of_i16 _ _ _ = todo_ssize ()
-  let ssize_of_i24 _ _ _ = todo_ssize ()
-  let ssize_of_i32 _ _ _ = todo_ssize ()
-  let ssize_of_i40 _ _ _ = todo_ssize ()
-  let ssize_of_i48 _ _ _ = todo_ssize ()
-  let ssize_of_i56 _ _ _ = todo_ssize ()
-  let ssize_of_i64 _ _ _ = todo_ssize ()
-  let ssize_of_i128 _ _ _ = todo_ssize ()
-  let ssize_of_u8 _ _ _ = todo_ssize ()
-  let ssize_of_u16 _ _ _ = todo_ssize ()
-  let ssize_of_u24 _ _ _ = todo_ssize ()
-  let ssize_of_u32 _ _ _ = todo_ssize ()
-  let ssize_of_u40 _ _ _ = todo_ssize ()
-  let ssize_of_u48 _ _ _ = todo_ssize ()
-  let ssize_of_u56 _ _ _ = todo_ssize ()
-  let ssize_of_u64 _ _ _ = todo_ssize ()
-  let ssize_of_u128 _ _ _ = todo_ssize ()
-  let ssize_of_tup _ _ _ = todo_ssize ()
-  let ssize_of_rec _ _ _ = todo_ssize ()
-  let ssize_of_vec _ _ _ = todo_ssize ()
-  let ssize_of_list _ _ _ = todo_ssize ()
-  let ssize_of_null _ _ = todo_ssize ()
-end
-
-module Des : DES =
-struct
-  type state = unit
-  let ptr mn = valueptr mn
-
-  (* The pointer that's given to us must have been obtained from a
-   * HeapValue.Ser. *)
-  let start _mn0 p = (), p
-
-  let stop () p = p
-
-  type des = state -> maybe_nullable -> path -> e -> e
-
-  (* Beware that Dessser expect deserializers to return only not-nullables. *)
-  let dfield mn0 path p =
-    (* FIXME: get_field won't work within lists because the path index is then
-     * always 0! *)
-    let v = get_field path p in
-    let v =
-      if is_nullable (type_of_path mn0 path) then
-        to_not_nullable v
-      else v in
-    pair v p
-
-  let dfloat () = dfield
-  let dstring () = dfield
-  let dbool () = dfield
-  let di8 () = dfield
-  let di16 () = dfield
-  let di24 () = dfield
-  let di32 () = dfield
-  let di40 () = dfield
-  let di48 () = dfield
-  let di56 () = dfield
-  let di64 () = dfield
-  let di128 () = dfield
-  let du8 () = dfield
-  let du16 () = dfield
-  let du24 () = dfield
-  let du32 () = dfield
-  let du40 () = dfield
-  let du48 () = dfield
-  let du56 () = dfield
-  let du64 () = dfield
-  let du128 () = dfield
-  let dchar () = dfield
-
-  let tup_opn () _ _ _ p = p
-
-  let tup_cls () _ _ p = p
-
-  let tup_sep _idx () _ _ p = p
-
-  let rec_opn () _ _ _ p = p
-
-  let rec_cls () _ _ p = p
-
-  let rec_sep _n () _ _ p = p
-
-  let vec_opn () _ _ _ _ p = p
-
-  let vec_cls () _ _ p = p
-
-  let vec_sep _ () _ _ p = p
-
-  let list_opn = KnownSize (fun () mn0 path _ p ->
-    let lst = get_field path p in
-    pair
-      (list_length (
-        if is_nullable (type_of_path mn0 path) then
-          to_not_nullable lst
-        else
-          lst))
-      p)
-
-  let list_cls () _ _ p = p
-
-  let list_sep () _ _ p = p
-
-  (* Will be called on every nullable fields before any attempt to deserialize
-   * the value: *)
-  let is_null () _ path p =
-    field_is_null path p
-
-  (* Do not update the path as it's done in the other branch of the alternative
-   * (see note in dessser function). *)
-  let dnull _t () _ _ p = p
-  let dnotnull _t () _ _ p = p
-end
-
-(* Module to compute the sersize of a heap value: *)
-module SerSizer (Ser : SER) : sig
-    val sersize : maybe_nullable -> (*dataptr*) e -> (*size*size*) e
+module Materialize (Des : DES) : sig
+    val make : maybe_nullable -> (*src*) e -> (*e*src*) e
   end =
 struct
-  (* Returns a pair of size identifier holding the const and dyn size of
+
+  let rec dvec dim mn dstate mn0 path src =
+    let src = Des.vec_opn dstate mn0 path dim mn src in
+    let rec loop ids i src =
+      if i >= dim then
+        pair
+          (make_vec (List.rev ids))
+          (Des.vec_cls dstate mn0 path src)
+      else
+        let src = if i = 0 then src else
+                    Des.vec_sep i dstate mn0 path src in
+        let subpath = path_append i path in
+        let v_src = make1 dstate mn0 subpath mn src in
+        with_sploded_pair "dvec" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
+
+  and dlist mn dstate mn0 path src =
+    let init_t = TValue mn in
+    let init_list_t = TSList init_t in
+    let inits_src_t = TPair (init_list_t, Des.ptr mn0) in
+    (* good enough to determine the item type but not much more: *)
+    let subpath = path_append 0 path in
+    match Des.list_opn with
+    | KnownSize list_opn ->
+        let dim_src = list_opn dstate mn0 path mn src in
+        let inits_src =
+          with_sploded_pair "dlist1" dim_src (fun dim src ->
+            repeat ~from:(i32 0l) ~to_:(to_i32 dim)
+              ~body:
+                (func2 T.i32 inits_src_t (fun _l n inits_src ->
+                  with_sploded_pair "dlist2" inits_src (fun inits src ->
+                    let src =
+                      choose ~cond:(eq n (i32 0l))
+                        src
+                        (Des.list_sep dstate mn0 path src) in
+                    let v_src = make1 dstate mn0 subpath mn src in
+                    with_sploded_pair "dlist3" v_src (fun v src ->
+                      pair (cons v inits) src))))
+              ~init:(pair (end_of_list init_t) src)) in
+          with_sploded_pair "dlist4" inits_src (fun inits src ->
+            pair (list_of_slist inits) src)
+    | UnknownSize (list_opn, is_end_of_list) ->
+        let fst_inits_src_t = TPair (T.bool, inits_src_t) in
+        let src = list_opn dstate mn0 path mn src in
+        let fst_inits_src =
+          loop_while
+            ~cond:
+              (func1 fst_inits_src_t (fun _l fst_inits_src ->
+                let src = secnd (secnd fst_inits_src) in
+                not_ (is_end_of_list dstate mn0 path src)))
+            ~body:
+              (func1 fst_inits_src_t (fun _l fst_inits_src ->
+                with_sploded_pair "dlist5" fst_inits_src (fun is_fst inits_src ->
+                  with_sploded_pair "dlist6" inits_src (fun inits src ->
+                    let src =
+                      choose ~cond:is_fst
+                        src
+                        (Des.list_sep dstate mn0 path src) in
+                    let v_src = make1 dstate mn0 subpath mn src in
+                    let inits_src =
+                      with_sploded_pair "dlist7" v_src (fun v src ->
+                        pair (cons v inits) src) in
+                    pair (bool false) inits_src))))
+            ~init:(pair (bool true) (pair (end_of_list init_t) src)) in
+        with_sploded_pair "dlist9" (secnd fst_inits_src) (fun inits src ->
+          pair (list_of_slist inits) src)
+
+  and dtup mns dstate mn0 path src =
+    let src = Des.tup_opn dstate mn0 path mns src in
+    let rec loop ids i src =
+      if i >= Array.length mns then
+        pair
+          (make_tup (List.rev ids))
+          (Des.tup_cls dstate mn0 path src)
+      else
+        let src = if i = 0 then src else
+                    Des.tup_sep i dstate mn0 path src in
+        let subpath = path_append i path in
+        let v_src = make1 dstate mn0 subpath mns.(i) src in
+        with_sploded_pair "dtup" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
+
+  and drec mns dstate mn0 path src =
+    let src = Des.rec_opn dstate mn0 path mns src in
+    let rec loop ids i src =
+      if i >= Array.length mns then
+        pair
+          (make_rec (List.fold_lefti (fun inits i id ->
+            string (fst mns.(i)) :: id :: inits) [] ids))
+          (Des.rec_cls dstate mn0 path src)
+      else
+        let src = if i = 0 then src else
+                    Des.rec_sep (fst mns.(i)) dstate mn0 path src in
+        let subpath = path_append i path in
+        let v_src = make1 dstate mn0 subpath (snd mns.(i)) src in
+        with_sploded_pair "drec" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
+
+  and make1 dstate mn0 path mn src =
+    let rec des_of_vt = function
+      | Mac TFloat -> Des.dfloat
+      | Mac TString -> Des.dstring
+      | Mac TBool -> Des.dbool
+      | Mac TChar -> Des.dchar
+      | Mac TI8 -> Des.di8
+      | Mac TI16 -> Des.di16
+      | Mac TI24 -> Des.di24
+      | Mac TI32 -> Des.di32
+      | Mac TI40 -> Des.di40
+      | Mac TI48 -> Des.di48
+      | Mac TI56 -> Des.di56
+      | Mac TI64 -> Des.di64
+      | Mac TI128 -> Des.di128
+      | Mac TU8 -> Des.du8
+      | Mac TU16 -> Des.du16
+      | Mac TU24 -> Des.du24
+      | Mac TU32 -> Des.du32
+      | Mac TU40 -> Des.du40
+      | Mac TU48 -> Des.du48
+      | Mac TU56 -> Des.du56
+      | Mac TU64 -> Des.du64
+      | Mac TU128 -> Des.du128
+      | Usr vt -> des_of_vt vt.def
+      | TTup mns -> dtup mns
+      | TRec mns -> drec mns
+      | TVec (dim, mn) -> dvec dim mn
+      | TList mn -> dlist mn
+      | TMap _ -> assert false (* No value of map type *)
+    in
+    match mn with
+    | Nullable vt ->
+        let cond = Des.is_null dstate mn0 path src in
+        choose ~cond
+          (pair (null vt) (Des.dnull vt dstate mn0 path src))
+          (let src = Des.dnotnull vt dstate mn0 path src in
+          let des = des_of_vt vt in
+          let v_src = des dstate mn0 path src in
+          with_sploded_pair "make1_1" v_src (fun v src ->
+            pair (to_nullable v) src))
+    | NotNullable vt ->
+        let des = des_of_vt vt in
+        des dstate mn0 path src
+
+  let rec make mn0 src =
+    let dstate, src = Des.start mn0 src in
+    make1 dstate mn0 [] mn0 src
+end
+
+(* The other way around: given a heap value of some type and a serializer,
+ * serialize that value: *)
+
+module Serialize (Ser :SER) : sig
+    val serialize : maybe_nullable -> e -> (*dst*) e -> (*dst*) e
+    val sersize : maybe_nullable -> e -> (*size*size*) e
+  end =
+struct
+
+  let rec svec dim mn sstate mn0 path v dst =
+    let dst = Ser.vec_opn sstate mn0 path dim mn dst in
+    let rec loop i dst =
+      if i >= dim then
+        Ser.vec_cls sstate mn0 path dst
+      else
+        let dst = if i = 0 then dst else
+                    Ser.vec_sep i sstate mn0 path dst in
+        let_ "dst" dst (
+          let v' = nth (u32_of_int i) v in
+          let dst = ser1 sstate mn0 path mn v' (identifier "dst") in
+          loop (i + 1) dst) in
+    loop 0 dst
+
+  and slist mn sstate mn0 path v dst =
+    let len = list_length v in
+    let dst = Ser.list_opn sstate mn0 path mn (Some len) dst in
+    let dst =
+      repeat ~from:(i32 0l) ~to_:(to_i32 len)
+        ~body:
+          (func2 T.i32 (Ser.ptr mn0) (fun _l n dst ->
+            let dst = choose ~cond:(gt n (i32 0l))
+                        (Ser.list_sep sstate mn0 path dst)
+                        dst in
+            ser1 sstate mn0 path mn (nth n v) dst))
+        ~init:dst in
+    Ser.list_cls sstate mn0 path dst
+
+  and stup mns sstate mn0 path v dst =
+    let dst = Ser.tup_opn sstate mn0 path mns dst in
+    let dst =
+      Array.fold_lefti (fun dst i mn ->
+        let dst = if i = 0 then dst else
+                    Ser.tup_sep i sstate mn0 path dst in
+        let_ "dst" dst (
+          ser1 sstate mn0 path mn (get_item i v) (identifier "dst"))
+      ) dst mns in
+    Ser.tup_cls sstate mn0 path dst
+
+  and srec mns sstate mn0 path v dst =
+    let dst = Ser.rec_opn sstate mn0 path mns dst in
+    let dst =
+      Array.fold_lefti (fun dst i (field, mn) ->
+        let dst = if i = 0 then dst else
+                    Ser.rec_sep field sstate mn0 path dst in
+        let_ "dst" dst (
+          ser1 sstate mn0 path mn (get_field_ field v) (identifier "dst"))
+      ) dst mns in
+    Ser.rec_cls sstate mn0 path dst
+
+  and ser1 sstate mn0 path mn v dst =
+    let rec ser_of_vt = function
+      | Mac TFloat -> Ser.sfloat
+      | Mac TString -> Ser.sstring
+      | Mac TBool -> Ser.sbool
+      | Mac TChar -> Ser.schar
+      | Mac TI8 -> Ser.si8
+      | Mac TI16 -> Ser.si16
+      | Mac TI24 -> Ser.si24
+      | Mac TI32 -> Ser.si32
+      | Mac TI40 -> Ser.si40
+      | Mac TI48 -> Ser.si48
+      | Mac TI56 -> Ser.si56
+      | Mac TI64 -> Ser.si64
+      | Mac TI128 -> Ser.si128
+      | Mac TU8 -> Ser.su8
+      | Mac TU16 -> Ser.su16
+      | Mac TU24 -> Ser.su24
+      | Mac TU32 -> Ser.su32
+      | Mac TU40 -> Ser.su40
+      | Mac TU48 -> Ser.su48
+      | Mac TU56 -> Ser.su56
+      | Mac TU64 -> Ser.su64
+      | Mac TU128 -> Ser.su128
+      | Usr vt -> ser_of_vt vt.def
+      | TTup mns -> stup mns
+      | TRec mns -> srec mns
+      | TVec (dim, mn) -> svec dim mn
+      | TList mn -> slist mn
+      | TMap _ -> assert false (* No value of map type *)
+    in
+    match mn with
+    | Nullable vt ->
+        let cond = is_null v in
+        choose ~cond
+          (Ser.snull vt sstate mn0 path dst)
+          (let dst = Ser.snotnull vt sstate mn0 path dst in
+          let ser = ser_of_vt vt in
+          ser sstate mn0 path (to_not_nullable v) dst)
+    | NotNullable vt ->
+        let ser = ser_of_vt vt in
+        ser sstate mn0 path v dst
+
+  and serialize mn0 v dst =
+    let path = [] in
+    let sstate, dst = Ser.start mn0 dst in
+    ser1 sstate mn0 path mn0 v dst
+
+  (*
+   * Compute the sersize of a expression:
+   *
+   * Returns a pair of size identifier holding the const and dyn size of
    * the heap value pointed by the pointer identifier [src].
    * [src] must be a pointer to a heap value, as returned by the above
-   * Ser module. *)
-  let sersize vtyp src =
-    let add_size sizes sz =
-      map_pair sizes
-        (func2 T.size T.size (fun s1 s2 ->
-          match sz with
-          | ConstSize s ->
-              pair (add (size s) s1) s2
-          | DynSize s ->
-              pair s1 (add s s2))) in
-    (* Add that value size to the passed size pair: *)
-    let rec ssize_vtype path sizes v = function
-      | Mac TFloat ->
-          Ser.ssize_of_float vtyp path v |> add_size sizes
-      | Mac TString ->
-          Ser.ssize_of_string vtyp path v |> add_size sizes
-      | Mac TBool ->
-          Ser.ssize_of_bool vtyp path v |> add_size sizes
-      | Mac TChar ->
-          Ser.ssize_of_char vtyp path v |> add_size sizes
-      | Mac TI8 ->
-          Ser.ssize_of_i8 vtyp path v |> add_size sizes
-      | Mac TI16 ->
-          Ser.ssize_of_i16 vtyp path v |> add_size sizes
-      | Mac TI24 ->
-          Ser.ssize_of_i24 vtyp path v |> add_size sizes
-      | Mac TI32 ->
-          Ser.ssize_of_i32 vtyp path v |> add_size sizes
-      | Mac TI40 ->
-          Ser.ssize_of_i40 vtyp path v |> add_size sizes
-      | Mac TI48 ->
-          Ser.ssize_of_i48 vtyp path v |> add_size sizes
-      | Mac TI56 ->
-          Ser.ssize_of_i56 vtyp path v |> add_size sizes
-      | Mac TI64 ->
-          Ser.ssize_of_i64 vtyp path v |> add_size sizes
-      | Mac TI128 ->
-          Ser.ssize_of_i128 vtyp path v |> add_size sizes
-      | Mac TU8 ->
-          Ser.ssize_of_u8 vtyp path v |> add_size sizes
-      | Mac TU16 ->
-          Ser.ssize_of_u16 vtyp path v |> add_size sizes
-      | Mac TU24 ->
-          Ser.ssize_of_u24 vtyp path v |> add_size sizes
-      | Mac TU32 ->
-          Ser.ssize_of_u32 vtyp path v |> add_size sizes
-      | Mac TU40 ->
-          Ser.ssize_of_u40 vtyp path v |> add_size sizes
-      | Mac TU48 ->
-          Ser.ssize_of_u48 vtyp path v |> add_size sizes
-      | Mac TU56 ->
-          Ser.ssize_of_u56 vtyp path v |> add_size sizes
-      | Mac TU64 ->
-          Ser.ssize_of_u64 vtyp path v |> add_size sizes
-      | Mac TU128 ->
-          Ser.ssize_of_u128 vtyp path v |> add_size sizes
-      | Usr t ->
-          ssize_vtype path sizes v t.def
-      (* Compound types require recursion: *)
-      | TTup vtyps ->
-          let sizes =
-            Ser.ssize_of_tup vtyp path v |> add_size sizes in
-          Array.fold_lefti (fun sizes i _ ->
-            let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes"))
-          ) sizes vtyps
-      | TRec vtyps ->
-          let sizes =
-            Ser.ssize_of_rec vtyp path v |> add_size sizes in
-          Array.fold_lefti (fun sizes i _ ->
-            let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes"))
-          ) sizes vtyps
-      | TVec (dim, _) ->
-          let sizes =
-            Ser.ssize_of_vec vtyp path v |> add_size sizes in
-          let rec loop sizes i =
-            if i >= dim then sizes else
-            let sizes =
-              let_ "sizes" sizes (sersize_ (path @ [i]) src (identifier "sizes")) in
-            loop sizes (i + 1) in
-          loop sizes 0
-      | TList _typ ->
-          assert false
-      | TMap _ ->
-          assert false (* no value of map type *)
+   * Ser module.
+   *)
 
-    and sersize_ path src sizes =
-      let sub_vtyp = type_of_path vtyp path in
-      if is_nullable sub_vtyp then
-        comment
-          (Printf.sprintf2 "sersize of path %a" print_path path)
-          (choose ~cond:(field_is_null path src)
-            (add_size sizes (Ser.ssize_of_null sub_vtyp path))
-            (let sub_vtyp' = to_value_type sub_vtyp in
-            ssize_vtype path sizes (to_not_nullable (get_field path src)) sub_vtyp'))
-      else
-        let sub_vtyp' = to_value_type sub_vtyp in
-        ssize_vtype path sizes (get_field path src) sub_vtyp'
+  let sizes_t = TPair (TSize, TSize)
+
+  let add_size sizes sz =
+(*    map_pair sizes
+      (func2 T.size T.size (fun _l s1 s2 ->
+        match sz with
+        | ConstSize s ->
+            pair (add (size s) s1) s2
+        | DynSize s ->
+            pair s1 (add s s2))) *)
+    with_sploded_pair "add_size" sizes (fun cstsz dynsz ->
+      match sz with
+      | ConstSize s ->
+          pair (add (size s) cstsz) dynsz
+      | DynSize s ->
+          pair cstsz (add s dynsz))
+
+  let rec ssvec dim mn mn0 path v sizes =
+    let sizes =
+      Ser.ssize_of_vec mn0 path v |> add_size sizes in
+    let rec loop sizes i =
+      if i >= dim then sizes else
+      let subpath = path @ [i] in
+      let v' = nth (u32_of_int i) v in
+      let_ "sizes" sizes (
+        let sizes = sersize1 mn mn0 subpath v' (identifier "sizes") in
+        loop sizes (i + 1)) in
+    loop sizes 0
+
+  and sslist mn mn0 path v sizes =
+    let sizes =
+      Ser.ssize_of_list mn0 path v |> add_size sizes in
+    let len = list_length v in
+    (* TODO: a way to ask only for the dynsize, and compute the constsize
+     * as len * const_size of mn *)
+    let subpath = path @ [0] in (* good enough *)
+    repeat ~from:(i32 0l) ~to_:(to_i32 len)
+      ~body:
+        (func2 T.i32 sizes_t (fun _l n sizes ->
+          let v' = nth n v in
+          sersize1 mn mn0 subpath v' sizes))
+      ~init:sizes
+
+  and sstup mns mn0 path v sizes =
+    let sizes =
+      Ser.ssize_of_tup mn0 path v |> add_size sizes in
+    Array.fold_lefti (fun sizes i mn ->
+      let v' = get_item i v in
+      let_ "sizes" sizes (sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+    ) sizes mns
+
+  and ssrec mns mn0 path v sizes =
+    let sizes =
+      Ser.ssize_of_rec mn0 path v |> add_size sizes in
+    Array.fold_lefti (fun sizes i (_, mn) ->
+      let v' = get_item i v in
+      let_ "sizes" sizes (sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+    ) sizes mns
+
+  and sersize1 mn mn0 path v sizes =
+    let to_dyn ssizer mn0 path v sizes =
+      let sz = ssizer mn0 path v in
+      add_size sizes sz in
+    let rec ssz_of_vt = function
+      | Mac TFloat -> to_dyn Ser.ssize_of_float
+      | Mac TString -> to_dyn Ser.ssize_of_string
+      | Mac TBool -> to_dyn Ser.ssize_of_bool
+      | Mac TChar -> to_dyn Ser.ssize_of_char
+      | Mac TI8 -> to_dyn Ser.ssize_of_i8
+      | Mac TI16 -> to_dyn Ser.ssize_of_i16
+      | Mac TI24 -> to_dyn Ser.ssize_of_i24
+      | Mac TI32 -> to_dyn Ser.ssize_of_i32
+      | Mac TI40 -> to_dyn Ser.ssize_of_i40
+      | Mac TI48 -> to_dyn Ser.ssize_of_i48
+      | Mac TI56 -> to_dyn Ser.ssize_of_i56
+      | Mac TI64 -> to_dyn Ser.ssize_of_i64
+      | Mac TI128 -> to_dyn Ser.ssize_of_i128
+      | Mac TU8 -> to_dyn Ser.ssize_of_u8
+      | Mac TU16 -> to_dyn Ser.ssize_of_u16
+      | Mac TU24 -> to_dyn Ser.ssize_of_u24
+      | Mac TU32 -> to_dyn Ser.ssize_of_u32
+      | Mac TU40 -> to_dyn Ser.ssize_of_u40
+      | Mac TU48 -> to_dyn Ser.ssize_of_u48
+      | Mac TU56 -> to_dyn Ser.ssize_of_u56
+      | Mac TU64 -> to_dyn Ser.ssize_of_u64
+      | Mac TU128 -> to_dyn Ser.ssize_of_u128
+      | Usr vt -> ssz_of_vt vt.def
+      | TTup mns -> sstup mns
+      | TRec mns -> ssrec mns
+      | TVec (dim, mn) -> ssvec dim mn
+      | TList mn -> sslist mn
+      | TMap _ -> assert false (* No value of map type *)
     in
+    let vt = to_value_type mn in
+    if is_nullable mn then
+      choose ~cond:(is_null v)
+        (add_size sizes (Ser.ssize_of_null mn0 path))
+        (ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
+    else
+      ssz_of_vt vt mn0 path v sizes
+
+  let sersize mn v =
     let sizes = pair (size 0) (size 0) in
-    sersize_ [] src sizes
+    sersize1 mn mn [] v sizes
+
 end

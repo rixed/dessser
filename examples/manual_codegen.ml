@@ -66,23 +66,24 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
-      func2 TDataPtr TDataPtr (fun src dst ->
+      func2 TDataPtr TDataPtr (fun _l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser typ src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
-      let module DS1 = DesSer (RowBinary.Des) (HeapValue.Ser) in
-      let module DS2 = DesSer (HeapValue.Des) (SExpr.Ser) (*(RamenRingBuffer.Ser (BE))*) in
-      let module Sizer = HeapValue.SerSizer (RamenRingBuffer.Ser) in
+      let module ToValue = HeapValue.Materialize (RowBinary.Des) in
+      (* To compute sersize in RingBuffer: *)
+      let module OfValue1 = HeapValue.Serialize (RamenRingBuffer.Ser) in
+      (* To serialize into S-Expr: *)
+      let module OfValue2 = HeapValue.Serialize (SExpr.Ser) in
 
-      func2 TDataPtr TDataPtr (fun src dst ->
+      func2 TDataPtr TDataPtr (fun _l src dst ->
         comment "Convert from RowBinary into a heap value:" (
-          let vptr = alloc_value typ in
-          let src_valueptr = DS1.desser typ src vptr in
-          with_sploded_pair "src_valueptr" src_valueptr (fun src valueptr ->
+          let v_src = ToValue.make typ src in
+          with_sploded_pair "v_src" v_src (fun v src ->
             comment "Compute the serialized size of this tuple:" (
-              let const_dyn_sz = Sizer.sersize typ valueptr in
+              let const_dyn_sz = OfValue1.sersize typ v in
               with_sploded_pair "read_tuple" const_dyn_sz (fun const_sz dyn_sz ->
                 seq [
                   dump (string "Constant size: ") ;
@@ -91,8 +92,8 @@ let () =
                   dump dyn_sz ;
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
-                    let src_dst' = DS2.desser typ valueptr dst in
-                    pair src (secnd src_dst')) ])))))
+                    let dst' = OfValue2.serialize typ v dst in
+                    pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in

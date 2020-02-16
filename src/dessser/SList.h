@@ -3,6 +3,7 @@
 #include <cassert>
 #include <memory>
 #include "dessser/typedefs.h"
+#include "dessser/List.h"
 
 template<class T>
 struct SList {
@@ -44,6 +45,14 @@ struct SList {
   {
     if (empty()) return 0;
     else return 1 + cells->next.length();
+  }
+
+  List<T> toList() const
+  {
+    List<T> l;
+    for (SList<T> const &sl = this; !sl.empty(); sl.cells->next) {
+      l.push_back(sl.head());
+    }
   }
 };
 

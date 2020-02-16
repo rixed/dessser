@@ -23,12 +23,12 @@ struct
   let di op () _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
-    let cond = func1 T.byte (fun b ->
+    let cond = func1 T.byte (fun _l b ->
       (* No other options as we would meet a space before a '(' or '"': *)
       not_ (or_ (eq b (byte_of_const_char ' '))
                 (eq b (byte_of_const_char ')'))))
     and init = bytes_of_string (string "")
-    and reduce = func2 T.bytes T.byte append_byte in
+    and reduce = func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     with_sploded_pair "dfloat" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
@@ -45,9 +45,9 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = func1 T.byte (fun b -> not_ (eq b (byte_of_const_char '"')))
+    let cond = func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
     and init = bytes_of_string (string "")
-    and reduce = func2 T.bytes T.byte append_byte in
+    and reduce = func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     with_sploded_pair "dfloat" str_p (fun str p ->
       (* Skip the closing double-quote: *)

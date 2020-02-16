@@ -27,9 +27,9 @@ struct
     let_ "leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
-          (func1 T.byte (fun b -> ge b (byte 128))))
+          (func1 T.byte (fun _l b -> ge b (byte 128))))
         ~reduce:(comment "Reducer for read_leb128"
-          (func2 t_u32_u8 T.byte (fun leb_shft b ->
+          (func2 t_u32_u8 T.byte (fun _l leb_shft b ->
             let byte = log_and (u8_of_byte b) (u8 127) in
             let leb = first leb_shft
             and shft = secnd leb_shft in
@@ -194,7 +194,7 @@ struct
     first (
       loop_until
         ~body:(comment "Loop body for write_leb128"
-          (func1 t_ptr_sz (fun p_wlen ->
+          (func1 t_ptr_sz (fun _l p_wlen ->
             with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
               let b =
                 byte_of_u8 (
@@ -205,7 +205,7 @@ struct
                 (write_byte p b)
                 (right_shift wlen (u8 7))))))
         ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
-          (func1 t_ptr_sz (fun ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
+          (func1 t_ptr_sz (fun _l ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
         ~init:(pair p v))
 
   let sstring () _ _ v p =
@@ -330,12 +330,12 @@ struct
     size_of_u32 (first (
       loop_while
         ~cond:(comment "Condition for ssize_of_leb128"
-          (func1 t_u32_u32 (fun lebsz_n ->
+          (func1 t_u32_u32 (fun _l lebsz_n ->
             with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
               let max_len_for_lebsz = left_shift lebsz (u8 7) in
               ge n max_len_for_lebsz))))
         ~body:(comment "Loop for ssize_of_leb128"
-          (func1 t_u32_u32 (fun lebsz_n ->
+          (func1 t_u32_u32 (fun _l lebsz_n ->
             with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
               pair (add lebsz (u32 Uint32.one)) n))))
         ~init:(pair (u32 Uint32.one) n)))

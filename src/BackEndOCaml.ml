@@ -136,7 +136,10 @@ struct
     | TQWord -> "Uint64"
     | TOWord -> "Uint128"
     | TBytes -> "Slice"
-    | _ -> assert false
+    | t ->
+        Printf.sprintf2 "No module implementing %a"
+          print_typ t |>
+        failwith
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -381,11 +384,15 @@ struct
         print ?name emit p l (E1 ((if !dump_debug then Dump else Ignore), e1))
     | E1 (IsNull, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s <> None" n)
+        emit ?name p l e (fun oc -> pp oc "%s = None" n)
     | E2 (Coalesce, e1, e2) ->
         binary_infix_op e1 "|?" e2
     | E2 (Nth, e1, e2) ->
-        binary_op "Array.get" e2 e1
+        let n1 = print emit p l e1 in
+        let n2 = print emit p l e2 in
+        let m = mod_name (type_of l e1) in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
     | E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)
@@ -524,6 +531,8 @@ struct
         unary_op "Uint32.to_int" e1
     | E1 (U32OfSize, e1) ->
         unary_op "Uint32.of_int" e1
+    | E1 (ListOfSList, e1) ->
+        unary_op "Array.of_list" e1
     | E1 (ToU8, e1) ->
         let m = mod_name (type_of l e1) in
         unary_op (m ^".to_uint8") e1
@@ -865,7 +874,7 @@ struct
             done) *)
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
-      | E1 (GetField_ s, e1) ->
+    | E1 (GetField_ s, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 s)

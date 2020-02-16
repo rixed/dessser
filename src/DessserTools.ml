@@ -43,13 +43,20 @@ let list_rev_filter f lst =
     | x :: rest -> loop (if f x then x :: acc else acc) rest
   in loop [] lst
 
-let list_split_last lst =
+let list_split_last_rev lst =
   match List.rev lst with
   | [] -> invalid_arg "list_split_last"
-  | hd :: tl -> List.rev tl, hd
+  | hd :: tl -> tl, hd
+
+let list_split_last lst =
+  let hds_rev, tl = list_split_last_rev lst in
+  List.rev hds_rev, tl
 
 let list_drop_last lst =
   fst (list_split_last lst)
+
+let list_rev_mapi f l =
+  List.fold_lefti (fun r i x -> f i x :: r) [] l
 
 let cap mi ma x =
   if x < mi then mi else if x > ma then ma else x

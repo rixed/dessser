@@ -223,7 +223,7 @@ struct
         print ?name emit p l (E1 ((if !dump_debug then Dump else Ignore), e1))
     | E1 (IsNull, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s.has_value ()" n)
+        emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
     | E2 (Coalesce, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -403,6 +403,8 @@ struct
     | E1 (U8OfBool, e1) | E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n)
+    | E1 (ListOfSList, e1) ->
+        method_call e1 "toList" []
     | E2 (AppendByte, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -683,7 +685,7 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
-      | E1 (GetField_ s, e1) ->
+    | E1 (GetField_ s, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 s)

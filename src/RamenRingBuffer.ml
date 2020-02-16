@@ -114,7 +114,7 @@ let may_skip_nullbit mn0 path p_stk =
 
 module Ser : SER =
 struct
-  type state = ()
+  type state = unit
 
   let ptr _mn = T.(pair dataptr (slist t_frame))
 
