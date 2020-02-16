@@ -359,8 +359,9 @@ struct
                 let n = print emit p l e in
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
+        let inits = List.rev inits in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:", "
+          List.print ~first:"{ " ~last:" }" ~sep:"; "
             (fun oc (name, n) ->
               Printf.fprintf oc "%s = %s" name n) oc inits)
     | E1 (Ignore, e1) ->
