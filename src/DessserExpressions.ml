@@ -1267,7 +1267,7 @@ let rec type_check l e =
       | t -> bad_arity 2 e t in
     let check_slist_of_maybe_nullable l e =
       match type_of l e with
-      | TSList (TValue (NotNullable _)) -> ()
+      | TSList (TValue _) -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a slist of maybe nullable values")) in
     match e0 with
