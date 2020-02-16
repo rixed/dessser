@@ -684,7 +684,6 @@ let sexpr mn =
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
     let nn = T.to_not_nullable mn in
 
-    let format = "HeapValue" in
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
     let format = "RamenRingBuf" in
