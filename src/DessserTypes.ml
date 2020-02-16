@@ -62,7 +62,7 @@ let sorted_rec fields =
   Array.sort (fun (n1, _) (n2, _) -> String.compare n1 n2) fields ;
   fields
 
-let rec value_type_eq vt1 vt2 =
+let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
   | Mac mt1, Mac mt2 ->
       mt1 = mt2
@@ -82,6 +82,11 @@ let rec value_type_eq vt1 vt2 =
       ) (sorted_rec mn1s) (sorted_rec mn2s)
   | TMap (k1, v1), TMap (k2, v2) ->
       maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
+  (* User types are lost in des/ser so we have to accept this: *)
+  | Usr ut1, vt2 when not opaque_user_type ->
+      value_type_eq ut1.def vt2
+  | vt1, Usr ut2 when not opaque_user_type ->
+      value_type_eq vt1 ut2.def
   | _ ->
       false
 
