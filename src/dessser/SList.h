@@ -50,9 +50,10 @@ struct SList {
   List<T> toList() const
   {
     List<T> l;
-    for (SList<T> const &sl = this; !sl.empty(); sl.cells->next) {
-      l.push_back(sl.head());
+    for (SList<T> const *sl = this; !sl->empty(); sl->cells->next) {
+      l.push_back(sl->head());
     }
+    return l;
   }
 
   List<T> toListRev() const
@@ -60,9 +61,10 @@ struct SList {
     List<T> l;
     size_t i = length();
     l.resize(i);
-    for (SList<T> const &sl = this; !sl.empty(); sl.cells->next) {
-      l[--i] = sl.head();
+    for (SList<T> const *sl = this; !sl->empty(); sl->cells->next) {
+      l[--i] = sl->head();
     }
+    return l;
   }
 };
 

@@ -418,7 +418,7 @@ struct
         binary_infix_op e1 "+" e2
     | E1 (StringLength, e1)
     | E1 (ListLength, e1) ->
-        method_call e1 "length" []
+        method_call e1 "size" []
     | E1 (StringOfBytes, e1) ->
         method_call e1 "toString" []
     | E1 (BytesOfString, e1) ->
