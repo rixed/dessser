@@ -7,7 +7,7 @@ open Dessser
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
-let compile ?(optim=3) ~link backend src_fname dest_fname =
+let compile ?(optim=0) ~link backend src_fname dest_fname =
   let module BE = (val backend : BACKEND) in
   let cmd = BE.compile_cmd ~optim ~link src_fname dest_fname in
   run_cmd cmd

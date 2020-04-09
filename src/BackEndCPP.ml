@@ -21,14 +21,14 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let rec print_struct p oc id vts =
+  let rec print_struct p oc id mns =
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.indent id ;
     indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier p (TValue vt) in
         pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
-      ) vts
+      ) mns
     ) ;
     pp oc "%s};\n\n" p.indent
 
@@ -59,12 +59,12 @@ struct
     | TValue (NotNullable (Mac TU128)) -> "uint128_t"
     | TValue (NotNullable (Usr t)) ->
         type_identifier p (TValue (NotNullable t.def))
-    | TValue (NotNullable (TTup vts)) as t ->
-        let vts = Array.mapi (fun i vt -> tuple_field_name i, vt) vts in
-        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
+    | TValue (NotNullable (TTup mns)) as t ->
+        let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
+        declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
-    | TValue (NotNullable (TRec vts)) as t ->
-        declared_type p t (fun oc type_id -> print_struct p oc type_id vts) |>
+    | TValue (NotNullable (TRec mns)) as t ->
+        declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
     | TValue (NotNullable (TVec (dim, typ))) ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
@@ -116,11 +116,11 @@ struct
           | NotNullable (TVec (_, vt))
           | NotNullable (TList vt) ->
               deref_path (v ^"["^ string_of_int i ^"]") vt path
-          | NotNullable (TTup vts) ->
-              deref_path (v ^"."^ tuple_field_name i) vts.(i) path
-          | NotNullable (TRec vts) ->
-              let name = valid_identifier (fst vts.(i)) in
-              deref_path (v ^"."^ name) (snd vts.(i)) path
+          | NotNullable (TTup mns) ->
+              deref_path (v ^"."^ tuple_field_name i) mns.(i) path
+          | NotNullable (TRec mns) ->
+              let name = valid_identifier (fst mns.(i)) in
+              deref_path (v ^"."^ name) (snd mns.(i)) path
           | Nullable x ->
               deref_not_nullable (v ^".value()") (NotNullable x) in
         deref_not_nullable v vt
@@ -206,6 +206,7 @@ struct
                 let n = print emit p l e in
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
+        let inits = List.rev inits in
         emit ?name p l e (fun oc ->
           List.print ~first:"{ " ~last:" }" ~sep:", "
             (fun oc (name, n) ->

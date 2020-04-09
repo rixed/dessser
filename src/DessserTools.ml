@@ -29,6 +29,15 @@ let array_print_i ?first ?last ?sep p oc a =
 let array_assoc n a =
   Array.find (fun (n', _) -> n' = n) a |> snd
 
+let array_for_alli f a =
+  try
+    for i = 0 to Array.length a - 1 do
+      if not (f i a.(i)) then raise Exit
+    done ;
+    true
+  with Exit ->
+    false
+
 let read_whole_file fname =
   File.with_file_in ~mode:[`text] fname IO.read_all
 

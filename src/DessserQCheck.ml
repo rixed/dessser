@@ -665,8 +665,8 @@ let sexpr mn =
   module ToValue = HeapValue.Materialize (SExpr.Des)
   module OfValue = HeapValue.Serialize (SExpr.Ser)
 
-  let heap_convert_expr be mn =
-    func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun l src dst ->
+  let heap_convert_expr mn =
+    func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
       let v_src = ToValue.make mn src in
       with_sploded_pair "v_src" v_src (fun v src ->
         let dst = OfValue.serialize mn v dst in
@@ -674,7 +674,7 @@ let sexpr mn =
 *)
 (*$R
   let test_heap be mn =
-    let e = heap_convert_expr be mn in
+    let e = heap_convert_expr mn in
     Printf.eprintf "Expression:\n%a\n" (print_expr ?max_depth:None) e ;
     let exe = make_converter be ~mn e in
     test_exe "heap-value" mn exe in
@@ -683,6 +683,8 @@ let sexpr mn =
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
     let nn = T.to_not_nullable mn in
+    (* RamenRingBuffer require record field names to be ordered: *)
+    let nn = RamenRingBuffer.order_rec_fields nn in
 
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
@@ -721,7 +723,7 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
     let mn = T.Parser.maybe_nullable_of_string ts in
-    let e = heap_convert_expr be mn in
+    let e = heap_convert_expr mn in
     Printf.eprintf "Expression:\n%a\n" (print_expr ?max_depth:None) e ;
     let exe = make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
@@ -752,4 +754,6 @@ let sexpr mn =
 (*$= check_heapvalue & ~printer:identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
   "3 (1 2 3)" (check_heapvalue ocaml_be "U16[]" "3 (1 2 3)")
+  "(1 5)" (check_heapvalue cpp_be "{ejgvx: U16; kngke: U64}" "(1 5)")
+  "1 (6)" (check_heapvalue cpp_be "U8[]?" "1 (6)")
 *)

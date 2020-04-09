@@ -905,6 +905,7 @@ let rec type_of l e0 =
       if prev_name <> None then
         raise (Struct_error (e0,
           "record expressions must have an even number of values")) ;
+      let mns = List.rev mns in
       TValue (NotNullable (TRec (Array.of_list mns)))
   | E1 (GetItem n, e1) ->
       (match type_of l e1 with

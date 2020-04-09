@@ -106,11 +106,12 @@ struct
 
   and drec mns dstate mn0 path src =
     let src = Des.rec_opn dstate mn0 path mns src in
+    let len = Array.length mns in
     let rec loop ids i src =
-      if i >= Array.length mns then
+      if i >= len then
         pair
           (make_rec (List.fold_lefti (fun inits i id ->
-            string (fst mns.(i)) :: id :: inits) [] ids))
+             string (fst mns.(len - i - 1)) :: id :: inits) [] ids))
           (Des.rec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
@@ -225,6 +226,7 @@ struct
       Array.fold_lefti (fun dst i (field, mn) ->
         let dst = if i = 0 then dst else
                     Ser.rec_sep field sstate mn0 path dst in
+        let dst = comment ("serialize field "^ field) dst in
         let_ "dst" dst (
           ser1 sstate mn0 path mn (get_field field v) (identifier "dst"))
       ) dst mns in

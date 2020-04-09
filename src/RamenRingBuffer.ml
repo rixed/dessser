@@ -1,5 +1,6 @@
 open Batteries
 open Stdint
+open DessserTools
 open Dessser
 open DessserTypes
 open DessserExpressions
@@ -29,19 +30,56 @@ let align_const p extra_bytes =
   else
     p
 
+(* RamenRingBuffer can only des/ser types which record fields are ordered: *)
+let rec_field_cmp (n1, _) (n2, _) =
+  String.compare n1 n2
+
+let rec order_rec_fields mn =
+  let rec order_value_type = function
+    | TRec mns ->
+        Array.fast_sort rec_field_cmp mns ;
+        TRec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
+    | TTup mns ->
+        TTup (Array.map order_rec_fields mns)
+    | TVec (dim, mn) ->
+        TVec (dim, order_rec_fields mn)
+    | TList mn ->
+        TList (order_rec_fields mn)
+    | Usr ut ->
+        order_value_type ut.def
+    | mn -> mn in
+  match mn with
+  | NotNullable vt -> NotNullable (order_value_type vt)
+  | Nullable vt -> Nullable (order_value_type vt)
+
+let rec are_rec_fields_ordered mn =
+  let rec aux = function
+    | TRec mns ->
+        array_for_alli (fun i (_name, mn) ->
+          are_rec_fields_ordered mn &&
+          i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0
+        ) mns
+    | TTup mns ->
+        Array.for_all are_rec_fields_ordered mns
+    | TVec (_, mn) | TList mn ->
+        are_rec_fields_ordered mn
+    | Usr ut ->
+        aux ut.def
+    | _ ->
+        true in
+  match mn with
+  | NotNullable vt -> aux vt
+  | Nullable vt -> aux vt
+
 let is_private name =
   String.length name > 0 && name.[0] = '_'
 
-let record_field_cmp (n1, _) (n2, _) =
-  String.compare n1 n2
-
 let tuple_typs_of_record mns =
-  (* Like tuples, with fields in alphabetic order, with private fields
+  (* Like tuples but with fields in alphabetic order, with private fields
    * omitted: *)
-  let mns =
-    Array.filter (fun (name, _typ) -> not (is_private name)) mns in
-  Array.fast_sort record_field_cmp mns ;
-  Array.map snd mns
+  Array.filter_map (fun (name, typ) ->
+    if is_private name then None else Some typ
+  ) mns
 
 (* We use a stack of "frames" at pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
@@ -162,7 +200,8 @@ struct
       let p = f p in
       pair p stk)
 
-  let start _mn p =
+  let start mn p =
+    assert (are_rec_fields_ordered mn) ;
     (), pair p (end_of_list t_frame)
 
   let stop () p_stk =
@@ -539,7 +578,8 @@ struct
   let enter_frame_const = enter_frame u8 skip_nullmask_const
   let enter_frame_dyn = enter_frame identity skip_nullmask_dyn
 
-  let start _mn p =
+  let start mn p =
+    assert (are_rec_fields_ordered mn) ;
     (), pair p (end_of_list t_frame)
 
   let stop () p_stk =
