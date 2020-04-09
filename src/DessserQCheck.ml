@@ -564,7 +564,7 @@ let rec sexpr_of_vtyp_gen vtyp =
   | TList mn ->
       tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
         (if SExpr.list_prefix_length then
-          Pervasives.string_of_int (List.length lst) ^ " "
+          Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
   | TTup mns ->

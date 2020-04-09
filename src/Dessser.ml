@@ -254,7 +254,7 @@ struct
           (Ser.tup_opn sstate mn0 path mns dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
-        comment ("Convert tuple field "^ Pervasives.string_of_int i)
+        comment ("Convert tuple field "^ Stdlib.string_of_int i)
           (let subpath = path_append i path in
           if i = 0 then
             desser_ transform sstate dstate mn0 subpath src_dst
@@ -328,7 +328,7 @@ struct
                 (Ser.vec_sep i sstate mn0 path dst)) in
         (* FIXME: comment is poorly located: *)
         let src_dst =
-          comment ("Convert field #"^ Pervasives.string_of_int i)
+          comment ("Convert field #"^ Stdlib.string_of_int i)
             (desser_ transform sstate dstate mn0 subpath src_dst) in
         loop src_dst (i + 1)
       )
