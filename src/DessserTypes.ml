@@ -104,11 +104,11 @@ let to_value_type = function
   | Nullable t -> t
   | NotNullable t -> t
 
-let to_nullable = function
+let maybe_nullable_to_nullable = function
   | NotNullable t -> Nullable t
   | Nullable _ as x -> x
 
-let to_not_nullable = function
+let maybe_nullable_to_not_nullable = function
   | Nullable t -> NotNullable t
   | NotNullable _ as x -> x
 
@@ -175,7 +175,7 @@ let user_types = Hashtbl.create 50
 
 (* To all the above types we add a few low-level types that can not be used
  * in values but are useful to manipulate them. *)
-type typ =
+type t =
   | TValue of maybe_nullable
   | TVoid
   (* DataPtr are used to point into the stream of bytes that's being
@@ -192,7 +192,7 @@ type typ =
   | TQWord
   | TOWord
   | TBytes
-  | TPair of typ * typ
+  | TPair of t * t
   (* We'd like the DES/SERializer to be able to use complex types as their
    * "pointer", part of those types being actual pointers. Therefore, we cannot
    * use the value-types, as we cannot embed a pointer in there. So here we
@@ -201,26 +201,26 @@ type typ =
    * (namely, to compactly store a bunch of read only values).
    * Therefore this one is named TSList, as in "single-chaned" list, and is
    * written using "{}" instead of "[]". *)
-  | TSList of typ
-  | TFunction of typ array * (* result: *) typ
+  | TSList of t
+  | TFunction of t array * (* result: *) t
 
 let to_maybe_nullable = function
   | TValue mn -> mn
   | _ -> invalid_arg "to_maybe_nullable"
 
-let rec typ_eq t1 t2 =
+let rec eq t1 t2 =
   match t1, t2 with
   | TValue mn1, TValue mn2 ->
       maybe_nullable_eq mn1 mn2
   | TPair (t11, t12), TPair (t21, t22) ->
-      typ_eq t11 t21 && typ_eq t12 t22
+      eq t11 t21 && eq t12 t22
   | TSList t1, TSList t2 ->
-      typ_eq t1 t2
+      eq t1 t2
   | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
-      Array.for_all2 typ_eq pt1 pt2 && typ_eq rt1 rt2
+      Array.for_all2 eq pt1 pt2 && eq rt1 rt2
   | t1, t2 -> t1 = t2
 
-let rec print_typ ?sorted oc =
+let rec print ?sorted oc =
   let sp = String.print oc in
   function
   | TValue vt ->
@@ -237,36 +237,36 @@ let rec print_typ ?sorted oc =
   | TBytes -> sp "Bytes"
   | TPair (t1, t2) ->
       pp oc "(%a * %a)"
-        (print_typ ?sorted) t1
-        (print_typ ?sorted) t2
+        (print ?sorted) t1
+        (print ?sorted) t2
   | TSList t1 ->
-      pp oc "%a{}" (print_typ ?sorted) t1
+      pp oc "%a{}" (print ?sorted) t1
   | TFunction ([||], t1) ->
-      pp oc "( -> %a)" (print_typ ?sorted) t1
+      pp oc "( -> %a)" (print ?sorted) t1
   | TFunction (ts, t2) ->
       pp oc "(%a -> %a)"
-        (Array.print ~first:"" ~last:"" ~sep:" -> " (print_typ ?sorted)) ts
-        (print_typ ?sorted) t2
+        (Array.print ~first:"" ~last:"" ~sep:" -> " (print ?sorted)) ts
+        (print ?sorted) t2
 
-let print_typ_sorted oc = print_typ ~sorted:true oc
-let print_typ oc = print_typ ~sorted:false oc
+let print_sorted oc = print ~sorted:true oc
+let print oc = print ~sorted:false oc
 let print_maybe_nullable_sorted oc = print_maybe_nullable ~sorted:true oc
 let print_maybe_nullable oc = print_maybe_nullable ~sorted:false oc
 let print_value_type_sorted oc = print_value_type ~sorted:true oc
 let print_value_type oc = print_value_type ~sorted:false oc
 
-let typ_to_nullable = function
+let to_nullable = function
   | TValue (NotNullable t) -> TValue (Nullable t)
   | t ->
       Printf.eprintf "Cannot turn type %a into nullable\n%!"
-        print_typ t ;
+        print t ;
       assert false
 
-let typ_to_not_nullable = function
+let to_not_nullable = function
   | TValue (Nullable t) -> TValue (NotNullable t)
   | t ->
       Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
-        print_typ t ;
+        print t ;
       assert false
 
 module Parser =
@@ -536,7 +536,7 @@ struct
   *)
 
   let rec typ m =
-    let m = "typ" :: m in
+    let m = "type" :: m in
     (
       (maybe_nullable >>: fun mn -> TValue mn) |||
       (strinG "void" >>: fun () -> TVoid) |||
@@ -567,8 +567,8 @@ struct
       )
     ) m
 
-  let typ_of_string ?what =
-    let print = print_typ in
+  let of_string ?what =
+    let print = print in
     string_parser ~print ?what typ
 
   (*$>*)

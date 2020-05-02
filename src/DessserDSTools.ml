@@ -1,8 +1,8 @@
 (* Some tools above the Dessser modules: *)
 open Batteries
 open DessserTools
-open DessserExpressions
 open Dessser
+module E = DessserExpressions
 
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
@@ -19,7 +19,7 @@ let compile ?(optim=0) ~link backend src_fname dest_fname =
  * into stdout and stops (for tests). *)
 let make_converter ?exe_fname ?mn backend convert =
   let module BE = (val backend : BACKEND) in
-  type_check [] convert ;
+  E.type_check [] convert ;
   let state = BE.make_state () in
   let state, _, entry_point =
     BE.identifier_of_expression state convert in
@@ -52,7 +52,9 @@ let run_converter ?timeout exe param =
         let timeout_cmd = "/usr/bin/timeout" in
         timeout_cmd, [| timeout_cmd ; string_of_int t ; exe ; param |] in
   let env = [| "OCAMLRUNPARAM=b" |] in
-  with_stdout_from_command ~env cmd args (fun ic ->
-    let i = IO.input_channel ic in
-    IO.copy i str) ;
+  (try
+    with_stdout_from_command ~env cmd args (fun ic ->
+      let i = IO.input_channel ic in
+      IO.copy i str)
+  with _ -> ()) ;
   IO.close_out str

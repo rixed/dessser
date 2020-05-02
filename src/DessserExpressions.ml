@@ -1,11 +1,10 @@
 open Batteries
 open Stdint
-open DessserTypes
 open DessserTools
 open DessserFloatTools
+module T = DessserTypes
 
 (*$inject
-  open Batteries
   open Stdint
   module T = DessserTypes *)
 
@@ -28,8 +27,8 @@ let endianness_of_string = function
 
 type e0 =
   | Param of (*function id*) int * (*param no*) int
-  | Null of value_type
-  | EndOfList of typ
+  | Null of T.value_type
+  | EndOfList of T.t
   | Float of float
   | String of string
   | Bool of bool
@@ -74,7 +73,7 @@ type e0s =
   | MakeRec
 
 type e1 =
-  | Function of (*function id*) int * (*args*) typ array
+  | Function of (*function id*) int * (*args*) T.t array
   | Comment of string
   | GetItem of int (* for tuples *)
   | GetField of string (* For records *)
@@ -234,20 +233,20 @@ type e4 =
         Read whenever cond returns true, or the input stream is exhausted *)
   | Repeat (* From * To * body (idx->'a->'a) * Init value *)
 
-type e =
+type t =
   | E0 of e0
-  | E0S of (e0s * e list)
-  | E1 of e1 * e
-  | E2 of e2 * e * e
-  | E3 of e3 * e * e * e
-  | E4 of e4 * e * e * e * e
+  | E0S of (e0s * t list)
+  | E1 of e1 * t
+  | E2 of e2 * t * t
+  | E3 of e3 * t * t * t
+  | E4 of e4 * t * t * t * t
 
 let rec e0_eq e1 e2 =
   match e1, e2 with
   | Null vt1, Null vt2 ->
-      value_type_eq vt1 vt2
+      T.value_type_eq vt1 vt2
   | EndOfList t1, EndOfList t2 ->
-      typ_eq t1 t2
+      T.eq t1 t2
   | e1, e2 ->
       (* Assuming here and below that when the constructors are different
        * the generic equality does not look t the fields and therefore won't
@@ -259,7 +258,7 @@ and e0s_eq e1 e2 = e1 = e2
 and e1_eq e1 e2 =
   match e1, e2 with
   | Function (fid1, typ1), Function (fid2, typ2) ->
-      fid1 = fid2 && Array.for_all2 typ_eq typ1 typ2
+      fid1 = fid2 && Array.for_all2 T.eq typ1 typ2
   | e1, e2 -> e1 = e2
 
 and e2_eq e1 e2 = e1 = e2
@@ -286,7 +285,7 @@ and expr_eq e1 e2 =
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
 
-let string_of_path = IO.to_string print_path
+let string_of_path = IO.to_string T.print_path
 
 let string_of_e0s =function
   | Seq -> "seq"
@@ -299,7 +298,7 @@ let string_of_e1 = function
   | Function (fid, typs) ->
       "function "^ string_of_int fid ^
       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
-        Printf.fprintf oc "%S" (IO.to_string print_typ t))) typs
+        Printf.fprintf oc "%S" (IO.to_string T.print t))) typs
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
@@ -446,10 +445,12 @@ let string_of_e4 = function
   | ReadWhile -> "read-while"
   | Repeat -> "repeat"
 
+let pp = Printf.fprintf
+
 let rec string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Null vt -> "null "^ String.quote (IO.to_string print_value_type vt)
-  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string print_typ t)
+  | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
+  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
   | Float f -> "float "^ hexstring_of_float f
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
@@ -484,12 +485,12 @@ let rec string_of_e0 = function
   | Identifier s -> "identifier "^ String.quote s
 
 (* Display in a single line to help with tests. TODO: pretty_print_expr *)
-and print_expr ?max_depth oc e =
+and print ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
     pp oc "…"
   else
     let max_depth = Option.map pred max_depth in
-    let p = print_expr ?max_depth in
+    let p = print ?max_depth in
     match e with
     | E0 op ->
         pp oc "(%s)" (string_of_e0 op)
@@ -549,7 +550,7 @@ struct
     | Str of string
     | Lst of sexpr list
 
-  let print oc =
+  let print_sexpr oc =
     let rec loop indent sep oc = function
       | Sym s ->
           Printf.fprintf oc "%s%s" sep s
@@ -570,7 +571,7 @@ struct
   let () =
     Printexc.register_printer (function
       | Invalid_expression x ->
-          Some (Printf.sprintf2 "Invalid S-Expression: %a" print x)
+          Some (Printf.sprintf2 "Invalid S-Expression: %a" print_sexpr x)
       | Extraneous_expressions i ->
           Some ("Extraneous expressions at offset "^ string_of_int i)
       | _ ->
@@ -607,7 +608,7 @@ struct
 
   (*$< Parser *)
 
-  (*$= sexpr_of_string & ~printer:(IO.to_string (List.print print))
+  (*$= sexpr_of_string & ~printer:(BatIO.to_string (BatList.print print_sexpr))
     [ Sym "glop" ] (sexpr_of_string "glop")
     [ Str "glop" ] (sexpr_of_string "\"glop\"")
     [ Lst [ Sym "pas" ; Sym "glop" ] ] (sexpr_of_string "(pas glop)")
@@ -622,9 +623,9 @@ struct
       | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
           E0 (Param (int_of_string fid, int_of_string n))
       | Lst [ Sym "null" ; Str vt ] ->
-          E0 (Null (Parser.maybe_nullable_of_string vt |> to_value_type))
+          E0 (Null (T.Parser.maybe_nullable_of_string vt |> T.to_value_type))
       | Lst [ Sym "end-of-list" ; Str vt ] ->
-          E0 (EndOfList (Parser.typ_of_string vt))
+          E0 (EndOfList (T.Parser.of_string vt))
       | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
       | Lst [ Sym "string" ; Str s ] -> E0 (String s)
       | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
@@ -670,9 +671,9 @@ struct
           let typs =
             Array.of_list typs |>
             Array.map (function
-              | Str s -> Parser.typ_of_string s
+              | Str s -> T.Parser.of_string s
               | x ->
-                  Printf.sprintf2 "Need a type (in string) not %a" print x |>
+                  Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
                   failwith
             ) in
           E1 (Function (int_of_string fid, typs), e x)
@@ -841,7 +842,7 @@ struct
     in
     List.map e (sexpr_of_string str)
 
-  (*$= expr & ~printer:(IO.to_string (List.print print_expr))
+  (*$= expr & ~printer:(BatIO.to_string (BatList.print print))
     [ Ops.u8 42 ] (expr "(u8 42)")
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
@@ -862,10 +863,10 @@ struct
   (*$>*)
 end
 
-exception Type_error of e * e * typ * string
-exception Type_error_param of e * e * int * typ * string
-exception Type_error_path of e * e * path * string
-exception Struct_error of e * string
+exception Type_error of t * t * T.t * string
+exception Type_error_param of t * t * int * T.t * string
+exception Type_error_path of t * t * T.path * string
+exception Struct_error of t * string
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -875,11 +876,11 @@ let field_name_of_expr = function
 (* [e] must have been type checked already: *)
 let rec type_of l e0 =
   let maybe_nullable_of l e =
-    type_of l e |> to_maybe_nullable in
+    type_of l e |> T.to_maybe_nullable in
   match e0 with
   | E0S (Seq, [])
   | E1 ((Dump | Debug | Ignore), _) ->
-      void
+      T.void
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
@@ -943,153 +944,153 @@ let rec type_of l e0 =
   | E1 (LogNot, e) ->
       type_of l e
   | E1 (ToNullable, e) ->
-      typ_to_nullable (type_of l e)
+      T.to_nullable (type_of l e)
   | E1 (ToNotNullable, e) ->
-      typ_to_not_nullable (type_of l e)
-  | E1 (IsNull, _) -> bool
+      T.to_not_nullable (type_of l e)
+  | E1 (IsNull, _) -> T.bool
   | E0 (Null vt) -> TValue (Nullable vt)
   | E0 (EndOfList t) -> TSList t
-  | E0 (Float _) -> float
-  | E0 (String _) -> string
-  | E0 (Bool _) -> bool
-  | E0 (Char _) -> char
-  | E0 (U8 _) -> u8
-  | E0 (U16 _) -> u16
-  | E0 (U24 _) -> u24
-  | E0 (U32 _) -> u32
-  | E0 (U40 _) -> u40
-  | E0 (U48 _) -> u48
-  | E0 (U56 _) -> u56
-  | E0 (U64 _) -> u64
-  | E0 (U128 _) -> u128
-  | E0 (I8 _) -> i8
-  | E0 (I16 _) -> i16
-  | E0 (I24 _) -> i24
-  | E0 (I32 _) -> i32
-  | E0 (I40 _) -> i40
-  | E0 (I48 _) -> i48
-  | E0 (I56 _) -> i56
-  | E0 (I64 _) -> i64
-  | E0 (I128 _) -> i128
-  | E0 (Bit _) -> bit
-  | E0 (Size _) -> size
-  | E0 (Byte _) -> byte
-  | E0 (Word _) -> word
-  | E0 (DWord _) -> dword
-  | E0 (QWord _) -> qword
-  | E0 (OWord _) -> oword
-  | E2 (Gt, _, _) -> bool
-  | E2 (Ge, _, _) -> bool
-  | E2 (Eq, _, _) -> bool
-  | E2 (Ne, _, _) -> bool
+  | E0 (Float _) -> T.float
+  | E0 (String _) -> T.string
+  | E0 (Bool _) -> T.bool
+  | E0 (Char _) -> T.char
+  | E0 (U8 _) -> T.u8
+  | E0 (U16 _) -> T.u16
+  | E0 (U24 _) -> T.u24
+  | E0 (U32 _) -> T.u32
+  | E0 (U40 _) -> T.u40
+  | E0 (U48 _) -> T.u48
+  | E0 (U56 _) -> T.u56
+  | E0 (U64 _) -> T.u64
+  | E0 (U128 _) -> T.u128
+  | E0 (I8 _) -> T.i8
+  | E0 (I16 _) -> T.i16
+  | E0 (I24 _) -> T.i24
+  | E0 (I32 _) -> T.i32
+  | E0 (I40 _) -> T.i40
+  | E0 (I48 _) -> T.i48
+  | E0 (I56 _) -> T.i56
+  | E0 (I64 _) -> T.i64
+  | E0 (I128 _) -> T.i128
+  | E0 (Bit _) -> T.bit
+  | E0 (Size _) -> T.size
+  | E0 (Byte _) -> T.byte
+  | E0 (Word _) -> T.word
+  | E0 (DWord _) -> T.dword
+  | E0 (QWord _) -> T.qword
+  | E0 (OWord _) -> T.oword
+  | E2 (Gt, _, _) -> T.bool
+  | E2 (Ge, _, _) -> T.bool
+  | E2 (Eq, _, _) -> T.bool
+  | E2 (Ne, _, _) -> T.bool
   | E1 (StringOfFloat, _)
   | E1 (StringOfChar, _)
-  | E1 (StringOfInt, _) -> string
-  | E1 (CharOfString, _) -> char
-  | E1 (FloatOfString, _) -> float
-  | E1 (U8OfString, _) -> u8
-  | E1 (U16OfString, _) -> u16
-  | E1 (U24OfString, _) -> u24
-  | E1 (U32OfString, _) -> u32
-  | E1 (U40OfString, _) -> u40
-  | E1 (U48OfString, _) -> u48
-  | E1 (U56OfString, _) -> u56
-  | E1 (U64OfString, _) -> u64
-  | E1 (U128OfString, _) -> u128
-  | E1 (I8OfString, _) -> i8
-  | E1 (I16OfString, _) -> i16
-  | E1 (I24OfString, _) -> i24
-  | E1 (I32OfString, _) -> i32
-  | E1 (I40OfString, _) -> i40
-  | E1 (I48OfString, _) -> i48
-  | E1 (I56OfString, _) -> i56
-  | E1 (I64OfString, _) -> i64
-  | E1 (I128OfString, _) -> i128
-  | E1 (FloatOfQWord, _) -> float
-  | E1 (QWordOfFloat, _) -> qword
-  | E1 (U8OfByte, _) -> u8
-  | E1 (ByteOfU8, _) -> byte
-  | E1 (U16OfWord, _) -> u16
-  | E1 (WordOfU16, _) -> word
-  | E1 (U32OfDWord, _) -> u32
-  | E1 (DWordOfU32, _) -> dword
-  | E1 (U64OfQWord, _) -> u64
-  | E1 (QWordOfU64, _) -> qword
-  | E1 (U128OfOWord, _) -> u128
-  | E1 (OWordOfU128, _) -> oword
-  | E1 (U8OfChar, _) -> u8
-  | E1 (CharOfU8, _) -> char
-  | E1 (SizeOfU32, _) -> size
-  | E1 (U32OfSize, _) -> u32
-  | E1 (BitOfBool, _) -> bit
-  | E1 (BoolOfBit, _) -> bool
+  | E1 (StringOfInt, _) -> T.string
+  | E1 (CharOfString, _) -> T.char
+  | E1 (FloatOfString, _) -> T.float
+  | E1 (U8OfString, _) -> T.u8
+  | E1 (U16OfString, _) -> T.u16
+  | E1 (U24OfString, _) -> T.u24
+  | E1 (U32OfString, _) -> T.u32
+  | E1 (U40OfString, _) -> T.u40
+  | E1 (U48OfString, _) -> T.u48
+  | E1 (U56OfString, _) -> T.u56
+  | E1 (U64OfString, _) -> T.u64
+  | E1 (U128OfString, _) -> T.u128
+  | E1 (I8OfString, _) -> T.i8
+  | E1 (I16OfString, _) -> T.i16
+  | E1 (I24OfString, _) -> T.i24
+  | E1 (I32OfString, _) -> T.i32
+  | E1 (I40OfString, _) -> T.i40
+  | E1 (I48OfString, _) -> T.i48
+  | E1 (I56OfString, _) -> T.i56
+  | E1 (I64OfString, _) -> T.i64
+  | E1 (I128OfString, _) -> T.i128
+  | E1 (FloatOfQWord, _) -> T.float
+  | E1 (QWordOfFloat, _) -> T.qword
+  | E1 (U8OfByte, _) -> T.u8
+  | E1 (ByteOfU8, _) -> T.byte
+  | E1 (U16OfWord, _) -> T.u16
+  | E1 (WordOfU16, _) -> T.word
+  | E1 (U32OfDWord, _) -> T.u32
+  | E1 (DWordOfU32, _) -> T.dword
+  | E1 (U64OfQWord, _) -> T.u64
+  | E1 (QWordOfU64, _) -> T.qword
+  | E1 (U128OfOWord, _) -> T.u128
+  | E1 (OWordOfU128, _) -> T.oword
+  | E1 (U8OfChar, _) -> T.u8
+  | E1 (CharOfU8, _) -> T.char
+  | E1 (SizeOfU32, _) -> T.size
+  | E1 (U32OfSize, _) -> T.u32
+  | E1 (BitOfBool, _) -> T.bit
+  | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e with
       | TSList (TValue mn) -> TValue (NotNullable (TList mn))
       | t -> raise (Type_error (e0, e, t, "be a slist of maybe nullable values")))
-  | E1 (U8OfBool, _) -> u8
-  | E1 (BoolOfU8, _) -> bool
-  | E2 (AppendByte, _, _) -> bytes
-  | E2 (AppendBytes, _, _) -> bytes
-  | E2 (AppendString, _, _) -> string
-  | E1 (StringLength, _) -> u32
-  | E1 (StringOfBytes, _) -> string
-  | E1 (BytesOfString, _) -> bytes
-  | E1 (ListLength, _) -> u32
-  | E0 (DataPtrOfString _) -> dataptr
-  | E0 (DataPtrOfBuffer _) -> dataptr
-  | E2 (GetBit, _, _) -> bit
-  | E3 (SetBit, _, _, _) -> void
-  | E1 (ReadByte, _) -> pair byte dataptr
-  | E1 (ReadWord _, _) -> pair word dataptr
-  | E1 (ReadDWord _, _) -> pair dword dataptr
-  | E1 (ReadQWord _, _) -> pair qword dataptr
-  | E1 (ReadOWord _, _) -> pair oword dataptr
-  | E2 (ReadBytes, _, _) -> pair bytes dataptr
-  | E2 (PeekByte, _, _) -> byte
-  | E2 (PeekWord _, _, _) -> word
-  | E2 (PeekDWord _ , _, _)-> dword
-  | E2 (PeekQWord _, _, _) -> qword
-  | E2 (PeekOWord _, _, _) -> oword
-  | E2 (WriteByte, _, _) -> dataptr
-  | E2 (WriteWord _, _, _) -> dataptr
-  | E2 (WriteDWord _, _, _) -> dataptr
-  | E2 (WriteQWord _, _, _) -> dataptr
-  | E2 (WriteOWord _, _, _) -> dataptr
-  | E2 (WriteBytes, _, _) -> dataptr
-  | E2 (PokeByte, _, _) -> dataptr
-  | E3 (BlitByte, _, _, _) -> dataptr
-  | E2 (DataPtrAdd, _, _) -> dataptr
-  | E2 (DataPtrSub, _, _) -> size
-  | E1 (DataPtrPush, _) -> dataptr
-  | E1 (DataPtrPop, _) -> dataptr
-  | E1 (RemSize, _) -> size
-  | E1 (DataPtrOffset, _) -> size
-  | E2 (And, _, _) -> bool
-  | E2 (Or, _, _) -> bool
-  | E1 (Not, _) -> bool
-  | E1 (ToU8, _) -> u8
-  | E1 (ToI8, _) -> i8
-  | E1 (ToU16, _) -> u16
-  | E1 (ToI16, _) -> i16
-  | E1 (ToU24, _) -> u24
-  | E1 (ToI24, _) -> i24
-  | E1 (ToU32, _) -> u32
-  | E1 (ToI32, _) -> i32
-  | E1 (ToU40, _) -> u40
-  | E1 (ToI40, _) -> i40
-  | E1 (ToU48, _) -> u48
-  | E1 (ToI48, _) -> i48
-  | E1 (ToU56, _) -> u56
-  | E1 (ToI56, _) -> i56
-  | E1 (ToU64, _) -> u64
-  | E1 (ToI64, _) -> i64
-  | E1 (ToU128, _) -> u128
-  | E1 (ToI128, _) -> i128
+  | E1 (U8OfBool, _) -> T.u8
+  | E1 (BoolOfU8, _) -> T.bool
+  | E2 (AppendByte, _, _) -> T.bytes
+  | E2 (AppendBytes, _, _) -> T.bytes
+  | E2 (AppendString, _, _) -> T.string
+  | E1 (StringLength, _) -> T.u32
+  | E1 (StringOfBytes, _) -> T.string
+  | E1 (BytesOfString, _) -> T.bytes
+  | E1 (ListLength, _) -> T.u32
+  | E0 (DataPtrOfString _) -> T.dataptr
+  | E0 (DataPtrOfBuffer _) -> T.dataptr
+  | E2 (GetBit, _, _) -> T.bit
+  | E3 (SetBit, _, _, _) -> T.void
+  | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
+  | E1 (ReadWord _, _) -> T.pair T.word T.dataptr
+  | E1 (ReadDWord _, _) -> T.pair T.dword T.dataptr
+  | E1 (ReadQWord _, _) -> T.pair T.qword T.dataptr
+  | E1 (ReadOWord _, _) -> T.pair T.oword T.dataptr
+  | E2 (ReadBytes, _, _) -> T.pair T.bytes T.dataptr
+  | E2 (PeekByte, _, _) -> T.byte
+  | E2 (PeekWord _, _, _) -> T.word
+  | E2 (PeekDWord _ , _, _)-> T.dword
+  | E2 (PeekQWord _, _, _) -> T.qword
+  | E2 (PeekOWord _, _, _) -> T.oword
+  | E2 (WriteByte, _, _) -> T.dataptr
+  | E2 (WriteWord _, _, _) -> T.dataptr
+  | E2 (WriteDWord _, _, _) -> T.dataptr
+  | E2 (WriteQWord _, _, _) -> T.dataptr
+  | E2 (WriteOWord _, _, _) -> T.dataptr
+  | E2 (WriteBytes, _, _) -> T.dataptr
+  | E2 (PokeByte, _, _) -> T.dataptr
+  | E3 (BlitByte, _, _, _) -> T.dataptr
+  | E2 (DataPtrAdd, _, _) -> T.dataptr
+  | E2 (DataPtrSub, _, _) -> T.size
+  | E1 (DataPtrPush, _) -> T.dataptr
+  | E1 (DataPtrPop, _) -> T.dataptr
+  | E1 (RemSize, _) -> T.size
+  | E1 (DataPtrOffset, _) -> T.size
+  | E2 (And, _, _) -> T.bool
+  | E2 (Or, _, _) -> T.bool
+  | E1 (Not, _) -> T.bool
+  | E1 (ToU8, _) -> T.u8
+  | E1 (ToI8, _) -> T.i8
+  | E1 (ToU16, _) -> T.u16
+  | E1 (ToI16, _) -> T.i16
+  | E1 (ToU24, _) -> T.u24
+  | E1 (ToI24, _) -> T.i24
+  | E1 (ToU32, _) -> T.u32
+  | E1 (ToI32, _) -> T.i32
+  | E1 (ToU40, _) -> T.u40
+  | E1 (ToI40, _) -> T.i40
+  | E1 (ToU48, _) -> T.u48
+  | E1 (ToI48, _) -> T.i48
+  | E1 (ToU56, _) -> T.u56
+  | E1 (ToI56, _) -> T.i56
+  | E1 (ToU64, _) -> T.u64
+  | E1 (ToI64, _) -> T.i64
+  | E1 (ToU128, _) -> T.u128
+  | E1 (ToI128, _) -> T.i128
   | E2 (Cons, e1, _e2) ->
-      slist (type_of l e1)
+      T.slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
-      pair (type_of l e1) (type_of l e2)
+      T.pair (type_of l e1) (type_of l e2)
   | E1 (Fst, e) ->
       (match type_of l e with
       | TPair (t, _) -> t
@@ -1114,7 +1115,7 @@ let rec type_of l e0 =
       (try List.assoc e l
       with Not_found ->
           Printf.eprintf "Cannot find identifier %S in %a\n%!"
-            n (List.print (fun oc (e, _) -> print_expr oc e)) l ;
+            n (List.print (fun oc (e, _) -> print oc e)) l ;
           raise Not_found)
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
@@ -1127,41 +1128,41 @@ let rec type_of l e0 =
       (try List.assoc e l
       with Not_found ->
           Printf.sprintf2 "Cannot find parameter #%d of function %d in %a\n%!"
-            n fid (List.print (fun oc (e, _) -> print_expr oc e)) l |>
+            n fid (List.print (fun oc (e, _) -> print oc e)) l |>
           failwith)
   | E3 (Choose, _, e, _) -> type_of l e
-  | E4 (ReadWhile, _, _, e, _) -> pair (type_of l e) dataptr
+  | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
   | E3 (LoopWhile, _, _, e) -> type_of l e
   | E3 (LoopUntil, _, _, e) -> type_of l e
   | E4 (Repeat, _, _, _, e) -> type_of l e
 
 (* depth last, pass the list of bound identifiers along the way: *)
-let rec fold_expr u l f e =
+let rec fold u l f e =
   let u = f u l e in
   match e with
   | E0 _ ->
       u
   | E0S (_, es) ->
-      List.fold_left (fun u e1 -> fold_expr u l f e1) u es
+      List.fold_left (fun u e1 -> fold u l f e1) u es
   | E1 (Function (id, ts), e1) ->
       let l = Array.fold_lefti (fun l i t ->
         (E0 (Param (id, i)), t) :: l
       ) l ts in
-      fold_expr u l f e1
+      fold u l f e1
   | E1 (_, e1) ->
-      fold_expr u l f e1
+      fold u l f e1
   | E2 (Let s, e1, e2) ->
       let l' = (E0 (Identifier s), type_of l e1) :: l in
-      fold_expr (fold_expr u l f e1) l' f e2
+      fold (fold u l f e1) l' f e2
   | E2 (_, e1, e2) ->
-      fold_expr (fold_expr u l f e1) l f e2
+      fold (fold u l f e1) l f e2
   | E3 (_, e1, e2, e3) ->
-      fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3
+      fold (fold (fold u l f e1) l f e2) l f e3
   | E4 (_, e1, e2, e3, e4) ->
-      fold_expr (fold_expr (fold_expr (fold_expr u l f e1) l f e2) l f e3) l f e4
+      fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
 
 let rec type_check l e =
-  fold_expr () l (fun () l e0 ->
+  fold () l (fun () l e0 ->
     let check_void l e =
       match type_of l e with
       | TVoid -> ()
@@ -1177,17 +1178,17 @@ let rec type_check l e =
     let check_same_valuetype l e1 e2 =
       let t1 = type_of l e1
       and t2 = type_of l e2 in
-      match to_value_type (to_maybe_nullable t1) with
+      match T.to_value_type (T.to_maybe_nullable t1) with
       | exception _ ->
           raise (Type_error (e0, e1, t1, "be a value"))
       | vt1 ->
           let fail () =
-            let msg = Printf.sprintf2 "be %a" print_typ t1 in
+            let msg = Printf.sprintf2 "be %a" T.print t1 in
             raise (Type_error (e0, e2, t2, msg)) in
-          (match to_value_type (to_maybe_nullable (t2)) with
+          (match T.to_value_type (T.to_maybe_nullable (t2)) with
           | exception _ -> fail ()
           | vt2 ->
-              if not (value_type_eq vt1 vt2) then fail ()) in
+              if not (T.value_type_eq vt1 vt2) then fail ()) in
     let check_comparable l e =
       match type_of l e with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
@@ -1212,13 +1213,13 @@ let rec type_check l e =
           TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128))) -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let check_param fe n act exp =
-      if not (typ_eq act exp) then
-        let expected = IO.to_string print_typ act in
+      if not (T.eq act exp) then
+        let expected = IO.to_string T.print act in
         raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
     let check_eq l e exp =
       let act = type_of l e in
-      if not (typ_eq act exp) then
-        let expected = IO.to_string print_typ exp in
+      if not (T.eq act exp) then
+        let expected = IO.to_string T.print exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
@@ -1335,113 +1336,113 @@ let rec type_check l e =
         check_same_types l e1 e2
     | E2 ((LeftShift | RightShift), e1, e2) ->
         check_integer l e1 ;
-        check_eq l e2 u8
+        check_eq l e2 T.u8
     | E1 ((LogNot | StringOfInt), e) ->
         check_integer l e
     | E1 ((StringOfChar | U8OfChar), e) ->
-        check_eq l e char
+        check_eq l e T.char
     | E1 ((FloatOfString | CharOfString | U8OfString | U16OfString
          | U24OfString | U32OfString | U40OfString | U48OfString
          | U56OfString | U64OfString | U128OfString | I8OfString
          | I16OfString | I24OfString | I32OfString | I40OfString
          | I48OfString | I56OfString | I64OfString | I128OfString
          | StringLength | BytesOfString), e) ->
-        check_eq l e string
+        check_eq l e T.string
     | E1 ((FloatOfQWord | U64OfQWord), e) ->
-        check_eq l e qword
+        check_eq l e T.qword
     | E1 ((QWordOfFloat | StringOfFloat), e) ->
-        check_eq l e float
+        check_eq l e T.float
     | E1 (U8OfByte, e) ->
-        check_eq l e byte
+        check_eq l e T.byte
     | E1 ((CharOfU8 | ByteOfU8 | BoolOfU8), e) ->
-        check_eq l e u8
+        check_eq l e T.u8
     | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
          | ToI40 | ToU40 | ToI48 | ToU48 | ToI56 | ToU56 | ToI64 | ToU64
          | ToI128 | ToU128), e) ->
         check_integer l e
     | E1 (U16OfWord, e) ->
-        check_eq l e word
+        check_eq l e T.word
     | E1 (WordOfU16, e) ->
-        check_eq l e u16
+        check_eq l e T.u16
     | E1 (U32OfDWord, e) ->
-        check_eq l e dword
+        check_eq l e T.dword
     | E1 ((DWordOfU32 | SizeOfU32), e) ->
-        check_eq l e u32
+        check_eq l e T.u32
     | E1 (QWordOfU64, e) ->
-        check_eq l e u64
+        check_eq l e T.u64
     | E1 (OWordOfU128, e) ->
-        check_eq l e u128
+        check_eq l e T.u128
     | E1 (U128OfOWord, e) ->
-        check_eq l e oword
+        check_eq l e T.oword
     | E1 (U32OfSize, e) ->
-        check_eq l e size
+        check_eq l e T.size
     | E1 ((BitOfBool | U8OfBool | Not), e) ->
-        check_eq l e bool
+        check_eq l e T.bool
     | E1 (BoolOfBit, e) ->
-        check_eq l e bit
+        check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev), e) ->
         check_slist_of_maybe_nullable l e
     | E2 (AppendByte, e1, e2) ->
-        check_eq l e1 bytes ;
-        check_eq l e2 byte
+        check_eq l e1 T.bytes ;
+        check_eq l e2 T.byte
     | E2 (AppendBytes, e1, e2) ->
-        check_eq l e1 bytes ;
-        check_eq l e2 bytes
+        check_eq l e1 T.bytes ;
+        check_eq l e2 T.bytes
     | E2 (AppendString, e1, e2) ->
-        check_eq l e1 string ;
-        check_eq l e2 string
+        check_eq l e1 T.string ;
+        check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
-        check_eq l e bytes
+        check_eq l e T.bytes
     | E1 (ListLength, e) ->
         check_list l e
     | E2 (GetBit, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 size
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.size
     | E3 (SetBit, e1, e2, e3) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 size ;
-        check_eq l e3 bit
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.size ;
+        check_eq l e3 T.bit
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
-        check_eq l e dataptr
+        check_eq l e T.dataptr
     | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
          | PeekOWord _), e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 size
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.size
     | E2 ((WriteByte | PokeByte), e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 byte
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.byte
     | E2 (WriteWord _, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 word
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.word
     | E2 (WriteDWord _, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 dword
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.dword
     | E2 (WriteQWord _, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 qword
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.qword
     | E2 (WriteOWord _, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 oword
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.oword
     | E2 (WriteBytes, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 bytes
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.bytes
     | E3 (BlitByte, e1, e2, e3) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 byte ;
-        check_eq l e3 size
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.byte ;
+        check_eq l e3 T.size
     | E2 (DataPtrAdd, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 size
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.size
     | E2 (DataPtrSub, e1, e2) ->
-        check_eq l e1 dataptr ;
-        check_eq l e2 dataptr
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.dataptr
     | E1 ((DataPtrPush | DataPtrPop), e1) ->
-        check_eq l e1 dataptr
+        check_eq l e1 T.dataptr
     | E1 ((RemSize | DataPtrOffset), e) ->
-        check_eq l e dataptr ;
+        check_eq l e T.dataptr ;
     | E2 ((And | Or), e1, e2) ->
-        check_eq l e1 bool ;
-        check_eq l e2 bool
+        check_eq l e1 T.bool ;
+        check_eq l e2 T.bool
     | E1 (GetItem _, _)
     | E1 (GetField _, _) ->
         ignore (type_of l e) (* everything checks already performed in [type_of] *)
@@ -1459,21 +1460,21 @@ let rec type_check l e =
         check_pair l e1 ;
         check_function 2 l e2
     | E3 (Choose, e1, e2, e3) ->
-        check_eq l e1 bool ;
+        check_eq l e1 T.bool ;
         check_same_types l e2 e3
     | E4 (ReadWhile, e1 (*byte->bool*), e2 (*'a->byte->'a*), e3 (*'a*), e4 (*ptr*)) ->
         check_params1 l e1 (fun t1 t2 ->
-          check_param e1 0 t1 byte ;
-          check_param e1 1 t2 bool) ;
+          check_param e1 0 t1 T.byte ;
+          check_param e1 1 t2 T.bool) ;
         check_params2 l e2 (fun t1 t2 t3 ->
           check_eq l e3 t1 ;
-          check_param e2 1 t2 byte ;
+          check_param e2 1 t2 T.byte ;
           check_eq l e3 t3) ;
-        check_eq l e4 dataptr
+        check_eq l e4 T.dataptr
     | E3 (LoopWhile, e1 (*'a->bool*), e2 (*'a->'a*), e3 (*'a*)) ->
         check_params1 l e1 (fun t1 t2 ->
           check_eq l e3 t1 ;
-          check_param e1 1 t2 bool) ;
+          check_param e1 1 t2 T.bool) ;
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_eq l e3 t2)
@@ -1483,12 +1484,12 @@ let rec type_check l e =
           check_eq l e3 t2) ;
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
-          check_param e2 1 t2 bool) ;
+          check_param e2 1 t2 T.bool) ;
     | E4 (Repeat, e1 (*from*), e2 (*to*), e3 (*idx->'a->'a*), e4 (*'a*)) ->
-        check_eq l e1 i32 ;
-        check_eq l e2 i32 ;
+        check_eq l e1 T.i32 ;
+        check_eq l e2 T.i32 ;
         check_params2 l e3 (fun t1 t2 t3 ->
-          check_param e3 0 t1 i32 ;
+          check_param e3 0 t1 T.i32 ;
           check_eq l e4 t2 ;
           check_eq l e4 t3)
   ) e
@@ -1503,7 +1504,7 @@ let rec type_check l e =
  *)
 
 let size_of_expr l e =
-  fold_expr 0 l (fun n _l _e0 -> n + 1) e
+  fold 0 l (fun n _l _e0 -> n + 1) e
 
 let () =
   let max_depth = 3 in
@@ -1512,23 +1513,23 @@ let () =
         Some (
           Printf.sprintf2
             "Type Error: In expression %a, expression %a should %s but is a %a"
-            (print_expr ~max_depth) e0 (print_expr ~max_depth) e s print_typ t)
+            (print ~max_depth) e0 (print ~max_depth) e s T.print t)
     | Type_error_param (e0, e, n, t, s) ->
         Some (
           Printf.sprintf2
             "Type Error: In expression %a, parameter %d of expression %a \
              should %s but is a %a"
-            (print_expr ~max_depth) e0 n (print_expr ~max_depth) e s print_typ t)
+            (print ~max_depth) e0 n (print ~max_depth) e s T.print t)
     | Type_error_path (e0, e, path, s) ->
         Some (
           Printf.sprintf2
             "Type Error: In expression %a, path %a of expression %a should %s"
-            (print_expr ~max_depth) e0 print_path path (print_expr ~max_depth) e s)
+            (print ~max_depth) e0 T.print_path path (print ~max_depth) e s)
     | Struct_error (e0, s) ->
         Some (
           Printf.sprintf2
             "Invalid type structure: In expression %a, %s"
-            (print_expr ~max_depth) e0 s)
+            (print ~max_depth) e0 s)
     | _ ->
         None)
 
@@ -1604,7 +1605,7 @@ let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
                         (E0 (Identifier n3)))))
 
 (*$< DessserTypes *)
-(*$= type_of & ~printer:(IO.to_string print_typ)
+(*$= type_of & ~printer:(BatIO.to_string T.print)
   (TPair (u24, TDataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
 *)
 
@@ -1614,15 +1615,15 @@ let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
 
 type user_expr =
   { name : string ;
-    def : e ;
-    type_check : (e * typ) list -> unit ;
-    type_of : (e * typ) list -> typ ;
+    def : t ;
+    type_check : (t * T.t) list -> unit ;
+    type_of : (t * T.t) list -> T.t ;
     print : unit IO.output -> unit ;
     (* parse *) }
 
 let user_expressions = Hashtbl.create 50
 
-let register_user_expr name ?check ?type_ ?print def =
+let register_user_expr name ?check ?type_ ?printer def =
   Hashtbl.modify_opt name (function
     | None ->
         let type_check = check |?
@@ -1631,9 +1632,9 @@ let register_user_expr name ?check ?type_ ?print def =
           Option.default_delayed (fun () ->
             fun l -> type_of l def
           ) type_
-        and print = print |?
-          fun oc -> print_expr oc def in
-        Some { name ; def ; type_check ; type_of ; print }
+        and printer = printer |?
+          fun oc -> print oc def in
+        Some { name ; def ; type_check ; type_of ; print = printer }
     | Some _ ->
         invalid_arg "register_user_expr"
   ) user_expressions

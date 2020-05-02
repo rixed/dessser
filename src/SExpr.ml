@@ -1,21 +1,20 @@
 open Batteries
 open Stdint
 open Dessser
-open DessserTypes
-open DessserExpressions
-open Ops
 module T = DessserTypes
+module E = DessserExpressions
+open E.Ops
 
 let list_prefix_length = true
 
 module Des : DES =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _vtyp = T.dataptr
 
   let start _mn p = (), p
   let stop () p = p
-  type des = state -> maybe_nullable -> path -> e -> e
+  type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
   let skip n p = data_ptr_add p (size n)
   let skip1 = skip 1
@@ -23,20 +22,20 @@ struct
   let di op () _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
-    let cond = func1 T.byte (fun _l b ->
+    let cond = E.func1 T.byte (fun _l b ->
       (* No other options as we would meet a space before a '(' or '"': *)
       not_ (or_ (eq b (byte_of_const_char ' '))
                 (eq b (byte_of_const_char ')'))))
     and init = bytes_of_string (string "")
-    and reduce = func2 T.bytes T.byte (fun _l -> append_byte) in
+    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    with_sploded_pair "dfloat" str_p (fun str p ->
+    E.with_sploded_pair "dfloat" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
 
   let dfloat = di float_of_string
 
   let dbool () _ _ p =
-    with_sploded_pair "dbool" (read_byte p) (fun b p ->
+    E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
       pair (eq b (byte_of_const_char 'T')) p)
 
   (* Read a string of bytes and process them through [conv]: *)
@@ -45,11 +44,11 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
+    let cond = E.func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
     and init = bytes_of_string (string "")
-    and reduce = func2 T.bytes T.byte (fun _l -> append_byte) in
+    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    with_sploded_pair "dfloat" str_p (fun str p ->
+    E.with_sploded_pair "dfloat" str_p (fun str p ->
       (* Skip the closing double-quote: *)
       let p = skip1 p in
       pair (conv str) p)
@@ -92,7 +91,7 @@ struct
   let list_opn =
     if list_prefix_length then
       KnownSize (fun () vtyp0 path _ p ->
-        with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
+        E.with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
           pair v (skip 2 p)))
     else
       UnknownSize (
@@ -119,12 +118,12 @@ module Ser : SER =
 struct
 
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _vtyp = T.dataptr
 
   let start _v p = (), p
   let stop () p = p
 
-  type ser = state -> maybe_nullable -> path -> e -> e -> e
+  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
   let sfloat () _ _ v p =
     write_bytes p (bytes_of_string (string_of_float v))
@@ -218,7 +217,7 @@ struct
 
   let snotnull _t () _ _ p = p
 
-  type ssizer = maybe_nullable -> path -> e -> ssize
+  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
   let todo_ssize () = failwith "TODO: ssize for SExpr"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()

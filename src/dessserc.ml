@@ -7,12 +7,12 @@
  *   heapvalues.  *)
 open Batteries
 open Dessser
-open DessserTypes
-open DessserExpressions
 open DessserTools
 open DessserDSTools
 open DessserCompilConfig
-open Ops
+module T = DessserTypes
+module E = DessserExpressions
+open E.Ops
 
 let debug = true
 
@@ -31,24 +31,24 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
   let module OfValue = HeapValue.Serialize (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
+    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    func1 TDataPtr (fun _l src ->
+    E.func1 TDataPtr (fun _l src ->
       first (ToValue.make schema src)) in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    func1 (TValue schema) (fun _l v ->
+    E.func1 (TValue schema) (fun _l v ->
       OfValue.sersize schema v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    func2 (TValue schema) TDataPtr (fun _l v dst ->
+    E.func2 (TValue schema) TDataPtr (fun _l v dst ->
       OfValue.serialize schema v dst) in
   if debug then (
-    type_check [] convert ;
-    type_check [] to_value ;
-    type_check [] value_sersize ;
-    type_check [] of_value) ;
+    E.type_check [] convert ;
+    E.type_check [] to_value ;
+    E.type_check [] value_sersize ;
+    E.type_check [] of_value) ;
   let state = BE.make_state  () in
   let state, _, _convert_id =
     BE.identifier_of_expression state ~name:"convert" convert in
@@ -77,8 +77,8 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   let module DS = DesSer (Des) (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
-  if debug then type_check [] convert ;
+    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
+  if debug then E.type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_id =
     BE.identifier_of_expression state ~name:"convert" convert in

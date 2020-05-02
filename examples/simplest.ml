@@ -1,26 +1,25 @@
 open Batteries
 open Stdint
 open Dessser
-open DessserTypes
-open DessserExpressions
 open DessserTools
 open DessserDSTools
-open Ops
 module T = DessserTypes
+module E = DessserExpressions
+open E.Ops
 
 (* The simplest possible deserializer *)
 module TestDes : DES =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _vtyp = T.dataptr
 
   let start _vtyp src = (), src
   let stop () src = src
-  type des = state -> maybe_nullable -> path -> (*dataptr*) e -> (* (v * dataptr) *) e
+  type des = state -> T.maybe_nullable -> T.path -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
   let from_byte v1 v2 _ _ src =
     let b_src = read_byte src in
-    with_sploded_pair "from_byte" b_src (fun b src ->
+    E.with_sploded_pair "from_byte" b_src (fun b src ->
       pair
         (choose ~cond:(bool_of_u8 (u8_of_byte b)) v1 v2)
         src)
@@ -29,7 +28,7 @@ struct
   let dstring () = from_byte (string "x") (string "")
   let dbool () = from_byte (bool true) (bool false)
   let dchar () _ _ src =
-    with_sploded_pair "dchar" (read_byte src) (fun b src ->
+    E.with_sploded_pair "dchar" (read_byte src) (fun b src ->
       pair (char_of_u8 (u8_of_byte b)) src)
   let di8 () = from_byte (i8 1) (i8 0)
   let di16 () = from_byte (i16 1) (i16 0)
@@ -61,7 +60,7 @@ struct
   let list_opn = KnownSize (fun () _ _ _ src ->
     let b_src = read_byte src in
     map_pair b_src
-      (func2 T.byte T.dataptr (fun _l b p ->
+      (E.func2 T.byte T.dataptr (fun _l b p ->
         pair (to_u32 (u8_of_byte b)) p)))
   let list_cls () _ _ src = src
   let list_sep () _ _ src = src
@@ -75,11 +74,11 @@ end
 module TestSer : SER =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _vtyp = T.dataptr
 
   let start _v dst = (), dst
   let stop () dst = dst
-  type ser = state -> maybe_nullable -> path -> (*v*) e -> (*dataptr*) e -> (*dataptr*) e
+  type ser = state -> T.maybe_nullable -> T.path -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
     write_byte dst (byte_of_u8 (u8_of_bool b))
@@ -123,7 +122,7 @@ struct
   let snull _t () _ _ dst = write_byte dst (byte 1)
   let snotnull _t () _ _ dst = write_byte dst (byte 0)
 
-  type ssizer = maybe_nullable -> path -> (*valueptr*) e -> ssize
+  type ssizer = T.maybe_nullable -> T.path -> (*valueptr*) E.t -> ssize
   let ssize_of_float _ _ _ = ConstSize 1
   let ssize_of_string _ _ _ = ConstSize 1
   let ssize_of_bool _ _ _ = ConstSize 1
@@ -157,11 +156,11 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let vtyp = NotNullable (TTup [| Nullable (Mac TU8) ;
-                                  NotNullable (Mac TChar) |]) in
+  let vtyp = T.NotNullable (TTup [| Nullable (Mac TU8) ;
+                                    NotNullable (Mac TChar) |]) in
   let src = data_ptr_of_string "\001X"
   and dst = data_ptr_of_string "_____" in
-  let1 (TestDesSer.desser vtyp src dst) (fun e ->
+  E.let1 (TestDesSer.desser vtyp src dst) (fun e ->
     seq [ dump e ;
           dump (string "\n") ;
           e ])
@@ -169,7 +168,7 @@ let test_desser () =
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =
   let e = test_desser () in
-  type_check [] e ;
+  E.type_check [] e ;
   let backend, exe_ext, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module BackEndOCaml : BACKEND), ".opt", ""

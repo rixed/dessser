@@ -1,8 +1,8 @@
 open Batteries
 open Stdint
 open Dessser
-open DessserTypes
-open DessserExpressions
+module T = DessserTypes
+module E = DessserExpressions
 
 let debug = false
 
@@ -26,9 +26,11 @@ let indent_more p f =
   finally (fun () -> p.indent <- indent)
     f ()
 
+let pp = Printf.fprintf
+
 let declared_type p t f =
   let id =
-    IO.to_string print_typ_sorted t |>
+    IO.to_string T.print_sorted t |>
     Digest.string |>
     Digest.to_hex in
   if Set.String.mem id p.declared then id
@@ -48,8 +50,8 @@ let declared_type p t f =
 type emitter =
   ?name:string ->
   print_state ->
-  (e * typ) list ->
-  e -> (string IO.output -> unit) ->
+  (E.t * T.t) list ->
+  E.t -> (string IO.output -> unit) ->
     string
 
 (* Avoid modifying the name when it's valid: *)
@@ -65,20 +67,20 @@ sig
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
 
-  val type_identifier : print_state -> typ -> string
+  val type_identifier : print_state -> T.t -> string
 
   val print_binding :
     string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
 
   val print_binding_toplevel :
-    emitter -> string -> print_state -> (e * typ) list -> e -> unit
+    emitter -> string -> print_state -> (E.t * T.t) list -> E.t -> unit
 
   val print_identifier_declaration :
-    string -> print_state -> (e * typ) list -> e -> unit
+    string -> print_state -> (E.t * T.t) list -> E.t -> unit
 
   val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
 
-  val print : ?name:string -> emitter -> print_state -> (e * typ) list -> e -> string
+  val print : ?name:string -> emitter -> print_state -> (E.t * T.t) list -> E.t -> string
 
   val source_intro : string
 
@@ -101,23 +103,23 @@ struct
   let gen_sym () = valid_identifier (gen_sym "id_")
 
   type identifier =
-    { public : bool ; expr : e }
+    { public : bool ; expr : E.t }
 
   type state =
     { identifiers : (string * identifier) list ;
-      external_identifiers : (string * typ) list }
+      external_identifiers : (string * T.t) list }
 
   let make_state () =
     { identifiers = [] ; external_identifiers = [] }
 
   (* Find references to external identifiers: *)
   let get_depends l e =
-    fold_expr [] l (fun lst l -> function
+    E.fold [] l (fun lst l -> function
       | E0 (Identifier s) as e ->
           assert (s <> "") ;
           if List.mem_assoc e l || List.mem s lst then lst else (
             pp stdout "Cannot find identifier %S in %a\n%!"
-              s (List.print (fun oc (e, _) -> print_expr oc e)) l ;
+              s (List.print (fun oc (e, _) -> E.print oc e)) l ;
             s :: lst
           )
       | _ -> lst
@@ -138,19 +140,19 @@ struct
     (* Start with external identifiers: *)
     let l =
       List.map (fun (name, typ) ->
-        Ops.identifier name, typ
+        E.Ops.identifier name, typ
       ) state.external_identifiers in
     (* ...and already defined identifiers in the environment: *)
     let l =
       List.fold_left (fun l (name, id) ->
-        (Ops.identifier name, type_of l id.expr) :: l
+        (E.Ops.identifier name, E.type_of l id.expr) :: l
       ) l state.identifiers in
-    type_check l expr ;
-    if type_of l expr = TVoid then
+    E.type_check l expr ;
+    if E.type_of l expr = TVoid then
       invalid_arg "identifier_of_expression of type void" ;
     { state with
         identifiers = (name, identifier) :: state.identifiers },
-    E0 (Identifier name),
+    E.E0 (Identifier name),
     valid_identifier name
 
   let find_or_declare_type _p _t =
@@ -158,7 +160,7 @@ struct
 
   let emit ?name p l e f =
     let n = match name with Some n -> n | None -> gen_sym () in
-    let t = type_of l e in
+    let t = E.type_of l e in
     let tn = C.type_identifier p t in
     pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
     n
@@ -178,7 +180,7 @@ struct
       List.map (fun (name, identifier) ->
         let l =
           List.map (fun (name, typ) ->
-            Ops.identifier name, typ
+            E.Ops.identifier name, typ
           ) state.external_identifiers in
         let deps = get_depends l identifier.expr in
         name, deps, identifier.expr
@@ -189,7 +191,7 @@ struct
           pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
             name
             (List.print String.print) depends
-            (print_expr ?max_depth:None) e)) identifiers ;
+            (E.print ?max_depth:None) e)) identifiers ;
     let p = make_print_state () in
     let rec loop progress defined left_overs = function
       | [] ->
@@ -209,10 +211,10 @@ struct
           else (
             let l =
               List.map (fun (name, t) ->
-                E0 (Identifier name), t
+                E.E0 (Identifier name), t
               ) defined in
             output_identifier name p l e ;
-            let t = type_of l e in
+            let t = E.type_of l e in
             let defined = (name, t) :: defined in
             loop true defined left_overs rest
           ) in

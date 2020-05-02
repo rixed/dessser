@@ -2,10 +2,9 @@ open Batteries
 open Stdint
 open DessserTools
 open Dessser
-open DessserTypes
-open DessserExpressions
-open Ops
 module T = DessserTypes
+module E = DessserExpressions
+open E.Ops
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
 let ringbuf_word_size = ref 4
@@ -36,40 +35,40 @@ let rec_field_cmp (n1, _) (n2, _) =
 
 let rec order_rec_fields mn =
   let rec order_value_type = function
-    | TRec mns ->
+    | T.TRec mns ->
         Array.fast_sort rec_field_cmp mns ;
-        TRec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
-    | TTup mns ->
-        TTup (Array.map order_rec_fields mns)
-    | TVec (dim, mn) ->
-        TVec (dim, order_rec_fields mn)
-    | TList mn ->
-        TList (order_rec_fields mn)
-    | Usr ut ->
+        T.TRec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
+    | T.TTup mns ->
+        T.TTup (Array.map order_rec_fields mns)
+    | T.TVec (dim, mn) ->
+        T.TVec (dim, order_rec_fields mn)
+    | T.TList mn ->
+        T.TList (order_rec_fields mn)
+    | T.Usr ut ->
         order_value_type ut.def
     | mn -> mn in
   match mn with
-  | NotNullable vt -> NotNullable (order_value_type vt)
-  | Nullable vt -> Nullable (order_value_type vt)
+  | T.NotNullable vt -> T.NotNullable (order_value_type vt)
+  | T.Nullable vt -> T.Nullable (order_value_type vt)
 
 let rec are_rec_fields_ordered mn =
   let rec aux = function
-    | TRec mns ->
+    | T.TRec mns ->
         array_for_alli (fun i (_name, mn) ->
           are_rec_fields_ordered mn &&
           i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0
         ) mns
-    | TTup mns ->
+    | T.TTup mns ->
         Array.for_all are_rec_fields_ordered mns
-    | TVec (_, mn) | TList mn ->
+    | T.TVec (_, mn) | T.TList mn ->
         are_rec_fields_ordered mn
-    | Usr ut ->
+    | T.Usr ut ->
         aux ut.def
     | _ ->
         true in
   match mn with
-  | NotNullable vt -> aux vt
-  | Nullable vt -> aux vt
+  | T.NotNullable vt -> aux vt
+  | T.Nullable vt -> aux vt
 
 let is_private name =
   String.length name > 0 && name.[0] = '_'
@@ -87,13 +86,13 @@ let tuple_typs_of_record mns =
 let t_frame = T.(pair dataptr size)
 
 let leave_frame p_stk =
-  with_sploded_pair "leave_frame" p_stk (fun p stk ->
+  E.with_sploded_pair "leave_frame" p_stk (fun p stk ->
     pair p (tail stk))
 
 (* Set the next nullbit and return the new stack with increased nullbit
  * position: *)
 let set_nullbit stk =
-  with_sploded_pair "set_nullbit" (head stk) (fun p bi ->
+  E.with_sploded_pair "set_nullbit" (head stk) (fun p bi ->
     seq [ debug (string "set nullbit at ") ;
           debug (string_of_int bi) ;
           debug (char '\n') ;
@@ -102,7 +101,7 @@ let set_nullbit stk =
           cons frame (tail stk) ])
 
 let skip_nullbit stk =
-  with_sploded_pair "skip_nullbit" (head stk) (fun p bi ->
+  E.with_sploded_pair "skip_nullbit" (head stk) (fun p bi ->
     seq [ debug (string "skip nullbit at ") ;
           debug (string_of_int bi) ;
           debug (char '\n') ;
@@ -129,13 +128,13 @@ let may_set_nullbit bit mn0 path stk =
        * a single value is to wrap it in a one dimensional non-nullable vector or
        * list. (FIXME)
        * Therefore if it's nullable we have a problem: *)
-      assert (not (is_nullable mn0)) ;
+      assert (not (T.is_nullable mn0)) ;
       stk
   | [_] ->
       (* This is an item of the outermost value. It has a nullbit only
        * if nullable, and its nullbit position in the nullmask is in the
        * stack: *)
-      if is_nullable (type_of_path mn0 path) then
+      if T.is_nullable (T.type_of_path mn0 path) then
         set_nullbit_to bit stk
       else
         stk
@@ -146,7 +145,7 @@ let may_set_nullbit bit mn0 path stk =
 
 (* TODO: check a nullbit is present for this type before sploding *)
 let may_skip_nullbit mn0 path p_stk =
-  with_sploded_pair "may_skip_nullbit" p_stk (fun p stk ->
+  E.with_sploded_pair "may_skip_nullbit" p_stk (fun p stk ->
     let stk = may_set_nullbit false mn0 path stk in
     pair p stk)
 
@@ -173,7 +172,7 @@ struct
   (* Enter a new compound type by zeroing a nullmask and setting up a new
    * frame for it, all this after having set its own nullbit if needed: *)
   let enter_frame to_expr zero_nullmask nullmask_bits mn0 path p_stk =
-    with_sploded_pair "enter_frame" p_stk (fun p stk ->
+    E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
       let stk = may_set_nullbit true mn0 path stk in
       let new_frame = pair p (size 0) in
       seq [ debug (string "ser: enter a new frame at ") ;
@@ -191,11 +190,11 @@ struct
   let enter_frame_const = enter_frame u8 zero_nullmask_const
 
   let with_data_ptr p_stk f =
-    with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
+    E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
       pair (f p) stk)
 
   let with_nullbit_done mn0 path p_stk f =
-    with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
+    E.with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
       let stk = may_set_nullbit true mn0 path stk in
       let p = f p in
       pair p stk)
@@ -208,7 +207,7 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type ser = state -> maybe_nullable -> path -> e -> e -> e
+  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
   let sfloat () mn0 path v p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
@@ -323,7 +322,7 @@ struct
     let nullmask_bits =
       if is_outermost path then
         Array.fold_left (fun c mn ->
-          if is_nullable mn then c + 1 else c
+          if T.is_nullable mn then c + 1 else c
         ) 0 mns
       else
         Array.length mns in
@@ -350,7 +349,7 @@ struct
     (* TODO: this must be revisited once runtime fieldmasks are in place: *)
     let nullmask_bits =
       if is_outermost path then
-        if is_nullable mn then dim else 0
+        if T.is_nullable mn then dim else 0
       else
         dim in
     enter_frame_const nullmask_bits mn0 path p_stk
@@ -367,7 +366,7 @@ struct
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
     let nullmask_bits =
       if is_outermost path then
-        if is_nullable mn then n else u32_of_int 0
+        if T.is_nullable mn then n else u32_of_int 0
       else
         n in
     let p_stk =
@@ -389,7 +388,7 @@ struct
   (* nullbits are set when actual values are written: *)
   let snotnull _t () _ _ p_stk = p_stk
 
-  type ssizer = maybe_nullable -> path -> e -> ssize
+  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
   let round_up_const n =
     ConstSize (
@@ -415,22 +414,22 @@ struct
           k ()
       | idx :: rest ->
         (match mn with
-        | Nullable (TRec mns)
-        | NotNullable (TRec mns) ->
+        | T.Nullable (TRec mns)
+        | T.NotNullable (TRec mns) ->
             let name, mn = mns.(idx) in
             if is_private name then
               ConstSize 0
             else
               loop rest mn
-        | Nullable (TTup mns)
-        | NotNullable (TTup mns) ->
+        | T.Nullable (TTup mns)
+        | T.NotNullable (TTup mns) ->
             loop rest mns.(idx)
-        | Nullable (TVec (d, mn))
-        | NotNullable (TVec (d, mn)) ->
+        | T.Nullable (TVec (d, mn))
+        | T.NotNullable (TVec (d, mn)) ->
             assert (idx < d) ;
             loop rest mn
-        | Nullable (TList mn)
-        | NotNullable (TList mn) ->
+        | T.Nullable (TList mn)
+        | T.NotNullable (TList mn) ->
             loop rest mn
         | _ ->
             assert false)
@@ -493,7 +492,7 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match type_of_path mn path with
+        match T.type_of_path mn path with
         | Nullable (TTup typs)
         | NotNullable (TTup typs) ->
             typs
@@ -503,7 +502,7 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if is_nullable typ then c + 1 else c
+            if T.is_nullable typ then c + 1 else c
           ) 0 typs))
 
   let ssize_of_rec mn path _ =
@@ -511,7 +510,7 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match type_of_path mn path with
+        match T.type_of_path mn path with
         | Nullable (TRec typs)
         | NotNullable (TRec typs) ->
             typs
@@ -524,20 +523,20 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if is_nullable typ then c + 1 else c
+            if T.is_nullable typ then c + 1 else c
           ) 0 typs))
 
   let ssize_of_vec mn path _ =
     unless_private mn path (fun () ->
       let is_outermost = path = []
       and dim, typ =
-        match type_of_path mn path with
+        match T.type_of_path mn path with
         | Nullable (TVec (dim, typ))
         | NotNullable (TVec (dim, typ)) ->
             dim, typ
         | _ -> assert false in
       round_up_const_bits (
-        if is_outermost || is_nullable typ then dim else 0))
+        if is_outermost || T.is_nullable typ then dim else 0))
 
   let ssize_of_null _mn _path = ConstSize 0
 end
@@ -563,7 +562,7 @@ struct
    * and jumping over it, after having incremented the current nullbit
    * index: *)
   let enter_frame to_expr skip_nullmask nullmask_bits mn0 path p_stk =
-    with_sploded_pair "enter_frame" p_stk (fun p stk ->
+    E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
       let stk = may_set_nullbit false mn0 path stk in
       let new_frame = pair p (size 0) in
       seq [ debug (string "des: enter a new frame at ") ;
@@ -586,15 +585,15 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type des = state -> maybe_nullable -> path -> e -> e
+  type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
   (* When we deserialize any value, we may have to increment the nullbit
    * pointer depending on the current type of position in the global type
    * [mn0]: *)
   let with_nullbit_done mn0 path p_stk f =
-    with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
+    E.with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
       let stk = may_set_nullbit false mn0 path stk in
-      with_sploded_pair "with_nullbit_done" (f p) (fun v p ->
+      E.with_sploded_pair "with_nullbit_done" (f p) (fun v p ->
         pair v (pair p stk)))
 
   let dfloat () mn0 path p_stk =
@@ -602,7 +601,7 @@ struct
       seq [ debug (string "desser a float from ") ;
             debug (string_of_int (data_ptr_offset p)) ;
             debug (char '\n') ;
-            with_sploded_pair "dfloat" (read_qword LittleEndian p) (fun w p ->
+            E.with_sploded_pair "dfloat" (read_qword LittleEndian p) (fun w p ->
               pair (float_of_qword w) p) ])
 
   let dstring () mn0 path p_stk =
@@ -610,109 +609,109 @@ struct
       seq [ debug (string "deser a string from ") ;
             debug (string_of_int (data_ptr_offset p)) ;
             debug (char '\n') ;
-            with_sploded_pair "dstring1" (read_dword LittleEndian p) (fun len p ->
+            E.with_sploded_pair "dstring1" (read_dword LittleEndian p) (fun len p ->
               let len = size_of_dword len in
-              with_sploded_pair "dstring2" (read_bytes p len) (fun bs p ->
+              E.with_sploded_pair "dstring2" (read_bytes p len) (fun bs p ->
                 pair (string_of_bytes bs) (align_dyn p len))) ])
 
   let dbool () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "dbool" (read_byte p) (fun b p ->
+      E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
         pair (bool_of_byte b) (align_const p 1)))
 
   let dchar () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "dchar" (read_byte p) (fun b p ->
+      E.with_sploded_pair "dchar" (read_byte p) (fun b p ->
         pair (char_of_byte b) (align_const p 1)))
 
   let du8 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du8" (read_byte p) (fun b p ->
+      E.with_sploded_pair "du8" (read_byte p) (fun b p ->
         pair (u8_of_byte b) (align_const p 1)))
 
   let du16 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du16" (read_word LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du16" (read_word LittleEndian p) (fun w p ->
         pair (u16_of_word w) (align_const p 2)))
 
   let du24 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du24" (read_dword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du24" (read_dword LittleEndian p) (fun w p ->
         pair (to_u24 (u32_of_dword w)) (align_const p 4)))
 
   let du32 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du32" (read_dword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du32" (read_dword LittleEndian p) (fun w p ->
         pair (u32_of_dword w) (align_const p 4)))
 
   let du40 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du40" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du40" (read_qword LittleEndian p) (fun w p ->
         pair (to_u40 (u64_of_qword w)) (align_const p 8)))
 
   let du48 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du48" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du48" (read_qword LittleEndian p) (fun w p ->
         pair (to_u48 (u64_of_qword w)) (align_const p 8)))
 
   let du56 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du56" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du56" (read_qword LittleEndian p) (fun w p ->
         pair (to_u56 (u64_of_qword w)) (align_const p 8)))
 
   let du64 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du64" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du64" (read_qword LittleEndian p) (fun w p ->
         pair (u64_of_qword w) (align_const p 8)))
 
   let du128 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "du128" (read_oword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "du128" (read_oword LittleEndian p) (fun w p ->
         pair (u128_of_oword w) (align_const p 8)))
 
   let di8 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di8" (read_byte p) (fun b p ->
+      E.with_sploded_pair "di8" (read_byte p) (fun b p ->
         pair (to_i8 (u8_of_byte b)) (align_const p 1)))
 
   let di16 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di16" (read_word LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di16" (read_word LittleEndian p) (fun w p ->
         pair (to_i16 (u16_of_word w)) (align_const p 2)))
 
   let di24 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di24" (read_dword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di24" (read_dword LittleEndian p) (fun w p ->
         pair (to_i24 (u32_of_dword w)) (align_const p 4)))
 
   let di32 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di32" (read_dword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di32" (read_dword LittleEndian p) (fun w p ->
         pair (to_i32 (u32_of_dword w)) (align_const p 4)))
 
   let di40 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di40" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di40" (read_qword LittleEndian p) (fun w p ->
         pair (to_i40 (u64_of_qword w)) (align_const p 8)))
 
   let di48 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di48" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di48" (read_qword LittleEndian p) (fun w p ->
         pair (to_i48 (u64_of_qword w)) (align_const p 8)))
 
   let di56 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di56" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di56" (read_qword LittleEndian p) (fun w p ->
         pair (to_i56 (u64_of_qword w)) (align_const p 8)))
 
   let di64 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di64" (read_qword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di64" (read_qword LittleEndian p) (fun w p ->
         pair (to_i64 (u64_of_qword w)) (align_const p 8)))
 
   let di128 () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
+      E.with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
         pair (to_i128 (u128_of_oword w)) (align_const p 8)))
 
   let is_outermost = function
@@ -723,7 +722,7 @@ struct
     let nullmask_bits =
       if is_outermost path then
         Array.fold_left (fun c mn ->
-          if is_nullable mn then c + 1 else c
+          if T.is_nullable mn then c + 1 else c
         ) 0 mns
       else
         Array.length mns in
@@ -749,7 +748,7 @@ struct
   let vec_opn () mn0 path dim mn p_stk =
     let nullmask_bits =
       if is_outermost path then
-        if is_nullable mn then dim else 0
+        if T.is_nullable mn then dim else 0
       else
         dim in
     enter_frame_const nullmask_bits mn0 path p_stk
@@ -761,12 +760,12 @@ struct
 
   let list_opn = KnownSize
     (fun () mn0 path mn p_stk ->
-      with_sploded_pair "list_opn1" p_stk (fun p stk ->
-        with_sploded_pair "list_opn2" (read_dword LittleEndian p) (fun n p ->
+      E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
+        E.with_sploded_pair "list_opn2" (read_dword LittleEndian p) (fun n p ->
           let n = u32_of_dword n in
           let nullmask_bits =
             if is_outermost path then
-              if is_nullable mn then n else u32_of_int 0
+              if T.is_nullable mn then n else u32_of_int 0
             else
               n in
           (* TODO: change enter_frame_dyn signature to take p and stk *)
@@ -785,8 +784,8 @@ struct
     (* TODO: assert stk <> end_of_list *)
     (* Do not advance the nullbit index as it's already done on a per
      * value basis: *)
-    with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
-      let1 (not_ (bool_of_bit (get_bit p bi))) (fun b ->
+    E.with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
+      E.let1 (not_ (bool_of_bit (get_bit p bi))) (fun b ->
         seq [ debug (string "des: get nullbit at ") ;
               debug (string_of_int bi) ;
               debug (string " -> ") ;

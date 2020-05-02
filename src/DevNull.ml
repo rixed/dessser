@@ -1,16 +1,16 @@
 open Dessser
-open DessserTypes
-open DessserExpressions
+module T = DessserTypes
+module E = DessserExpressions
 
 module Ser : SER =
 struct
   type state = unit
-  let ptr _vtyp = dataptr
+  let ptr _vtyp = T.dataptr
 
   let start _vtyp p = (), p
   let stop () p = p
 
-  type ser = state -> maybe_nullable -> path -> e -> e -> e
+  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
   let sfloat () _ _ _v p = p
   let sstring () _ _ _v p = p
@@ -50,7 +50,7 @@ struct
   let snull _t () _ _ p = p
   let snotnull _t () _ _ p = p
 
-  type ssizer = maybe_nullable -> path -> e -> ssize
+  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
   let ssize_of_float _ _ _ = ConstSize 0
   let ssize_of_string _ _ _ = ConstSize 0
   let ssize_of_bool _ _ _ = ConstSize 0

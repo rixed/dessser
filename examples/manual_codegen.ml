@@ -1,12 +1,11 @@
 open Batteries
 open Stdint
 open Dessser
-open DessserTypes
-open DessserExpressions
 open DessserTools
 open DessserDSTools
-open Ops
 module T = DessserTypes
+module E = DessserExpressions
+open E.Ops
 
 let run_cmd cmd =
   match Unix.system cmd with
@@ -22,10 +21,10 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = NotNullable (Mac x)
-  and n x = Nullable (Mac x) in
+  let m x = T.NotNullable (Mac x)
+  and n x = T.Nullable (Mac x) in
   let udp_typ =
-    NotNullable (TTup [|
+    T.NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
       n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
       n TString ; n TU32 ; n TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; n TU32 ;
@@ -33,7 +32,7 @@ let () =
       m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
     |])
   and _http_typ =
-    NotNullable (TTup [|
+    T.NotNullable (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
       n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
       n TU32 ; Nullable (TVec (16, m TChar)) ;
@@ -66,7 +65,7 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
-      func2 TDataPtr TDataPtr (fun _l src dst ->
+      E.func2 TDataPtr TDataPtr (fun _l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser typ src dst))
     ) else (
@@ -78,13 +77,13 @@ let () =
       (* To serialize into S-Expr: *)
       let module OfValue2 = HeapValue.Serialize (SExpr.Ser) in
 
-      func2 TDataPtr TDataPtr (fun _l src dst ->
+      E.func2 TDataPtr TDataPtr (fun _l src dst ->
         comment "Convert from RowBinary into a heap value:" (
           let v_src = ToValue.make typ src in
-          with_sploded_pair "v_src" v_src (fun v src ->
+          E.with_sploded_pair "v_src" v_src (fun v src ->
             comment "Compute the serialized size of this tuple:" (
               let const_dyn_sz = OfValue1.sersize typ v in
-              with_sploded_pair "read_tuple" const_dyn_sz (fun const_sz dyn_sz ->
+              E.with_sploded_pair "read_tuple" const_dyn_sz (fun const_sz dyn_sz ->
                 seq [
                   dump (string "Constant size: ") ;
                   dump const_sz ;
