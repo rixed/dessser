@@ -851,6 +851,9 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 s)
+    | E.E1 (Assert, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "assert %s" n)
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

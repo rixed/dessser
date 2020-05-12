@@ -173,6 +173,7 @@ type e1 =
   | ReadDWord of endianness
   | ReadQWord of endianness
   | ReadOWord of endianness
+  | Assert
 
 type e2 =
   | Let of string
@@ -390,6 +391,7 @@ let string_of_e1 = function
   | ReadDWord en -> "read-dword "^ string_of_endianness en
   | ReadQWord en -> "read-qword "^ string_of_endianness en
   | ReadOWord en -> "read-oword "^ string_of_endianness en
+  | Assert -> "assert"
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -1048,6 +1050,7 @@ let rec type_of l e0 =
   | E1 (ReadDWord _, _) -> T.pair T.dword T.dataptr
   | E1 (ReadQWord _, _) -> T.pair T.qword T.dataptr
   | E1 (ReadOWord _, _) -> T.pair T.oword T.dataptr
+  | E1 (Assert, _) -> T.void
   | E2 (ReadBytes, _, _) -> T.pair T.bytes T.dataptr
   | E2 (PeekByte, _, _) -> T.byte
   | E2 (PeekWord _, _, _) -> T.word
@@ -1378,7 +1381,7 @@ let rec type_check l e =
         check_eq l e T.oword
     | E1 (U32OfSize, e) ->
         check_eq l e T.size
-    | E1 ((BitOfBool | U8OfBool | Not), e) ->
+    | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
     | E1 (BoolOfBit, e) ->
         check_eq l e T.bit
@@ -1836,4 +1839,5 @@ struct
   let char_of_byte = char_of_u8 % u8_of_byte
   let byte_of_char = byte_of_u8 % u8_of_char
   let u32_of_int n = u32 (Uint32.of_int n)
+  let assert_ e = E1 (Assert, e)
 end
