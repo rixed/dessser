@@ -509,15 +509,26 @@ and print ?max_depth oc e =
     | E4 (op, e1, e2, e3, e4) ->
         pp oc "(%s %a %a %a %a)" (string_of_e4 op) p e1 p e2 p e3 p e4
 
+let to_string ?max_depth e =
+  IO.to_string (print ?max_depth) e
+
 module Parser =
 struct
   (* String representation of expressions are mere s-expressions.
    * strings are represented as OCaml quoted strings. *)
   type context = Blank | Enter | Leave | Symbol | String
 
+  (* Returns both the tokens and the number of characters read from [str]: *)
   let rec tok str res i =
+    let can_be_symbol c =
+      (* Notice that numbers are also seen as symbols from the sexpr parser point
+       * of view *)
+      (c >= 'a' && c <= 'z') ||
+      (c >= 'A' && c <= 'A') ||
+      (c >= '0' && c <= '9') ||
+      c = '_' || c = '-' || c = '+' || c = '.' in
     let ctx = match res with (ctx, _)::_ -> ctx | [] -> Blank in
-    if i >= String.length str then List.rev res
+    if i >= String.length str then List.rev res, i
     else if Char.is_whitespace str.[i] then
       let res =
         if ctx = Blank || ctx = String then res
@@ -542,10 +553,15 @@ struct
     else if str.[i] = '\\' && ctx = String && i < String.length str - 1 then
       tok str res (i + 2)
     else
-      let res =
-        if ctx = Symbol || ctx = String then res
-        else (Symbol, i) :: res in
-      tok str res (i + 1)
+      if ctx = String then
+        tok str res (i + 1)
+      else if can_be_symbol str.[i] then
+        if ctx = Symbol then
+          tok str res (i + 1)
+        else tok str ((Symbol, i) :: res) (i + 1)
+      else
+        (* The end *)
+        List.rev res, i
 
   type sexpr =
     | Sym of string
@@ -567,20 +583,22 @@ struct
           Printf.fprintf oc ")" in
     loop "" "" oc
 
-  exception Invalid_expression of sexpr
+  exception Unknown_expression of sexpr
   exception Extraneous_expressions of int
+  exception Garbage_after of int
 
   let () =
     Printexc.register_printer (function
-      | Invalid_expression x ->
-          Some (Printf.sprintf2 "Invalid S-Expression: %a" print_sexpr x)
+      | Unknown_expression x ->
+          Some (Printf.sprintf2 "Unknown S-Expression: %a" print_sexpr x)
       | Extraneous_expressions i ->
-          Some ("Extraneous expressions at offset "^ string_of_int i)
+          Some ("Extraneous expressions at position "^ string_of_int i)
+      | Garbage_after i ->
+          Some ("Cannot parse expressions after position "^ string_of_int i)
       | _ ->
           None)
 
-  let sexpr_of_string str =
-    let toks = tok str [] 0 in
+  let sexpr_of_toks toks str =
     let add_sym sta sto lst =
       Sym (String.sub str sta (sto-sta)) :: lst in
     let add_str sta sto lst =
@@ -608,6 +626,11 @@ struct
     | [] -> ()) ;
     sublst
 
+  let sexpr_of_string str =
+    let toks, i = tok str [] 0 in
+    if i < String.length str then raise (Garbage_after i) ;
+    sexpr_of_toks toks str
+
   (*$< Parser *)
 
   (*$= sexpr_of_string & ~printer:(BatIO.to_string (BatList.print print_sexpr))
@@ -617,231 +640,244 @@ struct
     [ Lst [ Sym "pas" ; Sym "glop" ] ] (sexpr_of_string " (pas   glop ) ")
     [ Lst [ Lst [ Sym "pas" ; Str "glop" ] ; Lst [ Sym "glop" ] ] ] \
       (sexpr_of_string "((pas \"glop\") (glop))")
+    [ Lst [ Sym "null" ; Str "u8" ] ] (sexpr_of_string "(null \"u8\")")
   *)
 
+  let rec e = function
+    (* e0 *)
+    | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
+        E0 (Param (int_of_string fid, int_of_string n))
+    | Lst [ Sym "null" ; Str vt ] ->
+        E0 (Null (T.Parser.maybe_nullable_of_string vt |> T.to_value_type))
+    | Lst [ Sym "end-of-list" ; Str vt ] ->
+        E0 (EndOfList (T.Parser.of_string vt))
+    | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
+    | Lst [ Sym "string" ; Str s ] -> E0 (String s)
+    | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
+    | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
+    | Lst [ Sym "u8" ; Sym n ] -> E0 (U8 (int_of_string n))
+    | Lst [ Sym "u16" ; Sym n ] -> E0 (U16 (int_of_string n))
+    | Lst [ Sym "u24" ; Sym n ] -> E0 (U24 (int_of_string n))
+    | Lst [ Sym "u32" ; Sym n ] -> E0 (U32 (Uint32.of_string n))
+    | Lst [ Sym "u40" ; Sym n ] -> E0 (U40 (Uint40.of_string n))
+    | Lst [ Sym "u48" ; Sym n ] -> E0 (U48 (Uint48.of_string n))
+    | Lst [ Sym "u56" ; Sym n ] -> E0 (U56 (Uint56.of_string n))
+    | Lst [ Sym "u64" ; Sym n ] -> E0 (U64 (Uint64.of_string n))
+    | Lst [ Sym "u128" ; Sym n ] -> E0 (U128 (Uint128.of_string n))
+    | Lst [ Sym "i8" ; Sym n ] -> E0 (I8 (int_of_string n))
+    | Lst [ Sym "i16" ; Sym n ] -> E0 (I16 (int_of_string n))
+    | Lst [ Sym "i24" ; Sym n ] -> E0 (I24 (int_of_string n))
+    | Lst [ Sym "i32" ; Sym n ] -> E0 (I32 (Int32.of_string n))
+    | Lst [ Sym "i40" ; Sym n ] -> E0 (I40 (Int64.of_string n))
+    | Lst [ Sym "i48" ; Sym n ] -> E0 (I48 (Int64.of_string n))
+    | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int64.of_string n))
+    | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
+    | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
+    | Lst [ Sym "bit" ; Sym b ] -> E0 (Bit (Bool.of_string b))
+    | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
+    | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (int_of_string n))
+    | Lst [ Sym "word" ; Sym n ] -> E0 (Word (int_of_string n))
+    | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
+    | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
+    | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
+    | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
+    | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
+        E0 (DataPtrOfBuffer (int_of_string n))
+    | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
+    | Lst [ Sym "copy-all" ] -> E0 CopyAll
+    | Lst [ Sym "skip-all" ] -> E0 SkipAll
+    | Lst [ Sym "copy" ] -> E0 Copy
+    | Lst [ Sym "skip" ] -> E0 Skip
+    | Lst [ Sym "set-null" ] -> E0 SetNull
+    (* e0s *)
+    | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
+    | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
+    | Lst (Sym "make-list" :: xs) -> E0S (MakeList, List.map e xs)
+    | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
+    | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
+    (* e1 *)
+    | Lst (Sym "function" :: Sym fid :: (_ :: _ :: _ as tail)) ->
+        let typs, x = list_split_last tail in
+        let typs =
+          Array.of_list typs |>
+          Array.map (function
+            | Str s -> T.Parser.of_string s
+            | x ->
+                Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
+                failwith
+          ) in
+        E1 (Function (int_of_string fid, typs), e x)
+    | Lst [ Sym "comment" ; Str s ; x ] ->
+        E1 (Comment s, e x)
+    | Lst [ Sym "get-item" ; Sym n ; x ] ->
+        E1 (GetItem (int_of_string n), e x)
+    | Lst [ Sym "get-field" ; Str s ; x ] ->
+        E1 (GetField s, e x)
+    | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
+    | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
+    | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
+    | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
+    | Lst [ Sym "to-nullable" ; x ] -> E1 (ToNullable, e x)
+    | Lst [ Sym "to-not-nullable" ; x ] -> E1 (ToNotNullable, e x)
+    | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
+    | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
+    | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
+    | Lst [ Sym "float-of-string" ; x ] -> E1 (FloatOfString, e x)
+    | Lst [ Sym "char-of-string" ; x ] -> E1 (CharOfString, e x)
+    | Lst [ Sym "u8-of-string" ; x ] -> E1 (U8OfString, e x)
+    | Lst [ Sym "u16-of-string" ; x ] -> E1 (U16OfString, e x)
+    | Lst [ Sym "u24-of-string" ; x ] -> E1 (U24OfString, e x)
+    | Lst [ Sym "u32-of-string" ; x ] -> E1 (U32OfString, e x)
+    | Lst [ Sym "u40-of-string" ; x ] -> E1 (U40OfString, e x)
+    | Lst [ Sym "u48-of-string" ; x ] -> E1 (U48OfString, e x)
+    | Lst [ Sym "u56-of-string" ; x ] -> E1 (U56OfString, e x)
+    | Lst [ Sym "u64-of-string" ; x ] -> E1 (U64OfString, e x)
+    | Lst [ Sym "u128-of-string" ; x ] -> E1 (U128OfString, e x)
+    | Lst [ Sym "i8-of-string" ; x ] -> E1 (I8OfString, e x)
+    | Lst [ Sym "i16-of-string" ; x ] -> E1 (I16OfString, e x)
+    | Lst [ Sym "i24-of-string" ; x ] -> E1 (I24OfString, e x)
+    | Lst [ Sym "i32-of-string" ; x ] -> E1 (I32OfString, e x)
+    | Lst [ Sym "i40-of-string" ; x ] -> E1 (I40OfString, e x)
+    | Lst [ Sym "i48-of-string" ; x ] -> E1 (I48OfString, e x)
+    | Lst [ Sym "i56-of-string" ; x ] -> E1 (I56OfString, e x)
+    | Lst [ Sym "i64-of-string" ; x ] -> E1 (I64OfString, e x)
+    | Lst [ Sym "i128-of-string" ; x ] -> E1 (I128OfString, e x)
+    | Lst [ Sym "to-u8" ; x ] -> E1 (ToU8, e x)
+    | Lst [ Sym "to-u16" ; x ] -> E1 (ToU16, e x)
+    | Lst [ Sym "to-u24" ; x ] -> E1 (ToU24, e x)
+    | Lst [ Sym "to-u32" ; x ] -> E1 (ToU32, e x)
+    | Lst [ Sym "to-u40" ; x ] -> E1 (ToU40, e x)
+    | Lst [ Sym "to-u48" ; x ] -> E1 (ToU48, e x)
+    | Lst [ Sym "to-u56" ; x ] -> E1 (ToU56, e x)
+    | Lst [ Sym "to-u64" ; x ] -> E1 (ToU64, e x)
+    | Lst [ Sym "to-u128" ; x ] -> E1 (ToU128, e x)
+    | Lst [ Sym "to-i8" ; x ] -> E1 (ToI8, e x)
+    | Lst [ Sym "to-i16" ; x ] -> E1 (ToI16, e x)
+    | Lst [ Sym "to-i24" ; x ] -> E1 (ToI24, e x)
+    | Lst [ Sym "to-i32" ; x ] -> E1 (ToI32, e x)
+    | Lst [ Sym "to-i40" ; x ] -> E1 (ToI40, e x)
+    | Lst [ Sym "to-i48" ; x ] -> E1 (ToI48, e x)
+    | Lst [ Sym "to-i56" ; x ] -> E1 (ToI56, e x)
+    | Lst [ Sym "to-i64" ; x ] -> E1 (ToI64, e x)
+    | Lst [ Sym "to-i128" ; x ] -> E1 (ToI128, e x)
+    | Lst [ Sym "log-not" ; x ] -> E1 (LogNot, e x)
+    | Lst [ Sym "float-of-qword" ; x ] -> E1 (FloatOfQWord, e x)
+    | Lst [ Sym "qword-of-float" ; x ] -> E1 (QWordOfFloat, e x)
+    | Lst [ Sym "u8-of-byte" ; x ] -> E1 (U8OfByte, e x)
+    | Lst [ Sym "byte-of-u8" ; x ] -> E1 (ByteOfU8, e x)
+    | Lst [ Sym "u16-of-word" ; x ] -> E1 (U16OfWord, e x)
+    | Lst [ Sym "word-of-u16" ; x ] -> E1 (WordOfU16, e x)
+    | Lst [ Sym "u32-of-dword" ; x ] -> E1 (U32OfDWord, e x)
+    | Lst [ Sym "dword-of-u32" ; x ] -> E1 (DWordOfU32, e x)
+    | Lst [ Sym "u64-of-qword" ; x ] -> E1 (U64OfQWord, e x)
+    | Lst [ Sym "qword-of-u64" ; x ] -> E1 (QWordOfU64, e x)
+    | Lst [ Sym "u128-of-oword" ; x ] -> E1 (U128OfOWord, e x)
+    | Lst [ Sym "oword-of-u128" ; x ] -> E1 (OWordOfU128, e x)
+    | Lst [ Sym "u8-of-char" ; x ] -> E1 (U8OfChar, e x)
+    | Lst [ Sym "char-of-u8" ; x ] -> E1 (CharOfU8, e x)
+    | Lst [ Sym "size-of-u32" ; x ] -> E1 (SizeOfU32, e x)
+    | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
+    | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
+    | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
+    | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
+    | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
+    | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
+    | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
+    | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
+    | Lst [ Sym "string-of-bytes" ; x ] -> E1 (StringOfBytes, e x)
+    | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
+    | Lst [ Sym "list-length" ; x ] -> E1 (ListLength, e x)
+    | Lst [ Sym "read-byte" ; x ] -> E1 (ReadByte, e x)
+    | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
+    | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
+    | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
+    | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
+    | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
+    | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
+    | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
+    | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
+    | Lst [ Sym "tail" ; x ] -> E1 (Tail, e x)
+    | Lst [ Sym "read-word" ; Sym en ; x ] ->
+        E1 (ReadWord (endianness_of_string en), e x)
+    | Lst [ Sym "read-dword" ; Sym en ; x ] ->
+        E1 (ReadDWord (endianness_of_string en), e x)
+    | Lst [ Sym "read-qword" ; Sym en ; x ] ->
+        E1 (ReadQWord (endianness_of_string en), e x)
+    | Lst [ Sym "read-oword" ; Sym en ; x ] ->
+        E1 (ReadOWord (endianness_of_string en), e x)
+    | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
+    | Lst [ Sym "mask-get" ; x1 ] -> E1 (MaskGet, e x1)
+    | Lst [ Sym "mask-next" ; x1 ] -> E1 (MaskNext, e x1)
+    | Lst [ Sym "mask-enter" ; x1 ] -> E1 (MaskEnter, e x1)
+    | Lst [ Sym "mask-leave" ; x1 ] -> E1 (MaskLeave, e x1)
+    (* e2 *)
+    | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
+    | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
+    | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
+    | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
+    | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
+    | Lst [ Sym "eq" ; x1 ; x2 ] -> E2 (Eq, e x1, e x2)
+    | Lst [ Sym "ne" ; x1 ; x2 ] -> E2 (Ne, e x1, e x2)
+    | Lst [ Sym "add" ; x1 ; x2 ] -> E2 (Add, e x1, e x2)
+    | Lst [ Sym "sub" ; x1 ; x2 ] -> E2 (Sub, e x1, e x2)
+    | Lst [ Sym "mul" ; x1 ; x2 ] -> E2 (Mul, e x1, e x2)
+    | Lst [ Sym "div" ; x1 ; x2 ] -> E2 (Div, e x1, e x2)
+    | Lst [ Sym "rem" ; x1 ; x2 ] -> E2 (Rem, e x1, e x2)
+    | Lst [ Sym "log-and" ; x1 ; x2 ] -> E2 (LogAnd, e x1, e x2)
+    | Lst [ Sym "log-or" ; x1 ; x2 ] -> E2 (LogOr, e x1, e x2)
+    | Lst [ Sym "log-xor" ; x1 ; x2 ] -> E2 (LogXor, e x1, e x2)
+    | Lst [ Sym "left-shift" ; x1 ; x2 ] -> E2 (LeftShift, e x1, e x2)
+    | Lst [ Sym "right-shift" ; x1 ; x2 ] -> E2 (RightShift, e x1, e x2)
+    | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
+    | Lst [ Sym "append-bytes" ; x1 ; x2 ] -> E2 (AppendBytes, e x1, e x2)
+    | Lst [ Sym "append-string" ; x1 ; x2 ] -> E2 (AppendString, e x1, e x2)
+    | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
+    | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
+    | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
+    | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
+    | Lst [ Sym "write-bytes" ; x1 ; x2 ] -> E2 (WriteBytes, e x1, e x2)
+    | Lst [ Sym "poke-byte" ; x1 ; x2 ] -> E2 (PokeByte, e x1, e x2)
+    | Lst [ Sym "data-ptr-add" ; x1 ; x2 ] -> E2 (DataPtrAdd, e x1, e x2)
+    | Lst [ Sym "data-ptr-sub" ; x1 ; x2 ] -> E2 (DataPtrSub, e x1, e x2)
+    | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
+    | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
+    | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
+    | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
+    | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
+    | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-dword" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekDWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-qword" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekQWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-oword" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekOWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-word" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-dword" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteDWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-qword" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteQWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-oword" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteOWord (endianness_of_string en), e x1, e x2)
+    (* e3 *)
+    | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
+    | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
+    | Lst [ Sym "choose" ; x1 ; x2 ; x3 ] -> E3 (Choose, e x1, e x2, e x3)
+    | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
+    | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
+    (* e4 *)
+    | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
+        E4 (ReadWhile, e x1, e x2, e x3, e x4)
+    | Lst [ Sym "repeat" ; x1 ; x2 ; x3 ; x4 ] ->
+        E4 (Repeat, e x1, e x2, e x3, e x4)
+
+    | x -> raise (Unknown_expression x)
+
+  let rec expr_of_toks toks str =
+    List.map e (sexpr_of_toks toks str)
+
   let rec expr str =
-    let rec e = function
-      (* e0 *)
-      | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
-          E0 (Param (int_of_string fid, int_of_string n))
-      | Lst [ Sym "null" ; Str vt ] ->
-          E0 (Null (T.Parser.maybe_nullable_of_string vt |> T.to_value_type))
-      | Lst [ Sym "end-of-list" ; Str vt ] ->
-          E0 (EndOfList (T.Parser.of_string vt))
-      | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
-      | Lst [ Sym "string" ; Str s ] -> E0 (String s)
-      | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
-      | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
-      | Lst [ Sym "u8" ; Sym n ] -> E0 (U8 (int_of_string n))
-      | Lst [ Sym "u16" ; Sym n ] -> E0 (U16 (int_of_string n))
-      | Lst [ Sym "u24" ; Sym n ] -> E0 (U24 (int_of_string n))
-      | Lst [ Sym "u32" ; Sym n ] -> E0 (U32 (Uint32.of_string n))
-      | Lst [ Sym "u40" ; Sym n ] -> E0 (U40 (Uint40.of_string n))
-      | Lst [ Sym "u48" ; Sym n ] -> E0 (U48 (Uint48.of_string n))
-      | Lst [ Sym "u56" ; Sym n ] -> E0 (U56 (Uint56.of_string n))
-      | Lst [ Sym "u64" ; Sym n ] -> E0 (U64 (Uint64.of_string n))
-      | Lst [ Sym "u128" ; Sym n ] -> E0 (U128 (Uint128.of_string n))
-      | Lst [ Sym "i8" ; Sym n ] -> E0 (I8 (int_of_string n))
-      | Lst [ Sym "i16" ; Sym n ] -> E0 (I16 (int_of_string n))
-      | Lst [ Sym "i24" ; Sym n ] -> E0 (I24 (int_of_string n))
-      | Lst [ Sym "i32" ; Sym n ] -> E0 (I32 (Int32.of_string n))
-      | Lst [ Sym "i40" ; Sym n ] -> E0 (I40 (Int64.of_string n))
-      | Lst [ Sym "i48" ; Sym n ] -> E0 (I48 (Int64.of_string n))
-      | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int64.of_string n))
-      | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
-      | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
-      | Lst [ Sym "bit" ; Sym b ] -> E0 (Bit (Bool.of_string b))
-      | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
-      | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (int_of_string n))
-      | Lst [ Sym "word" ; Sym n ] -> E0 (Word (int_of_string n))
-      | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
-      | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
-      | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
-      | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
-      | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
-          E0 (DataPtrOfBuffer (int_of_string n))
-      | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
-      (* e0s *)
-      | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
-      | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
-      | Lst (Sym "make-list" :: xs) -> E0S (MakeList, List.map e xs)
-      | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
-      | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
-      (* e1 *)
-      | Lst (Sym "function" :: Sym fid :: (_ :: _ :: _ as tail)) ->
-          let typs, x = list_split_last tail in
-          let typs =
-            Array.of_list typs |>
-            Array.map (function
-              | Str s -> T.Parser.of_string s
-              | x ->
-                  Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
-                  failwith
-            ) in
-          E1 (Function (int_of_string fid, typs), e x)
-      | Lst [ Sym "comment" ; Str s ; x ] ->
-          E1 (Comment s, e x)
-      | Lst [ Sym "get-item" ; Sym n ; x ] ->
-          E1 (GetItem (int_of_string n), e x)
-      | Lst [ Sym "get-field" ; Str s ; x ] ->
-          E1 (GetField s, e x)
-      | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
-      | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
-      | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
-      | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
-      | Lst [ Sym "to-nullable" ; x ] -> E1 (ToNullable, e x)
-      | Lst [ Sym "to-not-nullable" ; x ] -> E1 (ToNotNullable, e x)
-      | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
-      | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
-      | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
-      | Lst [ Sym "float-of-string" ; x ] -> E1 (FloatOfString, e x)
-      | Lst [ Sym "char-of-string" ; x ] -> E1 (CharOfString, e x)
-      | Lst [ Sym "u8-of-string" ; x ] -> E1 (U8OfString, e x)
-      | Lst [ Sym "u16-of-string" ; x ] -> E1 (U16OfString, e x)
-      | Lst [ Sym "u24-of-string" ; x ] -> E1 (U24OfString, e x)
-      | Lst [ Sym "u32-of-string" ; x ] -> E1 (U32OfString, e x)
-      | Lst [ Sym "u40-of-string" ; x ] -> E1 (U40OfString, e x)
-      | Lst [ Sym "u48-of-string" ; x ] -> E1 (U48OfString, e x)
-      | Lst [ Sym "u56-of-string" ; x ] -> E1 (U56OfString, e x)
-      | Lst [ Sym "u64-of-string" ; x ] -> E1 (U64OfString, e x)
-      | Lst [ Sym "u128-of-string" ; x ] -> E1 (U128OfString, e x)
-      | Lst [ Sym "i8-of-string" ; x ] -> E1 (I8OfString, e x)
-      | Lst [ Sym "i16-of-string" ; x ] -> E1 (I16OfString, e x)
-      | Lst [ Sym "i24-of-string" ; x ] -> E1 (I24OfString, e x)
-      | Lst [ Sym "i32-of-string" ; x ] -> E1 (I32OfString, e x)
-      | Lst [ Sym "i40-of-string" ; x ] -> E1 (I40OfString, e x)
-      | Lst [ Sym "i48-of-string" ; x ] -> E1 (I48OfString, e x)
-      | Lst [ Sym "i56-of-string" ; x ] -> E1 (I56OfString, e x)
-      | Lst [ Sym "i64-of-string" ; x ] -> E1 (I64OfString, e x)
-      | Lst [ Sym "i128-of-string" ; x ] -> E1 (I128OfString, e x)
-      | Lst [ Sym "to-u8" ; x ] -> E1 (ToU8, e x)
-      | Lst [ Sym "to-u16" ; x ] -> E1 (ToU16, e x)
-      | Lst [ Sym "to-u24" ; x ] -> E1 (ToU24, e x)
-      | Lst [ Sym "to-u32" ; x ] -> E1 (ToU32, e x)
-      | Lst [ Sym "to-u40" ; x ] -> E1 (ToU40, e x)
-      | Lst [ Sym "to-u48" ; x ] -> E1 (ToU48, e x)
-      | Lst [ Sym "to-u56" ; x ] -> E1 (ToU56, e x)
-      | Lst [ Sym "to-u64" ; x ] -> E1 (ToU64, e x)
-      | Lst [ Sym "to-u128" ; x ] -> E1 (ToU128, e x)
-      | Lst [ Sym "to-i8" ; x ] -> E1 (ToI8, e x)
-      | Lst [ Sym "to-i16" ; x ] -> E1 (ToI16, e x)
-      | Lst [ Sym "to-i24" ; x ] -> E1 (ToI24, e x)
-      | Lst [ Sym "to-i32" ; x ] -> E1 (ToI32, e x)
-      | Lst [ Sym "to-i40" ; x ] -> E1 (ToI40, e x)
-      | Lst [ Sym "to-i48" ; x ] -> E1 (ToI48, e x)
-      | Lst [ Sym "to-i56" ; x ] -> E1 (ToI56, e x)
-      | Lst [ Sym "to-i64" ; x ] -> E1 (ToI64, e x)
-      | Lst [ Sym "to-i128" ; x ] -> E1 (ToI128, e x)
-      | Lst [ Sym "log-not" ; x ] -> E1 (LogNot, e x)
-      | Lst [ Sym "float-of-qword" ; x ] -> E1 (FloatOfQWord, e x)
-      | Lst [ Sym "qword-of-float" ; x ] -> E1 (QWordOfFloat, e x)
-      | Lst [ Sym "u8-of-byte" ; x ] -> E1 (U8OfByte, e x)
-      | Lst [ Sym "byte-of-u8" ; x ] -> E1 (ByteOfU8, e x)
-      | Lst [ Sym "u16-of-word" ; x ] -> E1 (U16OfWord, e x)
-      | Lst [ Sym "word-of-u16" ; x ] -> E1 (WordOfU16, e x)
-      | Lst [ Sym "u32-of-dword" ; x ] -> E1 (U32OfDWord, e x)
-      | Lst [ Sym "dword-of-u32" ; x ] -> E1 (DWordOfU32, e x)
-      | Lst [ Sym "u64-of-qword" ; x ] -> E1 (U64OfQWord, e x)
-      | Lst [ Sym "qword-of-u64" ; x ] -> E1 (QWordOfU64, e x)
-      | Lst [ Sym "u128-of-oword" ; x ] -> E1 (U128OfOWord, e x)
-      | Lst [ Sym "oword-of-u128" ; x ] -> E1 (OWordOfU128, e x)
-      | Lst [ Sym "u8-of-char" ; x ] -> E1 (U8OfChar, e x)
-      | Lst [ Sym "char-of-u8" ; x ] -> E1 (CharOfU8, e x)
-      | Lst [ Sym "size-of-u32" ; x ] -> E1 (SizeOfU32, e x)
-      | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
-      | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
-      | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
-      | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
-      | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
-      | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
-      | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
-      | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
-      | Lst [ Sym "string-of-bytes" ; x ] -> E1 (StringOfBytes, e x)
-      | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
-      | Lst [ Sym "list-length" ; x ] -> E1 (ListLength, e x)
-      | Lst [ Sym "read-byte" ; x ] -> E1 (ReadByte, e x)
-      | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
-      | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
-      | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
-      | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
-      | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
-      | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
-      | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
-      | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
-      | Lst [ Sym "tail" ; x ] -> E1 (Tail, e x)
-      | Lst [ Sym "read-word" ; Sym en ; x ] ->
-          E1 (ReadWord (endianness_of_string en), e x)
-      | Lst [ Sym "read-dword" ; Sym en ; x ] ->
-          E1 (ReadDWord (endianness_of_string en), e x)
-      | Lst [ Sym "read-qword" ; Sym en ; x ] ->
-          E1 (ReadQWord (endianness_of_string en), e x)
-      | Lst [ Sym "read-oword" ; Sym en ; x ] ->
-          E1 (ReadOWord (endianness_of_string en), e x)
-      (* e2 *)
-      | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
-      | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
-      | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
-      | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
-      | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
-      | Lst [ Sym "eq" ; x1 ; x2 ] -> E2 (Eq, e x1, e x2)
-      | Lst [ Sym "ne" ; x1 ; x2 ] -> E2 (Ne, e x1, e x2)
-      | Lst [ Sym "add" ; x1 ; x2 ] -> E2 (Add, e x1, e x2)
-      | Lst [ Sym "sub" ; x1 ; x2 ] -> E2 (Sub, e x1, e x2)
-      | Lst [ Sym "mul" ; x1 ; x2 ] -> E2 (Mul, e x1, e x2)
-      | Lst [ Sym "div" ; x1 ; x2 ] -> E2 (Div, e x1, e x2)
-      | Lst [ Sym "rem" ; x1 ; x2 ] -> E2 (Rem, e x1, e x2)
-      | Lst [ Sym "log-and" ; x1 ; x2 ] -> E2 (LogAnd, e x1, e x2)
-      | Lst [ Sym "log-or" ; x1 ; x2 ] -> E2 (LogOr, e x1, e x2)
-      | Lst [ Sym "log-xor" ; x1 ; x2 ] -> E2 (LogXor, e x1, e x2)
-      | Lst [ Sym "left-shift" ; x1 ; x2 ] -> E2 (LeftShift, e x1, e x2)
-      | Lst [ Sym "right-shift" ; x1 ; x2 ] -> E2 (RightShift, e x1, e x2)
-      | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
-      | Lst [ Sym "append-bytes" ; x1 ; x2 ] -> E2 (AppendBytes, e x1, e x2)
-      | Lst [ Sym "append-string" ; x1 ; x2 ] -> E2 (AppendString, e x1, e x2)
-      | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
-      | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
-      | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
-      | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
-      | Lst [ Sym "write-bytes" ; x1 ; x2 ] -> E2 (WriteBytes, e x1, e x2)
-      | Lst [ Sym "poke-byte" ; x1 ; x2 ] -> E2 (PokeByte, e x1, e x2)
-      | Lst [ Sym "data-ptr-add" ; x1 ; x2 ] -> E2 (DataPtrAdd, e x1, e x2)
-      | Lst [ Sym "data-ptr-sub" ; x1 ; x2 ] -> E2 (DataPtrSub, e x1, e x2)
-      | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
-      | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
-      | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
-      | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
-      | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
-      | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
-          E2 (PeekWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "peek-dword" ; Sym en ; x1 ; x2 ] ->
-          E2 (PeekDWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "peek-qword" ; Sym en ; x1 ; x2 ] ->
-          E2 (PeekQWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "peek-oword" ; Sym en ; x1 ; x2 ] ->
-          E2 (PeekOWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "write-word" ; Sym en ; x1 ; x2 ] ->
-          E2 (WriteWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "write-dword" ; Sym en ; x1 ; x2 ] ->
-          E2 (WriteDWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "write-qword" ; Sym en ; x1 ; x2 ] ->
-          E2 (WriteQWord (endianness_of_string en), e x1, e x2)
-      | Lst [ Sym "write-oword" ; Sym en ; x1 ; x2 ] ->
-          E2 (WriteOWord (endianness_of_string en), e x1, e x2)
-      (* e3 *)
-      | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
-      | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
-      | Lst [ Sym "choose" ; x1 ; x2 ; x3 ] -> E3 (Choose, e x1, e x2, e x3)
-      | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
-      | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
-      (* e4 *)
-      | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
-          E4 (ReadWhile, e x1, e x2, e x3, e x4)
-      | Lst [ Sym "repeat" ; x1 ; x2 ; x3 ; x4 ] ->
-          E4 (Repeat, e x1, e x2, e x3, e x4)
-
-
-      | x -> raise (Invalid_expression x)
-    in
     List.map e (sexpr_of_string str)
 
   (*$= expr & ~printer:(BatIO.to_string (BatList.print print))
