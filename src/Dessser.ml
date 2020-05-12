@@ -343,11 +343,11 @@ struct
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     let subpath = T.path_append 0 path in
-    (* FIXME: nope. The code emitted in the function bolow (repeat's body)
-     * need to be able to count the nullmask bit index. For this is need
+    (* FIXME: nope. The code emitted in the function below (repeat's body)
+     * need to be able to count the nullmask bit index. For this it needs
      * either an accurate path or a distinct call to Ser.nullable (to maintain
      * sstate) per element.
-     * So, given we generate a loop, the easier and cleaner is actualy to have
+     * So, given we generate a loop, the easier and cleaner is actually to have
      * a dynamic path (ie a path component can be either a compile time int
      * or a run time int).
      * Like we have a runtime fieldmask index in CodeGen_OCaml.
@@ -394,11 +394,13 @@ struct
                       let src_dst =
                         choose
                           ~cond:(eq n (i32 0l))
-                          src_dst
-                          (E.with_sploded_pair "dslist3" src_dst (fun psrc pdst ->
-                            pair
-                              (Des.list_sep dstate mn0 path psrc)
-                              (Ser.list_sep sstate mn0 path pdst))) in
+                          ~then_:src_dst
+                          ~else_:(
+                            E.with_sploded_pair "dslist3" src_dst (fun psrc pdst ->
+                              pair
+                                (Des.list_sep dstate mn0 path psrc)
+                                (Ser.list_sep sstate mn0 path pdst))
+                          ) in
                       desser_ transform sstate dstate mn0 subpath src_dst)))
                   ~init:(pair src dst))
           | UnknownSize (list_opn, end_of_list) ->
@@ -417,11 +419,12 @@ struct
                         let src_dst =
                           choose
                             ~cond:is_first
-                            src_dst
-                            (E.with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
-                              pair
-                                (Des.list_sep dstate mn0 path psrc)
-                                (Ser.list_sep sstate mn0 path pdst))) in
+                            ~then_:src_dst
+                            ~else_:(
+                              E.with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
+                                pair
+                                  (Des.list_sep dstate mn0 path psrc)
+                                  (Ser.list_sep sstate mn0 path pdst))) in
                         pair
                           (bool false)
                           (desser_ transform sstate dstate mn0 subpath src_dst)))))
@@ -477,9 +480,9 @@ struct
            * if any of dnull/snull/snotnull/etc update the state, they will
            * do so in both branches of this alternative. *)
           choose ~cond
-            (dsnull vt sstate dstate mn0 path src dst)
-            (dsnotnull vt sstate dstate mn0 path src dst |>
-             desser_value_type vt transform sstate dstate mn0 path ))
+            ~then_:(dsnull vt sstate dstate mn0 path src dst)
+            ~else_:(dsnotnull vt sstate dstate mn0 path src dst |>
+                    desser_value_type vt transform sstate dstate mn0 path ))
     | NotNullable vt ->
         desser_value_type vt transform sstate dstate mn0 path src_dst
 

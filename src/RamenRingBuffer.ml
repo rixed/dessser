@@ -18,8 +18,8 @@ let align_dyn p extra_bytes =
   let extra_bytes = rem extra_bytes wsize in
   let padding_len = sub wsize extra_bytes in
   choose ~cond:(gt wsize padding_len)
-    (data_ptr_add p padding_len)
-    p
+    ~then_:(data_ptr_add p padding_len)
+    ~else_:p
 
 let align_const p extra_bytes =
   let extra_bytes = extra_bytes mod !ringbuf_word_size in

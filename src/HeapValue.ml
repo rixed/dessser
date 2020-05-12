@@ -1,9 +1,9 @@
-(* Dessser API is optimised to convert frmo one format into another without
+(* Dessser API is optimised to convert from one format into another without
  * materializing complex values in memory.
  * But when we do want to materialize the value in the heap, another API is
  * more natural.
- * These two modules are to unserialize into a materialized values and to
- * serialize a materialized value. *)
+ * The two following modules are designed to unserialize into a materialized
+ * values and to then serialize that materialized value. *)
 open Batteries
 open Dessser
 open DessserTools
@@ -49,8 +49,8 @@ struct
                   E.with_sploded_pair "dlist2" inits_src (fun inits src ->
                     let src =
                       choose ~cond:(eq n (i32 0l))
-                        src
-                        (Des.list_sep dstate mn0 path src) in
+                        ~then_:src
+                        ~else_:(Des.list_sep dstate mn0 path src) in
                     let v_src = make1 dstate mn0 subpath mn src in
                     E.with_sploded_pair "dlist3" v_src (fun v src ->
                       pair (cons v inits) src))))
@@ -74,8 +74,8 @@ struct
                   E.with_sploded_pair "dlist6" inits_src (fun inits src ->
                     let src =
                       choose ~cond:is_fst
-                        src
-                        (Des.list_sep dstate mn0 path src) in
+                        ~then_:src
+                        ~else_:(Des.list_sep dstate mn0 path src) in
                     let v_src = make1 dstate mn0 subpath mn src in
                     let inits_src =
                       E.with_sploded_pair "dlist7" v_src (fun v src ->
@@ -156,12 +156,13 @@ struct
     | Nullable vt ->
         let cond = Des.is_null dstate mn0 path src in
         choose ~cond
-          (pair (null vt) (Des.dnull vt dstate mn0 path src))
-          (let src = Des.dnotnull vt dstate mn0 path src in
-          let des = des_of_vt vt in
-          let v_src = des dstate mn0 path src in
-          E.with_sploded_pair "make1_1" v_src (fun v src ->
-            pair (to_nullable v) src))
+          ~then_:(pair (null vt) (Des.dnull vt dstate mn0 path src))
+          ~else_:(
+            let src = Des.dnotnull vt dstate mn0 path src in
+            let des = des_of_vt vt in
+            let v_src = des dstate mn0 path src in
+            E.with_sploded_pair "make1_1" v_src (fun v src ->
+              pair (to_nullable v) src))
     | NotNullable vt ->
         let des = des_of_vt vt in
         des dstate mn0 path src
@@ -384,8 +385,8 @@ struct
     let vt = T.to_value_type mn in
     if T.is_nullable mn then
       choose ~cond:(is_null v)
-        (add_size sizes (Ser.ssize_of_null mn0 path))
-        (ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
+        ~then_:(add_size sizes (Ser.ssize_of_null mn0 path))
+        ~else_:(ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
     else
       ssz_of_vt vt mn0 path v sizes
 

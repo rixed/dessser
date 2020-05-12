@@ -873,7 +873,9 @@ let field_name_of_expr = function
   | E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
-(* [e] must have been type checked already: *)
+(* Returns the type of [e0].
+ * [l] is an association list of bound identifiers.
+ * [e0] must have been type checked already: *)
 let rec type_of l e0 =
   let maybe_nullable_of l e =
     type_of l e |> T.to_maybe_nullable in
@@ -1740,7 +1742,7 @@ struct
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
   let byte_of_const_char e1 = byte_of_char (char e1)
   (* TODO: ~then_ ~else_: *)
-  let choose ~cond e2 e3 =  E3 (Choose, cond, e2, e3)
+  let choose ~cond ~then_ ~else_ =  E3 (Choose, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
   let qword_of_float e1 = E1 (QWordOfFloat, e1)

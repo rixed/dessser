@@ -198,8 +198,8 @@ struct
               let b =
                 byte_of_u8 (
                   choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
-                    (log_and (to_u8 wlen) (u8 127))
-                    (log_or (to_u8 wlen) (u8 128))) in
+                    ~then_:(log_and (to_u8 wlen) (u8 127))
+                    ~else_:(log_or (to_u8 wlen) (u8 128))) in
               pair
                 (write_byte p b)
                 (right_shift wlen (u8 7))))))
