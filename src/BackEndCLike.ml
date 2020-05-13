@@ -30,7 +30,7 @@ let pp = Printf.fprintf
 
 let declared_type p t f =
   let id =
-    IO.to_string T.print_sorted t |>
+    IO.to_string T.print_sorted (T.develop_user_types t) |>
     Digest.string |>
     Digest.to_hex in
   if Set.String.mem id p.declared then id

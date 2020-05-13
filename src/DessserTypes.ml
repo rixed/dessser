@@ -220,6 +220,18 @@ let rec eq t1 t2 =
       Array.for_all2 eq pt1 pt2 && eq rt1 rt2
   | t1, t2 -> t1 = t2
 
+let rec develop_user_types = function
+  | Usr { def ; _ } -> develop_user_types def
+  | ut -> ut
+
+let develop_user_types = function
+  | TValue (Nullable (Usr _ as ut)) ->
+      TValue (Nullable (develop_user_types ut))
+  | TValue (NotNullable (Usr _ as ut)) ->
+      TValue (NotNullable (develop_user_types ut))
+  | t ->
+      t
+
 let rec print ?sorted oc =
   let sp = String.print oc in
   function

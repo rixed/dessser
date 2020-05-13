@@ -949,7 +949,7 @@ let rec type_of l e0 =
       let mns = List.rev mns in
       TValue (NotNullable (TRec (Array.of_list mns)))
   | E1 (GetItem n, e1) ->
-      (match type_of l e1 with
+      (match type_of l e1 |> T.develop_user_types with
       | TValue (NotNullable (TTup mns)) ->
           let max_n = Array.length mns in
           if n >= max_n then
@@ -958,7 +958,7 @@ let rec type_of l e0 =
           TValue mns.(n)
       | t -> raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
-      (match type_of l e1 with
+      (match type_of l e1 |> T.develop_user_types with
       | TValue (NotNullable (TRec mns)) ->
           (match array_assoc name mns with
           | exception Not_found ->
@@ -966,7 +966,7 @@ let rec type_of l e0 =
           | mn -> TValue mn)
       | t -> raise (Type_error (e0, e1, t, "be a record")))
   | E2 (Nth, _, e2) ->
-      (match type_of l e2 with
+      (match type_of l e2 |> T.develop_user_types with
       | TValue (NotNullable (TVec (_, mn) | TList mn)) -> TValue mn
       | t -> raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
@@ -1065,7 +1065,7 @@ let rec type_of l e0 =
   | E1 (BitOfBool, _) -> T.bit
   | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TSList (TValue mn) -> TValue (NotNullable (TList mn))
       | t -> raise (Type_error (e0, e, t, "be a slist of maybe nullable values")))
   | E1 (U8OfBool, _) -> T.u8
@@ -1133,23 +1133,23 @@ let rec type_of l e0 =
   | E2 (Pair, e1, e2) ->
       T.pair (type_of l e1) (type_of l e2)
   | E1 (Fst, e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TPair (t, _) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Snd, e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TPair (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Head, e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TSList t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (Tail, e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TSList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E2 (MapPair, _, e) ->
-      (match type_of l e with
+      (match type_of l e |> T.develop_user_types with
       | TFunction (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a function")))
   | E0 (Identifier n) as e ->
@@ -1205,15 +1205,15 @@ let rec fold u l f e =
 let rec type_check l e =
   fold () l (fun () l e0 ->
     let check_void l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TVoid -> ()
       | t -> raise (Type_error (e0, e, t, "be Void")) in
     let check_nullable l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TValue (Nullable _) -> ()
       | t -> raise (Type_error (e0, e, t, "be nullable")) in
     let check_not_nullable l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TValue (NotNullable _) -> ()
       | t -> raise (Type_error (e0, e, t, "not be nullable")) in
     let check_same_valuetype l e1 e2 =
@@ -1231,7 +1231,7 @@ let rec type_check l e =
           | vt2 ->
               if not (T.value_type_eq vt1 vt2) then fail ()) in
     let check_comparable l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
       | TValue (NotNullable (Mac (
           TFloat | TString | TChar |
@@ -1239,7 +1239,7 @@ let rec type_check l e =
           TI8 | TI16 | TI32 | TI64 | TI128))) -> ()
       | t -> raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
       | TValue (NotNullable (Mac (
           TFloat | TChar |
@@ -1247,7 +1247,7 @@ let rec type_check l e =
           TI8 | TI16 | TI32 | TI64 | TI128))) -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
       | TValue (NotNullable (Mac (
           TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
@@ -1268,48 +1268,48 @@ let rec type_check l e =
     let check_all_same_types l e1 e2s =
       List.iter (check_same_types l e1) e2s in
     let check_maybe_nullable l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TValue _ -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a possibly nullable value")) in
     let check_list l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TValue (NotNullable TList _) -> ()
       | t -> raise (Type_error (e0, e, t, "be a list")) in
     let check_list_or_vector l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TValue (NotNullable (TVec _ | TList _)) -> ()
       | t -> raise (Type_error (e0, e, t, "be a vector or list")) in
     let check_slist l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSList _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_slist_same_type e1 l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSList t -> check_eq l e1 t
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_pair l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TPair _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a pair")) in
     let bad_arity expected e t =
       let s = Printf.sprintf "be a function of %d parameters" expected in
       raise (Type_error (e0, e, t, s)) in
     let check_function arity l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TFunction (ts, _) as t ->
           if Array.length ts <> arity then bad_arity arity e t
       | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params1 l e f =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TFunction ([|t1|], t2) -> f t1 t2
       | t -> bad_arity 1 e t in
     let check_params2 l e f =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TFunction ([|t1; t2|], t3) -> f t1 t2 t3
       | t -> bad_arity 2 e t in
     let check_slist_of_maybe_nullable l e =
-      match type_of l e with
+      match type_of l e |> T.develop_user_types with
       | TSList (TValue _) -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a slist of maybe nullable values")) in
