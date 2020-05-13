@@ -2,9 +2,9 @@
 
 VERSION = @PACKAGE_VERSION@
 
-OCAMLOPT = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlopt
-OCAMLC   = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamlc
-OCAMLDEP = OCAMLPATH='$(OCAMLPATH)' OCAMLRUNPARAM= ocamlfind ocamldep
+OCAMLOPT = OCAMLRUNPARAM= ocamlfind ocamlopt
+OCAMLC   = OCAMLRUNPARAM= ocamlfind ocamlc
+OCAMLDEP = OCAMLRUNPARAM= ocamlfind ocamldep
 CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
@@ -36,10 +36,14 @@ INSTALLED_LIB = \
 	$(filter %.cmo, $(LIBDESSSER_SOURCES:.ml=.cmo))
 
 INSTALLED_HEADERS = \
-	src/dessser/runtime.h \
-	src/dessser/typedefs.h \
-	src/dessser/Pointer.h \
 	src/dessser/Bytes.h \
+	src/dessser/Map.h \
+	src/dessser/Pair.h \
+	src/dessser/Pointer.h \
+	src/dessser/List.h \
+	src/dessser/runtime.h \
+	src/dessser/SList.h \
+	src/dessser/typedefs.h \
 	src/dessser/Vec.h
 
 INSTALLED = \
@@ -226,9 +230,11 @@ all_tests.opt: \
 
 unit-check: all_tests.opt
 	@echo 'Running unit tests...'
-	@TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
+	@ulimit -n 5000 ;\
+	 TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
 
 examples-check: examples/simplest.opt examples/manual_codegen.opt
+	@ulimit -n 5000
 	@examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK"
 	@examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK"
 	@examples/manual_codegen.opt ocaml && \
