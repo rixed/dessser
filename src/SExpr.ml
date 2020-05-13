@@ -142,7 +142,7 @@ struct
     write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
   let si () _ _ v p =
-    write_bytes p (bytes_of_string (string_of_int v))
+    write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
   let si16 = si

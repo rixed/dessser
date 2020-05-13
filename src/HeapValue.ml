@@ -189,7 +189,7 @@ struct
       else
         let dst = if i = 0 then dst else
                     Ser.vec_sep i sstate mn0 path dst in
-        let_ "dst" dst (
+        let_ "dst" dst ~in_:(
           let v' = nth (u32_of_int i) v in
           ser1 sstate mn0 path mn v' copy_field (identifier "dst") |>
           loop (i + 1)) in
@@ -206,8 +206,8 @@ struct
               (choose ~cond:(gt n (i32 0l))
                       ~then_:(Ser.list_sep sstate mn0 path dst)
                       ~else_:dst)
-              (ser1 sstate mn0 path mn (nth n v) copy_field
-                    (identifier "dst"))))
+              ~in_:(ser1 sstate mn0 path mn (nth n v) copy_field
+                         (identifier "dst"))))
         ~init:dst in
     Ser.list_cls sstate mn0 path dst
 
@@ -220,8 +220,8 @@ struct
         let_ "dst"
           (if i = 0 then dst else
                     Ser.tup_sep i sstate mn0 path dst)
-          (ser1 sstate mn0 path mn (get_item i v) (mask_get i m)
-                (identifier "dst"))
+          ~in_:(ser1 sstate mn0 path mn (get_item i v) (mask_get i m)
+                     (identifier "dst"))
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
 
@@ -233,9 +233,9 @@ struct
         let_ "dst"
           (if i = 0 then dst else
                     Ser.rec_sep field sstate mn0 path dst)
-          (comment ("serialize field "^ field)
-             (ser1 sstate mn0 path mn (get_field field v) (mask_get i m)
-                   (identifier "dst")))
+          ~in_:(comment ("serialize field "^ field)
+                  (ser1 sstate mn0 path mn (get_field field v) (mask_get i m)
+                  (identifier "dst")))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
 
@@ -278,10 +278,9 @@ struct
             match mn with
             | Nullable vt ->
                 Ser.snull vt sstate mn0 path dst
-            | _ ->
+            | NotNullable _ ->
                 seq [ assert_ (bool false) ; (* Mask has been type checked *)
-                      dst ]
-          )
+                      dst ])
           ~else_:(
             (* Copy or Recurse are handled the same: *)
             match mn with
@@ -295,9 +294,7 @@ struct
                     ser sstate mn0 path (to_not_nullable v) dst)
             | NotNullable vt ->
                 let ser = ser_of_vt vt in
-                ser sstate mn0 path v dst
-          )
-      )
+                ser sstate mn0 path v dst))
 
   and serialize mn0 ma v dst =
     let path = [] in
@@ -337,7 +334,7 @@ struct
       if i >= dim then sizes else
       let subpath = path @ [i] in
       let v' = nth (u32_of_int i) v in
-      let_ "sizes" sizes (
+      let_ "sizes" sizes ~in_:(
         let sizes = sersize1 mn mn0 subpath v' (identifier "sizes") in
         loop sizes (i + 1)) in
     loop sizes 0
@@ -361,7 +358,7 @@ struct
       Ser.ssize_of_tup mn0 path v |> add_size sizes in
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
-      let_ "sizes" sizes (sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+      let_ "sizes" sizes ~in_:(sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
     ) sizes mns
 
   and ssrec mns mn0 path v sizes =
@@ -369,7 +366,7 @@ struct
       Ser.ssize_of_rec mn0 path v |> add_size sizes in
     Array.fold_lefti (fun sizes i (_, mn) ->
       let v' = get_item i v in
-      let_ "sizes" sizes (sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+      let_ "sizes" sizes ~in_:(sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
     ) sizes mns
 
   and sersize1 mn mn0 path v sizes =

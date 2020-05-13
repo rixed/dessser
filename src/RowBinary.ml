@@ -37,14 +37,15 @@ struct
         ~init:(pair (u32 Uint32.zero) (u8 0))
         ~pos:p)
       (* Still have to add the last byte (which is <128): *)
-      (comment "Last byte from read_leb128"
-        (E.with_sploded_pair "leb128_1" (identifier "leb_shft_ptr") (fun leb_shft ptr ->
-          E.with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->
-            pair
-              (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))
-                                            (secnd leb_shft))
-                                (first leb_shft)))
-              ptr))))
+      ~in_:(
+        comment "Last byte from read_leb128"
+          (E.with_sploded_pair "leb128_1" (identifier "leb_shft_ptr") (fun leb_shft ptr ->
+            E.with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->
+              pair
+                (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))
+                                              (secnd leb_shft))
+                                  (first leb_shft)))
+                ptr))))
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
    * a size, and deserialize a RowBinary tuple into a non-nullable value of
@@ -351,6 +352,6 @@ struct
   let ssize_of_string _ _ v =
     DynSize (
       let_ "wlen" (string_length v)
-        (add (ssize_of_leb128 (identifier "wlen"))
-             (identifier "wlen")))
+        ~in_:(add (ssize_of_leb128 (identifier "wlen"))
+                  (identifier "wlen")))
 end
