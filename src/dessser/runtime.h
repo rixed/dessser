@@ -13,6 +13,7 @@
 #include "dessser/List.h"
 #include "dessser/SList.h"
 #include "dessser/Pair.h"
+#include "dessser/Mask.h"
 
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)

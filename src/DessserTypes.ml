@@ -55,6 +55,10 @@ and maybe_nullable =
   | Nullable of value_type
   | NotNullable of value_type
 
+let nullable_map f = function
+  | Nullable vt -> Nullable (f vt)
+  | NotNullable vt -> NotNullable (f vt)
+
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
 let sorted_rec fields =
@@ -192,6 +196,9 @@ type t =
   | TQWord
   | TOWord
   | TBytes
+  (* Types for the runtime representation of a field mask: *)
+  | TMask  (* What to do with a tree of fields *)
+  | TMaskAction (* What to do with an individual field *)
   | TPair of t * t
   (* We'd like the DES/SERializer to be able to use complex types as their
    * "pointer", part of those types being actual pointers. Therefore, we cannot
@@ -247,6 +254,8 @@ let rec print ?sorted oc =
   | TQWord -> sp "QWord"
   | TOWord -> sp "OWord"
   | TBytes -> sp "Bytes"
+  | TMask -> sp "Mask"
+  | TMaskAction -> sp "MaskAction"
   | TPair (t1, t2) ->
       pp oc "(%a * %a)"
         (print ?sorted) t1
@@ -561,6 +570,8 @@ struct
       (strinG "qword" >>: fun () -> TQWord) |||
       (strinG "oword" >>: fun () -> TOWord) |||
       (strinG "bytes" >>: fun () -> TBytes) |||
+      (strinG "mask" >>: fun () -> TMask) |||
+      (strinG "mask-action" >>: fun () -> TMaskAction) |||
       (
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
         char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
@@ -721,6 +732,8 @@ let dword = TDWord
 let qword = TQWord
 let oword = TOWord
 let bytes = TBytes
+let mask = TMask
+let mask_action = TMaskAction
 let dataptr = TDataPtr
 let pair t1 t2 = TPair (t1, t2)
 let slist t = TSList t

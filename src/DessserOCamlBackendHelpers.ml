@@ -297,3 +297,26 @@ struct
       | o :: s -> o, s in
     { p with offset ; stack }
 end
+
+(* Runtime Field Masks *)
+
+module Mask =
+struct
+  type action = Copy | Skip | SetNull | Recurse of action array
+  and t = CopyAll of int | Mask of action array
+
+  let get m i =
+    match m with
+    | CopyAll l ->
+        assert (i < l) ;
+        Copy
+    | Mask a ->
+        a.(i)
+
+  let enter ma l =
+    match ma with
+    | Copy -> CopyAll l
+    | Skip | SetNull ->
+        assert false (* Should not enter those *)
+    | Recurse m -> Mask m
+end

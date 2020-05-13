@@ -101,6 +101,8 @@ struct
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
             String.print oc (type_identifier p t))
         ) args ^" -> "^ type_identifier p ret ^")"
+    | T.TMask -> "Mask.t"
+    | T.TMaskAction -> "Mask.action"
 
   let rec mod_name = function
     | T.TValue (NotNullable (Mac TChar)) -> "Char"
@@ -854,6 +856,18 @@ struct
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
+    | E.E1 (MaskGet i, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "Mask.get %s %d" n1 i)
+    | E.E1 (MaskEnter d, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "Mask.enter %s %d" n1 d)
+    | E.E0 CopyField ->
+        emit ?name p l e (fun oc -> pp oc "Mask.Copy")
+    | E.E0 SkipField ->
+        emit ?name p l e (fun oc -> pp oc "Mask.Skip")
+    | E.E0 SetFieldNull ->
+        emit ?name p l e (fun oc -> pp oc "Mask.SetNull")
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

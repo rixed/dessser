@@ -92,6 +92,8 @@ struct
     | T.TQWord -> "uint64_t"
     | T.TOWord -> "uint128_t"
     | T.TBytes -> "Bytes"
+    | T.TMask -> "Mask"
+    | T.TMaskAction -> "MaskAction"
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -666,6 +668,18 @@ struct
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
+    | E.E1 (MaskGet i, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s.get(%d)" n1 i)
+    | E.E1 (MaskEnter d, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "Mask::enter_action(%s, %d)" n1 d)
+    | E.E0 CopyField ->
+        emit ?name p l e (fun oc -> pp oc "MaskAction::COPY")
+    | E.E0 SkipField ->
+        emit ?name p l e (fun oc -> pp oc "MaskAction::SKIP")
+    | E.E0 SetFieldNull ->
+        emit ?name p l e (fun oc -> pp oc "MaskAction::SET_NULL")
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we

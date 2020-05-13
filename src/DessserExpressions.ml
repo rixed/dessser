@@ -63,6 +63,10 @@ type e0 =
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
+  (* Constant mask actions: *)
+  | CopyField
+  | SkipField
+  | SetFieldNull
 
 type e0s =
   | Seq
@@ -174,6 +178,8 @@ type e1 =
   | ReadQWord of endianness
   | ReadOWord of endianness
   | Assert
+  | MaskGet of int
+  | MaskEnter of int
 
 type e2 =
   | Let of string
@@ -392,6 +398,8 @@ let string_of_e1 = function
   | ReadQWord en -> "read-qword "^ string_of_endianness en
   | ReadOWord en -> "read-oword "^ string_of_endianness en
   | Assert -> "assert"
+  | MaskGet d -> "mask-get "^ string_of_int d
+  | MaskEnter d -> "mask-enter "^ string_of_int d
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -485,6 +493,9 @@ let rec string_of_e0 = function
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
   | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
   | Identifier s -> "identifier "^ String.quote s
+  | CopyField -> "copy-field"
+  | SkipField -> "skip-field"
+  | SetFieldNull -> "set-field-null"
 
 (* Display in a single line to help with tests. TODO: pretty_print_expr *)
 and print ?max_depth oc e =
@@ -586,6 +597,7 @@ struct
   exception Unknown_expression of sexpr
   exception Extraneous_expressions of int
   exception Garbage_after of int
+  exception Must_be_integer of sexpr * string
 
   let () =
     Printexc.register_printer (function
@@ -595,6 +607,8 @@ struct
           Some ("Extraneous expressions at position "^ string_of_int i)
       | Garbage_after i ->
           Some ("Cannot parse expressions after position "^ string_of_int i)
+      | Must_be_integer (x, d) ->
+          Some (Printf.sprintf2 "%S must be an integer in %a" d print_sexpr x)
       | _ ->
           None)
 
@@ -643,6 +657,10 @@ struct
     [ Lst [ Sym "null" ; Str "u8" ] ] (sexpr_of_string "(null \"u8\")")
   *)
 
+  let int_of_symbol x d =
+    try int_of_string d
+    with _ -> raise (Must_be_integer (x, d))
+
   let rec e = function
     (* e0 *)
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
@@ -684,11 +702,9 @@ struct
     | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
         E0 (DataPtrOfBuffer (int_of_string n))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
-    | Lst [ Sym "copy-all" ] -> E0 CopyAll
-    | Lst [ Sym "skip-all" ] -> E0 SkipAll
-    | Lst [ Sym "copy" ] -> E0 Copy
-    | Lst [ Sym "skip" ] -> E0 Skip
-    | Lst [ Sym "set-null" ] -> E0 SetNull
+    | Lst [ Sym "copy-field" ] -> E0 CopyField
+    | Lst [ Sym "skip-field" ] -> E0 SkipField
+    | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
@@ -806,10 +822,10 @@ struct
     | Lst [ Sym "read-oword" ; Sym en ; x ] ->
         E1 (ReadOWord (endianness_of_string en), e x)
     | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
-    | Lst [ Sym "mask-get" ; x1 ] -> E1 (MaskGet, e x1)
-    | Lst [ Sym "mask-next" ; x1 ] -> E1 (MaskNext, e x1)
-    | Lst [ Sym "mask-enter" ; x1 ] -> E1 (MaskEnter, e x1)
-    | Lst [ Sym "mask-leave" ; x1 ] -> E1 (MaskLeave, e x1)
+    | Lst [ Sym "mask-get" ; Sym d ; x1 ] as x ->
+        E1 (MaskGet (int_of_symbol x d), e x1)
+    | Lst [ Sym "mask-enter" ; Sym d ; x1 ] as x ->
+        E1 (MaskEnter (int_of_symbol x d), e x1)
     (* e2 *)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
     | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
@@ -1158,6 +1174,8 @@ let rec type_of l e0 =
           Printf.eprintf "Cannot find identifier %S in %a\n%!"
             n (List.print (fun oc (e, _) -> print oc e)) l ;
           raise Not_found)
+  | E0 (CopyField|SkipField|SetFieldNull) ->
+      T.mask_action
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
   | E1 (Function (fid, ts), e) ->
@@ -1176,6 +1194,8 @@ let rec type_of l e0 =
   | E3 (LoopWhile, _, _, e) -> type_of l e
   | E3 (LoopUntil, _, _, e) -> type_of l e
   | E4 (Repeat, _, _, _, e) -> type_of l e
+  | E1 (MaskGet _, _) -> T.mask_action
+  | E1 (MaskEnter _, _) -> T.mask
 
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
@@ -1232,7 +1252,7 @@ let rec type_check l e =
               if not (T.value_type_eq vt1 vt2) then fail ()) in
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
-      | TSize | TByte | TWord | TDWord | TQWord | TOWord
+      | TSize | TByte | TWord | TDWord | TQWord | TOWord | TMaskAction
       | TValue (NotNullable (Mac (
           TFloat | TString | TChar |
           TU8 | TU16 | TU32 | TU64 | TU128 |
@@ -1319,7 +1339,8 @@ let rec type_check l e =
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | DataPtrOfString _ | DataPtrOfBuffer _
-         | Identifier _| Param _)
+         | Identifier _| Param _
+         | CopyField | SkipField | SetFieldNull)
     | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
@@ -1533,6 +1554,10 @@ let rec type_check l e =
           check_param e3 0 t1 T.i32 ;
           check_eq l e4 t2 ;
           check_eq l e4 t3)
+    | E1 (MaskGet _, e1) ->
+        check_eq l e1 T.TMask
+    | E1 (MaskEnter _, e1) ->
+        check_eq l e1 T.TMaskAction
   ) e
 
 (*$inject
@@ -1876,4 +1901,9 @@ struct
   let byte_of_char = byte_of_u8 % u8_of_char
   let u32_of_int n = u32 (Uint32.of_int n)
   let assert_ e = E1 (Assert, e)
+  let mask_get i m = E1 (MaskGet i, m)
+  let mask_enter l m = E1 (MaskEnter l, m)
+  let copy_field = E0 CopyField
+  let skip_field = E0 SkipField
+  let set_field_null = E0 SetFieldNull
 end

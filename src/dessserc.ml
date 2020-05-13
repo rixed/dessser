@@ -36,14 +36,15 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
     (* convert from encoding_in into a heapvalue: *)
     E.func1 TDataPtr (fun _l src ->
       first (ToValue.make schema src)) in
+  let ma = copy_field in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
     E.func1 (TValue schema) (fun _l v ->
-      OfValue.sersize schema v) in
+      OfValue.sersize schema ma v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
     E.func2 (TValue schema) TDataPtr (fun _l v dst ->
-      OfValue.serialize schema v dst) in
+      OfValue.serialize schema ma v dst) in
   if debug then (
     E.type_check [] convert ;
     E.type_check [] to_value ;
@@ -102,7 +103,7 @@ let target_lmdb _schema _backend _encoding_in _encoding_out _dest_fname =
 open Cmdliner
 
 let schema =
-  let doc = "file or online schema" in
+  let doc = "file or inline schema" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options ["schema"] in
   Arg.(required (opt (some string) None i))
 

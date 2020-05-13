@@ -673,7 +673,7 @@ let sexpr mn =
     func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
       let v_src = ToValue.make mn src in
       with_sploded_pair "v_src" v_src (fun v src ->
-        let dst = OfValue.serialize mn v dst in
+        let dst = OfValue.serialize mn copy_field v dst in
         pair src dst))
 *)
 (*$R

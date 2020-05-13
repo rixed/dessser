@@ -176,8 +176,8 @@ end
  * serialize that value: *)
 
 module Serialize (Ser :SER) : sig
-    val serialize : T.maybe_nullable -> E.t -> (*dst*) E.t -> (*dst*) E.t
-    val sersize : T.maybe_nullable -> E.t -> (*size*size*) E.t
+    val serialize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*dst*) E.t -> (*dst*) E.t
+    val sersize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*size*size*) E.t
   end =
 struct
 
@@ -191,8 +191,8 @@ struct
                     Ser.vec_sep i sstate mn0 path dst in
         let_ "dst" dst (
           let v' = nth (u32_of_int i) v in
-          let dst = ser1 sstate mn0 path mn v' (identifier "dst") in
-          loop (i + 1) dst) in
+          ser1 sstate mn0 path mn v' copy_field (identifier "dst") |>
+          loop (i + 1)) in
     loop 0 dst
 
   and slist mn sstate mn0 path v dst =
@@ -202,37 +202,44 @@ struct
       repeat ~from:(i32 0l) ~to_:(to_i32 len)
         ~body:
           (E.func2 T.i32 (Ser.ptr mn0) (fun _l n dst ->
-            let dst = choose ~cond:(gt n (i32 0l))
-                        (Ser.list_sep sstate mn0 path dst)
-                        dst in
-            ser1 sstate mn0 path mn (nth n v) dst))
+            let_ "dst"
+              (choose ~cond:(gt n (i32 0l))
+                      ~then_:(Ser.list_sep sstate mn0 path dst)
+                      ~else_:dst)
+              (ser1 sstate mn0 path mn (nth n v) copy_field
+                    (identifier "dst"))))
         ~init:dst in
     Ser.list_cls sstate mn0 path dst
 
-  and stup mns sstate mn0 path v dst =
+  and stup mns ma sstate mn0 path v dst =
     let dst = Ser.tup_opn sstate mn0 path mns dst in
+    (* this returns a new mask that is going to be read entirely *)
+    let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i mn ->
-        let dst = if i = 0 then dst else
-                    Ser.tup_sep i sstate mn0 path dst in
-        let_ "dst" dst (
-          ser1 sstate mn0 path mn (get_item i v) (identifier "dst"))
+        let_ "dst"
+          (if i = 0 then dst else
+                    Ser.tup_sep i sstate mn0 path dst)
+          (ser1 sstate mn0 path mn (get_item i v) (mask_get i m)
+                (identifier "dst"))
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
 
-  and srec mns sstate mn0 path v dst =
+  and srec mns ma sstate mn0 path v dst =
     let dst = Ser.rec_opn sstate mn0 path mns dst in
+    let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i (field, mn) ->
-        let dst = if i = 0 then dst else
-                    Ser.rec_sep field sstate mn0 path dst in
-        let dst = comment ("serialize field "^ field) dst in
-        let_ "dst" dst (
-          ser1 sstate mn0 path mn (get_field field v) (identifier "dst"))
+        let_ "dst"
+          (if i = 0 then dst else
+                    Ser.rec_sep field sstate mn0 path dst)
+          (comment ("serialize field "^ field)
+             (ser1 sstate mn0 path mn (get_field field v) (mask_get i m)
+                   (identifier "dst")))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
 
-  and ser1 sstate mn0 path mn v dst =
+  and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
       | T.Mac TFloat -> Ser.sfloat
       | T.Mac TString -> Ser.sstring
@@ -257,28 +264,45 @@ struct
       | T.Mac TU64 -> Ser.su64
       | T.Mac TU128 -> Ser.su128
       | T.Usr vt -> ser_of_vt vt.def
-      | T.TTup mns -> stup mns
-      | T.TRec mns -> srec mns
       | T.TVec (dim, mn) -> svec dim mn
       | T.TList mn -> slist mn
+      | T.TTup mns -> stup mns ma
+      | T.TRec mns -> srec mns ma
       | T.TMap _ -> assert false (* No value of map type *)
     in
-    match mn with
-    | Nullable vt ->
-        let cond = is_null v in
-        choose ~cond
-          (Ser.snull vt sstate mn0 path dst)
-          (let dst = Ser.snotnull vt sstate mn0 path dst in
-          let ser = ser_of_vt vt in
-          ser sstate mn0 path (to_not_nullable v) dst)
-    | NotNullable vt ->
-        let ser = ser_of_vt vt in
-        ser sstate mn0 path v dst
+    choose ~cond:(eq ma skip_field)
+      ~then_:dst
+      ~else_:(
+        choose ~cond:(eq ma set_field_null)
+          ~then_:(
+            match mn with
+            | Nullable vt ->
+                Ser.snull vt sstate mn0 path dst
+            | _ ->
+                seq [ assert_ (bool false) ; (* Mask has been type checked *)
+                      dst ]
+          )
+          ~else_:(
+            (* Copy or Recurse are handled the same: *)
+            match mn with
+            | Nullable vt ->
+                let cond = is_null v in
+                choose ~cond
+                  ~then_:(Ser.snull vt sstate mn0 path dst)
+                  ~else_:(
+                    let dst = Ser.snotnull vt sstate mn0 path dst in
+                    let ser = ser_of_vt vt in
+                    ser sstate mn0 path (to_not_nullable v) dst)
+            | NotNullable vt ->
+                let ser = ser_of_vt vt in
+                ser sstate mn0 path v dst
+          )
+      )
 
-  and serialize mn0 v dst =
+  and serialize mn0 ma v dst =
     let path = [] in
     let sstate, dst = Ser.start mn0 dst in
-    ser1 sstate mn0 path mn0 v dst
+    ser1 sstate mn0 path mn0 v ma dst
 
   (*
    * Compute the sersize of a expression:
@@ -390,7 +414,8 @@ struct
     else
       ssz_of_vt vt mn0 path v sizes
 
-  let sersize mn v =
+  let sersize mn ma v =
+    (* TODO: mask *)
     let sizes = pair (size 0) (size 0) in
     sersize1 mn mn [] v sizes
 
