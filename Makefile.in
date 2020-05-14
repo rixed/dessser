@@ -38,6 +38,7 @@ INSTALLED_LIB = \
 INSTALLED_HEADERS = \
 	src/dessser/Bytes.h \
 	src/dessser/Map.h \
+	src/dessser/Mask.h \
 	src/dessser/Pair.h \
 	src/dessser/Pointer.h \
 	src/dessser/List.h \
@@ -96,6 +97,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserMasks.ml \
 	src/Dessser.ml \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
@@ -195,6 +197,7 @@ src/DessserCompilConfig.ml: Makefile
 TESTABLE_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserMasks.ml \
 	src/BackEndCPP.ml \
 	src/DessserQCheck.ml \
 	src/DessserOCamlBackendHelpers.ml
@@ -204,6 +207,7 @@ LINKED_FOR_TESTS = \
 	src/DessserTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserMasks.ml \
 	src/Dessser.ml \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
