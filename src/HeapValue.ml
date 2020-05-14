@@ -335,7 +335,7 @@ struct
       let subpath = path @ [i] in
       let v' = nth (u32_of_int i) v in
       let_ "sizes" sizes ~in_:(
-        let sizes = sersize1 mn mn0 subpath v' (identifier "sizes") in
+        let sizes = sersz1 mn mn0 subpath v' copy_field (identifier "sizes") in
         loop sizes (i + 1)) in
     loop sizes 0
 
@@ -350,26 +350,32 @@ struct
       ~body:
         (E.func2 T.i32 sizes_t (fun _l n sizes ->
           let v' = nth n v in
-          sersize1 mn mn0 subpath v' sizes))
+          sersz1 mn mn0 subpath v' copy_field sizes))
       ~init:sizes
 
-  and sstup mns mn0 path v sizes =
+  and sstup mns ma mn0 path v sizes =
     let sizes =
       Ser.ssize_of_tup mn0 path v |> add_size sizes in
+    let m = mask_enter (Array.length mns) ma in
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
-      let_ "sizes" sizes ~in_:(sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+      let ma = mask_get i m in
+      let_ "sizes" sizes
+        ~in_:(sersz1 mn mn0 (path @ [i]) v' ma (identifier "sizes"))
     ) sizes mns
 
-  and ssrec mns mn0 path v sizes =
+  and ssrec mns ma mn0 path v sizes =
     let sizes =
       Ser.ssize_of_rec mn0 path v |> add_size sizes in
+    let m = mask_enter (Array.length mns) ma in
     Array.fold_lefti (fun sizes i (_, mn) ->
       let v' = get_item i v in
-      let_ "sizes" sizes ~in_:(sersize1 mn mn0 (path @ [i]) v' (identifier "sizes"))
+      let ma = mask_get i m in
+      let_ "sizes" sizes
+        ~in_:(sersz1 mn mn0 (path @ [i]) v' ma (identifier "sizes"))
     ) sizes mns
 
-  and sersize1 mn mn0 path v sizes =
+  and sersz1 mn mn0 path v ma sizes =
     let to_dyn ssizer mn0 path v sizes =
       let sz = ssizer mn0 path v in
       add_size sizes sz in
@@ -397,23 +403,34 @@ struct
       | T.Mac TU64 -> to_dyn Ser.ssize_of_u64
       | T.Mac TU128 -> to_dyn Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
-      | T.TTup mns -> sstup mns
-      | T.TRec mns -> ssrec mns
       | T.TVec (dim, mn) -> ssvec dim mn
       | T.TList mn -> sslist mn
+      | T.TTup mns -> sstup mns ma
+      | T.TRec mns -> ssrec mns ma
       | T.TMap _ -> assert false (* No value of map type *)
     in
-    let vt = T.to_value_type mn in
-    if T.is_nullable mn then
-      choose ~cond:(is_null v)
-        ~then_:(add_size sizes (Ser.ssize_of_null mn0 path))
-        ~else_:(ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
-    else
-      ssz_of_vt vt mn0 path v sizes
+    choose ~cond:(eq ma skip_field)
+      ~then_:sizes
+      ~else_:(
+        choose ~cond:(eq ma set_field_null)
+          ~then_:(
+            match mn with
+            | Nullable _ ->
+                add_size sizes (Ser.ssize_of_null mn0 path)
+            | NotNullable _ ->
+                seq [ assert_ (bool false) ;
+                      sizes ])
+          ~else_:(
+            match mn with
+            | Nullable vt ->
+                choose ~cond:(is_null v)
+                  ~then_:(add_size sizes (Ser.ssize_of_null mn0 path))
+                  ~else_:(ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
+            | NotNullable vt ->
+                ssz_of_vt vt mn0 path v sizes))
 
   let sersize mn ma v =
-    (* TODO: mask *)
     let sizes = pair (size 0) (size 0) in
-    sersize1 mn mn [] v sizes
+    sersz1 mn mn [] v ma sizes
 
 end
