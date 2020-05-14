@@ -107,34 +107,41 @@ let schema =
   let i = Arg.info ~doc ~docs:Manpage.s_common_options ["schema"] in
   Arg.(required (opt (some string) None i))
 
+(* cmdliner must be given enum values that are comparable, therefore not
+ * functions: *)
+type encodings = Null | RowBinary | SExpr | RingBuff
+
+let des_of_encoding = function
+  | RowBinary -> (module RowBinary.Des : DES)
+  | SExpr -> (module SExpr.Des : DES)
+  | _ -> failwith "No desserializer for that encoding"
+
+let ser_of_encoding = function
+  | Null -> (module DevNull.Ser : SER)
+  | RingBuff -> (module RamenRingBuffer.Ser : SER)
+  | RowBinary -> (module RowBinary.Ser : SER)
+  | SExpr -> (module SExpr.Ser : SER)
+
 let encoding_in =
-  let row_binary = (module RowBinary.Des : DES) in
-  let s_expr = (module SExpr.Des : DES) in
   let encodings =
-    [ "row-binary", row_binary ;
-      "s-expression", s_expr ] in
+    [ "row-binary", RowBinary ;
+      "s-expression", SExpr ] in
   let doc = "encoding format for input" in
   let docv = "row-binary" in
   let i = Arg.info ~doc ~docv [ "input-encoding" ] in
-  Arg.(value (opt (enum encodings) row_binary i))
+  Arg.(value (opt (enum encodings) RowBinary i))
 
 let encoding_out =
-  let row_binary = (module RowBinary.Ser : SER) in
-  let null = (module DevNull.Ser : SER) in
-  let ringbuf = (module RamenRingBuffer.Ser : SER) in
-  let s_expr = (module SExpr.Ser : SER) in
   let encodings =
-    [ "null", null ;
-      "ringbuf", ringbuf ;
-      "row-binary", row_binary ;
-      "s-expression", s_expr ] in
+    [ "null", Null ;
+      "ringbuf", RingBuff ;
+      "row-binary", RowBinary ;
+      "s-expression", SExpr ] in
   let doc = "encoding format for output" in
   let docv = "null|ringbuf|row-binary|s-expression" in
   let i = Arg.info ~doc ~docv [ "output-encoding" ] in
-  Arg.(value (opt (enum encodings) s_expr i))
+  Arg.(value (opt (enum encodings) SExpr i))
 
-(* cmdliner must be given enum values that are comparable, therefore not
- * functions: *)
 type targets = Converter | Lib | Lmdb
 
 let function_of_target = function
@@ -187,6 +194,8 @@ let start target schema backend encoding_in encoding_out dest_fname =
   let schema = maybe_nullable_of_string schema in
   let target = function_of_target target in
   let backend = module_of_backend backend in
+  let encoding_in = des_of_encoding encoding_in in
+  let encoding_out = ser_of_encoding encoding_out in
   target schema backend encoding_in encoding_out dest_fname
 
 let () =
