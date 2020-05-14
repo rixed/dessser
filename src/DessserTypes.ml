@@ -227,17 +227,28 @@ let rec eq t1 t2 =
       Array.for_all2 eq pt1 pt2 && eq rt1 rt2
   | t1, t2 -> t1 = t2
 
-let rec develop_user_types = function
-  | Usr { def ; _ } -> develop_user_types def
-  | ut -> ut
+let rec develop_value_type = function
+  | Mac _ as vt ->
+      vt
+  | Usr { def ; _ } ->
+      develop_value_type def
+  | TVec (d, mn) ->
+      TVec (d, develop_maybe_nullable mn)
+  | TList mn ->
+      TList (develop_maybe_nullable mn)
+  | TTup mns ->
+      TTup (Array.map develop_maybe_nullable mns)
+  | TRec mns ->
+      TRec (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) mns)
+  | TMap (mn1, mn2) ->
+      TMap (develop_maybe_nullable mn1, develop_maybe_nullable mn2)
 
-let develop_user_types = function
-  | TValue (Nullable (Usr _ as ut)) ->
-      TValue (Nullable (develop_user_types ut))
-  | TValue (NotNullable (Usr _ as ut)) ->
-      TValue (NotNullable (develop_user_types ut))
-  | t ->
-      t
+and develop_maybe_nullable mn =
+  nullable_map develop_value_type mn
+
+and develop_user_types = function
+  | TValue mn -> TValue (develop_maybe_nullable mn)
+  | t -> t
 
 let rec print ?sorted oc =
   let sp = String.print oc in
