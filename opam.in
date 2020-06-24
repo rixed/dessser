@@ -19,5 +19,5 @@ depends: [
   "batteries"
   "stdint" {= "0.6.0fix2"}
   "parsercombinator" {>= "1.0"}
-  "qcheck"
+  "qcheck" {= "0.13"}
 ]
