@@ -37,7 +37,7 @@ struct Mask {
 
   MaskAction const get(size_t i) const
   {
-    if (actions) {
+    if (actions != nullptr) {
       assert(i < actions->size());
       return actions[i];
     } else {

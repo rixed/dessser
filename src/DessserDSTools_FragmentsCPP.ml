@@ -64,3 +64,11 @@ int main(int numArgs, char **args)
   return 0;
 }
 |} out_buf_size entry_point
+
+let dumper ?(out_buf_size=50_000) _convert_key_id _convert_val_id =
+  ignore out_buf_size ;
+  DessserTools.todo "dumper for C++"
+
+let loader ?(out_buf_size=50_000) _convert_key_id _convert_val_id =
+  ignore out_buf_size ;
+  DessserTools.todo "loader for C++"

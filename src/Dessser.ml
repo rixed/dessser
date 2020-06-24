@@ -527,6 +527,7 @@ sig
    * Expression is not allowed to have the null type (which would make little
    * sense anyway): *)
   val identifier_of_expression : state -> ?name:string -> E.t -> (state * E.t * string)
+  val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string

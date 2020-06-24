@@ -63,6 +63,7 @@ let valid_identifier s =
 module type CONFIG =
 sig
   val valid_identifier : string -> string
+  val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
@@ -98,6 +99,14 @@ struct
   let print_comment = C.print_comment
   let preferred_def_extension = C.preferred_def_extension
   let preferred_decl_extension = C.preferred_decl_extension
+
+  let valid_source_name fname =
+    let ext = Filename.extension fname
+    and no_ext = Filename.remove_extension fname in
+    let basename_no_ext = Filename.basename no_ext
+    and dirname = Filename.dirname fname in
+    dirname ^"/"^ C.valid_source_name basename_no_ext ^ ext
+
   let compile_cmd = C.compile_cmd
 
   let gen_sym () = valid_identifier (gen_sym "id_")

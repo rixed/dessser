@@ -13,14 +13,27 @@ struct
     if s.[0] = '!' then s
     else BackEndCLike.valid_identifier s
 
+  let valid_source_name n =
+    if n = "" then "f" else
+    String.mapi (fun i c ->
+      if c >= 'a' && c <= 'z' ||
+         c >= 'A' && c <= 'Z' ||
+         i > 0 && (
+           c >= '0' && c <= '9' ||
+           c = '_'
+        )
+      then c else '_'
+    ) n
+
   let preferred_def_extension = "ml"
   let preferred_decl_extension = "mli"
   let compile_cmd ~optim ~link src dst =
     let optim = cap 2 3 optim in
     Printf.sprintf
-      "ocamlfind ocamlopt -g -annot -O%d -w -26 -I src -package stdint,batteries \
-       -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackendHelpers.cmx \
-       %s %S -o %S"
+      "ocamlfind ocamlopt -g -annot -O%d -w -26 -I src \
+         -package stdint,batteries,lmdb \
+         -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackendHelpers.cmx \
+         %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
   let tuple_field_name i = "field_"^ string_of_int i

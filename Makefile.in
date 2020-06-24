@@ -257,7 +257,21 @@ src/cpp_tests: src/cpp_tests.cc src/dessser/runtime.h
 cpp-check: src/cpp_tests
 	src/cpp_tests
 
-check: unit-check examples-check cpp-check
+testdb-dump: src/dessserc
+	src/dessserc --input=ringbuf --language=OCaml --output-enc=s-expression --target=dump --value-schema string --key-schema u32 -o $@
+
+testdb-load: src/dessserc
+	src/dessserc --input=s-expression --language=OCaml --output-enc=ringbuf --target=load --value-schema string --key-schema u32 -o $@
+
+dump-load-check: testdb-dump testdb-load testdb.dump
+	@ENVNAME=/tmp/testdb ;\
+	 rm -rf $$ENVNAME ;\
+	 mkdir -p $$ENVNAME ;\
+	 ./testdb-load --kv-delim : $$ENVNAME < testdb.dump ;\
+	 ./testdb-dump --kv-delim : $$ENVNAME | sort > /tmp/testdb.dump ;\
+	 diff /tmp/testdb.dump testdb.dump
+
+check: unit-check examples-check cpp-check dump-load-check
 
 # Installation
 

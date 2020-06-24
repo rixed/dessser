@@ -239,7 +239,7 @@ let rec project mn ma =
 *)
 
 
-(* TODO: given a type and a mask, build the function that takes takes a heap
+(* TODO: given a type and a mask, build the function that takes a heap
  * value of that type and return a heap value of the projection:
 let projector mn m =
   fun (e : E.t) : E.t ->

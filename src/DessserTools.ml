@@ -81,6 +81,9 @@ let char_is_printable c =
   let open Char in
   is_letter c || is_digit c || is_symbol c || is_missing_symbol c
 
+let todo what =
+  failwith ("Not implemented: "^ what)
+
 (*
  * Subprocesses
  *)

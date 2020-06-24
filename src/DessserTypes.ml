@@ -489,12 +489,12 @@ struct
       in
       let try_fix_typos = true in
       match parse_with_err_budget 0 with
-      | Error e ->
+      | Bad e ->
           if try_fix_typos then
             (* Try again with some error correction activated, in order to
              * get a better error message: *)
             match parse_with_err_budget 1 with
-            | Error e -> err_out e
+            | Bad e -> err_out e
             | _ -> assert false
           else
             err_out e
@@ -516,11 +516,11 @@ struct
         Printf.sprintf "%S, parsed_len=%d, rest=%s"
           (IO.to_string res_printer res) len
           (IO.to_string (List.print Char.print) rest)
-      | Error (Approximation _) ->
+      | Bad (Approximation _) ->
         "Approximation"
-      | Error (NoSolution e) ->
+      | Bad (NoSolution e) ->
         Printf.sprintf "No solution (%s)" (IO.to_string print_error e)
-      | Error (Ambiguous lst) ->
+      | Bad (Ambiguous lst) ->
         Printf.sprintf "%d solutions: %s"
           (List.length lst)
           (IO.to_string
@@ -531,7 +531,7 @@ struct
 
     let strip_linecol = function
       | Ok (res, (x, _pos)) -> Ok (res, x)
-      | Error x -> Error x
+      | Bad x -> Bad x
 
     let test_p ?(postproc=identity) p s =
       (p +- eof) [] None Parsers.no_error_correction (PConfig.stream_of_string s) |>

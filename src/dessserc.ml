@@ -1,10 +1,11 @@
 (* Examples:
  *
  *   dessser --schema (FILE|TYPE) --in ENCODING --out ENCODING \
- *           [--language ocaml|c++] --target libs|file-converter|lmdb-dump
+ *           --target libs|file-converter|dump-lmdb|load-lmdb|query-lmdb \
+ *           [--language ocaml|c++]
  *
- *   In case only a lib is generated, then also include converters from/to
- *   heapvalues.  *)
+ * In case only a lib is generated, then also include converters from/to
+ * heapvalues. *)
 open Batteries
 open Dessser
 open DessserTools
@@ -12,6 +13,7 @@ open DessserDSTools
 open DessserCompilConfig
 module T = DessserTypes
 module E = DessserExpressions
+module M = DessserMasks
 open E.Ops
 
 let debug = true
@@ -20,9 +22,21 @@ let debug = true
  * Code generators
  *)
 
+let check_no_key_schema = function
+  | None -> ()
+  | Some _ ->
+      failwith "--key-schema makes no sense here"
+
+let check_key_schema = function
+  | None ->
+      failwith "--key-schema is required"
+  | Some s -> s
+
 (* Generate just the code to convert from in to out and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let target_lib schema backend encoding_in encoding_out dest_fname =
+let target_lib
+      key_schema schema backend encoding_in encoding_out _fieldmask dest_fname =
+  check_no_key_schema key_schema ;
   let module BE = (val backend : BACKEND) in
   let module Des = (val encoding_in : DES) in
   let module Ser = (val encoding_out : SER) in
@@ -66,12 +80,9 @@ let target_lib schema backend encoding_in encoding_out dest_fname =
   Printf.printf "declarations in %S\n" decl_fname ;
   Printf.printf "definitions in %S\n" def_fname
 
-let convert_main_for ext entry_point =
-  (if ext = "cc" then DessserDSTools_FragmentsCPP.converter
-                 else DessserDSTools_FragmentsOCaml.converter)
-    entry_point
-
-let target_converter schema backend encoding_in encoding_out dest_fname =
+let target_converter
+      key_schema schema backend encoding_in encoding_out _fieldmask dest_fname =
+  check_no_key_schema key_schema ;
   let module BE = (val backend : BACKEND) in
   let module Des = (val encoding_in : DES) in
   let module Ser = (val encoding_out : SER) in
@@ -83,7 +94,13 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   let state = BE.make_state  () in
   let state, _, convert_id =
     BE.identifier_of_expression state ~name:"convert" convert in
-  let def_fname = change_ext BE.preferred_def_extension dest_fname in
+  let def_fname =
+    change_ext BE.preferred_def_extension dest_fname |>
+    BE.valid_source_name in
+  let convert_main_for ext convert_id =
+    (if ext = "cc" then DessserDSTools_FragmentsCPP.converter
+                   else DessserDSTools_FragmentsOCaml.converter)
+      convert_id in
   write_source ~src_fname:def_fname (fun oc ->
     BE.print_definitions state oc ;
     String.print oc (convert_main_for BE.preferred_def_extension convert_id)
@@ -91,10 +108,65 @@ let target_converter schema backend encoding_in encoding_out dest_fname =
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
-(* Build two binaries, to dump and restore an lmdb from/to the given
- * encodings *)
-let target_lmdb _schema _backend _encoding_in _encoding_out _dest_fname =
-  assert false (* TODO *)
+let destruct_pair = function
+  | T.Nullable (TTup [| k ; v |])
+  | T.NotNullable (TTup [| k ; v |]) ->
+      k, v
+  | t ->
+      Printf.sprintf2 "Not a pair: %a" T.print_maybe_nullable t |>
+      failwith
+
+let check_is_pair = ignore % destruct_pair
+
+let target_lmdb main
+      key_schema val_schema backend encoding_in encoding_out _fieldmask dest_fname =
+  let key_schema = check_key_schema key_schema in
+  let module BE = (val backend : BACKEND) in
+  let module Des = (val encoding_in : DES) in
+  let module Ser = (val encoding_out : SER) in
+  let module DS = DesSer (Des) (Ser) in
+  let convert_key =
+    (* convert from encoding_in to encoding_out: *)
+    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser key_schema ?transform:None) in
+  let convert_val =
+    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser val_schema ?transform:None) in
+  if debug then (
+    E.type_check [] convert_key ;
+    E.type_check [] convert_val
+  ) ;
+  let state = BE.make_state  () in
+  let state, _, convert_key_id =
+    BE.identifier_of_expression state ~name:"convert_key" convert_key in
+  let state, _, convert_val_id =
+    BE.identifier_of_expression state ~name:"convert_val" convert_val in
+  let def_fname =
+    change_ext BE.preferred_def_extension dest_fname |>
+    BE.valid_source_name in
+  write_source ~src_fname:def_fname (fun oc ->
+    BE.print_definitions state oc ;
+    main BE.preferred_def_extension convert_key_id convert_val_id |>
+    String.print oc
+  ) ;
+  compile ~optim:3 ~link:true backend def_fname dest_fname ;
+  Printf.printf "executable in %S\n" dest_fname
+
+let target_lmdb_dump =
+  let main ext convert_key_id convert_val_id =
+    (if ext = "cc" then DessserDSTools_FragmentsCPP.dumper
+                   else DessserDSTools_FragmentsOCaml.dumper)
+      convert_key_id convert_val_id in
+  target_lmdb main
+
+let target_lmdb_load =
+  let main ext convert_key_id convert_val_id =
+    (if ext = "cc" then DessserDSTools_FragmentsCPP.loader
+                   else DessserDSTools_FragmentsOCaml.loader)
+      convert_key_id convert_val_id in
+  target_lmdb main
+
+let target_lmdb_query _ _ _ _ _ _ _ =
+  todo "target_lmdb_query"
+
 
 (*
  * Command line
@@ -102,16 +174,23 @@ let target_lmdb _schema _backend _encoding_in _encoding_out _dest_fname =
 
 open Cmdliner
 
-let schema =
-  let doc = "file or inline schema" in
-  let i = Arg.info ~doc ~docs:Manpage.s_common_options ["schema"] in
+let val_schema =
+  let doc = "file or inline schema for values" in
+  let i = Arg.info ~doc ~docs:Manpage.s_common_options
+            [ "schema" ; "value-schema" ] in
   Arg.(required (opt (some string) None i))
+
+let key_schema =
+  let doc = "file or inline schema for keys" in
+  let i = Arg.info ~doc ~docs:Manpage.s_common_options [ "key-schema" ] in
+  Arg.(value (opt string "" i))
 
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
 type encodings = Null | RowBinary | SExpr | RingBuff
 
 let des_of_encoding = function
+  | RingBuff -> (module RamenRingBuffer.Des : DES)
   | RowBinary -> (module RowBinary.Des : DES)
   | SExpr -> (module SExpr.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
@@ -122,40 +201,61 @@ let ser_of_encoding = function
   | RowBinary -> (module RowBinary.Ser : SER)
   | SExpr -> (module SExpr.Ser : SER)
 
+let docv_of_enum l =
+  IO.to_string (
+    List.print ~first:"" ~last:"" ~sep:"|" (fun oc (n, _) ->
+      String.print oc n)
+  ) l
+
+let known_inputs =
+  [ "ringbuf", RingBuff ;
+    "row-binary", RowBinary ;
+    "s-expression", SExpr ]
+
 let encoding_in =
-  let encodings =
-    [ "row-binary", RowBinary ;
-      "s-expression", SExpr ] in
   let doc = "encoding format for input" in
-  let docv = "row-binary" in
+  let docv = docv_of_enum known_inputs in
   let i = Arg.info ~doc ~docv [ "input-encoding" ] in
-  Arg.(value (opt (enum encodings) RowBinary i))
+  Arg.(value (opt (enum known_inputs) RowBinary i))
+
+let known_outputs =
+  [ "null", Null ;
+    "ringbuf", RingBuff ;
+    "row-binary", RowBinary ;
+    "s-expression", SExpr ]
 
 let encoding_out =
-  let encodings =
-    [ "null", Null ;
-      "ringbuf", RingBuff ;
-      "row-binary", RowBinary ;
-      "s-expression", SExpr ] in
   let doc = "encoding format for output" in
-  let docv = "null|ringbuf|row-binary|s-expression" in
+  let docv = docv_of_enum known_outputs in
   let i = Arg.info ~doc ~docv [ "output-encoding" ] in
-  Arg.(value (opt (enum encodings) SExpr i))
+  Arg.(value (opt (enum known_outputs) SExpr i))
 
-type targets = Converter | Lib | Lmdb
+let known_inouts =
+  let encoding_cmp (_, e1) (_, e2) = compare e1 e2 in
+  let l1 = List.fast_sort encoding_cmp known_inputs in
+  let l2 = List.fast_sort encoding_cmp known_outputs in
+  let encoding_less a b = encoding_cmp a b <= 0 in
+  Enum.merge encoding_less (List.enum l1) (List.enum l2) |>
+  List.of_enum
+
+type targets = Converter | Lib | LmdbDump | LmdbLoad | LmdbQuery
 
 let function_of_target = function
   | Converter -> target_converter
   | Lib -> target_lib
-  | Lmdb -> target_lmdb
+  | LmdbDump -> target_lmdb_dump
+  | LmdbLoad -> target_lmdb_load
+  | LmdbQuery -> target_lmdb_query
 
 let target =
   let targets =
     [ "converter", Converter ;
       "lib", Lib ;
-      "lmdb", Lmdb ] in
+      "dump-lmdb", LmdbDump ;
+      "load-lmdb", LmdbLoad ;
+      "query-lmdb", LmdbQuery ] in
   let doc = "What binary to generate" in
-  let docv = "converter|lib|lmdb" in
+  let docv = docv_of_enum targets  in
   let i = Arg.info ~doc ~docv [ "target" ] in
   Arg.(value (opt (enum targets) Converter i))
 
@@ -170,9 +270,27 @@ let backend =
     [ "C++", Cpp ;
       "OCaml", OCaml ] in
   let doc = "Language to generate code for" in
-  let docv = "C++|OCaml" in
-  let i = Arg.info ~doc ~docv [ "backend" ] in
+  let docv = docv_of_enum languages in
+  let i = Arg.info ~doc ~docv [ "language" ; "backend" ] in
   Arg.(value (opt (enum languages) Cpp i))
+
+let fieldmask =
+  let parse s =
+    try Stdlib.Ok (M.Parser.action_of_string s)
+    with e -> Stdlib.Error (`Msg (Printexc.to_string e))
+  and print fmt ma =
+    Format.fprintf fmt "%s" (M.string_of_action ma)
+  in
+  Arg.conv ~docv:"MASK" (parse, print)
+
+(* One day when there are compile time masks this option will be needed.
+ * For now we simulate compile time masks with runtime ones, which comes
+ * handy for testing. *)
+let comptime_fieldmask =
+  let doc = "Compile-time fieldmask to apply when serializing" in
+  let docv = "MASK" in
+  let i = Arg.info ~doc ~docv [ "mask" ; "field-mask" ] in
+  Arg.(value (opt fieldmask M.Copy i))
 
 let dest_fname =
   let doc = "Output file" in
@@ -190,23 +308,28 @@ let maybe_nullable_of_string str =
   ) with _ ->
     parse_as_string str
 
-let start target schema backend encoding_in encoding_out dest_fname =
-  let schema = maybe_nullable_of_string schema in
+let start target key_schema val_schema backend encoding_in encoding_out fieldmask dest_fname =
   let target = function_of_target target in
+  let key_schema =
+    if key_schema = "" then None
+    else Some (maybe_nullable_of_string key_schema) in
+  let val_schema = maybe_nullable_of_string val_schema in
   let backend = module_of_backend backend in
   let encoding_in = des_of_encoding encoding_in in
   let encoding_out = ser_of_encoding encoding_out in
-  target schema backend encoding_in encoding_out dest_fname
+  target key_schema val_schema backend encoding_in encoding_out fieldmask dest_fname
 
 let () =
   let doc = "Dessser code generator" in
   Term.((
     (const start
      $ target
-     $ schema
+     $ key_schema
+     $ val_schema
      $ backend
      $ encoding_in
      $ encoding_out
+     $ comptime_fieldmask
      $ dest_fname),
     info "dessserc" ~version ~doc) |>
   eval |> exit)

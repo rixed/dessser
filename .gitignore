@@ -49,3 +49,7 @@ examples/rowbinary2sexpr.*
 src/dessserc
 src/DessserCompilConfig.ml
 src/cpp_tests
+testdb-dump
+testdb-load
+testdb-dump.ml
+testdb-load.ml
