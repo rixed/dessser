@@ -184,14 +184,15 @@ struct
   let rec svec dim mn sstate mn0 path v dst =
     let dst = Ser.vec_opn sstate mn0 path dim mn dst in
     let rec loop i dst =
+      let subpath = T.path_append i path in
       if i >= dim then
         Ser.vec_cls sstate mn0 path dst
       else
         let dst = if i = 0 then dst else
-                    Ser.vec_sep i sstate mn0 path dst in
+                    Ser.vec_sep i sstate mn0 subpath dst in
         let_ "dst" dst ~in_:(
           let v' = nth (u32_of_int i) v in
-          ser1 sstate mn0 path mn v' copy_field (identifier "dst") |>
+          ser1 sstate mn0 subpath mn v' copy_field (identifier "dst") |>
           loop (i + 1)) in
     loop 0 dst
 
@@ -199,14 +200,15 @@ struct
     let len = list_length v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) dst in
     let dst =
+      let subpath = T.path_append 0 path in
       repeat ~from:(i32 0l) ~to_:(to_i32 len)
         ~body:
           (E.func2 T.i32 (Ser.ptr mn0) (fun _l n dst ->
             let_ "dst"
               (choose ~cond:(gt n (i32 0l))
-                      ~then_:(Ser.list_sep sstate mn0 path dst)
+                      ~then_:(Ser.list_sep sstate mn0 subpath dst)
                       ~else_:dst)
-              ~in_:(ser1 sstate mn0 path mn (nth n v) copy_field
+              ~in_:(ser1 sstate mn0 subpath mn (nth n v) copy_field
                          (identifier "dst"))))
         ~init:dst in
     Ser.list_cls sstate mn0 path dst
@@ -217,10 +219,11 @@ struct
     let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i mn ->
+        let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
-                    Ser.tup_sep i sstate mn0 path dst)
-          ~in_:(ser1 sstate mn0 path mn (get_item i v) (mask_get i m)
+                    Ser.tup_sep i sstate mn0 subpath dst)
+          ~in_:(ser1 sstate mn0 subpath mn (get_item i v) (mask_get i m)
                      (identifier "dst"))
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
@@ -332,7 +335,7 @@ struct
       Ser.ssize_of_vec mn0 path v |> add_size sizes in
     let rec loop sizes i =
       if i >= dim then sizes else
-      let subpath = path @ [i] in
+      let subpath = T.path_append i path in
       let v' = nth (u32_of_int i) v in
       let_ "sizes" sizes ~in_:(
         let sizes = sersz1 mn mn0 subpath v' copy_field (identifier "sizes") in
@@ -345,7 +348,7 @@ struct
     let len = list_length v in
     (* TODO: a way to ask only for the dynsize, and compute the constsize
      * as len * const_size of mn *)
-    let subpath = path @ [0] in (* good enough *)
+    let subpath = T.path_append 0 path in (* good enough *)
     repeat ~from:(i32 0l) ~to_:(to_i32 len)
       ~body:
         (E.func2 T.i32 sizes_t (fun _l n sizes ->
@@ -360,8 +363,9 @@ struct
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
       let ma = mask_get i m in
+      let subpath = T.path_append i path in
       let_ "sizes" sizes
-        ~in_:(sersz1 mn mn0 (path @ [i]) v' ma (identifier "sizes"))
+        ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
     ) sizes mns
 
   and ssrec mns ma mn0 path v sizes =
@@ -371,8 +375,9 @@ struct
     Array.fold_lefti (fun sizes i (_, mn) ->
       let v' = get_item i v in
       let ma = mask_get i m in
+      let subpath = T.path_append i path in
       let_ "sizes" sizes
-        ~in_:(sersz1 mn mn0 (path @ [i]) v' ma (identifier "sizes"))
+        ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
     ) sizes mns
 
   and sersz1 mn mn0 path v ma sizes =
