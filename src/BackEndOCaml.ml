@@ -38,6 +38,8 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
+  let cstr_name n = String.uppercase (valid_identifier n)
+
   let rec print_record p oc id mns =
     let id = valid_identifier id in
     pp oc "%stype %s = {\n" p.indent id ;
@@ -48,6 +50,25 @@ struct
       ) mns
     ) ;
     pp oc "%s}\n\n" p.indent
+
+  and print_sum p oc id mns =
+    let id = valid_identifier id in
+    pp oc "%stype %s = \n" p.indent id ;
+    indent_more p (fun () ->
+      Array.iter (fun (n, mn) ->
+        let typ_id = type_identifier p (T.TValue mn) in
+        pp oc "%s| %s %s\n" p.indent (cstr_name n) typ_id
+      ) mns
+    ) ;
+    pp oc "\n" ;
+    (* Associated "label_of_cstr": *)
+    pp oc "%slet label_of_cstr_%s = function\n" p.indent id ;
+    indent_more p (fun () ->
+      Array.iteri (fun i (n, _) ->
+        pp oc "%s| %s _ -> Uint16.of_int %d" p.indent (cstr_name n) i
+      ) mns
+    ) ;
+    pp oc "\n\n"
 
   and value_type_identifier p = function
     | T.NotNullable (Mac TChar) -> "char"
@@ -85,6 +106,10 @@ struct
     | T.NotNullable (TRec mns) as mn ->
         let t = T.TValue mn in
         declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
+        valid_identifier
+    | T.NotNullable (TSum mns) as mn ->
+        let t = T.TValue mn in
+        declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
         valid_identifier
     | T.NotNullable (TMap _) ->
         assert false (* no value of map type *)
@@ -219,6 +244,12 @@ struct
               (valid_identifier fname)
               (print_default_value (indent^"  ")) mn)
           oc mns
+    | T.NotNullable (TSum mns) ->
+        assert (Array.length mns > 0) ;
+        Printf.fprintf oc "%s (\n%a%s)"
+          (cstr_name (fst mns.(0)))
+          (print_default_value (indent^"  ")) (snd mns.(0))
+          indent
     | T.NotNullable (TVec (dim, mn)) ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
@@ -300,6 +331,10 @@ struct
           | T.NotNullable (TRec mns) ->
               let name = valid_identifier (fst mns.(i)) in
               deref_path (v ^"."^ name) (snd mns.(i)) path
+          | T.NotNullable (TSum mns) ->
+              let cstr = cstr_name (fst mns.(i)) in
+              let derefed = Printf.sprintf "(match %s with %s x -> x)" v cstr in
+              deref_path derefed (snd mns.(i)) path
           | T.Nullable x ->
               deref_not_nullable ("(option_get "^ v ^")") (NotNullable x) in
         deref_not_nullable v mn
@@ -864,8 +899,16 @@ struct
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 s)
+        (match E.type_of l e1 with
+        | TValue (Nullable (TRec _) | NotNullable (TRec _)) ->
+            emit ?name p l e (fun oc ->
+              Printf.fprintf oc "%s.%s" n1 s)
+        | TValue (Nullable (TSum _) | NotNullable (TSum _)) ->
+            emit ?name p l e (fun oc ->
+              let cstr = cstr_name s in
+              Printf.fprintf oc "(match %s with %s x -> x)" n1 cstr)
+        | _ ->
+            assert false)
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
@@ -875,6 +918,12 @@ struct
     | E.E1 (MaskEnter d, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Mask.enter %s %d" n1 d)
+    | E.E1 (LabelOf, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          let t1 = E.type_of l e1 in
+          let id = T.uniq_id t1 in
+          pp oc "label_of_cstr_%s %s" id n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask.Copy")
     | E.E0 SkipField ->

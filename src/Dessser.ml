@@ -79,6 +79,9 @@ sig
   val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_sep : string (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  (* Returns the label as an u16 and the new pointer: *)
+  val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (* u16*ptr *) E.t
+  val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -143,6 +146,9 @@ sig
   val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_sep : string (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  (* Takes the label as an u16: *)
+  val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -182,6 +188,7 @@ sig
   (* Specifically for the compound, excluding the size of the parts: *)
   val ssize_of_tup : ssizer
   val ssize_of_rec : ssizer
+  val ssize_of_sum : ssizer
   val ssize_of_vec : ssizer
   val ssize_of_list : ssizer
   val ssize_of_null : T.maybe_nullable -> T.path -> ssize
@@ -195,8 +202,7 @@ struct
    * point to the next value to read/write.
    * [mn] denotes the maybe_nullable of the current subfields, whereas
    * [mn0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des typ transform sstate dstate mn0 path src_dst =
-    let what = IO.to_string T.print typ in
+  let ds ser des what transform sstate dstate mn0 path src_dst =
     E.with_sploded_pair "ds1" src_dst (fun src dst ->
       let v_src = des dstate mn0 path src in
       E.with_sploded_pair "ds2" v_src (fun v src ->
@@ -209,28 +215,28 @@ struct
           (comment ("Desserialize a "^ what) src)
           (comment ("Serialize a "^ what) (ser sstate mn0 path v dst))))
 
-  let dsfloat = ds Ser.sfloat Des.dfloat T.float
-  let dsstring = ds Ser.sstring Des.dstring T.string
-  let dsbool = ds Ser.sbool Des.dbool T.bool
-  let dschar = ds Ser.schar Des.dchar T.char
-  let dsi8 = ds Ser.si8 Des.di8 T.i8
-  let dsi16 = ds Ser.si16 Des.di16 T.i16
-  let dsi24 = ds Ser.si24 Des.di24 T.i24
-  let dsi32 = ds Ser.si32 Des.di32 T.i32
-  let dsi40 = ds Ser.si40 Des.di40 T.i40
-  let dsi48 = ds Ser.si48 Des.di48 T.i48
-  let dsi56 = ds Ser.si56 Des.di56 T.i56
-  let dsi64 = ds Ser.si64 Des.di64 T.i64
-  let dsi128 = ds Ser.si128 Des.di128 T.i128
-  let dsu8 = ds Ser.su8 Des.du8 T.u8
-  let dsu16 = ds Ser.su16 Des.du16 T.u16
-  let dsu24 = ds Ser.su24 Des.du24 T.u24
-  let dsu32 = ds Ser.su32 Des.du32 T.u32
-  let dsu40 = ds Ser.su40 Des.du40 T.u40
-  let dsu48 = ds Ser.su48 Des.du48 T.u48
-  let dsu56 = ds Ser.su56 Des.du56 T.u56
-  let dsu64 = ds Ser.su64 Des.du64 T.u64
-  let dsu128 = ds Ser.su128 Des.du128 T.u128
+  let dsfloat = ds Ser.sfloat Des.dfloat "float"
+  let dsstring = ds Ser.sstring Des.dstring "string"
+  let dsbool = ds Ser.sbool Des.dbool "bool"
+  let dschar = ds Ser.schar Des.dchar "char"
+  let dsi8 = ds Ser.si8 Des.di8 "i8"
+  let dsi16 = ds Ser.si16 Des.di16 "i16"
+  let dsi24 = ds Ser.si24 Des.di24 "i24"
+  let dsi32 = ds Ser.si32 Des.di32 "i32"
+  let dsi40 = ds Ser.si40 Des.di40 "i40"
+  let dsi48 = ds Ser.si48 Des.di48 "i48"
+  let dsi56 = ds Ser.si56 Des.di56 "i56"
+  let dsi64 = ds Ser.si64 Des.di64 "i64"
+  let dsi128 = ds Ser.si128 Des.di128 "i128"
+  let dsu8 = ds Ser.su8 Des.du8 "u8"
+  let dsu16 = ds Ser.su16 Des.du16 "u16"
+  let dsu24 = ds Ser.su24 Des.du24 "u24"
+  let dsu32 = ds Ser.su32 Des.du32 "u32"
+  let dsu40 = ds Ser.su40 Des.du40 "u40"
+  let dsu48 = ds Ser.su48 Des.du48 "u48"
+  let dsu56 = ds Ser.su56 Des.du56 "u56"
+  let dsu64 = ds Ser.su64 Des.du64 "u64"
+  let dsu128 = ds Ser.su128 Des.du128 "u128"
 
   let dsnull t sstate dstate mn0 path src dst =
     let open E.Ops in
@@ -296,6 +302,27 @@ struct
       pair
         (Des.rec_cls dstate mn0 path src)
         (Ser.rec_cls sstate mn0 path dst))
+
+  and dssum mns transform sstate dstate mn0 path src_dst =
+    let open E.Ops in
+    E.with_sploded_pair "dssum1" src_dst (fun src dst ->
+      let cstr_src = Des.sum_opn dstate mn0 path mns src in
+      E.with_sploded_pair "dssum2" cstr_src (fun cstr src ->
+        let dst = Ser.sum_opn sstate mn0 path mns cstr dst in
+        let src_dst = pair src dst in
+        let rec choose_cstr i =
+          let max_lbl = Array.length mns - 1 in
+          let subpath = T.path_append i path in
+          if i >= max_lbl then
+            seq [
+              assert_ (eq cstr (u16 max_lbl)) ;
+              desser_ transform sstate dstate mn0 subpath src_dst ]
+          else
+            choose
+              ~cond:(eq (u16 i) cstr)
+              ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
+              ~else_:(choose_cstr (i + 1)) in
+        choose_cstr 0))
 
   (* This will generates a long linear code with one block per array
    * item, which should be ok since vector dimension is expected to be small.
@@ -462,6 +489,7 @@ struct
     | T.Usr vt -> desser_value_type vt.def
     | T.TTup mns -> dstup mns
     | T.TRec mns -> dsrec mns
+    | T.TSum mns -> dssum mns
     | T.TVec (dim, mn) -> dsvec dim mn
     | T.TList mn -> dslist mn
     | T.TMap _ -> assert false (* No value of map type *)

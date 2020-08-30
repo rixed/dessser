@@ -345,6 +345,11 @@ struct
 
   let rec_sep _fname () _ _ p_stk = p_stk
 
+  let sum_opn () mn0 path _mns lbl p =
+    su16 () mn0 path lbl p
+
+  let sum_cls () _ _ p = p
+
   let vec_opn () mn0 path dim mn p_stk =
     (* TODO: this must be revisited once runtime fieldmasks are in place: *)
     let nullmask_bits =
@@ -525,6 +530,10 @@ struct
           Array.fold_left (fun c typ ->
             if T.is_nullable typ then c + 1 else c
           ) 0 typs))
+
+  (* Just the additional label: *)
+  let ssize_of_sum _ _ _ =
+    ConstSize !ringbuf_word_size
 
   let ssize_of_vec mn path _ =
     unless_private mn path (fun () ->
@@ -757,6 +766,12 @@ struct
     leave_frame p_stk
 
   let vec_sep _n () _ _ p_stk = p_stk
+
+  (* Sums are encoded with a leading word for the label: *)
+  let sum_opn () mn0 path _mns p =
+    du16 () mn0 path p
+
+  let sum_cls () _ _ p = p
 
   let list_opn = KnownSize
     (fun () mn0 path mn p_stk ->

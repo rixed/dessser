@@ -121,6 +121,24 @@ struct
           loop (v :: ids) (i + 1) src) in
     loop [] 0 src
 
+  and dsum mns dstate mn0 path src =
+    let cstr_src = Des.sum_opn dstate mn0 path mns src in
+    let max_lbl = Array.length mns - 1 in
+    E.with_sploded_pair "dsum" cstr_src (fun cstr src ->
+      let rec choose_cstr i =
+        let subpath = T.path_append i path in
+        let subtyp = snd mns.(i) in
+        if i >= max_lbl then
+          seq [
+            assert_ (eq cstr (u16 max_lbl)) ;
+            make1 dstate mn0 subpath subtyp src ]
+        else
+          choose
+            ~cond:(eq (u16 i) cstr)
+            ~then_:(make1 dstate mn0 subpath subtyp src)
+            ~else_:(choose_cstr (i + 1)) in
+      choose_cstr 0)
+
   and make1 dstate mn0 path mn src =
     let rec des_of_vt = function
       | T.Mac TFloat -> Des.dfloat
@@ -148,6 +166,7 @@ struct
       | T.Usr vt -> des_of_vt vt.def
       | T.TTup mns -> dtup mns
       | T.TRec mns -> drec mns
+      | T.TSum mns -> dsum mns
       | T.TVec (dim, mn) -> dvec dim mn
       | T.TList mn -> dlist mn
       | T.TMap _ -> assert false (* No value of map type *)
@@ -233,14 +252,44 @@ struct
     let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i (field, mn) ->
+        let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
-                    Ser.rec_sep field sstate mn0 path dst)
+                    Ser.rec_sep field sstate mn0 subpath dst)
           ~in_:(comment ("serialize field "^ field)
-                  (ser1 sstate mn0 path mn (get_field field v) (mask_get i m)
-                  (identifier "dst")))
+                  (ser1 sstate mn0 subpath mn (get_field field v) (mask_get i m)
+                        (identifier "dst")))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
+
+  (* Regarding masks, sum types are like scalars: all or nothing.
+   * Indeed, the mask would have to be aware of the constructor to be
+   * meaningful. *)
+  and ssum mns ma sstate mn0 path v dst =
+    let max_lbl = Array.length mns - 1 in
+    let dst =
+      let_ "label"
+        (label_of v)
+        ~in_:(
+          let_ "dst"
+            (Ser.sum_opn sstate mn0 path mns (identifier "cstr") dst)
+            ~in_:(
+              let rec choose_cstr i =
+                let subpath = T.path_append i path in
+                let field, mn = mns.(i) in
+                if i >= max_lbl then
+                  seq [
+                    assert_ (eq (identifier "label") (u16 max_lbl)) ;
+                    ser1 sstate mn0 subpath mn (get_field field v) ma
+                         (identifier "dst") ]
+                else
+                  choose
+                    ~cond:(eq (u16 i) (identifier "label"))
+                    ~then_:(ser1 sstate mn0 subpath mn (get_field field v) ma
+                                 (identifier "dst"))
+                    ~else_:(choose_cstr (i + 1)) in
+              choose_cstr 0)) in
+    Ser.sum_cls sstate mn0 path dst
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
@@ -267,10 +316,11 @@ struct
       | T.Mac TU64 -> Ser.su64
       | T.Mac TU128 -> Ser.su128
       | T.Usr vt -> ser_of_vt vt.def
-      | T.TVec (dim, mn) -> svec dim mn
-      | T.TList mn -> slist mn
       | T.TTup mns -> stup mns ma
       | T.TRec mns -> srec mns ma
+      | T.TSum mns -> ssum mns ma
+      | T.TVec (dim, mn) -> svec dim mn
+      | T.TList mn -> slist mn
       | T.TMap _ -> assert false (* No value of map type *)
     in
     choose ~cond:(eq ma skip_field)
@@ -380,6 +430,28 @@ struct
         ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
     ) sizes mns
 
+  and sssum mns mn0 path v sizes =
+    let sizes =
+      Ser.ssize_of_sum mn0 path v |> add_size sizes in
+    let max_lbl = Array.length mns - 1 in
+    let_ "label"
+      (label_of v)
+      ~in_:(
+        let rec choose_cstr i =
+          let v' = get_item i v in
+          let subpath = T.path_append i path in
+          let mn = snd mns.(i) in
+          if i >= max_lbl then
+            seq [
+              assert_ (eq (identifier "label") (u16 max_lbl)) ;
+              sersz1 mn mn0 subpath v' copy_field sizes ]
+          else
+            choose
+              ~cond:(eq (u16 i) (identifier "label"))
+              ~then_:(sersz1 mn mn0 subpath v' copy_field sizes)
+              ~else_:(choose_cstr (i + 1)) in
+        choose_cstr 0)
+
   and sersz1 mn mn0 path v ma sizes =
     let to_dyn ssizer mn0 path v sizes =
       let sz = ssizer mn0 path v in
@@ -412,6 +484,7 @@ struct
       | T.TList mn -> sslist mn
       | T.TTup mns -> sstup mns ma
       | T.TRec mns -> ssrec mns ma
+      | T.TSum mns -> sssum mns
       | T.TMap _ -> assert false (* No value of map type *)
     in
     choose ~cond:(eq ma skip_field)

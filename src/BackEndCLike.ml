@@ -29,10 +29,7 @@ let indent_more p f =
 let pp = Printf.fprintf
 
 let declared_type p t f =
-  let id =
-    IO.to_string T.print_sorted (T.develop_user_types t) |>
-    Digest.string |>
-    Digest.to_hex in
+  let id = T.uniq_id t in
   if Set.String.mem id p.declared then id
   else (
     p.declared <- Set.String.add id p.declared ;

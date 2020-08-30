@@ -54,6 +54,8 @@ struct
   let rec_opn () _ _ _ src = src
   let rec_cls () _ _ src = src
   let rec_sep _ () _ _ src = src
+  let sum_opn () _ _ _ src = src
+  let sum_cls () _ _ src = src
   let vec_opn () _ _ _ _ src = src
   let vec_cls () _ _ src = src
   let vec_sep _ () _ _ src = src
@@ -112,6 +114,8 @@ struct
   let rec_opn () _ _ _ dst = dst
   let rec_cls () _ _ dst = dst
   let rec_sep _i () _ _ dst = dst
+  let sum_opn () _ _ _ _ dst = dst
+  let sum_cls () _ _ dst = dst
   let vec_opn () _ _ _ _ dst = dst
   let vec_cls () _ _ dst = dst
   let vec_sep _i () _ _ dst = dst
@@ -145,10 +149,11 @@ struct
   let ssize_of_u56 _ _ _ = ConstSize 1
   let ssize_of_u64 _ _ _ = ConstSize 1
   let ssize_of_u128 _ _ _ = ConstSize 1
-  let ssize_of_tup _ _ _ = ConstSize 1
-  let ssize_of_rec _ _ _ = ConstSize 1
-  let ssize_of_vec _ _ _ = ConstSize 1
-  let ssize_of_list _ _ _ = ConstSize 1
+  let ssize_of_tup _ _ _ = ConstSize 0
+  let ssize_of_rec _ _ _ = ConstSize 0
+  let ssize_of_sum _ _ _ = ConstSize 0
+  let ssize_of_vec _ _ _ = ConstSize 0
+  let ssize_of_list _ _ _ = ConstSize 0
   let ssize_of_null _ _ = ConstSize 1
 end
 

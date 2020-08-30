@@ -80,7 +80,7 @@ type e1 =
   | Function of (*function id*) int * (*args*) T.t array
   | Comment of string
   | GetItem of int (* for tuples *)
-  | GetField of string (* For records *)
+  | GetField of string (* For records or sum types *)
   | Dump
   | Debug
   | Ignore
@@ -180,6 +180,9 @@ type e1 =
   | Assert
   | MaskGet of int
   | MaskEnter of int
+  (* Given a value of a sum type, return the integer label associated with its
+   * constructor, as an u16: *)
+  | LabelOf
 
 type e2 =
   | Let of string
@@ -400,6 +403,7 @@ let string_of_e1 = function
   | Assert -> "assert"
   | MaskGet d -> "mask-get "^ string_of_int d
   | MaskEnter d -> "mask-enter "^ string_of_int d
+  | LabelOf -> "label-of"
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -826,6 +830,7 @@ struct
         E1 (MaskGet (int_of_symbol x d), e x1)
     | Lst [ Sym "mask-enter" ; Sym d ; x1 ] as x ->
         E1 (MaskEnter (int_of_symbol x d), e x1)
+    | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
     (* e2 *)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
     | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
@@ -975,12 +980,12 @@ let rec type_of l e0 =
       | t -> raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | TValue (NotNullable (TRec mns)) ->
+      | TValue (NotNullable (TRec mns | TSum mns)) ->
           (match array_assoc name mns with
           | exception Not_found ->
               raise (Struct_error (e0, "no field named "^ name))
           | mn -> TValue mn)
-      | t -> raise (Type_error (e0, e1, t, "be a record")))
+      | t -> raise (Type_error (e0, e1, t, "be a record or union")))
   | E2 (Nth, _, e2) ->
       (match type_of l e2 |> T.develop_user_types with
       | TValue (NotNullable (TVec (_, mn) | TList mn)) -> TValue mn
@@ -1196,6 +1201,7 @@ let rec type_of l e0 =
   | E4 (Repeat, _, _, _, e) -> type_of l e
   | E1 (MaskGet _, _) -> T.mask_action
   | E1 (MaskEnter _, _) -> T.mask
+  | E1 (LabelOf, _) -> T.u16
 
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
@@ -1222,6 +1228,7 @@ let rec fold u l f e =
   | E4 (_, e1, e2, e3, e4) ->
       fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
 
+(* [l] is the stack of expr * type *)
 let rec type_check l e =
   fold () l (fun () l e0 ->
     let check_void l e =
@@ -1333,6 +1340,10 @@ let rec type_check l e =
       | TSList (TValue _) -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a slist of maybe nullable values")) in
+    let check_sum l e =
+      match type_of l e |> T.develop_user_types with
+      | TValue (NotNullable TSum _) -> ()
+      | t -> raise (Type_error (e0, e, t, "be a union")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -1558,6 +1569,8 @@ let rec type_check l e =
         check_eq l e1 T.TMask
     | E1 (MaskEnter _, e1) ->
         check_eq l e1 T.TMaskAction
+    | E1 (LabelOf, e1) ->
+        check_sum l e1
   ) e
 
 (*$inject
@@ -1805,7 +1818,6 @@ struct
   let oword n = E0 (OWord n)
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
   let byte_of_const_char e1 = byte_of_char (char e1)
-  (* TODO: ~then_ ~else_: *)
   let choose ~cond ~then_ ~else_ =  E3 (Choose, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
@@ -1903,6 +1915,7 @@ struct
   let assert_ e = E1 (Assert, e)
   let mask_get i m = E1 (MaskGet i, m)
   let mask_enter l m = E1 (MaskEnter l, m)
+  let label_of e = E1 (LabelOf, e)
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField
   let set_field_null = E0 SetFieldNull

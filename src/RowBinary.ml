@@ -5,9 +5,197 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
+module Ser : SER =
+struct
+  type state = unit
+  let ptr _mn = T.dataptr
+
+  let start _mn p = (), p
+  let stop () p = p
+  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
+
+  let sfloat () _ _ v p =
+    write_qword LittleEndian p (qword_of_float v)
+
+  (* v must be a u32: *)
+  let write_leb128 p v =
+    let t_ptr_sz = T.TPair (TDataPtr, T.u32) in
+    first (
+      loop_until
+        ~body:(comment "Loop body for write_leb128"
+          (E.func1 t_ptr_sz (fun _l p_wlen ->
+            E.with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
+              let b =
+                byte_of_u8 (
+                  choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
+                    ~then_:(log_and (to_u8 wlen) (u8 127))
+                    ~else_:(log_or (to_u8 wlen) (u8 128))) in
+              pair
+                (write_byte p b)
+                (right_shift wlen (u8 7))))))
+        ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
+          (E.func1 t_ptr_sz (fun _l ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
+        ~init:(pair p v))
+
+  let sstring () _ _ v p =
+    let p = write_leb128 p (string_length v) in
+    write_bytes p (bytes_of_string v)
+
+  let sbool () _ _ v p =
+    write_byte p (byte_of_u8 (u8_of_bool v))
+
+  let schar () _ _ v p =
+    write_byte p (byte_of_u8 (u8_of_char v))
+
+  let si8 () _ _ v p =
+    write_byte p (byte_of_u8 (to_u8 v))
+
+  let si16 () _ _ v p =
+    write_word LittleEndian p (word_of_u16 (to_u16 v))
+
+  let si32 () _ _ v p =
+    write_dword LittleEndian p (dword_of_u32 (to_u32 v))
+
+  let si24 () vtyp0 path v p =
+    si32 () vtyp0 path (to_i32 v) p
+
+  let si64 () _ _ v p =
+    write_qword LittleEndian p (qword_of_u64 (to_u64 v))
+
+  let si40 () vtyp0 path v p =
+    si64 () vtyp0 path (to_i64 v) p
+
+  let si48 = si40
+
+  let si56 = si40
+
+  let si128 () _ _ v p =
+    write_oword LittleEndian p (oword_of_u128 (to_u128 v))
+
+  let su8 () _ _ v p =
+    write_byte p (byte_of_u8 v)
+
+  let su16 () _ _ v p =
+    write_word LittleEndian p (word_of_u16 v)
+
+  let su32 () _ _ v p =
+    write_dword LittleEndian p (dword_of_u32 v)
+
+  let su24 () vtyp0 path v p =
+    su32 () vtyp0 path (to_u32 v) p
+
+  let su64 () _ _ v p =
+    write_qword LittleEndian p (qword_of_u64 v)
+
+  let su40 () vtyp0 path v p =
+    su64 () vtyp0 path (to_u64 v) p
+
+  let su48 = su40
+
+  let su56 = su40
+
+  let su128 () _ _ v p =
+    write_oword LittleEndian p (oword_of_u128 v)
+
+  let tup_opn () _ _ _ p = p
+  let tup_cls () _ _ p = p
+  let tup_sep _n () _ _ p = p
+
+  let rec_opn () _ _ _ p = p
+  let rec_cls () _ _ p = p
+  let rec_sep _n () _ _ p = p
+
+  let sum_opn st mn0 path mns lbl p =
+    let p = tup_opn st mn0 path mns p in
+    let p = su16 st mn0 path lbl p in
+    tup_sep 0 st mn0 path p
+
+  let sum_cls st mn0 path p =
+    tup_cls st mn0 path p
+
+  let vec_opn () _ _ _ _  p = p
+  let vec_cls () _ _ p = p
+  let vec_sep _n () _ _ p = p
+
+  let list_opn () _ _ _ n p =
+    let n = match n with
+      | Some n -> n
+      | None -> failwith "RowBinary.Ser needs list size upfront" in
+    write_leb128 p n
+
+  let list_cls () _ _ p = p
+  let list_sep () _ _ p = p
+
+  let nullable () _ _ p = p
+
+  let snull _t () _ _ p =
+    write_byte p (byte 1)
+
+  let snotnull _t () _ _ p =
+    write_byte p (byte 0)
+
+  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
+
+  let ssize_of_float _ _ _ = ConstSize 8
+  let ssize_of_bool _ _ _ = ConstSize 1
+  let ssize_of_char _ _ _ = ConstSize 1
+  let ssize_of_i8 _ _ _ = ConstSize 1
+  let ssize_of_u8 _ _ _ = ConstSize 1
+  let ssize_of_i16 _ _ _ = ConstSize 2
+  let ssize_of_u16 _ _ _ = ConstSize 2
+  let ssize_of_i32 _ _ _ = ConstSize 4
+  let ssize_of_u32 _ _ _ = ConstSize 4
+  let ssize_of_i24 = ssize_of_i32
+  let ssize_of_u24 = ssize_of_u32
+  let ssize_of_i64 _ _ _ = ConstSize 8
+  let ssize_of_u64 _ _ _ = ConstSize 8
+  let ssize_of_i40 = ssize_of_i64
+  let ssize_of_u40 = ssize_of_u64
+  let ssize_of_i48 = ssize_of_i64
+  let ssize_of_u48 = ssize_of_u64
+  let ssize_of_i56 = ssize_of_i64
+  let ssize_of_u56 = ssize_of_u64
+  let ssize_of_i128 _ _ _ = ConstSize 16
+  let ssize_of_u128 _ _ _ = ConstSize 16
+
+  let ssize_of_tup _ _ _ = ConstSize 0
+  let ssize_of_rec _ _ _ = ConstSize 0
+  let ssize_of_sum = ssize_of_u16
+  let ssize_of_vec _ _ _ = ConstSize 0
+
+  let ssize_of_leb128 n =
+    let t_u32_u32 = T.TPair (T.u32, T.u32) in
+    size_of_u32 (first (
+      loop_while
+        ~cond:(comment "Condition for ssize_of_leb128"
+          (E.func1 t_u32_u32 (fun _l lebsz_n ->
+            E.with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
+              let max_len_for_lebsz = left_shift lebsz (u8 7) in
+              ge n max_len_for_lebsz))))
+        ~body:(comment "Loop for ssize_of_leb128"
+          (E.func1 t_u32_u32 (fun _l lebsz_n ->
+            E.with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
+              pair (add lebsz (u32 Uint32.one)) n))))
+        ~init:(pair (u32 Uint32.one) n)))
+
+  (* SerSize of a list is the size of the LEB128 prefix, same as for
+   * ssize_of_string below) *)
+  let ssize_of_list _ _ lst =
+    DynSize (ssize_of_leb128 (list_length lst))
+
+  let ssize_of_null _ _ = ConstSize 1
+
+  (* Size of a string is it's length in bytes + the size of the LEB128 prefix,
+   * which size is 1 bytes per group of 7 bits. *)
+  let ssize_of_string _ _ v =
+    DynSize (
+      let_ "wlen" (string_length v)
+        ~in_:(add (ssize_of_leb128 (identifier "wlen"))
+                  (identifier "wlen")))
+end
+
 module Des : DES =
 struct
-
   type state = unit
   let ptr _mn = T.dataptr
 
@@ -146,6 +334,17 @@ struct
   let rec_cls () _ _ p = p
   let rec_sep _n () _ _ p = p
 
+  (* RowBinary has no sum types, so we encode the value as a pair: *)
+  let sum_opn st mn0 path mns p =
+    let p = tup_opn st mn0 path mns p in
+    let c_p = du16 st mn0 path p in
+    E.with_sploded_pair "sum_opn" c_p (fun c p ->
+      let p = tup_sep 0 st mn0 path p in
+      pair c p)
+
+  let sum_cls st mn0 path p =
+    tup_cls st mn0 path p
+
   (* Vectors: ClickHouse does not distinguish between vectors (of known
    * dimension) and lists (of variable length). But it has varchars, which
    * are close to our vectors, and that come without any length on the wire.
@@ -174,184 +373,4 @@ struct
     data_ptr_add p (size 1)
 
   let dnotnull = dnull
-end
-
-module Ser : SER =
-struct
-  type state = unit
-  let ptr _mn = T.dataptr
-
-  let start _mn p = (), p
-  let stop () p = p
-  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
-
-  let sfloat () _ _ v p =
-    write_qword LittleEndian p (qword_of_float v)
-
-  (* v must be a u32: *)
-  let write_leb128 p v =
-    let t_ptr_sz = T.TPair (TDataPtr, T.u32) in
-    first (
-      loop_until
-        ~body:(comment "Loop body for write_leb128"
-          (E.func1 t_ptr_sz (fun _l p_wlen ->
-            E.with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
-              let b =
-                byte_of_u8 (
-                  choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
-                    ~then_:(log_and (to_u8 wlen) (u8 127))
-                    ~else_:(log_or (to_u8 wlen) (u8 128))) in
-              pair
-                (write_byte p b)
-                (right_shift wlen (u8 7))))))
-        ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
-          (E.func1 t_ptr_sz (fun _l ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
-        ~init:(pair p v))
-
-  let sstring () _ _ v p =
-    let p = write_leb128 p (string_length v) in
-    write_bytes p (bytes_of_string v)
-
-  let sbool () _ _ v p =
-    write_byte p (byte_of_u8 (u8_of_bool v))
-
-  let schar () _ _ v p =
-    write_byte p (byte_of_u8 (u8_of_char v))
-
-  let si8 () _ _ v p =
-    write_byte p (byte_of_u8 (to_u8 v))
-
-  let si16 () _ _ v p =
-    write_word LittleEndian p (word_of_u16 (to_u16 v))
-
-  let si32 () _ _ v p =
-    write_dword LittleEndian p (dword_of_u32 (to_u32 v))
-
-  let si24 () vtyp0 path v p =
-    si32 () vtyp0 path (to_i32 v) p
-
-  let si64 () _ _ v p =
-    write_qword LittleEndian p (qword_of_u64 (to_u64 v))
-
-  let si40 () vtyp0 path v p =
-    si64 () vtyp0 path (to_i64 v) p
-
-  let si48 = si40
-
-  let si56 = si40
-
-  let si128 () _ _ v p =
-    write_oword LittleEndian p (oword_of_u128 (to_u128 v))
-
-  let su8 () _ _ v p =
-    write_byte p (byte_of_u8 v)
-
-  let su16 () _ _ v p =
-    write_word LittleEndian p (word_of_u16 v)
-
-  let su32 () _ _ v p =
-    write_dword LittleEndian p (dword_of_u32 v)
-
-  let su24 () vtyp0 path v p =
-    su32 () vtyp0 path (to_u32 v) p
-
-  let su64 () _ _ v p =
-    write_qword LittleEndian p (qword_of_u64 v)
-
-  let su40 () vtyp0 path v p =
-    su64 () vtyp0 path (to_u64 v) p
-
-  let su48 = su40
-
-  let su56 = su40
-
-  let su128 () _ _ v p =
-    write_oword LittleEndian p (oword_of_u128 v)
-
-  let tup_opn () _ _ _ p = p
-  let tup_cls () _ _ p = p
-  let tup_sep _n () _ _ p = p
-
-  let rec_opn () _ _ _ p = p
-  let rec_cls () _ _ p = p
-  let rec_sep _n () _ _ p = p
-
-  let vec_opn () _ _ _ _  p = p
-  let vec_cls () _ _ p = p
-  let vec_sep _n () _ _ p = p
-
-  let list_opn () _ _ _ n p =
-    let n = match n with
-      | Some n -> n
-      | None -> failwith "RowBinary.Ser needs list size upfront" in
-    write_leb128 p n
-
-  let list_cls () _ _ p = p
-  let list_sep () _ _ p = p
-
-  let nullable () _ _ p = p
-
-  let snull _t () _ _ p =
-    write_byte p (byte 1)
-
-  let snotnull _t () _ _ p =
-    write_byte p (byte 0)
-
-  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
-
-  let ssize_of_float _ _ _ = ConstSize 8
-  let ssize_of_bool _ _ _ = ConstSize 1
-  let ssize_of_char _ _ _ = ConstSize 1
-  let ssize_of_i8 _ _ _ = ConstSize 1
-  let ssize_of_u8 _ _ _ = ConstSize 1
-  let ssize_of_i16 _ _ _ = ConstSize 2
-  let ssize_of_u16 _ _ _ = ConstSize 2
-  let ssize_of_i32 _ _ _ = ConstSize 4
-  let ssize_of_u32 _ _ _ = ConstSize 4
-  let ssize_of_i24 = ssize_of_i32
-  let ssize_of_u24 = ssize_of_u32
-  let ssize_of_i64 _ _ _ = ConstSize 8
-  let ssize_of_u64 _ _ _ = ConstSize 8
-  let ssize_of_i40 = ssize_of_i64
-  let ssize_of_u40 = ssize_of_u64
-  let ssize_of_i48 = ssize_of_i64
-  let ssize_of_u48 = ssize_of_u64
-  let ssize_of_i56 = ssize_of_i64
-  let ssize_of_u56 = ssize_of_u64
-  let ssize_of_i128 _ _ _ = ConstSize 16
-  let ssize_of_u128 _ _ _ = ConstSize 16
-
-  let ssize_of_tup _ _ _ = ConstSize 0
-  let ssize_of_rec _ _ _ = ConstSize 0
-  let ssize_of_vec _ _ _ = ConstSize 0
-
-  let ssize_of_leb128 n =
-    let t_u32_u32 = T.TPair (T.u32, T.u32) in
-    size_of_u32 (first (
-      loop_while
-        ~cond:(comment "Condition for ssize_of_leb128"
-          (E.func1 t_u32_u32 (fun _l lebsz_n ->
-            E.with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
-              let max_len_for_lebsz = left_shift lebsz (u8 7) in
-              ge n max_len_for_lebsz))))
-        ~body:(comment "Loop for ssize_of_leb128"
-          (E.func1 t_u32_u32 (fun _l lebsz_n ->
-            E.with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
-              pair (add lebsz (u32 Uint32.one)) n))))
-        ~init:(pair (u32 Uint32.one) n)))
-
-  (* SerSize of a list is the size of the LEB128 prefix, same as for
-   * ssize_of_string below) *)
-  let ssize_of_list _ _ lst =
-    DynSize (ssize_of_leb128 (list_length lst))
-
-  let ssize_of_null _ _ = ConstSize 1
-
-  (* Size of a string is it's length in bytes + the size of the LEB128 prefix,
-   * which size is 1 bytes per group of 7 bits. *)
-  let ssize_of_string _ _ v =
-    DynSize (
-      let_ "wlen" (string_length v)
-        ~in_:(add (ssize_of_leb128 (identifier "wlen"))
-                  (identifier "wlen")))
 end

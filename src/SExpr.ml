@@ -7,120 +7,14 @@ open E.Ops
 
 let list_prefix_length = true
 
-module Des : DES =
-struct
-  type state = unit
-  let ptr _vtyp = T.dataptr
-
-  let start _mn p = (), p
-  let stop () p = p
-  type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
-
-  let skip n p = data_ptr_add p (size n)
-  let skip1 = skip 1
-
-  let di op () _ _ p =
-    (* Accumulate everything up to the next space or parenthesis, and then
-     * run [op] to convert from a string: *)
-    let cond = E.func1 T.byte (fun _l b ->
-      (* No other options as we would meet a space before a '(' or '"': *)
-      not_ (or_ (eq b (byte_of_const_char ' '))
-                (eq b (byte_of_const_char ')'))))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dfloat" str_p (fun str p ->
-      pair (op (string_of_bytes str)) p)
-
-  let dfloat = di float_of_string
-
-  let dbool () _ _ p =
-    E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
-      pair (eq b (byte_of_const_char 'T')) p)
-
-  (* Read a string of bytes and process them through [conv]: *)
-  let dbytes conv p =
-    (* Skip the double-quote: *)
-    let p = skip1 p in
-    (* Read up to next double-quote: *)
-    (* FIXME: handle escaping backslash! *)
-    let cond = E.func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dfloat" str_p (fun str p ->
-      (* Skip the closing double-quote: *)
-      let p = skip1 p in
-      pair (conv str) p)
-
-  let dstring () _ _ p = dbytes string_of_bytes p
-  (* Chars are encoded as single char strings *)
-  let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
-
-  let di8 = di i8_of_string
-  let du8 = di u8_of_string
-  let di16 = di i16_of_string
-  let du16 = di u16_of_string
-  let di24 = di i24_of_string
-  let du24 = di u24_of_string
-  let di32 = di i32_of_string
-  let du32 = di u32_of_string
-  let di40 = di i40_of_string
-  let du40 = di u40_of_string
-  let di48 = di i48_of_string
-  let du48 = di u48_of_string
-  let di56 = di i56_of_string
-  let du56 = di u56_of_string
-  let di64 = di i64_of_string
-  let du64 = di u64_of_string
-  let di128 = di i128_of_string
-  let du128 = di u128_of_string
-
-  let tup_opn () _ _ _ p = skip1 p
-  let tup_cls () _ _ p = skip1 p
-  let tup_sep _n () _ _ p = skip1 p
-
-  let rec_opn () _ _ _ p = skip1 p
-  let rec_cls () _ _ p = skip1 p
-  let rec_sep _n () _ _ p = skip1 p
-
-  let vec_opn () _ _ _ _ p = skip1 p
-  let vec_cls () _ _ p = skip1 p
-  let vec_sep _n () _ _ p = skip1 p
-
-  let list_opn =
-    if list_prefix_length then
-      KnownSize (fun () vtyp0 path _ p ->
-        E.with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
-          pair v (skip 2 p)))
-    else
-      UnknownSize (
-        (fun () _ _ _ p -> skip1 p),
-        (fun () _ _ p ->
-          eq (peek_byte p (size 0)) (byte_of_const_char ')')))
-  let list_cls () _ _ p = skip1 p
-  let list_sep () _ _ p = skip1 p
-
-  let is_null () _ _ p =
-    (* NULL *)
-    and_ (eq (peek_byte p (size 0)) (byte 0x6e))
-         (and_ (eq (peek_byte p (size 1)) (byte 0x75))
-               (and_ (eq (peek_byte p (size 2)) (byte 0x6c))
-                     (eq (peek_byte p (size 3)) (byte 0x6c))))
-
-  let dnull _t () _ _ p =
-    data_ptr_add p (size 4)
-
-  let dnotnull _t () _ _ p = p
-end
-
 module Ser : SER =
 struct
-
   type state = unit
+
   let ptr _vtyp = T.dataptr
 
   let start _v p = (), p
+
   let stop () p = p
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
@@ -181,6 +75,14 @@ struct
 
   let rec_sep _n () _ _ p =
     write_byte p (byte_of_const_char ' ')
+
+  let sum_opn st mn0 path mns lbl p =
+    let p = tup_opn st mn0 path mns p in
+    let p = su16 st mn0 path lbl p in
+    tup_sep 0 st mn0 path p
+
+  let sum_cls st mn0 path p =
+    tup_cls st mn0 path p
 
   let vec_opn () _ _ _ _ p =
     write_byte p (byte_of_const_char '(')
@@ -243,7 +145,142 @@ struct
   let ssize_of_u128 _ _ _ = todo_ssize ()
   let ssize_of_tup _ _ _ = todo_ssize ()
   let ssize_of_rec _ _ _ = todo_ssize ()
+  let ssize_of_sum _ _ _ = todo_ssize ()
   let ssize_of_vec _ _ _ = todo_ssize ()
   let ssize_of_list _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
+end
+
+module Des : DES =
+struct
+  type state = unit
+
+  let ptr _vtyp = T.dataptr
+
+  let start _mn p = (), p
+
+  let stop () p = p
+
+  type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
+
+  let skip n p = data_ptr_add p (size n)
+
+  let skip1 = skip 1
+
+  let di op () _ _ p =
+    (* Accumulate everything up to the next space or parenthesis, and then
+     * run [op] to convert from a string: *)
+    let cond = E.func1 T.byte (fun _l b ->
+      (* No other options as we would meet a space before a '(' or '"': *)
+      not_ (or_ (eq b (byte_of_const_char ' '))
+                (eq b (byte_of_const_char ')'))))
+    and init = bytes_of_string (string "")
+    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
+    let str_p = read_while ~cond ~reduce ~init ~pos:p in
+    E.with_sploded_pair "dfloat" str_p (fun str p ->
+      pair (op (string_of_bytes str)) p)
+
+  let tup_cls () _ _ p = skip1 p
+
+  let tup_sep _n () _ _ p = skip1 p
+
+  let dfloat = di float_of_string
+
+  let dbool () _ _ p =
+    E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
+      pair (eq b (byte_of_const_char 'T')) p)
+
+  (* Read a string of bytes and process them through [conv]: *)
+  let dbytes conv p =
+    (* Skip the double-quote: *)
+    let p = skip1 p in
+    (* Read up to next double-quote: *)
+    (* FIXME: handle escaping backslash! *)
+    let cond = E.func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
+    and init = bytes_of_string (string "")
+    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
+    let str_p = read_while ~cond ~reduce ~init ~pos:p in
+    E.with_sploded_pair "dfloat" str_p (fun str p ->
+      (* Skip the closing double-quote: *)
+      let p = skip1 p in
+      pair (conv str) p)
+
+  let dstring () _ _ p = dbytes string_of_bytes p
+  (* Chars are encoded as single char strings *)
+  let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
+
+  let di8 = di i8_of_string
+  let du8 = di u8_of_string
+  let di16 = di i16_of_string
+  let du16 = di u16_of_string
+  let di24 = di i24_of_string
+  let du24 = di u24_of_string
+  let di32 = di i32_of_string
+  let du32 = di u32_of_string
+  let di40 = di i40_of_string
+  let du40 = di u40_of_string
+  let di48 = di i48_of_string
+  let du48 = di u48_of_string
+  let di56 = di i56_of_string
+  let du56 = di u56_of_string
+  let di64 = di i64_of_string
+  let du64 = di u64_of_string
+  let di128 = di i128_of_string
+  let du128 = di u128_of_string
+
+  let tup_opn () _ _ _ p = skip1 p
+
+  let tup_cls () _ _ p = skip1 p
+
+  let tup_sep _n () _ _ p = skip1 p
+
+  let rec_opn () _ _ _ p = skip1 p
+
+  let rec_cls () _ _ p = skip1 p
+
+  let rec_sep _n () _ _ p = skip1 p
+
+  (* Sums are encoded as a pair of numeric label and value: *)
+  let sum_opn st mn0 path mns p =
+    let p = tup_opn st mn0 path mns p in
+    let c_p = du16 st mn0 path p in
+    E.with_sploded_pair "sum_opn" c_p (fun c p ->
+      let p = tup_sep 0 st mn0 path p in
+      pair c p)
+
+  let sum_cls st mn0 path p =
+    tup_cls st mn0 path p
+
+  let vec_opn () _ _ _ _ p = skip1 p
+
+  let vec_cls () _ _ p = skip1 p
+
+  let vec_sep _n () _ _ p = skip1 p
+
+  let list_opn =
+    if list_prefix_length then
+      KnownSize (fun () vtyp0 path _ p ->
+        E.with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
+          pair v (skip 2 p)))
+    else
+      UnknownSize (
+        (fun () _ _ _ p -> skip1 p),
+        (fun () _ _ p ->
+          eq (peek_byte p (size 0)) (byte_of_const_char ')')))
+
+  let list_cls () _ _ p = skip1 p
+
+  let list_sep () _ _ p = skip1 p
+
+  let is_null () _ _ p =
+    (* NULL *)
+    and_ (eq (peek_byte p (size 0)) (byte 0x6e))
+         (and_ (eq (peek_byte p (size 1)) (byte 0x75))
+               (and_ (eq (peek_byte p (size 2)) (byte 0x6c))
+                     (eq (peek_byte p (size 3)) (byte 0x6c))))
+
+  let dnull _t () _ _ p =
+    data_ptr_add p (size 4)
+
+  let dnotnull _t () _ _ p = p
 end

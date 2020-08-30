@@ -40,6 +40,8 @@ struct
   let rec_opn () _ _ _ p = p
   let rec_cls () _ _ p = p
   let rec_sep _ () _ _ p = p
+  let sum_opn () _ _ _ _ p = p
+  let sum_cls () _ _ p = p
   let vec_opn () _ _ _ _ p = p
   let vec_cls () _ _ p = p
   let vec_sep _ () _ _ p = p
@@ -75,6 +77,7 @@ struct
   let ssize_of_u128 _ _ _ = ConstSize 0
   let ssize_of_tup _ _ _ = ConstSize 0
   let ssize_of_rec _ _ _ = ConstSize 0
+  let ssize_of_sum _ _ _ = ConstSize 0
   let ssize_of_vec _ _ _ = ConstSize 0
   let ssize_of_list _ _ _ = ConstSize 0
   let ssize_of_null _ _ = ConstSize 0

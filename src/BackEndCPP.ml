@@ -33,6 +33,24 @@ struct
     ) ;
     pp oc "%s};\n\n" p.indent
 
+  and print_union p oc id mns =
+    let id = valid_identifier id in
+    pp oc "%sstruct %s {\n" p.indent id ;
+    indent_more p (fun () ->
+      pp oc "%senum Label { %a } label;\n" p.indent
+        (Array.print ~first:"" ~last:"" ~sep:", " (fun oc (n, _) ->
+          String.print oc n)) mns ;
+      pp oc "%sunion {\n" p.indent ;
+      indent_more p (fun () ->
+        Array.iter (fun (field_name, vt) ->
+          let typ_id = type_identifier p (T.TValue vt) in
+          pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
+        ) mns
+      ) ;
+      pp oc "%s} u;\n" p.indent
+    ) ;
+    pp oc "%s};\n\n" p.indent
+
   and type_identifier p = function
     | T.TValue (Nullable t) ->
         "std::optional<"^ type_identifier p (TValue (NotNullable t)) ^">"
@@ -66,6 +84,9 @@ struct
         valid_identifier
     | T.TValue (NotNullable (TRec mns)) as t ->
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
+        valid_identifier
+    | T.TValue (NotNullable (TSum mns)) as t ->
+        declared_type p t (fun oc type_id -> print_union p oc type_id mns) |>
         valid_identifier
     | T.TValue (NotNullable (TVec (dim, typ))) ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
@@ -121,7 +142,9 @@ struct
               deref_path (v ^"["^ string_of_int i ^"]") vt path
           | T.NotNullable (TTup mns) ->
               deref_path (v ^"."^ tuple_field_name i) mns.(i) path
-          | T.NotNullable (TRec mns) ->
+          | T.NotNullable (TRec _) ->
+              assert false
+          | T.NotNullable (TSum mns) ->
               let name = valid_identifier (fst mns.(i)) in
               deref_path (v ^"."^ name) (snd mns.(i)) path
           | T.Nullable x ->
@@ -664,8 +687,15 @@ struct
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 s)
+        (match E.type_of l e1 with
+        | TValue (Nullable (TRec _) | NotNullable (TRec _)) ->
+            emit ?name p l e (fun oc ->
+              Printf.fprintf oc "%s.%s" n1 s)
+        | TValue (Nullable (TSum _) | NotNullable (TSum _)) ->
+            emit ?name p l e (fun oc ->
+              Printf.fprintf oc "%s.u.%s" n1 s)
+        | _ ->
+            assert false)
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
@@ -675,6 +705,9 @@ struct
     | E.E1 (MaskEnter d, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Mask::enter_action(%s, %d)" n1 d)
+    | E.E1 (LabelOf, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "uint16_t((%s).label)" n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "MaskAction::COPY")
     | E.E0 SkipField ->

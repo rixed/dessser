@@ -35,6 +35,7 @@ and user_type =
 
 and value_type =
   | Mac of mac_type
+  (* Aliases with custom representations: *)
   | Usr of user_type
   (* Compound types: *)
   | TVec of int * maybe_nullable
@@ -43,13 +44,15 @@ and value_type =
   (* Exact same as a tuple, but with field names that can be used as
    * accessors (also used to name actual fields in generated code): *)
   | TRec of (string * maybe_nullable) array
+  (* Sum types, as a list of constructor and type. Constructor names uniqueness
+   * will be checked at construction. *)
+  | TSum of (string * maybe_nullable) array
   (* The type for maps exist because there will be some operations using
    * that type indirectly (such as fetching from a DB by key, or describing
    * a key->value mapping in a type expression). But there is no value of
    * that type, ever. From a (de)serialized point of view, maps are
    * equivalent to association lists. *)
   | TMap of maybe_nullable * maybe_nullable
-  (* TODO: sum types *)
 
 and maybe_nullable =
   | Nullable of value_type
@@ -61,9 +64,12 @@ let nullable_map f = function
 
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
+let cmp_nv (n1, _) (n2, _) =
+  String.compare n1 n2
+
 let sorted_rec fields =
   let fields = Array.copy fields in
-  Array.sort (fun (n1, _) (n2, _) -> String.compare n1 n2) fields ;
+  Array.sort cmp_nv fields ;
   fields
 
 let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
@@ -79,7 +85,8 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
   | TTup mn1s, TTup mn2s ->
       Array.length mn1s = Array.length mn2s &&
       Array.for_all2 maybe_nullable_eq mn1s mn2s
-  | TRec mn1s, TRec mn2s ->
+  | (TRec mn1s, TRec mn2s)
+  | (TSum mn1s, TSum mn2s) ->
       Array.length mn1s = Array.length mn2s &&
       Array.for_all2 (fun (n1, mn1) (n2, mn2) ->
         n1 = n2 && maybe_nullable_eq mn1 mn2
@@ -161,9 +168,17 @@ let rec print_value_type ?(sorted=false) oc = function
        * optional sort: *)
       pp oc "%a"
         (Array.print ~first:"{" ~last:"}" ~sep:"; "
-          (fun oc (n, t) ->
-            pp oc "%s: %a" n (print_maybe_nullable ~sorted) t)
+          (fun oc (n, mn) ->
+            pp oc "%s: %a" n (print_maybe_nullable ~sorted) mn)
         ) (if sorted then sorted_rec vts else vts)
+  | TSum cs ->
+      (* Parenthesis are required to distinguish external from internal
+       * nullable: *)
+      pp oc "%a"
+        (Array.print ~first:"(" ~last:")" ~sep:" | "
+          (fun oc (n, mn) ->
+            pp oc "%s %a" n (print_maybe_nullable ~sorted) mn)
+        ) (if sorted then sorted_rec cs else cs)
   | TMap (k, v) ->
       pp oc "%a[%a]"
         (print_maybe_nullable ~sorted) v
@@ -240,6 +255,8 @@ let rec develop_value_type = function
       TTup (Array.map develop_maybe_nullable mns)
   | TRec mns ->
       TRec (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) mns)
+  | TSum cs ->
+      TSum (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) cs)
   | TMap (mn1, mn2) ->
       TMap (develop_maybe_nullable mn1, develop_maybe_nullable mn2)
 
@@ -286,6 +303,11 @@ let print_maybe_nullable_sorted oc = print_maybe_nullable ~sorted:true oc
 let print_maybe_nullable oc = print_maybe_nullable ~sorted:false oc
 let print_value_type_sorted oc = print_value_type ~sorted:true oc
 let print_value_type oc = print_value_type ~sorted:false oc
+
+let uniq_id t =
+  IO.to_string print_sorted (develop_user_types t) |>
+  Digest.string |>
+  Digest.to_hex
 
 let to_nullable = function
   | TValue (NotNullable t) -> TValue (Nullable t)
@@ -411,7 +433,7 @@ struct
     let m = "type" :: m in
     (
       (
-        scalar_typ ||| tuple_typ ||| record_typ |||
+        scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
         (!user_type ++ opt_question_mark >>: fun (vt, n) -> make_type n vt)
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
@@ -471,6 +493,23 @@ struct
       opt_blanks +- char '}' ++
       opt_question_mark >>: fun (ts, nullable) ->
         make_type nullable (TRec (Array.of_list ts))
+    ) m
+
+  and sum_typ m =
+    let m = "sum type" :: m in
+    let constructor m =
+      let m = "constructor" :: m in
+      (
+        identifier +- !blanks ++ maybe_nullable
+      ) m
+    and sep =
+      opt_blanks -- char '|' -- opt_blanks in
+    (
+      char '(' -- opt_blanks -+
+      several ~sep constructor +-
+      opt_blanks +- char ')' ++ opt_question_mark >>:
+        fun (ts, nullable) ->
+          make_type nullable (TSum (Array.of_list ts))
     ) m
 
   let string_parser ?what ~print p =
@@ -563,6 +602,8 @@ struct
        (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
     (Ok ((NotNullable (TRec [| "f1", NotNullable (Mac TBool) ; "f2", Nullable (Mac TU8) |])), (19,[]))) \
       (test_p maybe_nullable "{f1: Bool; f2: U8?}")
+    (Ok ((NotNullable (TSum [| "c1", NotNullable (Mac TBool) ; "c2", Nullable (Mac TU8) |])), (18,[]))) \
+      (test_p maybe_nullable "(c1 Bool | c2 U8?)")
     (Ok ((NotNullable (TVec (1, NotNullable (Mac TBool)))), (7,[]))) \
       (test_p maybe_nullable "Bool[1]")
   *)
@@ -682,6 +723,9 @@ let type_and_name_of_path t path =
           | NotNullable (TRec vts) ->
               assert (i < Array.length vts) ;
               loop (fst vts.(i)) (snd vts.(i)) path
+          | NotNullable (TSum cs) ->
+              assert (i < Array.length cs) ;
+              loop (fst cs.(i)) (snd cs.(i)) path
           | Nullable x ->
               type_of_not_nullable (NotNullable x) in
         type_of_not_nullable t in
