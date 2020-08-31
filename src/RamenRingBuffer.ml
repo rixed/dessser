@@ -421,6 +421,7 @@ struct
         (match mn with
         | T.Nullable (TRec mns)
         | T.NotNullable (TRec mns) ->
+            assert (idx < Array.length mns) ;
             let name, mn = mns.(idx) in
             if is_private name then
               ConstSize 0
@@ -428,6 +429,7 @@ struct
               loop rest mn
         | T.Nullable (TTup mns)
         | T.NotNullable (TTup mns) ->
+            assert (idx < Array.length mns) ;
             loop rest mns.(idx)
         | T.Nullable (TVec (d, mn))
         | T.NotNullable (TVec (d, mn)) ->

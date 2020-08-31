@@ -509,6 +509,7 @@ struct
       several ~sep constructor +-
       opt_blanks +- char ')' ++ opt_question_mark >>:
         fun (ts, nullable) ->
+          (* TODO: check that all constructors are case insensitively distinct *)
           make_type nullable (TSum (Array.of_list ts))
     ) m
 

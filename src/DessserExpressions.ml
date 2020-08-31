@@ -1574,13 +1574,15 @@ let rec type_check l e =
   ) e
 
 (*$inject
-  let pass_type_check e =
+  let pass_type_check s =
+    let e = Parser.expr s |> List.hd in
     try type_check [] e ; true
     with _ -> false *)
 
 (*$T pass_type_check
-  not (pass_type_check (E2 (Coalesce, E0 (Null (Mac TString)), E0 (I56 4L))))
- *)
+  pass_type_check "(coalesce (null \"i56\") (i56 4))"
+  not (pass_type_check "(coalesce (null \"string\") (i56 4))")
+*)
 
 let size_of_expr l e =
   fold 0 l (fun n _l _e0 -> n + 1) e

@@ -482,7 +482,9 @@ let expression =
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;
         true
-    with _ -> false
+    with e ->
+        Printf.eprintf "FAILURE: %s\n" (Printexc.to_string e) ;
+        false
 
   let can_be_compiled e =
     can_be_compiled_with_backend (module BackEndOCaml : BACKEND) e &&
@@ -511,6 +513,8 @@ let expression =
     "(make-tup (u16 61159) (u128 5) (null \"((String?; String?; I128?; U32)[8]?; ((I48; I40?))?; Float[9]?[])\") (u48 7) (u8 188))"
   compile_check \
     "(is-null (null \"Bool\"))"
+  compile_check \
+    "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
 *)
 
 (*
@@ -645,10 +649,15 @@ let sexpr mn =
         s T.print_maybe_nullable mn ;
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       assert_equal ~printer:identity s s') in
-  Gen.generate ~n:5 maybe_nullable_gen |>
-  List.iter (fun mn ->
-    test_sexpr ocaml_be mn ;
-    test_sexpr cpp_be mn)
+  try
+    Gen.generate ~n:5 maybe_nullable_gen |>
+    List.iter (fun mn ->
+      test_sexpr ocaml_be mn ;
+      test_sexpr cpp_be mn)
+  with e ->
+    Printf.eprintf "FAILURE: %s:\n%s\n"
+      (Printexc.to_string e)
+      (Printexc.get_backtrace ())
 *)
 
 (* Now that we trust the s-expr ser/des, we can use it to create random
