@@ -129,28 +129,6 @@ struct
   let print_comment oc fmt =
     pp oc ("/* "^^ fmt ^^" */\n")
 
-  let rec deref_path v vt = function
-    | [] -> v
-    | i :: path ->
-        let rec deref_not_nullable v = function
-          | T.NotNullable (Mac _ | TMap _) ->
-              assert false
-          | T.NotNullable (Usr t) ->
-              deref_not_nullable v (NotNullable t.def)
-          | T.NotNullable (TVec (_, vt))
-          | T.NotNullable (TList vt) ->
-              deref_path (v ^"["^ string_of_int i ^"]") vt path
-          | T.NotNullable (TTup mns) ->
-              deref_path (v ^"."^ tuple_field_name i) mns.(i) path
-          | T.NotNullable (TRec _) ->
-              assert false
-          | T.NotNullable (TSum mns) ->
-              let name = valid_identifier (fst mns.(i)) in
-              deref_path (v ^"."^ name) (snd mns.(i)) path
-          | T.Nullable x ->
-              deref_not_nullable (v ^".value()") (NotNullable x) in
-        deref_not_nullable v vt
-
   let print_float_literal v oc =
     if v = infinity then
       String.print oc "std::numeric_limits<double>::infinity"

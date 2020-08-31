@@ -315,30 +315,6 @@ struct
       pp oc "Int128.of_bytes_little_endian (Bytes.of_string %S) 0"
         (Bytes.to_string bytes))
 
-  let rec deref_path v mn = function
-    | [] -> v
-    | i :: path ->
-        let rec deref_not_nullable v = function
-          | T.NotNullable (Mac _ | TMap _) ->
-              assert false
-          | T.NotNullable (Usr t) ->
-              deref_not_nullable v (NotNullable t.def)
-          | T.NotNullable (TVec (_, mn))
-          | T.NotNullable (TList mn) ->
-              deref_path (v ^".("^ string_of_int i ^")") mn path
-          | T.NotNullable (TTup mns) ->
-              deref_path (v ^"."^ tuple_field_name i) mns.(i) path
-          | T.NotNullable (TRec mns) ->
-              let name = valid_identifier (fst mns.(i)) in
-              deref_path (v ^"."^ name) (snd mns.(i)) path
-          | T.NotNullable (TSum mns) ->
-              let cstr = cstr_name (fst mns.(i)) in
-              let derefed = Printf.sprintf "(match %s with %s x -> x)" v cstr in
-              deref_path derefed (snd mns.(i)) path
-          | T.Nullable x ->
-              deref_not_nullable ("(option_get "^ v ^")") (NotNullable x) in
-        deref_not_nullable v mn
-
   let rec print ?name emit p l e =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
     let unary_op op e1 =

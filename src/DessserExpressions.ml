@@ -895,10 +895,10 @@ struct
 
     | x -> raise (Unknown_expression x)
 
-  let rec expr_of_toks toks str =
+  let expr_of_toks toks str =
     List.map e (sexpr_of_toks toks str)
 
-  let rec expr str =
+  let expr str =
     List.map e (sexpr_of_string str)
 
   (*$= expr & ~printer:(BatIO.to_string (BatList.print print))

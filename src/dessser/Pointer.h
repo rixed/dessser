@@ -10,8 +10,7 @@
 
 /* We have 2 types of pointers:
  * Pointers that point to a byte buffer used to (de)serialize values, and
- * pointers that point to a heap allocated value that's being build with
- * set_field or peeked at with get_field.
+ * pointers that point to a heap allocated value.
  * In a few cases we can use both interchangeably, although they share
  * nothing in common, including copying them by value (which makes
  * inheritance unpractical). */
@@ -26,8 +25,7 @@ struct Pointer {
   size_t offset;
   // Stack of saved offset positions:
   std::stack<size_t> stack;
-  /* The type of pointer used to hold a heap allocated value that's being
-   * build with BackEndCPP.set_field or deconstructed with get_field.
+  /* The type of pointer used to hold a heap allocated value.
    * If this is set then buffer must by null, and the other way around.
    * On shared_ptr<void>, it works because BackEndCPP.alloc_value alloc
    * with new, and we build the shared_ptr when the actual type is known. */
