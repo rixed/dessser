@@ -80,7 +80,7 @@ let tuple_typs_of_record mns =
     if is_private name then None else Some typ
   ) mns
 
-(* We use a stack of "frames" at pointer to nullmask + nullbit index.
+(* We use a stack of "frames" of pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
  * itself (p) and a stack (stk): *)
 let t_frame = T.(pair dataptr size)
@@ -146,6 +146,8 @@ let may_set_nullbit bit mn0 path stk =
 (* TODO: check a nullbit is present for this type before sploding *)
 let may_skip_nullbit mn0 path p_stk =
   E.with_sploded_pair "may_skip_nullbit" p_stk (fun p stk ->
+    (* Notice: Setting a bit to false actually skip it, thus the name
+     * of this function! *)
     let stk = may_set_nullbit false mn0 path stk in
     pair p stk)
 
@@ -194,7 +196,7 @@ struct
       pair (f p) stk)
 
   let with_nullbit_done mn0 path p_stk f =
-    E.with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
+    E.with_sploded_pair "with_nullbit_done1" p_stk (fun p stk ->
       let stk = may_set_nullbit true mn0 path stk in
       let p = f p in
       pair p stk)
@@ -601,8 +603,8 @@ struct
               (skip_nullmask nullmask_bits p)
               (cons new_frame stk) ])
 
-  let enter_frame_const = enter_frame u8 skip_nullmask_const
   let enter_frame_dyn = enter_frame identity skip_nullmask_dyn
+  let enter_frame_const = enter_frame u8 skip_nullmask_const
 
   let start mn p =
     assert (are_rec_fields_ordered mn) ;
@@ -618,9 +620,9 @@ struct
    * pointer depending on the current type of position in the global type
    * [mn0]: *)
   let with_nullbit_done mn0 path p_stk f =
-    E.with_sploded_pair "with_nullbit_done" p_stk (fun p stk ->
+    E.with_sploded_pair "with_nullbit_done2" p_stk (fun p stk ->
       let stk = may_set_nullbit false mn0 path stk in
-      E.with_sploded_pair "with_nullbit_done" (f p) (fun v p ->
+      E.with_sploded_pair "with_nullbit_done3" (f p) (fun v p ->
         pair v (pair p stk)))
 
   let dfloat () mn0 path p_stk =
