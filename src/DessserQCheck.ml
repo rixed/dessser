@@ -777,6 +777,7 @@ let sexpr mn =
   "2 (null 1)" (check_ringbuffer ocaml_be "u8?[]" "2 (null 1)")
   "0 ()" (check_ringbuffer cpp_be "Bool[]" "0 ()")
   "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
+  "(1 null)" (check_ringbuffer ocaml_be "(a U32 | b String?)" "(1 null)")
 *)
 (*$= check_heapvalue & ~printer:identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")

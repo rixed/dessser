@@ -345,10 +345,22 @@ struct
 
   let rec_sep _fname () _ _ p_stk = p_stk
 
-  let sum_opn () mn0 path _mns lbl p =
-    su16 () mn0 path lbl p
+  (* Sum types are encoded with a 1-dword header composed of:
+   * - the u16 of the label in the lower 16 bits of that dword
+   * - a 1 bit nullmask at bit position 16 (whether the constructed value is
+   *   nullable or not, doesn't matter - we could reduce the amount of generated
+   *   code by skipping the frame when that label is not nullable, tough (TODO)).
+   *)
+  let sum_opn () mn0 path _mns lbl p_stk =
+    (* At first we set the nullbit to 0 (NULL) by writing the label as a u32: *)
+    let p_stk' = su32 () mn0 path (to_u32 lbl) p_stk in
+    E.with_sploded_pair "sum_opn1" p_stk' (fun p' stk' ->
+      let nullmask_begin = data_ptr_add (first p_stk) (size 2) in
+      let new_frame = pair nullmask_begin (size 0) in
+      pair p' (cons new_frame stk'))
 
-  let sum_cls () _ _ p = p
+  let sum_cls () _ _ p_stk =
+    leave_frame p_stk
 
   let vec_opn () mn0 path dim mn p_stk =
     (* TODO: this must be revisited once runtime fieldmasks are in place: *)
@@ -773,11 +785,20 @@ struct
 
   let vec_sep _n () _ _ p_stk = p_stk
 
-  (* Sums are encoded with a leading word for the label: *)
-  let sum_opn () mn0 path _mns p =
-    du16 () mn0 path p
+  (* Sums are encoded with a leading word for the label and 1 bit nullmask
+   * at bit position 16: *)
+  let sum_opn () mn0 path _mns p_stk =
+    (* du16 will advance p from ringbuf_word_size, but we want to enter a
+     * frame that starts right after the 16bits label: *)
+    let v_p_stk' = du16 () mn0 path p_stk in
+    E.with_sploded_pair "sum_opn2" v_p_stk' (fun v p_stk' ->
+      let nullmask_begin = data_ptr_add (first p_stk) (size 2) in
+      let new_frame = pair nullmask_begin (size 0) in
+      E.with_sploded_pair "sum_opn3" p_stk' (fun p' stk' ->
+        pair v (pair p' (cons new_frame stk'))))
 
-  let sum_cls () _ _ p = p
+  let sum_cls () _ _ p_stk =
+    leave_frame p_stk
 
   let list_opn = KnownSize
     (fun () mn0 path mn p_stk ->
