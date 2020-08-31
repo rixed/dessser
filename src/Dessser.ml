@@ -307,22 +307,27 @@ struct
     let open E.Ops in
     E.with_sploded_pair "dssum1" src_dst (fun src dst ->
       let cstr_src = Des.sum_opn dstate mn0 path mns src in
-      E.with_sploded_pair "dssum2" cstr_src (fun cstr src ->
-        let dst = Ser.sum_opn sstate mn0 path mns cstr dst in
-        let src_dst = pair src dst in
-        let rec choose_cstr i =
-          let max_lbl = Array.length mns - 1 in
-          let subpath = T.path_append i path in
-          if i >= max_lbl then
-            seq [
-              assert_ (eq cstr (u16 max_lbl)) ;
-              desser_ transform sstate dstate mn0 subpath src_dst ]
-          else
-            choose
-              ~cond:(eq (u16 i) cstr)
-              ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
-              ~else_:(choose_cstr (i + 1)) in
-        choose_cstr 0))
+      let src_dst =
+        E.with_sploded_pair "dssum2" cstr_src (fun cstr src ->
+          let dst = Ser.sum_opn sstate mn0 path mns cstr dst in
+          let src_dst = pair src dst in
+          let rec choose_cstr i =
+            let max_lbl = Array.length mns - 1 in
+            let subpath = T.path_append i path in
+            if i >= max_lbl then
+              seq [
+                assert_ (eq cstr (u16 max_lbl)) ;
+                desser_ transform sstate dstate mn0 subpath src_dst ]
+            else
+              choose
+                ~cond:(eq (u16 i) cstr)
+                ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
+                ~else_:(choose_cstr (i + 1)) in
+          choose_cstr 0) in
+      E.with_sploded_pair "dssum3" src_dst (fun src dst ->
+        pair
+          (Des.sum_cls dstate mn0 path src)
+          (Ser.sum_cls sstate mn0 path dst)))
 
   (* This will generates a long linear code with one block per array
    * item, which should be ok since vector dimension is expected to be small.

@@ -33,23 +33,17 @@ struct
     ) ;
     pp oc "%s};\n\n" p.indent
 
-  and print_union p oc id mns =
+  and print_variant p oc id mns =
     let id = valid_identifier id in
-    pp oc "%sstruct %s {\n" p.indent id ;
+    pp oc "%stypedef std::variant<\n" p.indent ;
     indent_more p (fun () ->
-      pp oc "%senum Label { %a } label;\n" p.indent
-        (Array.print ~first:"" ~last:"" ~sep:", " (fun oc (n, _) ->
-          String.print oc n)) mns ;
-      pp oc "%sunion {\n" p.indent ;
-      indent_more p (fun () ->
-        Array.iter (fun (field_name, vt) ->
-          let typ_id = type_identifier p (T.TValue vt) in
-          pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
-        ) mns
-      ) ;
-      pp oc "%s} u;\n" p.indent
+      Array.iteri (fun i (_, mn) ->
+        let typ_id = type_identifier p (T.TValue mn) in
+        pp oc "%s%s%s\n"
+          p.indent typ_id (if i < Array.length mns - 1 then "," else "")
+      ) mns
     ) ;
-    pp oc "%s};\n\n" p.indent
+    pp oc "%s> %s;\n\n" p.indent id
 
   and type_identifier p = function
     | T.TValue (Nullable t) ->
@@ -86,7 +80,7 @@ struct
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
     | T.TValue (NotNullable (TSum mns)) as t ->
-        declared_type p t (fun oc type_id -> print_union p oc type_id mns) |>
+        declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
         valid_identifier
     | T.TValue (NotNullable (TVec (dim, typ))) ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
@@ -665,15 +659,21 @@ struct
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 s)
+    | E.E1 (GetAlt s, e1) ->
         (match E.type_of l e1 with
-        | TValue (Nullable (TRec _) | NotNullable (TRec _)) ->
+        | T.TValue (NotNullable (TSum mns)) ->
+            let n1 = print emit p l e1 in
+            let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
-              Printf.fprintf oc "%s.%s" n1 s)
-        | TValue (Nullable (TSum _) | NotNullable (TSum _)) ->
-            emit ?name p l e (fun oc ->
-              Printf.fprintf oc "%s.u.%s" n1 s)
+              Printf.fprintf oc "std::get<%d>(%s)" lbl n1)
         | _ ->
             assert false)
+    | E.E1 (Construct (_, i), e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "std::in_place_index<%d>, %s" i n1)
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
@@ -685,7 +685,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "Mask::enter_action(%s, %d)" n1 d)
     | E.E1 (LabelOf, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "uint16_t((%s).label)" n1)
+        emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())" n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "MaskAction::COPY")
     | E.E0 SkipField ->
@@ -719,6 +719,7 @@ struct
      #include <functional>\n\
      #include <optional>\n\
      #include <utility>\n\
+     #include <variant>\n\
      #include <vector>\n\
      #include \"dessser/runtime.h\"\n"
 end

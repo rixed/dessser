@@ -80,7 +80,9 @@ type e1 =
   | Function of (*function id*) int * (*args*) T.t array
   | Comment of string
   | GetItem of int (* for tuples *)
-  | GetField of string (* For records or sum types *)
+  | GetField of string (* For records *)
+  | GetAlt of string (* Destruct a sum type *)
+  | Construct of (string * T.maybe_nullable) array * int (* Construct sum types *)
   | Dump
   | Debug
   | Ignore
@@ -312,6 +314,10 @@ let string_of_e1 = function
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
+  | GetAlt s -> "get-alt "^ String.quote s
+  | Construct (mns, i) ->
+      "construct "^ String.quote (IO.to_string T.print_value_type (TSum mns))
+                  ^" "^ string_of_int i
   | Dump -> "dump"
   | Debug -> "debug"
   | Ignore -> "ignore"
@@ -669,8 +675,8 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
-    | Lst [ Sym "null" ; Str vt ] ->
-        E0 (Null (T.Parser.maybe_nullable_of_string vt |> T.to_value_type))
+    | Lst [ Sym "null" ; Str s] ->
+        E0 (Null (T.Parser.maybe_nullable_of_string s |> T.to_value_type))
     | Lst [ Sym "end-of-list" ; Str vt ] ->
         E0 (EndOfList (T.Parser.of_string vt))
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
@@ -733,6 +739,20 @@ struct
         E1 (GetItem (int_of_string n), e x)
     | Lst [ Sym "get-field" ; Str s ; x ] ->
         E1 (GetField s, e x)
+    | Lst [ Sym "get-alt" ; Str s ; x ] ->
+        E1 (GetAlt s, e x)
+    | Lst [ Sym "construct" ; Str s ; Sym i ; x ] ->
+        let i = int_of_string i in
+        (match T.Parser.maybe_nullable_of_string s with
+        | NotNullable (TSum mns) ->
+            let max_lbl = Array.length mns - 1 in
+            if i > max_lbl then
+              Printf.sprintf "Sum type %S has no label %d" s i |>
+              failwith ;
+            E1 (Construct (mns, i), e x)
+        | _ ->
+            Printf.sprintf2 "Not a sum type: %S" s |>
+            failwith)
     | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
     | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
     | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
@@ -972,20 +992,29 @@ let rec type_of l e0 =
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | TValue (NotNullable (TTup mns)) ->
-          let max_n = Array.length mns in
-          if n >= max_n then
+          let num_n = Array.length mns in
+          if n < 0 || n >= num_n then
             raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
-                                     string_of_int max_n ^" items)")) ;
+                                     string_of_int num_n ^" items)")) ;
           TValue mns.(n)
       | t -> raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | TValue (NotNullable (TRec mns | TSum mns)) ->
+      | TValue (NotNullable (TRec mns)) ->
           (match array_assoc name mns with
           | exception Not_found ->
               raise (Struct_error (e0, "no field named "^ name))
           | mn -> TValue mn)
-      | t -> raise (Type_error (e0, e1, t, "be a record or union")))
+      | t -> raise (Type_error (e0, e1, t, "be a record")))
+  | E1 ((GetAlt name), e1) ->
+      (match type_of l e1 |> T.develop_user_types with
+      | TValue (NotNullable (TSum mns)) ->
+          (match array_assoc name mns with
+          | exception Not_found ->
+              raise (Struct_error (e0, "no alternative named "^ name))
+          | mn -> TValue mn)
+      | t -> raise (Type_error (e0, e1, t, "be a union")))
+  | E1 ((Construct (mns, _)), _) -> TValue (NotNullable (TSum mns))
   | E2 (Nth, _, e2) ->
       (match type_of l e2 |> T.develop_user_types with
       | TValue (NotNullable (TVec (_, mn) | TList mn)) -> TValue mn
@@ -1517,8 +1546,18 @@ let rec type_check l e =
         check_eq l e1 T.bool ;
         check_eq l e2 T.bool
     | E1 (GetItem _, _)
-    | E1 (GetField _, _) ->
+    | E1 (GetField _, _)
+    | E1 (GetAlt _, _) ->
         ignore (type_of l e) (* everything checks already performed in [type_of] *)
+    | E1 (Construct (mns, i), e) ->
+          let max_lbl = Array.length mns - 1 in
+          if i < 0 || i > max_lbl then (
+            let msg =
+              Printf.sprintf "Constructor (%d) must not be greater than %d"
+                i max_lbl in
+            raise (Struct_error (e0, msg))
+          ) ;
+          check_eq l e (TValue (snd mns.(i)))
     | E1 (Fst, e) ->
         check_pair l e
     | E1 (Snd, e) ->
@@ -1894,6 +1933,8 @@ struct
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
   let get_item n e1 = E1 (GetItem n, e1)
   let get_field s e1 = E1 (GetField s, e1)
+  let get_alt s e1 = E1 (GetAlt s, e1)
+  let construct mns i e1 = E1 (Construct (mns, i), e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)

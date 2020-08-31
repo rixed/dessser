@@ -38,7 +38,7 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let cstr_name n = String.uppercase (valid_identifier n)
+  let cstr_name n = String.capitalize (valid_identifier n)
 
   let rec print_record p oc id mns =
     let id = valid_identifier id in
@@ -57,7 +57,7 @@ struct
     indent_more p (fun () ->
       Array.iter (fun (n, mn) ->
         let typ_id = type_identifier p (T.TValue mn) in
-        pp oc "%s| %s %s\n" p.indent (cstr_name n) typ_id
+        pp oc "%s| %s of %s\n" p.indent (cstr_name n) typ_id
       ) mns
     ) ;
     pp oc "\n" ;
@@ -875,16 +875,20 @@ struct
           Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
-        (match E.type_of l e1 with
-        | TValue (Nullable (TRec _) | NotNullable (TRec _)) ->
-            emit ?name p l e (fun oc ->
-              Printf.fprintf oc "%s.%s" n1 s)
-        | TValue (Nullable (TSum _) | NotNullable (TSum _)) ->
-            emit ?name p l e (fun oc ->
-              let cstr = cstr_name s in
-              Printf.fprintf oc "(match %s with %s x -> x)" n1 cstr)
-        | _ ->
-            assert false)
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "%s.%s" n1 s)
+    | E.E1 (GetAlt s, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          let cstr = cstr_name s in
+          Printf.fprintf oc "(match %s with %s x -> x) [@@ocaml.warning \"-8\"]"
+            n1 cstr)
+    | E.E1 (Construct (mns, i), e1) ->
+        let n1 = print emit p l e1 in
+        assert (i < Array.length mns) ;
+        let cstr = cstr_name (fst mns.(i)) in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc "(%s %s)" cstr n1)
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
@@ -898,7 +902,7 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           let t1 = E.type_of l e1 in
-          let id = T.uniq_id t1 in
+          let id = T.uniq_id t1 |> valid_identifier in
           pp oc "label_of_cstr_%s %s" id n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask.Copy")

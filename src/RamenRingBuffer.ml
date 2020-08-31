@@ -427,6 +427,10 @@ struct
               ConstSize 0
             else
               loop rest mn
+        | T.Nullable (TSum mns)
+        | T.NotNullable (TSum mns) ->
+            assert (idx < Array.length mns) ;
+            loop rest (snd mns.(idx))
         | T.Nullable (TTup mns)
         | T.NotNullable (TTup mns) ->
             assert (idx < Array.length mns) ;

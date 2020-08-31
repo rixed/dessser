@@ -101,6 +101,7 @@ let rec value_type_gen depth =
         2, map (fun mn -> T.TList mn) mn_gen ;
         2, map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
         2, map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
+        2, map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
         (* Avoid maps for now, as there is no manipulable values of that type: *)
         0, map2 (fun k v -> T.TMap (k, v)) mn_gen mn_gen ] in
     frequency lst
@@ -123,10 +124,12 @@ let maybe_nullable_gen =
 let rec size_of_value_type = function
   | T.Mac _ | T.Usr _ -> 1
   | T.TVec (_, mn) | T.TList mn -> size_of_maybe_nullable mn
-  | T.TTup typs ->
-      Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 typs
-  | T.TRec typs ->
-      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 typs
+  | T.TTup mns ->
+      Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
+  | T.TRec mns ->
+      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
+  | T.TSum mns ->
+      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
   | T.TMap (k, v) ->
       size_of_maybe_nullable k + size_of_maybe_nullable v
 
@@ -147,8 +150,16 @@ let shrink_mac_type mt =
   loop to_simplest
 
 let rec shrink_value_type =
-  let vt_of_mn = function T.NotNullable vt | T.Nullable vt -> vt
-  in
+  let vt_of_mn = function T.NotNullable vt | T.Nullable vt -> vt in
+  let shrink_fields mns make_typ f =
+    Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
+    let shrink_mns =
+      let shrink (fn, mn) =
+        Iter.map (fun mn -> fn, mn) (shrink_maybe_nullable mn) in
+      Shrink.filter (fun mns -> Array.length mns > 1)
+        (Shrink.array ~shrink) mns |>
+      Iter.map make_typ in
+    shrink_mns f in
   function
   | T.Mac mt ->
       (fun f ->
@@ -174,15 +185,9 @@ let rec shrink_value_type =
           Iter.map (fun mns -> T.TTup mns) in
         shrink_mns f)
   | T.TRec mns ->
-      (fun f ->
-        Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
-        let shrink_mns =
-          let shrink (fn, mn) =
-            Iter.map (fun mn -> fn, mn) (shrink_maybe_nullable mn) in
-          Shrink.filter (fun mns -> Array.length mns > 1)
-            (Shrink.array ~shrink) mns |>
-          Iter.map (fun mns -> T.TRec mns) in
-        shrink_mns f)
+      shrink_fields mns (fun mns -> T.TRec mns)
+  | T.TSum mns ->
+      shrink_fields mns (fun mns -> T.TSum mns)
   | T.TMap (k, v) ->
       (fun f ->
         shrink_maybe_nullable k (f % vt_of_mn) ;
@@ -391,6 +396,7 @@ and e1_gen l depth =
     1, map2 comment (string ~gen:printable_for_comments) expr ;
     1, map2 get_item tiny_int expr ;
     1, map2 get_field field_name_gen expr ;
+    1, map2 get_alt field_name_gen expr ;
     1, map2 read_word endianness_gen expr ;
     1, map2 read_dword endianness_gen expr ;
     1, map2 read_qword endianness_gen expr ;
@@ -579,6 +585,14 @@ let rec sexpr_of_vtyp_gen vtyp =
       tup_gen mns
   | T.TRec mns ->
       tup_gen (Array.map snd mns)
+  | T.TSum mns ->
+      join (
+        map (fun i ->
+          let i = (abs i) mod (Array.length mns) in
+          sexpr_of_mn_gen (snd mns.(i)) |>
+          map (fun se -> "("^ string_of_int i ^" "^ se ^")")
+        ) int
+      )
   | T.TMap (k, v) ->
       sexpr_of_vtyp_gen (TList (NotNullable (TTup [| k ; v |])))
 

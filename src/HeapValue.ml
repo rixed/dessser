@@ -124,18 +124,26 @@ struct
   and dsum mns dstate mn0 path src =
     let cstr_src = Des.sum_opn dstate mn0 path mns src in
     let max_lbl = Array.length mns - 1 in
-    E.with_sploded_pair "dsum" cstr_src (fun cstr src ->
+    E.with_sploded_pair "dsum1" cstr_src (fun cstr src ->
       let rec choose_cstr i =
+        assert (i <= max_lbl) ;
         let subpath = T.path_append i path in
-        let subtyp = snd mns.(i) in
-        if i >= max_lbl then
+        let _, subtyp = mns.(i) in
+        let res () =
+          let v_src = make1 dstate mn0 subpath subtyp src in
+          E.with_sploded_pair "dsum2" v_src (fun v src ->
+            pair
+              (construct mns i v)
+              (Des.sum_cls dstate mn0 path src))
+        in
+        if i = max_lbl then
           seq [
             assert_ (eq cstr (u16 max_lbl)) ;
-            make1 dstate mn0 subpath subtyp src ]
+            res () ]
         else
           choose
             ~cond:(eq (u16 i) cstr)
-            ~then_:(make1 dstate mn0 subpath subtyp src)
+            ~then_:(res ())
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
 
@@ -272,20 +280,21 @@ struct
         (label_of v)
         ~in_:(
           let_ "dst"
-            (Ser.sum_opn sstate mn0 path mns (identifier "cstr") dst)
+            (Ser.sum_opn sstate mn0 path mns (identifier "label") dst)
             ~in_:(
               let rec choose_cstr i =
                 let subpath = T.path_append i path in
+                assert (i <= max_lbl) ;
                 let field, mn = mns.(i) in
-                if i >= max_lbl then
+                if i = max_lbl then
                   seq [
                     assert_ (eq (identifier "label") (u16 max_lbl)) ;
-                    ser1 sstate mn0 subpath mn (get_field field v) ma
+                    ser1 sstate mn0 subpath mn (get_alt field v) ma
                          (identifier "dst") ]
                 else
                   choose
                     ~cond:(eq (u16 i) (identifier "label"))
-                    ~then_:(ser1 sstate mn0 subpath mn (get_field field v) ma
+                    ~then_:(ser1 sstate mn0 subpath mn (get_alt field v) ma
                                  (identifier "dst"))
                     ~else_:(choose_cstr (i + 1)) in
               choose_cstr 0)) in
@@ -440,8 +449,9 @@ struct
         let rec choose_cstr i =
           let v' = get_item i v in
           let subpath = T.path_append i path in
+          assert (i <= max_lbl) ;
           let mn = snd mns.(i) in
-          if i >= max_lbl then
+          if i = max_lbl then
             seq [
               assert_ (eq (identifier "label") (u16 max_lbl)) ;
               sersz1 mn mn0 subpath v' copy_field sizes ]
