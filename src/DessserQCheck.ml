@@ -715,7 +715,7 @@ let sexpr mn =
 
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
-    let format = "RamenRingBuf" in
+    let format = "RamenRingBuffer" in
     test_format ocaml_be nn
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     test_format cpp_be nn

@@ -177,7 +177,7 @@ struct
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dfloat" str_p (fun str p ->
+    E.with_sploded_pair "di" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
 
   let tup_cls () _ _ p = skip1 p
@@ -200,7 +200,7 @@ struct
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dfloat" str_p (fun str p ->
+    E.with_sploded_pair "dbytes" str_p (fun str p ->
       (* Skip the closing double-quote: *)
       let p = skip1 p in
       pair (conv str) p)

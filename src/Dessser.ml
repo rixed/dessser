@@ -29,7 +29,7 @@ sig
   type state
   val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr, or whatever really  *)
 
-  val start : T.maybe_nullable -> (*ptr*) E.t -> state * (*ptr?*) E.t
+  val start : T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> (*ptr?*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
@@ -105,7 +105,7 @@ sig
   type state
   val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr *)
 
-  val start : T.maybe_nullable -> (*ptr*) E.t -> state * (*ptr*) E.t
+  val start : T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
