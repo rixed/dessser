@@ -789,3 +789,38 @@ let sexpr mn =
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
   "-5424105" (check_ringbuffer cpp_be "I24" "-5424105")
 *)
+
+(* Return serialized string of a given value of a given type, for that
+ * serializer and backend: *)
+(*$inject
+  let ringbuf_ser = (module RamenRingBuffer.Ser : SER)
+  let rowbinary_ser = (module RowBinary.Ser : SER)
+  let sexpr_des = (module SExpr.Des : DES)
+
+  let check_ser ser be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let module Ser = (val ser : SER) in
+    let module DS = DesSer (SExpr.Des) (Ser) in
+    let exe =
+      let e =
+        func2 T.dataptr T.dataptr (fun _l src dst ->
+          DS.desser mn src dst) in
+      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      make_converter be ~mn e in
+    String.trim (run_converter ~timeout:2 exe vs) |>
+    hexify_string
+*)
+(*$= check_ser & ~printer:identity
+  "2a" \
+    (check_ser rowbinary_ser  ocaml_be "u8" "42")
+  "2a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "u8" "42")
+  "01 00 00 00 2a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "(u8?)" "(42)")
+  "00 00 00 00 2a 00 00 00" \
+    (check_ser ringbuf_ser ocaml_be "(small u8 | big u16)" "(0 42)")
+  "00 00 00 00 2a 00 00 00" \
+    (check_ser ringbuf_ser ocaml_be "(small u8 | big u16?)" "(0 42)")
+  "01 00 00 00 2a 00 00 00" \
+    (check_ser ringbuf_ser ocaml_be "(small u8? | big u16)" "(0 42)")
+*)

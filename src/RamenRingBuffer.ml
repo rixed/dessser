@@ -22,12 +22,11 @@ let align_dyn p extra_bytes =
     ~else_:p
 
 let align_const p extra_bytes =
+  assert (extra_bytes >= 0) ;
   let extra_bytes = extra_bytes mod !ringbuf_word_size in
-  let padding_len = !ringbuf_word_size - extra_bytes in
-  if !ringbuf_word_size > extra_bytes then
+  if extra_bytes = 0 then p else
+    let padding_len = !ringbuf_word_size - extra_bytes in
     data_ptr_add p (size padding_len)
-  else
-    p
 
 (* RamenRingBuffer can only des/ser types which record fields are ordered: *)
 let rec_field_cmp (n1, _) (n2, _) =
@@ -348,18 +347,24 @@ struct
   let rec_sep _fname () _ _ p_stk = p_stk
 
   (* Sum types are encoded with a 1-dword header composed of:
-   * - the u16 of the label in the lower 16 bits of that dword
-   * - a 1 bit nullmask at bit position 16 (whether the constructed value is
-   *   nullable or not, doesn't matter - we could reduce the amount of generated
-   *   code by skipping the frame when that label is not nullable, tough (TODO)).
-   *)
+   * - a 16bits nullmask, of which only bit 0 will ever be used
+   *   (whether the constructed value is nullable or not, doesn't matter;
+   *   we could reduce the amount of generated code by skipping the frame when
+   *   that label is not nullable, tough (TODO));
+   * - the u16 of the label. *)
   let sum_opn () mn0 path _mns lbl p_stk =
-    (* At first we set the nullbit to 0 (NULL) by writing the label as a u32: *)
-    let p_stk' = su32 () mn0 path (to_u32 lbl) p_stk in
-    E.with_sploded_pair "sum_opn1" p_stk' (fun p' stk' ->
-      let nullmask_begin = data_ptr_add (first p_stk) (size 2) in
-      let new_frame = pair nullmask_begin (size 0) in
-      pair p' (cons new_frame stk'))
+    E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
+      (* Set my own nulbit if needed: *)
+      let stk = may_set_nullbit true mn0 path stk in
+      (* Prepare the new frame: *)
+      let new_frame = pair p (size 0) in
+      let stk = cons new_frame stk in
+      (* And zero that nullmask: *)
+      let p = write_word LittleEndian p (word_of_u16 (u16 0)) in
+      (* Then the label: *)
+      let p = write_word LittleEndian p (word_of_u16 lbl) in
+      let p = align_const p 4 in
+      pair p stk)
 
   let sum_cls () _ _ p_stk =
     leave_frame p_stk
@@ -787,17 +792,23 @@ struct
 
   let vec_sep _n () _ _ p_stk = p_stk
 
-  (* Sums are encoded with a leading word for the label and 1 bit nullmask
-   * at bit position 16: *)
+  (* Sums are encoded with a leading word for the nullmask followed by
+   * the label as a u16: *)
   let sum_opn () mn0 path _mns p_stk =
-    (* du16 will advance p from ringbuf_word_size, but we want to enter a
-     * frame that starts right after the 16bits label: *)
-    let v_p_stk' = du16 () mn0 path p_stk in
-    E.with_sploded_pair "sum_opn2" v_p_stk' (fun v p_stk' ->
-      let nullmask_begin = data_ptr_add (first p_stk) (size 2) in
-      let new_frame = pair nullmask_begin (size 0) in
-      E.with_sploded_pair "sum_opn3" p_stk' (fun p' stk' ->
-        pair v (pair p' (cons new_frame stk'))))
+    E.with_sploded_pair "sum_opn2" p_stk (fun p stk ->
+      (* Skip my own nullbit if needed: *)
+      let stk = may_set_nullbit false mn0 path stk in
+      (* Prepare the new frame: *)
+      let new_frame = pair p (size 0) in
+      let stk = cons new_frame stk in
+      (* Skip that nullmask: *)
+      let p = data_ptr_add p (size 2) in
+      (* Read the label: *)
+      let w_p = read_word LittleEndian p in
+      E.with_sploded_pair "sum_opn3" w_p (fun w p ->
+        let lbl = u16_of_word w in
+        let p = align_const p 4 in
+        pair lbl (pair p stk)))
 
   let sum_cls () _ _ p_stk =
     leave_frame p_stk

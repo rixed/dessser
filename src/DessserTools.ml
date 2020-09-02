@@ -88,6 +88,39 @@ let todo what =
   failwith ("Not implemented: "^ what)
 
 (*
+ * Print hex strings
+ *)
+
+let hex_of =
+  let zero = Char.code '0'
+  and ten = Char.code 'a' - 10 in
+  fun n ->
+    if n < 10 then Char.chr (zero + n)
+    else Char.chr (ten + n)
+
+let hexify_string s =
+  match String.length s with
+  | 0 ->
+      ""
+  | l1 ->
+      let l2 = 2*l1 + (l1-1) in
+      String.init l2 (fun i2 ->
+        match i2 mod 3 with
+        | 0 ->
+            (* high digit *)
+            hex_of (Char.code s.[i2 / 3] lsr 4)
+        | 1 ->
+            (* low digit *)
+            hex_of (Char.code s.[i2 / 3] land 15)
+        | _ ->
+            (* separator *)
+            ' ')
+
+(*$= hexify_string & ~printer:identity
+  "01 02 03" (hexify_string "\001\002\003")
+*)
+
+(*
  * Subprocesses
  *)
 
