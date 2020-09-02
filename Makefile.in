@@ -195,6 +195,7 @@ src/DessserCompilConfig.ml: Makefile
 # Tests
 
 TESTABLE_SOURCES = \
+	src/DessserTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \

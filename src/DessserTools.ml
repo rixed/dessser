@@ -1,5 +1,8 @@
 open Batteries
 
+(*$inject
+  open Batteries *)
+
 (*
  * Helper functions
  *)
