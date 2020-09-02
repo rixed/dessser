@@ -680,10 +680,16 @@ let () =
   register_user_type "Eth" (Mac TU48) ;
   register_user_type "Ipv4" (Mac TU32) ;
   register_user_type "Ipv6" (Mac TU128) ;
+  register_user_type "Ip"
+    (TSum [| "v4", NotNullable (Usr (get_user_type "Ipv4")) ;
+             "v6", NotNullable (Usr (get_user_type "Ipv6")) |]) ;
   register_user_type "Cidrv4" (TTup [| NotNullable (Usr (get_user_type "Ipv4")) ;
                                        NotNullable (Mac TU8) |]) ;
   register_user_type "Cidrv6" (TTup [| NotNullable (Usr (get_user_type "Ipv6")) ;
-                                       NotNullable (Mac TU8) |])
+                                       NotNullable (Mac TU8) |]) ;
+  register_user_type "Cidr"
+    (TSum [| "v4", NotNullable (Usr (get_user_type "Cidrv4")) ;
+             "v6", NotNullable (Usr (get_user_type "Cidrv6")) |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
