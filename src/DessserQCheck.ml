@@ -122,6 +122,7 @@ let maybe_nullable_gen =
   Gen.(sized_size (int_bound 4) maybe_nullable_gen)
 
 let rec size_of_value_type = function
+  | T.Unknown -> invalid_arg "size_of_value_type"
   | T.Mac _ | T.Usr _ -> 1
   | T.TVec (_, mn) | T.TList mn -> size_of_maybe_nullable mn
   | T.TTup mns ->
@@ -161,6 +162,8 @@ let rec shrink_value_type =
       Iter.map make_typ in
     shrink_mns f in
   function
+  | T.Unknown ->
+      Iter.empty
   | T.Mac mt ->
       (fun f ->
         shrink_mac_type mt (fun mt -> f (T.Mac mt)))
@@ -545,6 +548,8 @@ let to_sexpr lst = "("^ String.join " " lst ^")"
 let rec sexpr_of_vtyp_gen vtyp =
   let open Gen in
   match vtyp with
+  | T.Unknown ->
+      invalid_arg "sexpr_of_vtyp_gen"
   | T.Mac TFloat ->
       map hexstring_of_float float
   | T.Mac TString ->

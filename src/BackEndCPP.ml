@@ -48,6 +48,7 @@ struct
   and type_identifier p = function
     | T.TValue (Nullable t) ->
         "std::optional<"^ type_identifier p (TValue (NotNullable t)) ^">"
+    | T.TValue (NotNullable Unknown) -> invalid_arg "type_identifier"
     | T.TValue (NotNullable (Mac TFloat)) -> "double"
     | T.TValue (NotNullable (Mac TString)) -> "std::string"
     | T.TValue (NotNullable (Mac TBool)) -> "bool"

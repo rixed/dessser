@@ -71,6 +71,7 @@ struct
     pp oc "\n\n"
 
   and value_type_identifier p = function
+    | T.NotNullable Unknown -> invalid_arg "value_type_identifier"
     | T.NotNullable (Mac TChar) -> "char"
     | T.NotNullable (Mac TString) -> "string"
     | T.NotNullable (Mac TBool) -> "bool"
@@ -184,6 +185,8 @@ struct
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
   let rec print_default_value indent oc = function
+    | T.NotNullable Unknown ->
+        invalid_arg "print_default_value"
     | T.NotNullable (Mac TFloat) ->
         String.print oc "0."
     | T.NotNullable (Mac TString) ->

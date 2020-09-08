@@ -34,6 +34,7 @@ and user_type =
  * User types are build from those value types. *)
 
 and value_type =
+  | Unknown
   | Mac of mac_type
   (* Aliases with custom representations: *)
   | Usr of user_type
@@ -150,6 +151,8 @@ let print_mac_type oc =
   | TI128 -> sp "I128"
 
 let rec print_value_type ?(sorted=false) oc = function
+  | Unknown ->
+      pp oc "UNKNOWN"
   | Mac t ->
       print_mac_type oc t
   | Usr t ->
@@ -243,7 +246,7 @@ let rec eq t1 t2 =
   | t1, t2 -> t1 = t2
 
 let rec develop_value_type = function
-  | Mac _ as vt ->
+  | (Unknown | Mac _) as vt ->
       vt
   | Usr { def ; _ } ->
       develop_value_type def
@@ -266,6 +269,42 @@ and develop_maybe_nullable mn =
 and develop_user_types = function
   | TValue mn -> TValue (develop_maybe_nullable mn)
   | t -> t
+
+(* Top-down folding of a value_type: *)
+let rec fold_value_type u f vt =
+  let u = f u vt in
+  match vt with
+  | Unknown | Mac _ ->
+      u
+  | Usr { def ; _ } ->
+      fold_value_type u f (develop_value_type def)
+  | TVec (_, mn) | TList mn ->
+      fold_maybe_nullable u f mn
+  | TTup mns ->
+      Array.fold_left (fun u mn -> fold_maybe_nullable u f mn) u mns
+  | TRec mns | TSum mns ->
+      Array.fold_left (fun u (_, mn) -> fold_maybe_nullable u f mn) u mns
+  | TMap (k, v) ->
+      fold_maybe_nullable (fold_maybe_nullable u f k) f v
+
+and fold_maybe_nullable u f (Nullable vt | NotNullable vt) =
+  fold_value_type u f vt
+
+let iter_value_type f vt =
+  fold_value_type () (fun () vt -> f vt) vt
+
+let iter_maybe_nullable f mn =
+  fold_maybe_nullable () (fun () mn -> f mn) mn
+
+let defined vt =
+  try
+    iter_value_type (function
+      | Unknown -> raise Exit
+      | _ -> ()
+    ) vt ;
+    true
+  with Exit ->
+    false
 
 let rec print ?sorted oc =
   let sp = String.print oc in
@@ -654,6 +693,7 @@ type gen_printer = { f : 'a. 'a IO.output -> unit }
 
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
+  if not (defined def) then invalid_arg "register_user_type" ;
   Hashtbl.modify_opt name (function
     | None ->
         let print = match print with
@@ -715,7 +755,7 @@ let type_and_name_of_path t path =
     | [] -> t, field_name
     | i :: path ->
         let rec type_of_not_nullable = function
-          | NotNullable (Mac _ | TMap _) ->
+          | NotNullable (Unknown | Mac _ | TMap _) ->
               assert false
           | NotNullable (Usr t) ->
               type_of_not_nullable (NotNullable t.def)

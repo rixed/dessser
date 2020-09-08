@@ -469,6 +469,7 @@ struct
             (Ser.list_cls sstate mn0 path dst))))
 
   and desser_value_type = function
+    | T.Unknown -> invalid_arg "desser_value_type"
     | T.Mac TFloat -> dsfloat
     | T.Mac TString -> dsstring
     | T.Mac TBool -> dsbool
