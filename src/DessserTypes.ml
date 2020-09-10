@@ -529,8 +529,10 @@ struct
     (
       char '{' -- opt_blanks -+
         several ~sep:tup_sep field_typ +-
-      opt_blanks +- char '}' ++
+        opt_blanks +- optional ~def:() (char ';' -- opt_blanks) +-
+      char '}' ++
       opt_question_mark >>: fun (ts, nullable) ->
+        (* TODO: check that all field names are distinct *)
         make_type nullable (TRec (Array.of_list ts))
     ) m
 
