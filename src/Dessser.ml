@@ -209,8 +209,7 @@ struct
         let v = transform mn0 path v in
         let open E.Ops in
         (* dessser handle nulls itself, so that DES/SER implementations
-         * do not have to care for nullability. NotNullable is just a cast
-         * and has no other effect outside of type_check. *)
+         * do not have to care for nullability. *)
         pair
           (comment ("Desserialize a "^ what) src)
           (comment ("Serialize a "^ what) (ser sstate mn0 path v dst))))
@@ -503,22 +502,22 @@ struct
   and desser_ transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let mn = T.type_of_path mn0 path in
-    match mn with
-    | Nullable vt ->
-        E.with_sploded_pair "desser_" src_dst (fun src dst ->
-          let cond = Des.is_null dstate mn0 path src in
-          (* Des can use [is_null] to prepare for a nullable, but Ser might also
-           * have some work to do: *)
-          let dst = Ser.nullable sstate mn0 path dst in
-          (* XXX WARNING XXX
-           * if any of dnull/snull/snotnull/etc update the state, they will
-           * do so in both branches of this alternative. *)
-          choose ~cond
-            ~then_:(dsnull vt sstate dstate mn0 path src dst)
-            ~else_:(dsnotnull vt sstate dstate mn0 path src dst |>
-                    desser_value_type vt transform sstate dstate mn0 path ))
-    | NotNullable vt ->
-        desser_value_type vt transform sstate dstate mn0 path src_dst
+    if mn.nullable then (
+      E.with_sploded_pair "desser_" src_dst (fun src dst ->
+        let cond = Des.is_null dstate mn0 path src in
+        (* Des can use [is_null] to prepare for a nullable, but Ser might also
+         * have some work to do: *)
+        let dst = Ser.nullable sstate mn0 path dst in
+        (* XXX WARNING XXX
+         * if any of dnull/snull/snotnull/etc update the state, they will
+         * do so in both branches of this alternative. *)
+        choose ~cond
+          ~then_:(dsnull mn.vtyp sstate dstate mn0 path src dst)
+          ~else_:(dsnotnull mn.vtyp sstate dstate mn0 path src dst |>
+                  desser_value_type mn.vtyp transform sstate dstate mn0 path ))
+    ) else (
+      desser_value_type mn.vtyp transform sstate dstate mn0 path src_dst
+    )
 
   let desser mn0 ?transform src dst =
     let no_transform _mn0 _path v = v in

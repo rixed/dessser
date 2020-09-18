@@ -180,20 +180,21 @@ struct
       | T.TList mn -> dlist mn
       | T.TMap _ -> assert false (* No value of map type *)
     in
-    match mn with
-    | Nullable vt ->
-        let cond = Des.is_null dstate mn0 path src in
-        choose ~cond
-          ~then_:(pair (null vt) (Des.dnull vt dstate mn0 path src))
-          ~else_:(
-            let src = Des.dnotnull vt dstate mn0 path src in
-            let des = des_of_vt vt in
-            let v_src = des dstate mn0 path src in
-            E.with_sploded_pair "make1_1" v_src (fun v src ->
-              pair (to_nullable v) src))
-    | NotNullable vt ->
-        let des = des_of_vt vt in
-        des dstate mn0 path src
+    let vt = mn.vtyp in
+    if mn.nullable then (
+      let cond = Des.is_null dstate mn0 path src in
+      choose ~cond
+        ~then_:(pair (null vt) (Des.dnull vt dstate mn0 path src))
+        ~else_:(
+          let src = Des.dnotnull vt dstate mn0 path src in
+          let des = des_of_vt vt in
+          let v_src = des dstate mn0 path src in
+          E.with_sploded_pair "make1_1" v_src (fun v src ->
+            pair (to_nullable v) src))
+    ) else (
+      let des = des_of_vt vt in
+      des dstate mn0 path src
+    )
 
   let rec make mn0 src =
     let dstate, src = Des.start mn0 src in
@@ -339,26 +340,25 @@ struct
       ~else_:(
         choose ~cond:(eq ma set_field_null)
           ~then_:(
-            match mn with
-            | Nullable vt ->
-                Ser.snull vt sstate mn0 path dst
-            | NotNullable _ ->
-                seq [ assert_ (bool false) ; (* Mask has been type checked *)
-                      dst ])
+            if mn.nullable then
+              Ser.snull mn.vtyp sstate mn0 path dst
+            else
+              seq [ assert_ (bool false) ; (* Mask has been type checked *)
+                    dst ])
           ~else_:(
             (* Copy or Recurse are handled the same: *)
-            match mn with
-            | Nullable vt ->
-                let cond = is_null v in
-                choose ~cond
-                  ~then_:(Ser.snull vt sstate mn0 path dst)
-                  ~else_:(
-                    let dst = Ser.snotnull vt sstate mn0 path dst in
-                    let ser = ser_of_vt vt in
-                    ser sstate mn0 path (to_not_nullable v) dst)
-            | NotNullable vt ->
-                let ser = ser_of_vt vt in
-                ser sstate mn0 path v dst))
+            let vt = mn.vtyp in
+            if mn.nullable then
+              let cond = is_null v in
+              choose ~cond
+                ~then_:(Ser.snull vt sstate mn0 path dst)
+                ~else_:(
+                  let dst = Ser.snotnull vt sstate mn0 path dst in
+                  let ser = ser_of_vt vt in
+                  ser sstate mn0 path (to_not_nullable v) dst)
+            else
+              let ser = ser_of_vt vt in
+              ser sstate mn0 path v dst))
 
   and serialize mn0 ma v dst =
     let path = [] in
@@ -505,20 +505,19 @@ struct
       ~else_:(
         choose ~cond:(eq ma set_field_null)
           ~then_:(
-            match mn with
-            | Nullable _ ->
-                add_size sizes (Ser.ssize_of_null mn0 path)
-            | NotNullable _ ->
-                seq [ assert_ (bool false) ;
-                      sizes ])
+            if mn.nullable then
+              add_size sizes (Ser.ssize_of_null mn0 path)
+            else
+              seq [ assert_ (bool false) ;
+                    sizes ])
           ~else_:(
-            match mn with
-            | Nullable vt ->
-                choose ~cond:(is_null v)
-                  ~then_:(add_size sizes (Ser.ssize_of_null mn0 path))
-                  ~else_:(ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
-            | NotNullable vt ->
-                ssz_of_vt vt mn0 path v sizes))
+            let vt = mn.vtyp in
+            if mn.nullable then
+              choose ~cond:(is_null v)
+                ~then_:(add_size sizes (Ser.ssize_of_null mn0 path))
+                ~else_:(ssz_of_vt vt mn0 path (to_not_nullable v) sizes)
+            else
+              ssz_of_vt vt mn0 path v sizes))
 
   let sersize mn ma v =
     let sizes = pair (size 0) (size 0) in

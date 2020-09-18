@@ -71,51 +71,50 @@ struct
     pp oc "\n\n"
 
   and value_type_identifier p = function
-    | T.NotNullable Unknown -> invalid_arg "value_type_identifier"
-    | T.NotNullable (Mac TChar) -> "char"
-    | T.NotNullable (Mac TString) -> "string"
-    | T.NotNullable (Mac TBool) -> "bool"
-    | T.NotNullable (Mac TFloat) -> "float"
-    | T.NotNullable (Mac TU8) -> "Uint8.t"
-    | T.NotNullable (Mac TI8) -> "Int8.t"
-    | T.NotNullable (Mac TU16) -> "Uint16.t"
-    | T.NotNullable (Mac TI16) -> "Int16.t"
-    | T.NotNullable (Mac TU24) -> "Uint24.t"
-    | T.NotNullable (Mac TI24) -> "Int24.t"
-    | T.NotNullable (Mac TU32) -> "Uint32.t"
-    | T.NotNullable (Mac TI32) -> "Int32.t"
-    | T.NotNullable (Mac TU40) -> "Uint40.t"
-    | T.NotNullable (Mac TI40) -> "Int40.t"
-    | T.NotNullable (Mac TU48) -> "Uint48.t"
-    | T.NotNullable (Mac TI48) -> "Int48.t"
-    | T.NotNullable (Mac TU56) -> "Uint56.t"
-    | T.NotNullable (Mac TI56) -> "Int56.t"
-    | T.NotNullable (Mac TU64) -> "Uint64.t"
-    | T.NotNullable (Mac TI64) -> "Int64.t"
-    | T.NotNullable (Mac TU128) -> "Uint128.t"
-    | T.NotNullable (Mac TI128) -> "Int128.t"
-    | T.NotNullable (Usr t) ->
-        value_type_identifier p (NotNullable t.def)
-    | T.NotNullable (TVec (_, t))
-    | T.NotNullable (TList t) ->
+    | T.{ vtyp ; nullable = true } ->
+        value_type_identifier p { vtyp ; nullable = false } ^" option"
+    | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
+    | { vtyp = Mac TChar ; _ } -> "char"
+    | { vtyp = Mac TString ; _ } -> "string"
+    | { vtyp = Mac TBool ; _ } -> "bool"
+    | { vtyp = Mac TFloat ; _ } -> "float"
+    | { vtyp = Mac TU8 ; _ } -> "Uint8.t"
+    | { vtyp = Mac TI8 ; _ } -> "Int8.t"
+    | { vtyp = Mac TU16 ; _ } -> "Uint16.t"
+    | { vtyp = Mac TI16 ; _ } -> "Int16.t"
+    | { vtyp = Mac TU24 ; _ } -> "Uint24.t"
+    | { vtyp = Mac TI24 ; _ } -> "Int24.t"
+    | { vtyp = Mac TU32 ; _ } -> "Uint32.t"
+    | { vtyp = Mac TI32 ; _ } -> "Int32.t"
+    | { vtyp = Mac TU40 ; _ } -> "Uint40.t"
+    | { vtyp = Mac TI40 ; _ } -> "Int40.t"
+    | { vtyp = Mac TU48 ; _ } -> "Uint48.t"
+    | { vtyp = Mac TI48 ; _ } -> "Int48.t"
+    | { vtyp = Mac TU56 ; _ } -> "Uint56.t"
+    | { vtyp = Mac TI56 ; _ } -> "Int56.t"
+    | { vtyp = Mac TU64 ; _ } -> "Uint64.t"
+    | { vtyp = Mac TI64 ; _ } -> "Int64.t"
+    | { vtyp = Mac TU128 ; _ } -> "Uint128.t"
+    | { vtyp = Mac TI128 ; _ } -> "Int128.t"
+    | { vtyp = Usr t ; _ } ->
+        value_type_identifier p { vtyp = t.def ; nullable = false }
+    | { vtyp = (TVec (_, t) | TList t) ; _ } ->
         value_type_identifier p t ^" array"
-    | T.NotNullable (TTup mns) as mn ->
+    | { vtyp = TTup mns ; _ } as mn ->
         let t = T.TValue mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
         declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
-    | T.NotNullable (TRec mns) as mn ->
+    | { vtyp = TRec mns ; _ } as mn ->
         let t = T.TValue mn in
         declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
-    | T.NotNullable (TSum mns) as mn ->
+    | { vtyp = TSum mns ; _ } as mn ->
         let t = T.TValue mn in
         declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
         valid_identifier
-    | T.NotNullable (TMap _) ->
+    | { vtyp = TMap _ ; _ } ->
         assert false (* no value of map type *)
-    | T.Nullable t ->
-        value_type_identifier p (NotNullable t) ^" option"
 
   and type_identifier p = function
     | T.TValue mn -> value_type_identifier p mn
@@ -144,29 +143,30 @@ struct
     | T.TMaskAction -> "Mask.action"
 
   let rec mod_name = function
-    | T.TValue (NotNullable (Mac TChar)) -> "Char"
-    | T.TValue (NotNullable (Mac TString)) -> "String"
-    | T.TValue (NotNullable (Mac TBool)) -> "Bool"
-    | T.TValue (NotNullable (Mac TFloat)) -> "Float"
-    | T.TValue (NotNullable (Mac TU8)) -> "Uint8"
-    | T.TValue (NotNullable (Mac TI8)) -> "Int8"
-    | T.TValue (NotNullable (Mac TU16)) -> "Uint16"
-    | T.TValue (NotNullable (Mac TI16)) -> "Int16"
-    | T.TValue (NotNullable (Mac TU24)) -> "Uint24"
-    | T.TValue (NotNullable (Mac TI24)) -> "Int24"
-    | T.TValue (NotNullable (Mac TU32)) -> "Uint32"
-    | T.TValue (NotNullable (Mac TI32)) -> "Int32"
-    | T.TValue (NotNullable (Mac TU40)) -> "Uint40"
-    | T.TValue (NotNullable (Mac TI40)) -> "Int40"
-    | T.TValue (NotNullable (Mac TU48)) -> "Uint48"
-    | T.TValue (NotNullable (Mac TI48)) -> "Int48"
-    | T.TValue (NotNullable (Mac TU56)) -> "Uint56"
-    | T.TValue (NotNullable (Mac TI56)) -> "Int56"
-    | T.TValue (NotNullable (Mac TU64)) -> "Uint64"
-    | T.TValue (NotNullable (Mac TI64)) -> "Int64"
-    | T.TValue (NotNullable (Mac TU128)) -> "Uint128"
-    | T.TValue (NotNullable (Mac TI128)) -> "Int128"
-    | T.TValue (NotNullable (Usr t)) -> mod_name (TValue (NotNullable t.def))
+    | T.TValue { vtyp = Mac TChar ; nullable = false } -> "Char"
+    | T.TValue { vtyp = Mac TString ; nullable = false } -> "String"
+    | T.TValue { vtyp = Mac TBool ; nullable = false } -> "Bool"
+    | T.TValue { vtyp = Mac TFloat ; nullable = false } -> "Float"
+    | T.TValue { vtyp = Mac TU8 ; nullable = false } -> "Uint8"
+    | T.TValue { vtyp = Mac TI8 ; nullable = false } -> "Int8"
+    | T.TValue { vtyp = Mac TU16 ; nullable = false } -> "Uint16"
+    | T.TValue { vtyp = Mac TI16 ; nullable = false } -> "Int16"
+    | T.TValue { vtyp = Mac TU24 ; nullable = false } -> "Uint24"
+    | T.TValue { vtyp = Mac TI24 ; nullable = false } -> "Int24"
+    | T.TValue { vtyp = Mac TU32 ; nullable = false } -> "Uint32"
+    | T.TValue { vtyp = Mac TI32 ; nullable = false } -> "Int32"
+    | T.TValue { vtyp = Mac TU40 ; nullable = false } -> "Uint40"
+    | T.TValue { vtyp = Mac TI40 ; nullable = false } -> "Int40"
+    | T.TValue { vtyp = Mac TU48 ; nullable = false } -> "Uint48"
+    | T.TValue { vtyp = Mac TI48 ; nullable = false } -> "Int48"
+    | T.TValue { vtyp = Mac TU56 ; nullable = false } -> "Uint56"
+    | T.TValue { vtyp = Mac TI56 ; nullable = false } -> "Int56"
+    | T.TValue { vtyp = Mac TU64 ; nullable = false } -> "Uint64"
+    | T.TValue { vtyp = Mac TI64 ; nullable = false } -> "Int64"
+    | T.TValue { vtyp = Mac TU128 ; nullable = false } -> "Uint128"
+    | T.TValue { vtyp = Mac TI128 ; nullable = false } -> "Int128"
+    | T.TValue { vtyp = Usr t ; nullable = false } ->
+        mod_name (TValue { vtyp = t.def ; nullable = false })
     | T.TDataPtr -> "Pointer"
     | T.TSize -> "Size"
     | T.TBit -> "Bool"
@@ -185,90 +185,90 @@ struct
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
   let rec print_default_value indent oc = function
-    | T.NotNullable Unknown ->
+    | T.{ vtyp ; nullable = true } ->
+        (* Unfortunately we cannot start with None as we want the whole tree
+         * of values to be populated. *)
+        Printf.fprintf oc "Some (%a)"
+          (print_default_value indent) { vtyp ; nullable = false }
+    | { vtyp = T.Unknown ; _ } ->
         invalid_arg "print_default_value"
-    | T.NotNullable (Mac TFloat) ->
+    | { vtyp = Mac TFloat ; _ } ->
         String.print oc "0."
-    | T.NotNullable (Mac TString) ->
+    | { vtyp = Mac TString ; _ } ->
         String.print oc "\"\""
-    | T.NotNullable (Mac TBool) ->
+    | { vtyp = Mac TBool ; _ } ->
         String.print oc "false"
-    | T.NotNullable (Mac TChar) ->
+    | { vtyp = Mac TChar ; _ } ->
         String.print oc "'\\000'"
-    | T.NotNullable (Mac TI8) ->
+    | { vtyp = Mac TI8 ; _ } ->
         String.print oc "Int8.zero"
-    | T.NotNullable (Mac TI16) ->
+    | { vtyp = Mac TI16 ; _ } ->
         String.print oc "Int16.zero"
-    | T.NotNullable (Mac TI24) ->
+    | { vtyp = Mac TI24 ; _ } ->
         String.print oc "Int24.zero"
-    | T.NotNullable (Mac TI32) ->
+    | { vtyp = Mac TI32 ; _ } ->
         String.print oc "Int32.zero"
-    | T.NotNullable (Mac TI40) ->
+    | { vtyp = Mac TI40 ; _ } ->
         String.print oc "Int40.zero"
-    | T.NotNullable (Mac TI48) ->
+    | { vtyp = Mac TI48 ; _ } ->
         String.print oc "Int48.zero"
-    | T.NotNullable (Mac TI56) ->
+    | { vtyp = Mac TI56 ; _ } ->
         String.print oc "Int56.zero"
-    | T.NotNullable (Mac TI64) ->
+    | { vtyp = Mac TI64 ; _ } ->
         String.print oc "Int64.zero"
-    | T.NotNullable (Mac TI128) ->
+    | { vtyp = Mac TI128 ; _ } ->
         String.print oc "Int128.zero"
-    | T.NotNullable (Mac TU8) ->
+    | { vtyp = Mac TU8 ; _ } ->
         String.print oc "Uint8.zero"
-    | T.NotNullable (Mac TU16) ->
+    | { vtyp = Mac TU16 ; _ } ->
         String.print oc "Uint16.zero"
-    | T.NotNullable (Mac TU24) ->
+    | { vtyp = Mac TU24 ; _ } ->
         String.print oc "Uint24.zero"
-    | T.NotNullable (Mac TU32) ->
+    | { vtyp = Mac TU32 ; _ } ->
         String.print oc "Uint32.zero"
-    | T.NotNullable (Mac TU40) ->
+    | { vtyp = Mac TU40 ; _ } ->
         String.print oc "Uint40.zero"
-    | T.NotNullable (Mac TU48) ->
+    | { vtyp = Mac TU48 ; _ } ->
         String.print oc "Uint48.zero"
-    | T.NotNullable (Mac TU56) ->
+    | { vtyp = Mac TU56 ; _ } ->
         String.print oc "Uint56.zero"
-    | T.NotNullable (Mac TU64) ->
+    | { vtyp = Mac TU64 ; _ } ->
         String.print oc "Uint64.zero"
-    | T.NotNullable (Mac TU128) ->
+    | { vtyp = Mac TU128 ; _ } ->
         String.print oc "Uint128.zero"
-    | T.NotNullable (Usr nn) ->
-        print_default_value indent oc (NotNullable nn.def)
-    | T.NotNullable (TTup mns) ->
+    | { vtyp = Usr nn ; _ } ->
+        print_default_value indent oc { vtyp = nn.def ; nullable = false }
+    | { vtyp = TTup mns ; _ } ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (i, mn) ->
             let fname = tuple_field_name i in
             Printf.fprintf oc "%s = %a"
               fname (print_default_value (indent^"  ")) mn)
           oc (Array.mapi (fun i mn -> (i, mn)) mns)
-    | T.NotNullable (TRec mns) ->
+    | { vtyp = TRec mns ; _ } ->
         Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
           (fun oc (fname, mn) ->
             Printf.fprintf oc "%s = %a"
               (valid_identifier fname)
               (print_default_value (indent^"  ")) mn)
           oc mns
-    | T.NotNullable (TSum mns) ->
+    | { vtyp = TSum mns ; _ } ->
         assert (Array.length mns > 0) ;
         Printf.fprintf oc "%s (\n%a%s)"
           (cstr_name (fst mns.(0)))
           (print_default_value (indent^"  ")) (snd mns.(0))
           indent
-    | T.NotNullable (TVec (dim, mn)) ->
+    | { vtyp = TVec (dim, mn) ; _ } ->
         Printf.fprintf oc "[| " ;
         for i = 0 to dim - 1 do
           Printf.fprintf oc "%a; "
             (print_default_value (indent^"  ")) mn
         done ;
         Printf.fprintf oc "%s|]" indent
-    | T.NotNullable (TList _) ->
+    | { vtyp = TList _ ; _ } ->
         String.print oc "[||]"
-    | T.NotNullable (TMap _) ->
+    | { vtyp = TMap _ ; _ } ->
         assert false (* no value of map type *)
-    | T.Nullable nn ->
-        (* Unfortunately we cannot start with None as we want the whole tree
-         * of values to be populated. *)
-        Printf.fprintf oc "Some (%a)"
-          (print_default_value indent) (NotNullable nn)
 
   let print_binding n tn f oc =
     pp oc "let %s : %s = %t in" n tn f
@@ -401,9 +401,9 @@ struct
         let n = print emit p l e1 in
         pp p.def ("%s"^^
           (match E.type_of l e1 with
-          | TValue (NotNullable (Mac TString)) ->
+          | TValue { vtyp = Mac TString ; nullable = false } ->
               "print_string %s;"
-          | TValue (NotNullable (Mac TChar)) ->
+          | TValue { vtyp = Mac TChar ; nullable = false } ->
               "print_char %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
@@ -866,7 +866,7 @@ struct
         let res = gen_sym ?name "get_item_" in
         let max_n =
           match E.type_of l e1 with
-          | TValue (NotNullable (TTup mns)) -> Array.length mns
+          | TValue { vtyp = TTup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
         ppi p.def "let %t = %s\n"
           (fun oc ->

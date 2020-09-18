@@ -161,8 +161,9 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let vtyp = T.NotNullable (TTup [| Nullable (Mac TU8) ;
-                                    NotNullable (Mac TChar) |]) in
+  let vtyp = T.{ vtyp = TTup [| { vtyp = Mac TU8 ; nullable = false } ;
+                                { vtyp = Mac TChar ; nullable = false } |] ;
+                 nullable = false } in
   let src = data_ptr_of_string "\001X"
   and dst = data_ptr_of_string "_____" in
   E.let1 (TestDesSer.desser vtyp src dst) (fun e ->

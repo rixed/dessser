@@ -46,48 +46,50 @@ struct
     pp oc "%s> %s;\n\n" p.indent id
 
   and type_identifier p = function
-    | T.TValue (Nullable t) ->
-        "std::optional<"^ type_identifier p (TValue (NotNullable t)) ^">"
-    | T.TValue (NotNullable Unknown) -> invalid_arg "type_identifier"
-    | T.TValue (NotNullable (Mac TFloat)) -> "double"
-    | T.TValue (NotNullable (Mac TString)) -> "std::string"
-    | T.TValue (NotNullable (Mac TBool)) -> "bool"
-    | T.TValue (NotNullable (Mac TChar)) -> "char"
-    | T.TValue (NotNullable (Mac TI8)) -> "int8_t"
-    | T.TValue (NotNullable (Mac TU8)) -> "uint8_t"
-    | T.TValue (NotNullable (Mac TI16)) -> "int16_t"
-    | T.TValue (NotNullable (Mac TU16)) -> "uint16_t"
-    | T.TValue (NotNullable (Mac TI24)) -> "int32_t"
-    | T.TValue (NotNullable (Mac TU24)) -> "uint32_t"
-    | T.TValue (NotNullable (Mac TI32)) -> "int32_t"
-    | T.TValue (NotNullable (Mac TU32)) -> "uint32_t"
-    | T.TValue (NotNullable (Mac TI40)) -> "int64_t"
-    | T.TValue (NotNullable (Mac TU40)) -> "uint64_t"
-    | T.TValue (NotNullable (Mac TI48)) -> "int64_t"
-    | T.TValue (NotNullable (Mac TU48)) -> "uint64_t"
-    | T.TValue (NotNullable (Mac TI56)) -> "int64_t"
-    | T.TValue (NotNullable (Mac TU56)) -> "uint64_t"
-    | T.TValue (NotNullable (Mac TI64)) -> "int64_t"
-    | T.TValue (NotNullable (Mac TU64)) -> "uint64_t"
-    | T.TValue (NotNullable (Mac TI128)) -> "int128_t"
-    | T.TValue (NotNullable (Mac TU128)) -> "uint128_t"
-    | T.TValue (NotNullable (Usr t)) ->
-        type_identifier p (TValue (NotNullable t.def))
-    | T.TValue (NotNullable (TTup mns)) as t ->
+    | T.TValue { vtyp ; nullable = true } ->
+        "std::optional<"^
+          type_identifier p (TValue { vtyp ; nullable = false })
+        ^">"
+    | T.TValue { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
+    | T.TValue { vtyp = Mac TFloat ; _ } -> "double"
+    | T.TValue { vtyp = Mac TString ; _ } -> "std::string"
+    | T.TValue { vtyp = Mac TBool ; _ } -> "bool"
+    | T.TValue { vtyp = Mac TChar ; _ } -> "char"
+    | T.TValue { vtyp = Mac TI8 ; _ } -> "int8_t"
+    | T.TValue { vtyp = Mac TU8 ; _ } -> "uint8_t"
+    | T.TValue { vtyp = Mac TI16 ; _ } -> "int16_t"
+    | T.TValue { vtyp = Mac TU16 ; _ } -> "uint16_t"
+    | T.TValue { vtyp = Mac TI24 ; _ } -> "int32_t"
+    | T.TValue { vtyp = Mac TU24 ; _ } -> "uint32_t"
+    | T.TValue { vtyp = Mac TI32 ; _ } -> "int32_t"
+    | T.TValue { vtyp = Mac TU32 ; _ } -> "uint32_t"
+    | T.TValue { vtyp = Mac TI40 ; _ } -> "int64_t"
+    | T.TValue { vtyp = Mac TU40 ; _ } -> "uint64_t"
+    | T.TValue { vtyp = Mac TI48 ; _ } -> "int64_t"
+    | T.TValue { vtyp = Mac TU48 ; _ } -> "uint64_t"
+    | T.TValue { vtyp = Mac TI56 ; _ } -> "int64_t"
+    | T.TValue { vtyp = Mac TU56 ; _ } -> "uint64_t"
+    | T.TValue { vtyp = Mac TI64 ; _ } -> "int64_t"
+    | T.TValue { vtyp = Mac TU64 ; _ } -> "uint64_t"
+    | T.TValue { vtyp = Mac TI128 ; _ } -> "int128_t"
+    | T.TValue { vtyp = Mac TU128 ; _ } -> "uint128_t"
+    | T.TValue { vtyp = Usr t ; _ } ->
+        type_identifier p (TValue { vtyp = t.def ; nullable = false })
+    | T.TValue { vtyp = TTup mns ; _ } as t ->
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
-    | T.TValue (NotNullable (TRec mns)) as t ->
+    | T.TValue { vtyp = TRec mns ; _ } as t ->
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
-    | T.TValue (NotNullable (TSum mns)) as t ->
+    | T.TValue { vtyp = TSum mns ; _ } as t ->
         declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
         valid_identifier
-    | T.TValue (NotNullable (TVec (dim, typ))) ->
+    | T.TValue { vtyp = TVec (dim, typ) ; _ } ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
-    | T.TValue (NotNullable (TList typ)) ->
+    | T.TValue { vtyp = TList typ ; _ } ->
         Printf.sprintf "List<%s>" (type_identifier p (TValue typ))
-    | T.TValue (NotNullable (TMap _)) ->
+    | T.TValue { vtyp = TMap _ ; _ } ->
         assert false (* No value of map type *)
     | T.TPair (t1, t2) ->
         "Pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
@@ -328,9 +330,9 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
         (match E.type_of l e1 with
-        | TValue (Nullable (Mac TU128) | NotNullable (Mac TU128)) ->
+        | TValue { vtyp = Mac TU128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
-        | TValue (Nullable (Mac TI128) | NotNullable (Mac TI128)) ->
+        | TValue { vtyp = Mac TI128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
@@ -664,7 +666,7 @@ struct
           Printf.fprintf oc "%s.%s" n1 s)
     | E.E1 (GetAlt s, e1) ->
         (match E.type_of l e1 with
-        | T.TValue (NotNullable (TSum mns)) ->
+        | T.TValue { vtyp = TSum mns ; nullable = false } ->
             let n1 = print emit p l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->

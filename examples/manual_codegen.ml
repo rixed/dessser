@@ -21,10 +21,10 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = T.NotNullable (Mac x)
-  and n x = T.Nullable (Mac x) in
+  let m x = T.{ vtyp = Mac x ; nullable = false }
+  and n x = T.{ vtyp = Mac x ; nullable = true } in
   let udp_typ =
-    T.NotNullable (TTup [|
+    T.make (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
       n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
       n TString ; n TU32 ; n TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; n TU32 ;
@@ -32,15 +32,15 @@ let () =
       m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
     |])
   and _http_typ =
-    T.NotNullable (TTup [|
+    T.make (TTup [|
       m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
       n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
-      n TU32 ; Nullable (TVec (16, m TChar)) ;
-      n TU32 ; Nullable (TVec (16, m TChar)) ;
+      n TU32 ; T.maken (TVec (16, m TChar)) ;
+      n TU32 ; T.maken (TVec (16, m TChar)) ;
       m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; n TU128 ;
       m TU8 ; m TU8 ; m TU8 ; n TString ; n TString ;
       n TString (* url *) ; n TString ; m TU8 ; m TU8 ; m TU8 ;
-      n TU32 ; Nullable (TVec (16, m TChar)) ;
+      n TU32 ; T.maken (TVec (16, m TChar)) ;
       m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
       n TString ; m TU32 ; m TU8 ; n TString ;
       n TU64 ; n TU64 ; n TU32 ;

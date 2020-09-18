@@ -110,8 +110,8 @@ let rec value_type_gen depth =
 
 and maybe_nullable_gen depth =
   Gen.(fix (fun _self depth ->
-    map2 (fun b vt ->
-      if b then T.Nullable vt else T.NotNullable vt
+    map2 (fun nullable vtyp ->
+      T.make ~nullable vtyp
     ) bool (value_type_gen depth)
   ) depth)
 
@@ -134,8 +134,8 @@ let rec size_of_value_type = function
   | T.TMap (k, v) ->
       size_of_maybe_nullable k + size_of_maybe_nullable v
 
-and size_of_maybe_nullable = function
-  | T.Nullable vt | T.NotNullable vt -> size_of_value_type vt
+and size_of_maybe_nullable mn =
+  size_of_value_type mn.vtyp
 
 let shrink_mac_type mt =
   let to_simplest =
@@ -151,7 +151,7 @@ let shrink_mac_type mt =
   loop to_simplest
 
 let rec shrink_value_type =
-  let vt_of_mn = function T.NotNullable vt | T.Nullable vt -> vt in
+  let vt_of_mn mn = mn.T.vtyp in
   let shrink_fields mns make_typ f =
     Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
     let shrink_mns =
@@ -172,13 +172,13 @@ let rec shrink_value_type =
   | T.TVec (dim, mn) ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
-          f (vt_of_mn mn) ;
+          f mn.vtyp ;
           f (T.TVec (dim, mn))))
   | T.TList mn ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
           f (T.TList mn) ;
-          f (vt_of_mn mn)))
+          f mn.vtyp))
   | T.TTup mns ->
       (fun f ->
         Array.iter (fun mn -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
@@ -200,15 +200,16 @@ let rec shrink_value_type =
           Iter.map (fun (k, v) -> T.TMap (k, v)) in
         shrink_kv f)
 
-and shrink_maybe_nullable = function
-  | T.Nullable vt ->
-      (fun f ->
-        shrink_value_type vt (fun vt ->
-          f (T.NotNullable vt) ;
-          f (T.Nullable vt)))
-  | T.NotNullable vt ->
-      (fun f ->
-        shrink_value_type vt (fun vt -> f (T.NotNullable vt)))
+and shrink_maybe_nullable mn =
+  let vt = mn.vtyp in
+  if mn.nullable then
+    (fun f ->
+      shrink_value_type vt (fun vtyp ->
+        f { vtyp ; nullable = false } ;
+        f { vtyp ; nullable = true }))
+  else
+    (fun f ->
+      shrink_value_type vt (fun vtyp -> f { vtyp ; nullable = false }))
 
 let value_type =
   let print = IO.to_string T.print_value_type
@@ -599,7 +600,7 @@ let rec sexpr_of_vtyp_gen vtyp =
         ) int
       )
   | T.TMap (k, v) ->
-      sexpr_of_vtyp_gen (TList (NotNullable (TTup [| k ; v |])))
+      sexpr_of_vtyp_gen (TList { vtyp = TTup [| k ; v |] ; nullable = false })
 
 and tup_gen mns st =
   "("^ (
@@ -610,14 +611,13 @@ and tup_gen mns st =
 
 and sexpr_of_mn_gen mn =
   let open Gen in
-  match mn with
-  | Nullable vt ->
-      join (
-        (* Note: This "null" must obviously match the one used in SExpr.ml *)
-        map (function true -> return "null"
-                   | false -> sexpr_of_vtyp_gen vt) bool)
-  | NotNullable vt ->
-      sexpr_of_vtyp_gen vt
+  if mn.nullable then
+    join (
+      (* Note: This "null" must obviously match the one used in SExpr.ml *)
+      map (function true -> return "null"
+                 | false -> sexpr_of_vtyp_gen mn.vtyp) bool)
+  else
+    sexpr_of_vtyp_gen mn.vtyp
 
 let sexpr mn =
   let print = identity

@@ -363,7 +363,7 @@ struct
   let list_sep () _ _ p = p
 
   (* "For NULL support, an additional byte containing 1 or 0 is added before
-   * each Nullable value. If 1, then the value is NULL and this byte is
+   * each nullable value. If 1, then the value is NULL and this byte is
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
   let is_null () _ _ p =

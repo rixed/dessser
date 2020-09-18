@@ -109,8 +109,7 @@ let target_converter
   Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
-  | T.Nullable (TTup [| k ; v |])
-  | T.NotNullable (TTup [| k ; v |]) ->
+  | T.{ vtyp = TTup [| k ; v |] ; _ } ->
       k, v
   | t ->
       Printf.sprintf2 "Not a pair: %a" T.print_maybe_nullable t |>

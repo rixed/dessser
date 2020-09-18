@@ -192,23 +192,21 @@ let rec project mn ma =
   | Skip ->
       raise Cannot_skip_that
   | SetNull ->
-      if T.is_nullable mn then
+      if mn.T.nullable then
         mn (* Does not change the type *)
       else
         raise (Cannot_set_null mn)
   | Recurse m ->
-      (match mn with
-      | T.Nullable (T.TTup mns)
-      | T.NotNullable (T.TTup mns) ->
+      (match mn.T.vtyp with
+      | T.TTup mns ->
           let mns = recurse_tuple mn mns m in
           (* No tuples of 1 items: *)
           if Array.length mns = 1 then mns.(0) else
-            T.nullable_map (fun _ -> T.TTup mns) mn
-      | T.Nullable (T.TRec mns)
-      | T.NotNullable (T.TRec mns) ->
+            { mn with vtyp = T.TTup mns }
+      | T.TRec mns ->
           let mns = recurse_record mn mns m in
           (* A record of onw field is OK: *)
-          T.nullable_map (fun _ -> T.TRec mns) mn
+          { mn with vtyp = T.TRec mns }
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->
@@ -224,8 +222,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
-  (Nullable (Mac TU8)) (* Do nothing case *) \
-    (project (Nullable (Mac TU8)) Copy)
+  (T.maken (Mac TU8)) (* Do nothing case *) \
+    (project (T.maken (Mac TU8)) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \

@@ -46,9 +46,7 @@ let rec order_rec_fields mn =
     | T.Usr ut ->
         order_value_type ut.def
     | mn -> mn in
-  match mn with
-  | T.NotNullable vt -> T.NotNullable (order_value_type vt)
-  | T.Nullable vt -> T.Nullable (order_value_type vt)
+  { mn with vtyp = order_value_type mn.vtyp }
 
 let rec are_rec_fields_ordered mn =
   let rec aux = function
@@ -65,9 +63,7 @@ let rec are_rec_fields_ordered mn =
         aux ut.def
     | _ ->
         true in
-  match mn with
-  | T.NotNullable vt -> aux vt
-  | T.Nullable vt -> aux vt
+  aux mn.T.vtyp
 
 let is_private name =
   String.length name > 0 && name.[0] = '_'
@@ -127,13 +123,13 @@ let may_set_nullbit bit mn0 path stk =
        * a single value is to wrap it in a one dimensional non-nullable vector or
        * list. (FIXME)
        * Therefore if it's nullable we have a problem: *)
-      assert (not (T.is_nullable mn0)) ;
+      assert (not mn0.T.nullable) ;
       stk
   | [_] ->
       (* This is an item of the outermost value. It has a nullbit only
        * if nullable, and its nullbit position in the nullmask is in the
        * stack: *)
-      if T.is_nullable (T.type_of_path mn0 path) then
+      if (T.type_of_path mn0 path).nullable then
         set_nullbit_to bit stk
       else
         stk
@@ -323,7 +319,7 @@ struct
     let nullmask_bits =
       if is_outermost path then
         Array.fold_left (fun c mn ->
-          if T.is_nullable mn then c + 1 else c
+          if mn.T.nullable then c + 1 else c
         ) 0 mns
       else
         Array.length mns in
@@ -373,7 +369,7 @@ struct
     (* TODO: this must be revisited once runtime fieldmasks are in place: *)
     let nullmask_bits =
       if is_outermost path then
-        if T.is_nullable mn then dim else 0
+        if mn.T.nullable then dim else 0
       else
         dim in
     enter_frame_const nullmask_bits mn0 path p_stk
@@ -390,7 +386,7 @@ struct
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
     let nullmask_bits =
       if is_outermost path then
-        if T.is_nullable mn then n else u32_of_int 0
+        if mn.T.nullable then n else u32_of_int 0
       else
         n in
     let p_stk =
@@ -437,29 +433,24 @@ struct
           (* Reached the leaf type without meeting a private field name *)
           k ()
       | idx :: rest ->
-        (match mn with
-        | T.Nullable (TRec mns)
-        | T.NotNullable (TRec mns) ->
+        (match mn.T.vtyp with
+        | TRec mns ->
             assert (idx < Array.length mns) ;
             let name, mn = mns.(idx) in
             if is_private name then
               ConstSize 0
             else
               loop rest mn
-        | T.Nullable (TSum mns)
-        | T.NotNullable (TSum mns) ->
+        | TSum mns ->
             assert (idx < Array.length mns) ;
             loop rest (snd mns.(idx))
-        | T.Nullable (TTup mns)
-        | T.NotNullable (TTup mns) ->
+        | TTup mns ->
             assert (idx < Array.length mns) ;
             loop rest mns.(idx)
-        | T.Nullable (TVec (d, mn))
-        | T.NotNullable (TVec (d, mn)) ->
+        | TVec (d, mn) ->
             assert (idx < d) ;
             loop rest mn
-        | T.Nullable (TList mn)
-        | T.NotNullable (TList mn) ->
+        | TList mn ->
             loop rest mn
         | _ ->
             assert false)
@@ -484,9 +475,9 @@ struct
       (* If its the outermost list and the items are not nullable then there is no
        * nullmask. In all other cases there is one nullbit per item. *)
       if path = [] then
-        match mn with
-        | NotNullable (TList vt) | Nullable (TList vt) ->
-            if T.is_nullable vt then
+        match mn.T.vtyp with
+        | TList vt ->
+            if vt.nullable then
               with_nullmask ()
             else
               no_nullmask ()
@@ -522,9 +513,8 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match T.type_of_path mn path with
-        | Nullable (TTup typs)
-        | NotNullable (TTup typs) ->
+        match (T.type_of_path mn path).vtyp with
+        | TTup typs ->
             typs
         | _ -> assert false in
       round_up_const_bits (
@@ -532,7 +522,7 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if T.is_nullable typ then c + 1 else c
+            if typ.T.nullable then c + 1 else c
           ) 0 typs))
 
   let ssize_of_rec mn path _ =
@@ -540,9 +530,8 @@ struct
       (* Just the additional bitmask: *)
       let is_outermost = path = []
       and typs =
-        match T.type_of_path mn path with
-        | Nullable (TRec typs)
-        | NotNullable (TRec typs) ->
+        match (T.type_of_path mn path).vtyp with
+        | TRec typs ->
             typs
         | _ -> assert false in
       let typs = Array.filter_map (fun (name, typ) ->
@@ -553,7 +542,7 @@ struct
           Array.length typs
         else
           Array.fold_left (fun c typ ->
-            if T.is_nullable typ then c + 1 else c
+            if typ.T.nullable then c + 1 else c
           ) 0 typs))
 
   (* Just the additional label: *)
@@ -564,13 +553,12 @@ struct
     unless_private mn path (fun () ->
       let is_outermost = path = []
       and dim, typ =
-        match T.type_of_path mn path with
-        | Nullable (TVec (dim, typ))
-        | NotNullable (TVec (dim, typ)) ->
+        match (T.type_of_path mn path).vtyp with
+        | TVec (dim, typ) ->
             dim, typ
         | _ -> assert false in
       round_up_const_bits (
-        if is_outermost || T.is_nullable typ then dim else 0))
+        if is_outermost || typ.nullable then dim else 0))
 
   let ssize_of_null _mn _path = ConstSize 0
 end
@@ -756,7 +744,7 @@ struct
     let nullmask_bits =
       if is_outermost path then
         Array.fold_left (fun c mn ->
-          if T.is_nullable mn then c + 1 else c
+          if mn.T.nullable then c + 1 else c
         ) 0 mns
       else
         Array.length mns in
@@ -782,7 +770,7 @@ struct
   let vec_opn () mn0 path dim mn p_stk =
     let nullmask_bits =
       if is_outermost path then
-        if T.is_nullable mn then dim else 0
+        if mn.T.nullable then dim else 0
       else
         dim in
     enter_frame_const nullmask_bits mn0 path p_stk
@@ -820,7 +808,7 @@ struct
           let n = u32_of_dword n in
           let nullmask_bits =
             if is_outermost path then
-              if T.is_nullable mn then n else u32_of_int 0
+              if mn.nullable then n else u32_of_int 0
             else
               n in
           (* TODO: change enter_frame_dyn signature to take p and stk *)
