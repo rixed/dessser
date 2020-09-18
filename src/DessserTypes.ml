@@ -307,7 +307,7 @@ let is_defined vt =
     false
 
 let rec is_integer = function
-  | Unknown -> invalid_arg "is_an_int"
+  | Unknown -> invalid_arg "is_integer"
   | Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128|
          TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) -> true
   | Usr { def ; _ } ->
