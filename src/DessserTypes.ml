@@ -296,7 +296,7 @@ let iter_value_type f vt =
 let iter_maybe_nullable f mn =
   fold_maybe_nullable () (fun () mn -> f mn) mn
 
-let defined vt =
+let is_defined vt =
   try
     iter_value_type (function
       | Unknown -> raise Exit
@@ -305,6 +305,30 @@ let defined vt =
     true
   with Exit ->
     false
+
+let rec is_integer = function
+  | Unknown -> invalid_arg "is_an_int"
+  | Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128|
+         TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) -> true
+  | Usr { def ; _ } ->
+      is_integer (develop_value_type def)
+  | _ -> false
+
+let is_numeric vt =
+  is_integer vt || vt = Mac TFloat
+
+let width_of_int = function
+  | TU8 | TI8 -> 8
+  | TU16 | TI16 -> 16
+  | TU24 | TI24 -> 24
+  | TU32 | TI32 -> 32
+  | TU40 | TI40 -> 40
+  | TU48 | TI48 -> 48
+  | TU56 | TI56 -> 56
+  | TU64 | TI64 -> 64
+  | TU128 | TI128 -> 128
+  | _ ->
+      invalid_arg "width_of_int"
 
 let rec print ?sorted oc =
   let sp = String.print oc in
@@ -342,6 +366,10 @@ let print_maybe_nullable_sorted oc = print_maybe_nullable ~sorted:true oc
 let print_maybe_nullable oc = print_maybe_nullable ~sorted:false oc
 let print_value_type_sorted oc = print_value_type ~sorted:true oc
 let print_value_type oc = print_value_type ~sorted:false oc
+
+let string_of_value_type = IO.to_string print_value_type
+let string_of_maybe_nullable = IO.to_string print_maybe_nullable
+let to_string = IO.to_string print
 
 let uniq_id t =
   IO.to_string print_sorted (develop_user_types t) |>
@@ -695,7 +723,7 @@ type gen_printer = { f : 'a. 'a IO.output -> unit }
 
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
-  if not (defined def) then invalid_arg "register_user_type" ;
+  if not (is_defined def) then invalid_arg "register_user_type" ;
   Hashtbl.modify_opt name (function
     | None ->
         let print = match print with
