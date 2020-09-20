@@ -304,15 +304,15 @@ let is_numeric vt =
   is_integer vt || vt = Mac TFloat
 
 let width_of_int = function
-  | TU8 | TI8 -> 8
-  | TU16 | TI16 -> 16
-  | TU24 | TI24 -> 24
-  | TU32 | TI32 -> 32
-  | TU40 | TI40 -> 40
-  | TU48 | TI48 -> 48
-  | TU56 | TI56 -> 56
-  | TU64 | TI64 -> 64
-  | TU128 | TI128 -> 128
+  | Mac (TU8 | TI8) -> 8
+  | Mac (TU16 | TI16) -> 16
+  | Mac (TU24 | TI24) -> 24
+  | Mac (TU32 | TI32) -> 32
+  | Mac (TU40 | TI40) -> 40
+  | Mac (TU48 | TI48) -> 48
+  | Mac (TU56 | TI56) -> 56
+  | Mac (TU64 | TI64) -> 64
+  | Mac (TU128 | TI128) -> 128
   | _ ->
       invalid_arg "width_of_int"
 
