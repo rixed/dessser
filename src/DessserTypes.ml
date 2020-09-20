@@ -114,10 +114,10 @@ let maybe_nullable_to_not_nullable mn =
 let print_mac_type oc =
   let sp = String.print oc in
   function
-  | TFloat -> sp "Float"
-  | TString -> sp "String"
-  | TBool -> sp "Bool"
-  | TChar -> sp "Char"
+  | TFloat -> sp "FLOAT"
+  | TString -> sp "STRING"
+  | TBool -> sp "BOOL"
+  | TChar -> sp "CHAR"
   | TU8 -> sp "U8"
   | TU16 -> sp "U16"
   | TU24 -> sp "U24"
