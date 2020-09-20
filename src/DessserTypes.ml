@@ -738,10 +738,10 @@ let () =
   register_user_type "Ip"
     (TSum [| "v4", make (Usr (get_user_type "Ipv4")) ;
              "v6", make (Usr (get_user_type "Ipv6")) |]) ;
-  register_user_type "Cidrv4" (TTup [| make (Usr (get_user_type "Ipv4")) ;
-                                       make (Mac TU8) |]) ;
-  register_user_type "Cidrv6" (TTup [| make (Usr (get_user_type "Ipv6")) ;
-                                       make (Mac TU8) |]) ;
+  register_user_type "Cidrv4" (TRec [| "ip", make (Usr (get_user_type "Ipv4")) ;
+                                       "mask", make (Mac TU8) |]) ;
+  register_user_type "Cidrv6" (TRec [| "ip", make (Usr (get_user_type "Ipv6")) ;
+                                       "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr"
     (TSum [| "v4", make (Usr (get_user_type "Cidrv4")) ;
              "v6", make (Usr (get_user_type "Cidrv6")) |])
