@@ -180,6 +180,8 @@ type e1 =
   | ReadQWord of endianness
   | ReadOWord of endianness
   | Assert
+  (* For tuples, int is the index of the item in the tuple.
+   * For records, the index of the field in definition order: *)
   | MaskGet of int
   | MaskEnter of int
   (* Given a value of a sum type, return the integer label associated with its

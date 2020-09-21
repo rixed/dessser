@@ -433,8 +433,8 @@ struct
     let sizes =
       Ser.ssize_of_rec mn0 path v |> add_size sizes in
     let m = mask_enter (Array.length mns) ma in
-    Array.fold_lefti (fun sizes i (_, mn) ->
-      let v' = get_item i v in
+    Array.fold_lefti (fun sizes i (n, mn) ->
+      let v' = get_field n v in
       let ma = mask_get i m in
       let subpath = T.path_append i path in
       let_ "sizes" sizes
@@ -449,10 +449,10 @@ struct
       (label_of v)
       ~in_:(
         let rec choose_cstr i =
-          let v' = get_item i v in
+          let name, mn = mns.(i) in
+          let v' = get_alt name v in
           let subpath = T.path_append i path in
           assert (i <= max_lbl) ;
-          let mn = snd mns.(i) in
           if i = max_lbl then
             seq [
               assert_ (eq (identifier "label") (u16 max_lbl)) ;
