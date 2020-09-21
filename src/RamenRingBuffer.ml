@@ -43,6 +43,8 @@ let rec order_rec_fields mn =
         T.TVec (dim, order_rec_fields mn)
     | T.TList mn ->
         T.TList (order_rec_fields mn)
+    | T.TSum mns ->
+        T.TSum (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
     | T.Usr ut ->
         order_value_type ut.def
     | mn -> mn in
@@ -59,6 +61,8 @@ let rec are_rec_fields_ordered mn =
         Array.for_all are_rec_fields_ordered mns
     | T.TVec (_, mn) | T.TList mn ->
         are_rec_fields_ordered mn
+    | T.TSum mns ->
+        Array.for_all (fun (_, mn) -> are_rec_fields_ordered mn) mns
     | T.Usr ut ->
         aux ut.def
     | _ ->
