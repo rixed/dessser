@@ -28,7 +28,13 @@ let align_const p extra_bytes =
     let padding_len = !ringbuf_word_size - extra_bytes in
     data_ptr_add p (size padding_len)
 
-(* RamenRingBuffer can only des/ser types which record fields are ordered: *)
+(*
+ * RamenRingBuffer can only des/ser types which record fields are sorted.
+ * Since the type is iterated by the Dessser module out of our control, this
+ * is the responsibility of the caller to ensure the type is properly sorted
+ * (using the following helper functions).
+ *)
+
 let rec_field_cmp (n1, _) (n2, _) =
   String.compare n1 n2
 
@@ -68,6 +74,11 @@ let rec are_rec_fields_ordered mn =
     | _ ->
         true in
   aux mn.T.vtyp
+
+let check_rec_fields_ordered mn =
+  if not (are_rec_fields_ordered mn) then
+    failwith "RingBuffer can only serialize/deserialize records which \
+              fields are sorted."
 
 let is_private name =
   String.length name > 0 && name.[0] = '_'
@@ -201,7 +212,7 @@ struct
       pair p stk)
 
   let start mn p =
-    assert (are_rec_fields_ordered mn) ;
+    check_rec_fields_ordered mn ;
     (), pair p (end_of_list t_frame)
 
   let stop () p_stk =
@@ -604,7 +615,7 @@ struct
   let enter_frame_const = enter_frame u8 skip_nullmask_const
 
   let start mn p =
-    assert (are_rec_fields_ordered mn) ;
+    check_rec_fields_ordered mn ;
     (), pair p (end_of_list t_frame)
 
   let stop () p_stk =
