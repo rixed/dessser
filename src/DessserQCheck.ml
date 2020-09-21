@@ -88,7 +88,7 @@ let user_type_gen =
   let user_type_keys = Hashtbl.keys T.user_types |> Array.of_enum in
   Gen.(sized (fun n _st ->
     let k = user_type_keys.(n mod Array.length user_type_keys) in
-    Hashtbl.find T.user_types k))
+    (Hashtbl.find T.user_types k).typ))
 
 let rec value_type_gen depth =
   let open Gen in

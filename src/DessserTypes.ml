@@ -25,8 +25,6 @@ type mac_type =
 
 and user_type =
   { name : string ;
-    print : 'a. 'a IO.output -> unit ;
-    mutable parse : value_type P.t ;
     def : value_type }
 
 (* Those types describing values that can be (de)serialized.
@@ -111,76 +109,6 @@ let maybe_nullable_to_nullable mn =
 let maybe_nullable_to_not_nullable mn =
   { mn with nullable = false }
 
-let print_mac_type oc =
-  let sp = String.print oc in
-  function
-  | TFloat -> sp "FLOAT"
-  | TString -> sp "STRING"
-  | TBool -> sp "BOOL"
-  | TChar -> sp "CHAR"
-  | TU8 -> sp "U8"
-  | TU16 -> sp "U16"
-  | TU24 -> sp "U24"
-  | TU32 -> sp "U32"
-  | TU40 -> sp "U40"
-  | TU48 -> sp "U48"
-  | TU56 -> sp "U56"
-  | TU64 -> sp "U64"
-  | TU128 -> sp "U128"
-  | TI8 -> sp "I8"
-  | TI16 -> sp "I16"
-  | TI24 -> sp "I24"
-  | TI32 -> sp "I32"
-  | TI40 -> sp "I40"
-  | TI48 -> sp "I48"
-  | TI56 -> sp "I56"
-  | TI64 -> sp "I64"
-  | TI128 -> sp "I128"
-
-let rec print_value_type ?(sorted=false) oc = function
-  | Unknown ->
-      pp oc "UNKNOWN"
-  | Mac t ->
-      print_mac_type oc t
-  | Usr t ->
-      t.print oc
-  | TVec (dim, vt) ->
-      pp oc "%a[%d]" (print_maybe_nullable ~sorted) vt dim
-  | TList vt ->
-      pp oc "%a[]" (print_maybe_nullable ~sorted) vt
-  | TTup vts ->
-      pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:"; "
-          (print_maybe_nullable ~sorted)) vts
-  | TRec vts ->
-      (* When the string repr is used to identify the type (see BackEndCLike)
-       * every equivalent record types must then be printed the same, thus the
-       * optional sort: *)
-      pp oc "%a"
-        (Array.print ~first:"{" ~last:"}" ~sep:"; "
-          (fun oc (n, mn) ->
-            pp oc "%s: %a" n (print_maybe_nullable ~sorted) mn)
-        ) (if sorted then sorted_rec vts else vts)
-  | TSum cs ->
-      (* Parenthesis are required to distinguish external from internal
-       * nullable: *)
-      pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:" | "
-          (fun oc (n, mn) ->
-            pp oc "%s %a" n (print_maybe_nullable ~sorted) mn)
-        ) (if sorted then sorted_rec cs else cs)
-  | TMap (k, v) ->
-      pp oc "%a[%a]"
-        (print_maybe_nullable ~sorted) v
-        (print_maybe_nullable ~sorted) k
-
-and print_maybe_nullable ?sorted oc mn =
-  pp oc "%a%s"
-    (print_value_type ?sorted) mn.vtyp
-    (if mn.nullable then "?" else "")
-
-let user_types = Hashtbl.create 50
-
 (* To all the above types we add a few low-level types that can not be used
  * in values but are useful to manipulate them. *)
 type t =
@@ -215,21 +143,9 @@ type t =
   | TSList of t
   | TFunction of t array * (* result: *) t
 
-let to_maybe_nullable = function
-  | TValue mn -> mn
-  | _ -> invalid_arg "to_maybe_nullable"
-
-let rec eq t1 t2 =
-  match t1, t2 with
-  | TValue mn1, TValue mn2 ->
-      maybe_nullable_eq mn1 mn2
-  | TPair (t11, t12), TPair (t21, t22) ->
-      eq t11 t21 && eq t12 t22
-  | TSList t1, TSList t2 ->
-      eq t1 t2
-  | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
-      Array.for_all2 eq pt1 pt2 && eq rt1 rt2
-  | t1, t2 -> t1 = t2
+(*
+ * Iterators
+ *)
 
 let rec develop_value_type = function
   | (Unknown | Mac _) as vt ->
@@ -282,6 +198,10 @@ let iter_value_type f vt =
 let iter_maybe_nullable f mn =
   fold_maybe_nullable () (fun () mn -> f mn) mn
 
+(*
+ * Tools
+ *)
+
 let is_defined vt =
   try
     iter_value_type (function
@@ -315,6 +235,120 @@ let width_of_int = function
   | Mac (TU128 | TI128) -> 128
   | _ ->
       invalid_arg "width_of_int"
+
+
+(*
+ * User-defined types
+ *)
+
+type user_type_def =
+  { typ : user_type ;
+    print : 'a. 'a IO.output -> unit ;
+    mutable parse : value_type P.t }
+
+let user_types : (string, user_type_def) Hashtbl.t = Hashtbl.create 50
+
+type gen_printer = { f : 'a. 'a IO.output -> unit }
+
+let default_user_type_printer ut oc =
+  String.print oc ut.name
+
+let get_user_type n =
+  (Hashtbl.find user_types n).typ
+
+(* See below after Parser definition for [register_user_type] and examples *)
+
+(*
+ * Printers
+ *)
+
+let print_mac_type oc =
+  let sp = String.print oc in
+  function
+  | TFloat -> sp "FLOAT"
+  | TString -> sp "STRING"
+  | TBool -> sp "BOOL"
+  | TChar -> sp "CHAR"
+  | TU8 -> sp "U8"
+  | TU16 -> sp "U16"
+  | TU24 -> sp "U24"
+  | TU32 -> sp "U32"
+  | TU40 -> sp "U40"
+  | TU48 -> sp "U48"
+  | TU56 -> sp "U56"
+  | TU64 -> sp "U64"
+  | TU128 -> sp "U128"
+  | TI8 -> sp "I8"
+  | TI16 -> sp "I16"
+  | TI24 -> sp "I24"
+  | TI32 -> sp "I32"
+  | TI40 -> sp "I40"
+  | TI48 -> sp "I48"
+  | TI56 -> sp "I56"
+  | TI64 -> sp "I64"
+  | TI128 -> sp "I128"
+
+let rec print_value_type ?(sorted=false) oc = function
+  | Unknown ->
+      pp oc "UNKNOWN"
+  | Mac t ->
+      print_mac_type oc t
+  | Usr t ->
+      (match Hashtbl.find user_types t.name with
+      | exception Not_found ->
+          default_user_type_printer t oc
+      | def ->
+          def.print oc)
+  | TVec (dim, vt) ->
+      pp oc "%a[%d]" (print_maybe_nullable ~sorted) vt dim
+  | TList vt ->
+      pp oc "%a[]" (print_maybe_nullable ~sorted) vt
+  | TTup vts ->
+      pp oc "%a"
+        (Array.print ~first:"(" ~last:")" ~sep:"; "
+          (print_maybe_nullable ~sorted)) vts
+  | TRec vts ->
+      (* When the string repr is used to identify the type (see BackEndCLike)
+       * every equivalent record types must then be printed the same, thus the
+       * optional sort: *)
+      pp oc "%a"
+        (Array.print ~first:"{" ~last:"}" ~sep:"; "
+          (fun oc (n, mn) ->
+            pp oc "%s: %a" n (print_maybe_nullable ~sorted) mn)
+        ) (if sorted then sorted_rec vts else vts)
+  | TSum cs ->
+      (* Parenthesis are required to distinguish external from internal
+       * nullable: *)
+      pp oc "%a"
+        (Array.print ~first:"(" ~last:")" ~sep:" | "
+          (fun oc (n, mn) ->
+            pp oc "%s %a" n (print_maybe_nullable ~sorted) mn)
+        ) (if sorted then sorted_rec cs else cs)
+  | TMap (k, v) ->
+      pp oc "%a[%a]"
+        (print_maybe_nullable ~sorted) v
+        (print_maybe_nullable ~sorted) k
+
+and print_maybe_nullable ?sorted oc mn =
+  pp oc "%a%s"
+    (print_value_type ?sorted) mn.vtyp
+    (if mn.nullable then "?" else "")
+
+let to_maybe_nullable = function
+  | TValue mn -> mn
+  | _ -> invalid_arg "to_maybe_nullable"
+
+let rec eq t1 t2 =
+  match t1, t2 with
+  | TValue mn1, TValue mn2 ->
+      maybe_nullable_eq mn1 mn2
+  | TPair (t11, t12), TPair (t21, t22) ->
+      eq t11 t21 && eq t12 t22
+  | TSList t1, TSList t2 ->
+      eq t1 t2
+  | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
+      Array.for_all2 eq pt1 pt2 && eq rt1 rt2
+  | t1, t2 -> t1 = t2
 
 let rec print ?sorted oc =
   let sp = String.print oc in
@@ -704,47 +738,45 @@ struct
   (*$>*)
 end
 
-type gen_printer = { f : 'a. 'a IO.output -> unit }
-
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
   if not (is_defined def) then invalid_arg "register_user_type" ;
   Hashtbl.modify_opt name (function
     | None ->
+        let ut = { name ; def } in
         let print = match print with
           | Some printer ->
               printer.f
-          | None -> fun oc ->
-              String.print oc name in
-        let ut = { name ; print ; parse = P.fail ; def } in
+          | None ->
+              fun oc ->
+                default_user_type_printer ut oc in
+        let def = { typ = ut ; print ; parse = P.fail } in
         let parse = match parse with
           | Some p -> p
           | None -> Parser.(strinG name >>: fun () -> Usr ut) in
-        ut.parse <- parse ;
+        def.parse <- parse ;
         Parser.user_type := Parser.(oneof !user_type parse) ;
-        Some ut
+        Some def
     | Some _ ->
         invalid_arg "register_user_type"
   ) user_types
-
-let get_user_type = Hashtbl.find user_types
 
 (* Examples: *)
 let () =
   register_user_type "Date" (Mac TFloat) ;
   register_user_type "Eth" (Mac TU48) ;
-  register_user_type "Ipv4" (Mac TU32) ;
-  register_user_type "Ipv6" (Mac TU128) ;
+  register_user_type "Ip4" (Mac TU32) ;
+  register_user_type "Ip6" (Mac TU128) ;
   register_user_type "Ip"
-    (TSum [| "v4", make (Usr (get_user_type "Ipv4")) ;
-             "v6", make (Usr (get_user_type "Ipv6")) |]) ;
-  register_user_type "Cidrv4" (TRec [| "ip", make (Usr (get_user_type "Ipv4")) ;
-                                       "mask", make (Mac TU8) |]) ;
-  register_user_type "Cidrv6" (TRec [| "ip", make (Usr (get_user_type "Ipv6")) ;
-                                       "mask", make (Mac TU8) |]) ;
+    (TSum [| "v4", make (Usr (get_user_type "Ip4")) ;
+             "v6", make (Usr (get_user_type "Ip6")) |]) ;
+  register_user_type "Cidr4" (TRec [| "ip", make (Usr (get_user_type "Ip4")) ;
+                                      "mask", make (Mac TU8) |]) ;
+  register_user_type "Cidr6" (TRec [| "ip", make (Usr (get_user_type "Ip6")) ;
+                                      "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr"
-    (TSum [| "v4", make (Usr (get_user_type "Cidrv4")) ;
-             "v6", make (Usr (get_user_type "Cidrv6")) |])
+    (TSum [| "v4", make (Usr (get_user_type "Cidr4")) ;
+             "v6", make (Usr (get_user_type "Cidr6")) |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
