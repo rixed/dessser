@@ -514,6 +514,8 @@ struct
         shortcutting_binary_infix_op e1 e2 true
     | E.E1 (Not, e1) ->
         unary_op "!" e1
+    | E.E1 (Neg, e1) ->
+        unary_op "-" e1
     | E.E0 (EndOfList _) ->
         (* Default constructor cannot be called with no-args as that would
          * not be C++ish enough: *)

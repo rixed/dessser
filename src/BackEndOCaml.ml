@@ -733,6 +733,8 @@ struct
         shortcutting_binary_infix_op e1 "||" e2
     | E.E1 (Not, e1) ->
         unary_op "not" e1
+    | E.E1 (Neg, e1) ->
+        unary_mod_op "neg" e1
     | E.E2 (Cons, e1, e2) ->
         binary_infix_op e1 "::" e2
     | E.E0 (EndOfList _) ->

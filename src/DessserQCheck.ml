@@ -275,7 +275,7 @@ let e1_of_int n =
          U64OfQWord ; QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ;
          CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ;
          BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; ListLength ;
-         ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ;
+         ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Neg ;
          Fst ; Snd |] in
   e1s.(n mod Array.length e1s)
 
