@@ -1301,10 +1301,12 @@ let rec type_check l e =
     let check_numeric l e =
       match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord
-      | TValue { vtyp = (Mac (
-          TFloat | TChar |
-          TU8 | TU16 | TU32 | TU64 | TU128 |
-          TI8 | TI16 | TI32 | TI64 | TI128)) ; nullable = false } -> ()
+      | TValue {
+          vtyp = (Mac (
+            TFloat | TChar |
+            TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+            TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128)) ;
+          nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
