@@ -928,7 +928,7 @@ struct
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
     [ Ops.null T.(Mac TString) ] (expr "(null \"string\")")
-    [ Ops.i56 (-1567305629568954678L) ] (expr "(i56 -1567305629568954678)")
+    [ Ops.i56 (Int56.of_string "-36028797018963967") ] (expr "(i56 -36028797018963967)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
     [ Ops.bool false ] (expr "(bool false)")
