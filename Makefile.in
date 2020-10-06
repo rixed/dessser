@@ -103,6 +103,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserDSTools_FragmentsOCaml.ml \
 	src/DessserDSTools.ml \
 	src/SExpr.ml \
+	src/CSV.ml \
 	src/RowBinary.ml \
 	src/RamenRingBuffer.ml \
 	src/DevNull.ml \
@@ -218,6 +219,7 @@ LINKED_FOR_TESTS = \
 	src/BackEndCPP.ml \
 	src/BackEndOCaml.ml \
 	src/SExpr.ml \
+	src/CSV.ml \
 	src/RowBinary.ml \
 	src/RamenRingBuffer.ml \
 	src/HeapValue.ml \

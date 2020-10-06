@@ -729,7 +729,12 @@ let sexpr mn =
     test_format ocaml_be mn
       (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
     test_format cpp_be mn
-      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format)
+      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
+    let format = "CSV" in
+    test_format ocaml_be mn
+      (module CSV.Des : DES) (module CSV.Ser : SER) format ;
+    test_format cpp_be mn
+      (module CSV.Des : DES) (module CSV.Ser : SER) format)
 *)
 
 (* Non regression tests: *)
@@ -753,6 +758,12 @@ let sexpr mn =
     and ser = (module RamenRingBuffer.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
+  let check_csv be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let des = (module CSV.Des : DES)
+    and ser = (module CSV.Ser : SER) in
+    let exe = test_data_desser be mn des ser in
+    String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
     let mn = T.Parser.maybe_nullable_of_string ts in
     let e = heap_convert_expr mn in
@@ -767,6 +778,7 @@ let sexpr mn =
   "15134052" (check_sexpr ocaml_be "u24" "15134052")
   "1 (2)" (check_sexpr ocaml_be "I8[]" "1 (2)")
   "1 ((2 1))" (check_sexpr ocaml_be "(I8?; I40?)[]" "1 ((2 1))")
+  "-161920788051" (check_sexpr ocaml_be "i40" "-161920788051")
 *)
 (*$= check_rowbinary & ~printer:identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
@@ -800,6 +812,7 @@ let sexpr mn =
 (*$inject
   let ringbuf_ser = (module RamenRingBuffer.Ser : SER)
   let rowbinary_ser = (module RowBinary.Ser : SER)
+  let csv_ser = (module CSV.Ser : SER)
   let sexpr_des = (module SExpr.Des : DES)
 
   let check_ser ser be ts vs =
@@ -828,4 +841,6 @@ let sexpr mn =
     (check_ser ringbuf_ser ocaml_be "(small u8 | big u16?)" "(0 42)")
   "01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "(small u8? | big u16)" "(0 42)")
+  "30 2c 34 32" \
+    (check_ser csv_ser ocaml_be "(small u8? | big u16)" "(0 42)")
 *)
