@@ -167,6 +167,7 @@ struct
 
   let skip1 = skip 1
 
+  (* Accumulate bytes into a string that is then converted with [op]: *)
   let di op () _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
@@ -209,24 +210,71 @@ struct
   (* Chars are encoded as single char strings *)
   let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
 
-  let di8 = di i8_of_string
-  let du8 = di u8_of_string
-  let di16 = di i16_of_string
-  let du16 = di u16_of_string
-  let di24 = di i24_of_string
-  let du24 = di u24_of_string
-  let di32 = di i32_of_string
-  let du32 = di u32_of_string
-  let di40 = di i40_of_string
-  let du40 = di u40_of_string
-  let di48 = di i48_of_string
-  let du48 = di u48_of_string
-  let di56 = di i56_of_string
-  let du56 = di u56_of_string
-  let di64 = di i64_of_string
-  let du64 = di u64_of_string
-  let di128 = di i128_of_string
-  let du128 = di u128_of_string
+  (* Accumulate digits into a value with the given reducer: *)
+  let fold init reduce () _ _ p =
+    (* Accumulate everything up to the next space or parenthesis, and then
+     * run [op] to convert from a string: *)
+    let cond = E.func1 T.byte (fun _l b ->
+      (* both ')' and ' ' are smaller than '0': *)
+      ge b (byte_of_const_char '0')) in
+    read_while ~cond ~reduce ~init ~pos:p
+
+  let int_reducer int_type base of_byte =
+    E.func2 int_type T.byte (fun _l n b ->
+      add
+        (mul n base)
+        (of_byte (sub b (byte (Uint8.of_int (Char.code '0'))))))
+
+  let unsigned int_type zero ten of_byte =
+    fold zero (int_reducer int_type ten of_byte)
+
+  let signed int_type zero one neg_one ten of_byte st mn0 path p =
+    E.with_sploded_pair "maybe_sign1" (read_byte p) (fun b p' ->
+      E.with_sploded_pair "maybe_sign2"
+        (choose ~cond:(eq b (byte (Uint8.of_int (Char.code '-'))))
+                ~then_:(pair p' neg_one)
+                ~else_:(pair p one))
+        (fun p sign ->
+          let cont = unsigned int_type zero ten of_byte st mn0 path p in
+          E.with_sploded_pair "maybe_sign3" cont (fun v p ->
+            pair (mul sign v) p)))
+
+  let di8 =
+    signed T.i8 (i8 Int8.zero) (i8 Int8.one) (i8 (Int8.of_int ~-1)) (i8 (Int8.of_int 10)) (to_i8 % u8_of_byte)
+  let du8 =
+    unsigned T.u8 (u8 Uint8.zero) (u8 (Uint8.of_int 10)) u8_of_byte
+  let di16 =
+    signed T.i16 (i16 Int16.zero) (i16 Int16.one) (i16 (Int16.of_int ~-1)) (i16 (Int16.of_int 10)) (to_i16 % u8_of_byte)
+  let du16 =
+    unsigned T.u16 (u16 Uint16.zero) (u16 (Uint16.of_int 10)) (to_u16 % u8_of_byte)
+  let di24 =
+    signed T.i24 (i24 Int24.zero) (i24 Int24.one) (i24 (Int24.of_int ~-1)) (i24 (Int24.of_int 10)) (to_i24 % u8_of_byte)
+  let du24 =
+    unsigned T.u24 (u24 Uint24.zero) (u24 (Uint24.of_int 10)) (to_u24 % u8_of_byte)
+  let di32 =
+    signed T.i32 (i32 0l) (i32 1l) (i32 (-1l)) (i32 10l) (to_i32 % u8_of_byte)
+  let du32 =
+    unsigned T.u32 (u32 Uint32.zero) (u32 (Uint32.of_int 10)) (to_u32 % u8_of_byte)
+  let di40 =
+    signed T.i40 (i40 Int40.zero) (i40 Int40.one) (i40 (Int40.of_int ~-1)) (i40 (Int40.of_int 10)) (to_i40 % u8_of_byte)
+  let du40 =
+    unsigned T.u40 (u40 Uint40.zero) (u40 (Uint40.of_int 10)) (to_u40 % u8_of_byte)
+  let di48 =
+    signed T.i48 (i48 Int48.zero) (i48 Int48.one) (i48 (Int48.of_int ~-1)) (i48 (Int48.of_int 10)) (to_i48 % u8_of_byte)
+  let du48 =
+    unsigned T.u48 (u48 Uint48.zero) (u48 (Uint48.of_int 10)) (to_u48 % u8_of_byte)
+  let di56 =
+    signed T.i56 (i56 Int56.zero) (i56 Int56.one) (i56 (Int56.of_int ~-1)) (i56 (Int56.of_int 10)) (to_i56 % u8_of_byte)
+  let du56 =
+    unsigned T.u56 (u56 Uint56.zero) (u56 (Uint56.of_int 10)) (to_u56 % u8_of_byte)
+  let di64 =
+    signed T.i64 (i64 Int64.zero) (i64 Int64.one) (i64 (Int64.of_int ~-1)) (i64 (Int64.of_int 10)) (to_i64 % u8_of_byte)
+  let du64 =
+    unsigned T.u64 (u64 Uint64.zero) (u64 (Uint64.of_int 10)) (to_u64 % u8_of_byte)
+  let di128 =
+    signed T.i128 (i128 Int128.zero) (i128 Int128.one) (i128 (Int128.of_int ~-1)) (i128 (Int128.of_int 10)) (to_i128 % u8_of_byte)
+  let du128 =
+    unsigned T.u128 (u128 Uint128.zero) (u128 (Uint128.of_int 10)) (to_u128 % u8_of_byte)
 
   let tup_opn () _ _ _ p = skip1 p
 
@@ -279,8 +327,7 @@ struct
                (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
                      (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c)))))
 
-  let dnull _t () _ _ p =
-    data_ptr_add p (size 4)
+  let dnull _t () _ _ p = skip 4 p
 
   let dnotnull _t () _ _ p = p
 end
