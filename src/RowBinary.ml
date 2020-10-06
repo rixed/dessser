@@ -28,11 +28,11 @@ struct
               let b =
                 byte_of_u8 (
                   choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
-                    ~then_:(log_and (to_u8 wlen) (u8 127))
-                    ~else_:(log_or (to_u8 wlen) (u8 128))) in
+                    ~then_:(log_and (to_u8 wlen) (u8 (Uint8.of_int 127)))
+                    ~else_:(log_or (to_u8 wlen) (u8 (Uint8.of_int 128)))) in
               pair
                 (write_byte p b)
-                (right_shift wlen (u8 7))))))
+                (right_shift wlen (u8 (Uint8.of_int 7)))))))
         ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
           (E.func1 t_ptr_sz (fun _l ptr_sz -> gt (secnd ptr_sz) (u32 Uint32.zero))))
         ~init:(pair p v))
@@ -129,10 +129,10 @@ struct
   let nullable () _ _ p = p
 
   let snull _t () _ _ p =
-    write_byte p (byte 1)
+    write_byte p (byte Uint8.one)
 
   let snotnull _t () _ _ p =
-    write_byte p (byte 0)
+    write_byte p (byte Uint8.zero)
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
@@ -170,7 +170,7 @@ struct
         ~cond:(comment "Condition for ssize_of_leb128"
           (E.func1 t_u32_u32 (fun _l lebsz_n ->
             E.with_sploded_pair "ssize_of_leb128" lebsz_n (fun lebsz n ->
-              let max_len_for_lebsz = left_shift lebsz (u8 7) in
+              let max_len_for_lebsz = left_shift lebsz (u8 (Uint8.of_int 7)) in
               ge n max_len_for_lebsz))))
         ~body:(comment "Loop for ssize_of_leb128"
           (E.func1 t_u32_u32 (fun _l lebsz_n ->
@@ -214,15 +214,15 @@ struct
     let_ "leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
-          (E.func1 T.byte (fun _l b -> ge b (byte 128))))
+          (E.func1 T.byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
         ~reduce:(comment "Reducer for read_leb128"
           (E.func2 t_u32_u8 T.byte (fun _l leb_shft b ->
-            let byte = log_and (u8_of_byte b) (u8 127) in
+            let byte = log_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in
             let leb = first leb_shft
             and shft = secnd leb_shft in
             pair (add  (left_shift (to_u32 byte) shft) leb)
-                 (add shft (u8 7)))))
-        ~init:(pair (u32 Uint32.zero) (u8 0))
+                 (add shft (u8 (Uint8.of_int 7))))))
+        ~init:(pair (u32 Uint32.zero) (u8 Uint8.zero))
         ~pos:p)
       (* Still have to add the last byte (which is <128): *)
       ~in_:(
@@ -247,7 +247,7 @@ struct
 
   let dbool () _ _ p =
     E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
-      pair (not_ (eq (u8_of_byte b) (u8 0))) p)
+      pair (not_ (eq (u8_of_byte b) (u8 Uint8.zero))) p)
 
   let dchar ()_ _  p =
     E.with_sploded_pair "dchar" (read_byte p) (fun b p ->
@@ -367,7 +367,7 @@ struct
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
   let is_null () _ _ p =
-    eq (peek_byte p (size 0)) (byte 1)
+    eq (peek_byte p (size 0)) (byte Uint8.one)
 
   let dnull _t () _ _ p =
     data_ptr_add p (size 1)

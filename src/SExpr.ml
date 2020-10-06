@@ -274,10 +274,10 @@ struct
 
   let is_null () _ _ p =
     (* NULL *)
-    and_ (eq (peek_byte p (size 0)) (byte 0x6e))
-         (and_ (eq (peek_byte p (size 1)) (byte 0x75))
-               (and_ (eq (peek_byte p (size 2)) (byte 0x6c))
-                     (eq (peek_byte p (size 3)) (byte 0x6c))))
+    and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x6e)))
+         (and_ (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x75)))
+               (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
+                     (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c)))))
 
   let dnull _t () _ _ p =
     data_ptr_add p (size 4)

@@ -315,11 +315,11 @@ struct
             let subpath = T.path_append i path in
             if i >= max_lbl then
               seq [
-                assert_ (eq cstr (u16 max_lbl)) ;
+                assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
                 desser_ transform sstate dstate mn0 subpath src_dst ]
             else
               choose
-                ~cond:(eq (u16 i) cstr)
+                ~cond:(eq (u16 (Uint16.of_int i)) cstr)
                 ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0) in

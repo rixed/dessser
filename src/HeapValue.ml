@@ -5,6 +5,7 @@
  * The two following modules are designed to unserialize into a materialized
  * values and to then serialize that materialized value. *)
 open Batteries
+open Stdint
 open Dessser
 open DessserTools
 module T = DessserTypes
@@ -138,11 +139,11 @@ struct
         in
         if i = max_lbl then
           seq [
-            assert_ (eq cstr (u16 max_lbl)) ;
+            assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
             res () ]
         else
           choose
-            ~cond:(eq (u16 i) cstr)
+            ~cond:(eq (u16 (Uint16.of_int i)) cstr)
             ~then_:(res ())
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
@@ -290,12 +291,12 @@ struct
                 let field, mn = mns.(i) in
                 if i = max_lbl then
                   seq [
-                    assert_ (eq (identifier "label") (u16 max_lbl)) ;
+                    assert_ (eq (identifier "label") (u16 (Uint16.of_int max_lbl))) ;
                     ser1 sstate mn0 subpath mn (get_alt field v) ma
                          (identifier "dst") ]
                 else
                   choose
-                    ~cond:(eq (u16 i) (identifier "label"))
+                    ~cond:(eq (u16 (Uint16.of_int i)) (identifier "label"))
                     ~then_:(ser1 sstate mn0 subpath mn (get_alt field v) ma
                                  (identifier "dst"))
                     ~else_:(choose_cstr (i + 1)) in
@@ -455,11 +456,11 @@ struct
           assert (i <= max_lbl) ;
           if i = max_lbl then
             seq [
-              assert_ (eq (identifier "label") (u16 max_lbl)) ;
+              assert_ (eq (identifier "label") (u16 (Uint16.of_int max_lbl))) ;
               sersz1 mn mn0 subpath v' copy_field sizes ]
           else
             choose
-              ~cond:(eq (u16 i) (identifier "label"))
+              ~cond:(eq (u16 (Uint16.of_int i)) (identifier "label"))
               ~then_:(sersz1 mn mn0 subpath v' copy_field sizes)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)

@@ -439,11 +439,11 @@ struct
     | E.E0 (Char c) ->
         emit ?name p l e (fun oc -> pp oc "%C" c)
     | E.E0 (Byte i) | E.E0 (U8 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint8.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Uint8.of_int (%s)" (Uint8.to_string i))
     | E.E0 (Word i) | E.E0 (U16 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint16.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Uint16.of_int (%s)" (Uint16.to_string i))
     | E.E0 (U24 i) ->
-        emit ?name p l e (fun oc -> pp oc "Uint24.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Uint24.of_int (%s)" (Uint24.to_string i))
     | E.E0 (DWord u) | E.E0 (U32 u) ->
         emit ?name p l e (lift_u32 u)
     | E.E0 (U40 u) ->
@@ -457,19 +457,19 @@ struct
     | E.E0 (OWord u) | E.E0 (U128 u) ->
         emit ?name p l e (lift_u128 u)
     | E.E0 (I8 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int8.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Int8.of_int (%s)" (Int8.to_string i))
     | E.E0 (I16 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int16.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Int16.of_int (%s)" (Int16.to_string i))
     | E.E0 (I24 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int24.of_int (%d)" i)
+        emit ?name p l e (fun oc -> pp oc "Int24.of_int (%s)" (Int24.to_string i))
     | E.E0 (I32 i) ->
         emit ?name p l e (fun oc -> pp oc "Int32.of_int32 (%ldl)" i)
     | E.E0 (I40 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int40.of_int64 (%LdL)" i)
+        emit ?name p l e (fun oc -> pp oc "Int40.of_int64 (%sL)" (Int40.to_string i))
     | E.E0 (I48 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int48.of_int64 (%LdL)" i)
+        emit ?name p l e (fun oc -> pp oc "Int48.of_int64 (%sL)" (Int48.to_string i))
     | E.E0 (I56 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int56.of_int64 (%LdL)" i)
+        emit ?name p l e (fun oc -> pp oc "Int56.of_int64 (%sL)" (Int56.to_string i))
     | E.E0 (I64 i) ->
         emit ?name p l e (fun oc -> pp oc "Int64.of_int64 (%LdL)" i)
     | E.E0 (I128 i) ->

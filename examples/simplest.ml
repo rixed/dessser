@@ -30,18 +30,18 @@ struct
   let dchar () _ _ src =
     E.with_sploded_pair "dchar" (read_byte src) (fun b src ->
       pair (char_of_u8 (u8_of_byte b)) src)
-  let di8 () = from_byte (i8 1) (i8 0)
-  let di16 () = from_byte (i16 1) (i16 0)
-  let di24 () = from_byte (i24 1) (i24 0)
+  let di8 () = from_byte (i8 Int8.one) (i8 Int8.zero)
+  let di16 () = from_byte (i16 Int16.one) (i16 Int16.zero)
+  let di24 () = from_byte (i24 Int24.one) (i24 Int24.zero)
   let di32 () = from_byte (i32 1l) (i32 0l)
-  let di40 () = from_byte (i40 1L) (i40 0L)
-  let di48 () = from_byte (i48 1L) (i48 0L)
-  let di56 () = from_byte (i56 1L) (i56 0L)
+  let di40 () = from_byte (i40 Int40.one) (i40 Int40.zero)
+  let di48 () = from_byte (i48 Int48.one) (i48 Int48.zero)
+  let di56 () = from_byte (i56 Int56.one) (i56 Int56.zero)
   let di64 () = from_byte (i64 1L) (i64 0L)
   let di128 () = from_byte (i128 Int128.one) (i128 Int128.zero)
-  let du8 () = from_byte (u8 1) (u8 0)
-  let du16 () = from_byte (u16 1) (u16 0)
-  let du24 () = from_byte (u24 1) (u24 0)
+  let du8 () = from_byte (u8 Uint8.one) (u8 Uint8.zero)
+  let du16 () = from_byte (u16 Uint16.one) (u16 Uint16.zero)
+  let du24 () = from_byte (u24 Uint24.one) (u24 Uint24.zero)
   let du32 () = from_byte (u32 Uint32.one) (u32 Uint32.zero)
   let du40 () = from_byte (u40 Uint40.one) (u40 Uint40.zero)
   let du48 () = from_byte (u48 Uint48.one) (u48 Uint48.zero)
@@ -90,18 +90,18 @@ struct
   let sbool () _ _ = from_bool
 
   let schar () _ _ b dst = write_byte dst (byte_of_u8 (u8_of_char b))
-  let si8 () _ _ = from_eq (i8 1)
-  let si16 () _ _ = from_eq (i16 1)
-  let si24 () _ _ = from_eq (i24 1)
+  let si8 () _ _ = from_eq (i8 Int8.one)
+  let si16 () _ _ = from_eq (i16 Int16.one)
+  let si24 () _ _ = from_eq (i24 Int24.one)
   let si32 () _ _ = from_eq (i32 1l)
-  let si40 () _ _ = from_eq (i40 1L)
-  let si48 () _ _ = from_eq (i48 1L)
-  let si56 () _ _ = from_eq (i56 1L)
+  let si40 () _ _ = from_eq (i40 Int40.one)
+  let si48 () _ _ = from_eq (i48 Int48.one)
+  let si56 () _ _ = from_eq (i56 Int56.one)
   let si64 () _ _ = from_eq (i64 1L)
   let si128 () _ _ = from_eq (i128 Int128.one)
-  let su8 () _ _ = from_eq (u8 1)
-  let su16 () _ _ = from_eq (u16 1)
-  let su24 () _ _ = from_eq (u24 1)
+  let su8 () _ _ = from_eq (u8 Uint8.one)
+  let su16 () _ _ = from_eq (u16 Uint16.one)
+  let su24 () _ _ = from_eq (u24 Uint24.one)
   let su32 () _ _ = from_eq (u32 Uint32.one)
   let su40 () _ _ = from_eq (u40 Uint40.one)
   let su48 () _ _ = from_eq (u48 Uint48.one)
@@ -123,8 +123,8 @@ struct
   let list_cls () _ _ dst = dst
   let list_sep () _ _ dst = dst
   let nullable () _ _ dst = dst
-  let snull _t () _ _ dst = write_byte dst (byte 1)
-  let snotnull _t () _ _ dst = write_byte dst (byte 0)
+  let snull _t () _ _ dst = write_byte dst (byte Uint8.one)
+  let snotnull _t () _ _ dst = write_byte dst (byte Uint8.zero)
 
   type ssizer = T.maybe_nullable -> T.path -> (*valueptr*) E.t -> ssize
   let ssize_of_float _ _ _ = ConstSize 1

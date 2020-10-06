@@ -172,13 +172,13 @@ struct
   (* Zero a nullmask known at compile time and advance the pointer *)
   let zero_nullmask_const bits p =
     let sz = (bits + 7) / 8 in
-    let p = blit_byte p (byte 0) (size sz) in
+    let p = blit_byte p (byte Uint8.zero) (size sz) in
     align_const p sz
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
-    let sz = right_shift (add (u32_of_int 7) bits) (u8 3) in
-    let p = blit_byte p (byte 0) (size_of_u32 sz) in
+    let sz = right_shift (add (u32_of_int 7) bits) (u8 (Uint8.of_int 3)) in
+    let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
     align_dyn p (size_of_u32 sz)
 
   (* Enter a new compound type by zeroing a nullmask and setting up a new
@@ -199,7 +199,7 @@ struct
   (* Enter a new compound type by zeroing a nullmask and setting up a new
    * frame for it, all this after having set its own nullbit if needed: *)
   let enter_frame_dyn = enter_frame identity zero_nullmask_dyn
-  let enter_frame_const = enter_frame u8 zero_nullmask_const
+  let enter_frame_const = enter_frame (u8 % Uint8.of_int) zero_nullmask_const
 
   let with_data_ptr p_stk f =
     E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
@@ -361,7 +361,7 @@ struct
    * - a 16bits nullmask, of which only bit 0 will ever be used
    *   (whether the constructed value is nullable or not, doesn't matter;
    *   we could reduce the amount of generated code by skipping the frame when
-   *   that label is not nullable, tough (TODO));
+   *   that label is not nullable, though (TODO));
    * - the u16 of the label. *)
   let sum_opn () mn0 path _mns lbl p_stk =
     E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
@@ -371,7 +371,7 @@ struct
       let new_frame = pair p (size 0) in
       let stk = cons new_frame stk in
       (* And zero that nullmask: *)
-      let p = write_word LittleEndian p (word_of_u16 (u16 0)) in
+      let p = write_word LittleEndian p (word_of_u16 (u16 Uint16.zero)) in
       (* Then the label: *)
       let p = write_word LittleEndian p (word_of_u16 lbl) in
       let p = align_const p 4 in
@@ -591,7 +591,7 @@ struct
     align_const p sz
 
   let skip_nullmask_dyn bits p =
-    let sz = right_shift (add (u32_of_int 7) bits) (u8 3) in
+    let sz = right_shift (add (u32_of_int 7) bits) (u8 (Uint8.of_int 3)) in
     let p = data_ptr_add p (size_of_u32 sz) in
     align_dyn p (size_of_u32 sz)
 
@@ -612,7 +612,7 @@ struct
               (cons new_frame stk) ])
 
   let enter_frame_dyn = enter_frame identity skip_nullmask_dyn
-  let enter_frame_const = enter_frame u8 skip_nullmask_const
+  let enter_frame_const = enter_frame (u8 % Uint8.of_int) skip_nullmask_const
 
   let start mn p =
     check_rec_fields_ordered mn ;

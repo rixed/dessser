@@ -250,11 +250,11 @@ struct
     | E.E0 (Char c) ->
         emit ?name p l e (fun oc -> pp oc "'%s'" (c_char_of c))
     | E.E0 (Byte i) | E.E0 (U8 i) ->
-        emit ?name p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint8.to_string i))
     | E.E0 (Word i) | E.E0 (U16 i) ->
-        emit ?name p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint16.to_string i))
     | E.E0 (U24 u) ->
-        emit ?name p l e (fun oc -> pp oc "%dU" u)
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint24.to_string u))
     | E.E0 (DWord u) | E.E0 (U32 u) ->
         emit ?name p l e (fun oc -> pp oc "%sU" (Uint32.to_string u))
     | E.E0 (U40 u) ->
@@ -273,19 +273,19 @@ struct
             (Uint64.to_string hi)
             (Uint64.to_string lo))
     | E.E0 (I8 i) ->
-        emit ?name p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%s" (Int8.to_string i))
     | E.E0 (I16 i) ->
-        emit ?name p l e (fun oc -> pp oc "%d" i)
+        emit ?name p l e (fun oc -> pp oc "%s" (Int16.to_string i))
     | E.E0 (I24 i) ->
-        emit ?name p l e (fun oc -> pp oc "%dL" i)
+        emit ?name p l e (fun oc -> pp oc "%s" (Int24.to_string i))
     | E.E0 (I32 i) ->
         emit ?name p l e (fun oc -> pp oc "%sL" (Int32.to_string i))
     | E.E0 (I40 i) ->
-        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%sLL" (Int40.to_string i))
     | E.E0 (I48 i) ->
-        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%sLL" (Int48.to_string i))
     | E.E0 (I56 i) ->
-        emit ?name p l e (fun oc -> pp oc "%LdLL" i)
+        emit ?name p l e (fun oc -> pp oc "%sLL" (Int56.to_string i))
     | E.E0 (I64 i) ->
         emit ?name p l e (fun oc -> pp oc "%LdLL" i)
     | E.E0 (I128 i) ->

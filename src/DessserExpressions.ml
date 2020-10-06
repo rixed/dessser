@@ -33,28 +33,28 @@ type e0 =
   | String of string
   | Bool of bool
   | Char of char
-  | U8 of int
-  | U16 of int
-  | U24 of int
+  | U8 of Uint8.t
+  | U16 of Uint16.t
+  | U24 of Uint24.t
   | U32 of Uint32.t
   | U40 of Uint40.t
   | U48 of Uint48.t
   | U56 of Uint56.t
   | U64 of Uint64.t
   | U128 of Uint128.t
-  | I8 of int
-  | I16 of int
-  | I24 of int
+  | I8 of Int8.t
+  | I16 of Int16.t
+  | I24 of Int24.t
   | I32 of Int32.t
-  | I40 of Int64.t
-  | I48 of Int64.t
-  | I56 of Int64.t
+  | I40 of Int40.t
+  | I48 of Int48.t
+  | I56 of Int56.t
   | I64 of Int64.t
   | I128 of Int128.t
   | Bit of bool
   | Size of int
-  | Byte of int
-  | Word of int
+  | Byte of Uint8.t
+  | Word of Uint16.t
   | DWord of Uint32.t
   | QWord of Uint64.t
   | OWord of Uint128.t
@@ -115,7 +115,7 @@ type e1 =
   | I56OfString
   | I64OfString
   | I128OfString
-  (* Integers can be casted upon others regardless of sign and width: *)
+  (* Integers can be cast upon others regardless of sign and width: *)
   | ToU8
   | ToU16
   | ToU24
@@ -479,28 +479,28 @@ let rec string_of_e0 = function
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
   | Char c -> "char "^ String.quote (String.of_char c)
-  | U8 n -> "u8 "^ string_of_int n
-  | U16 n -> "u16 "^ string_of_int n
-  | U24 n -> "u24 "^ string_of_int n
+  | U8 n -> "u8 "^ Uint8.to_string n
+  | U16 n -> "u16 "^ Uint16.to_string n
+  | U24 n -> "u24 "^ Uint24.to_string n
   | U32 n -> "u32 "^ Uint32.to_string n
   | U40 n -> "u40 "^ Uint40.to_string n
   | U48 n -> "u48 "^ Uint48.to_string n
   | U56 n -> "u56 "^ Uint56.to_string n
   | U64 n -> "u64 "^ Uint64.to_string n
   | U128 n -> "u128 "^ Uint128.to_string n
-  | I8 n -> "i8 "^ string_of_int n
-  | I16 n -> "i16 "^ string_of_int n
-  | I24 n -> "i24 "^ string_of_int n
+  | I8 n -> "i8 "^ Int8.to_string n
+  | I16 n -> "i16 "^ Int16.to_string n
+  | I24 n -> "i24 "^ Int24.to_string n
   | I32 n -> "i32 "^ Int32.to_string n
-  | I40 n -> "i40 "^ Int64.to_string n
-  | I48 n -> "i48 "^ Int64.to_string n
-  | I56 n -> "i56 "^ Int64.to_string n
+  | I40 n -> "i40 "^ Int40.to_string n
+  | I48 n -> "i48 "^ Int48.to_string n
+  | I56 n -> "i56 "^ Int56.to_string n
   | I64 n -> "i64 "^ Int64.to_string n
   | I128 n -> "i128 "^ Int128.to_string n
   | Bit b -> "bit "^ Bool.to_string b
   | Size n -> "size "^ string_of_int n
-  | Byte n -> "byte "^ string_of_int n
-  | Word n -> "word "^ string_of_int n
+  | Byte n -> "byte "^ Uint8.to_string n
+  | Word n -> "word "^ Uint16.to_string n
   | DWord n -> "dword "^ Uint32.to_string n
   | QWord n -> "qword "^ Uint64.to_string n
   | OWord n -> "oword "^ Uint128.to_string n
@@ -687,28 +687,28 @@ struct
     | Lst [ Sym "string" ; Str s ] -> E0 (String s)
     | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
     | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
-    | Lst [ Sym "u8" ; Sym n ] -> E0 (U8 (int_of_string n))
-    | Lst [ Sym "u16" ; Sym n ] -> E0 (U16 (int_of_string n))
-    | Lst [ Sym "u24" ; Sym n ] -> E0 (U24 (int_of_string n))
+    | Lst [ Sym "u8" ; Sym n ] -> E0 (U8 (Uint8.of_string n))
+    | Lst [ Sym "u16" ; Sym n ] -> E0 (U16 (Uint16.of_string n))
+    | Lst [ Sym "u24" ; Sym n ] -> E0 (U24 (Uint24.of_string n))
     | Lst [ Sym "u32" ; Sym n ] -> E0 (U32 (Uint32.of_string n))
     | Lst [ Sym "u40" ; Sym n ] -> E0 (U40 (Uint40.of_string n))
     | Lst [ Sym "u48" ; Sym n ] -> E0 (U48 (Uint48.of_string n))
     | Lst [ Sym "u56" ; Sym n ] -> E0 (U56 (Uint56.of_string n))
     | Lst [ Sym "u64" ; Sym n ] -> E0 (U64 (Uint64.of_string n))
     | Lst [ Sym "u128" ; Sym n ] -> E0 (U128 (Uint128.of_string n))
-    | Lst [ Sym "i8" ; Sym n ] -> E0 (I8 (int_of_string n))
-    | Lst [ Sym "i16" ; Sym n ] -> E0 (I16 (int_of_string n))
-    | Lst [ Sym "i24" ; Sym n ] -> E0 (I24 (int_of_string n))
+    | Lst [ Sym "i8" ; Sym n ] -> E0 (I8 (Int8.of_string n))
+    | Lst [ Sym "i16" ; Sym n ] -> E0 (I16 (Int16.of_string n))
+    | Lst [ Sym "i24" ; Sym n ] -> E0 (I24 (Int24.of_string n))
     | Lst [ Sym "i32" ; Sym n ] -> E0 (I32 (Int32.of_string n))
-    | Lst [ Sym "i40" ; Sym n ] -> E0 (I40 (Int64.of_string n))
-    | Lst [ Sym "i48" ; Sym n ] -> E0 (I48 (Int64.of_string n))
-    | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int64.of_string n))
+    | Lst [ Sym "i40" ; Sym n ] -> E0 (I40 (Int40.of_string n))
+    | Lst [ Sym "i48" ; Sym n ] -> E0 (I48 (Int48.of_string n))
+    | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int56.of_string n))
     | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
     | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
     | Lst [ Sym "bit" ; Sym b ] -> E0 (Bit (Bool.of_string b))
     | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
-    | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (int_of_string n))
-    | Lst [ Sym "word" ; Sym n ] -> E0 (Word (int_of_string n))
+    | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (Uint8.of_string n))
+    | Lst [ Sym "word" ; Sym n ] -> E0 (Word (Uint16.of_string n))
     | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
     | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
     | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
@@ -927,7 +927,7 @@ struct
     List.map e (sexpr_of_string str)
 
   (*$= expr & ~printer:(BatIO.to_string (BatList.print print))
-    [ Ops.u8 42 ] (expr "(u8 42)")
+    [ Ops.u8 (Uint8.of_int 42) ] (expr "(u8 42)")
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
     [ Ops.null T.(Mac TString) ] (expr "(null \"string\")")
@@ -936,11 +936,11 @@ struct
       (expr "(i128 -1213949874624120272)")
     [ Ops.bool false ] (expr "(bool false)")
     [ Ops.u64 (Uint64.of_int 8) ] (expr "(u64 8)")
-    [ Ops.seq [ Ops.u16 45134 ; Ops.u64 (Uint64.of_int 6)] ] \
+    [ Ops.seq [ Ops.u16 (Uint16.of_int 45134) ; Ops.u64 (Uint64.of_int 6)] ] \
       (expr "(seq (u16 45134) (u64 6))")
     [ Ops.comment "foo" (Ops.u32 (Uint32.of_int 2)) ] \
       (expr "(comment \"foo\" (u32 2))")
-    [ Ops.(make_vec [ u8 1 ; u8 2 ]) ] \
+    [ Ops.(make_vec [ u8 Uint8.one ; u8 (Uint8.of_int 2) ]) ] \
       (expr "(make-vec (u8 1) (u8 2))")
   *)
 
