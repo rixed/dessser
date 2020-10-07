@@ -8,6 +8,31 @@ open E.Ops
 (* TODO: make separator configurable *)
 let separator = ','
 
+(* In a CSV, all structures are flattened as CSV columns.
+ * The problem there is that there is then no way to nullify the whole
+ * compound value. *)
+let rec no_nullable_compound_types mn =
+  let rec no_nullable_compound_types_vt = function
+    | T.Unknown | Mac _ as vt ->
+        vt
+    | Usr { def ; name } ->
+        Usr { def = no_nullable_compound_types_vt def ; name }
+    | TVec (d, mn) ->
+        TVec (d, no_nullable_compound_types mn)
+    | TList mn ->
+        TList (no_nullable_compound_types mn)
+    | TTup mns ->
+        TTup (Array.map no_nullable_compound_types mns)
+    | TRec mns ->
+        TRec (Array.map (fun (n, mn) -> n, no_nullable_compound_types mn) mns)
+    | TSum mns ->
+        TSum (Array.map (fun (n, mn) -> n, no_nullable_compound_types mn) mns)
+    | TMap (k, v) ->
+        TMap (no_nullable_compound_types k, no_nullable_compound_types v)
+  in
+  T.{ vtyp = no_nullable_compound_types_vt mn.T.vtyp ;
+      nullable = false }
+
 module Ser : SER =
 struct
   type state = unit
@@ -62,10 +87,6 @@ struct
 
   let sep p =
     write_byte p (byte_of_const_char separator)
-
-  (*
-   * In a CSV, all structures are flattened as CSV columns:
-   *)
 
   let tup_opn () _ _ _ p = p
 

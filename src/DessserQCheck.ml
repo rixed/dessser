@@ -715,16 +715,18 @@ let sexpr mn =
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
-    let nn = T.maybe_nullable_to_not_nullable mn in
+    let mn_ringbuf = T.maybe_nullable_to_not_nullable mn in
     (* RamenRingBuffer require record field names to be ordered: *)
-    let nn = RamenRingBuffer.order_rec_fields nn in
+    let mn_ringbuf = RamenRingBuffer.order_rec_fields mn_ringbuf in
+    (* CSV cannot encode nullable compound types: *)
+    let mn_csv = Csv.no_nullable_compound_types mn in
 
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
     let format = "RamenRingBuffer" in
-    test_format ocaml_be nn
+    test_format ocaml_be mn_ringbuf
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
-    test_format cpp_be nn
+    test_format cpp_be mn_ringbuf
       (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
     let format = "RowBinary" in
     test_format ocaml_be mn
@@ -732,9 +734,9 @@ let sexpr mn =
     test_format cpp_be mn
       (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
     let format = "CSV" in
-    test_format ocaml_be mn
+    test_format ocaml_be mn_csv
       (module Csv.Des : DES) (module Csv.Ser : SER) format ;
-    test_format cpp_be mn
+    test_format cpp_be mn_csv
       (module Csv.Des : DES) (module Csv.Ser : SER) format)
 *)
 
