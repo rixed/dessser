@@ -179,7 +179,7 @@ let rec fold_value_type u f vt =
   | Unknown | Mac _ ->
       u
   | Usr { def ; _ } ->
-      fold_value_type u f (develop_value_type def)
+      fold_value_type u f def
   | TVec (_, mn) | TList mn ->
       fold_maybe_nullable u f mn
   | TTup mns ->
