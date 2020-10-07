@@ -732,9 +732,9 @@ let sexpr mn =
       (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
     let format = "CSV" in
     test_format ocaml_be mn
-      (module CSV.Des : DES) (module CSV.Ser : SER) format ;
+      (module Csv.Des : DES) (module Csv.Ser : SER) format ;
     test_format cpp_be mn
-      (module CSV.Des : DES) (module CSV.Ser : SER) format)
+      (module Csv.Des : DES) (module Csv.Ser : SER) format)
 *)
 
 (* Non regression tests: *)
@@ -760,8 +760,8 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs)
   let check_csv be ts vs =
     let mn = T.Parser.maybe_nullable_of_string ts in
-    let des = (module CSV.Des : DES)
-    and ser = (module CSV.Ser : SER) in
+    let des = (module Csv.Des : DES)
+    and ser = (module Csv.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
@@ -812,7 +812,7 @@ let sexpr mn =
 (*$inject
   let ringbuf_ser = (module RamenRingBuffer.Ser : SER)
   let rowbinary_ser = (module RowBinary.Ser : SER)
-  let csv_ser = (module CSV.Ser : SER)
+  let csv_ser = (module Csv.Ser : SER)
   let sexpr_des = (module SExpr.Des : DES)
 
   let check_ser ser be ts vs =

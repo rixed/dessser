@@ -99,7 +99,7 @@ struct
         let p = su32 () vtyp0 path n p in
         sep p
     | None ->
-        failwith "CSV.Ser needs list length upfront"
+        failwith "Csv.Ser needs list length upfront"
 
   let list_cls () _ _ p = p
 
