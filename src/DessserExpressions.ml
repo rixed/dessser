@@ -240,6 +240,9 @@ type e3 =
   | Choose (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
+  (* Get a slice from a pointer, starting at given offset and shortened to
+   * given length: *)
+  | DataPtrOfPtr
 
 type e4 =
   | ReadWhile
@@ -464,6 +467,7 @@ let string_of_e3 = function
   | Choose -> "choose"
   | LoopWhile -> "loop-while"
   | LoopUntil -> "loop-until"
+  | DataPtrOfPtr -> "data-ptr-of-ptr"
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
@@ -912,6 +916,8 @@ struct
     | Lst [ Sym "choose" ; x1 ; x2 ; x3 ] -> E3 (Choose, e x1, e x2, e x3)
     | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
     | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
+    | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
+        E3 (DataPtrOfPtr, e x1, e x2, e x3)
     (* e4 *)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
@@ -1136,6 +1142,7 @@ let rec type_of l e0 =
   | E1 (ListLength, _) -> T.u32
   | E0 (DataPtrOfString _) -> T.dataptr
   | E0 (DataPtrOfBuffer _) -> T.dataptr
+  | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E2 (GetBit, _, _) -> T.bit
   | E3 (SetBit, _, _, _) -> T.void
   | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
@@ -1555,6 +1562,10 @@ let rec type_check l e =
         check_eq l e1 T.dataptr
     | E1 ((RemSize | DataPtrOffset), e) ->
         check_eq l e T.dataptr ;
+    | E3 (DataPtrOfPtr, e1, e2, e3) ->
+        check_eq l e1 T.dataptr ;
+        check_eq l e2 T.size ;
+        check_eq l e3 T.size ;
     | E2 ((And | Or), e1, e2) ->
         check_eq l e1 T.bool ;
         check_eq l e2 T.bool
@@ -1871,7 +1882,7 @@ struct
   let qword n = E0 (QWord n)
   let oword n = E0 (OWord n)
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
-  let byte_of_const_char e1 = byte_of_char (char e1)
+  let byte_of_const_char c = byte_of_char (char c)
   let choose ~cond ~then_ ~else_ =  E3 (Choose, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
@@ -1880,6 +1891,8 @@ struct
   let comment n e1 = E1 (Comment n, e1)
   let ge e1 e2 = E2 (Ge, e1, e2)
   let gt e1 e2 = E2 (Gt, e1, e2)
+  let le e1 e2 = E2 (Ge, e2, e1)
+  let lt e1 e2 = E2 (Gt, e2, e1)
   let eq e1 e2 = E2 (Eq, e1, e2)
   let param fid n = E0 (Param (fid, n))
   let add e1 e2 = E2 (Add, e1, e2)
@@ -1925,6 +1938,7 @@ struct
   let tail e1 = E1 (Tail, e1)
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
+  let rem_size e1 = E1 (RemSize, e1)
   let not_ e1 = E1 (Not, e1)
   let neg e1 = E1 (Neg, e1)
   let u16_of_word e1 = E1 (U16OfWord, e1)
@@ -1932,10 +1946,12 @@ struct
   let u64_of_qword e1 = E1 (U64OfQWord, e1)
   let u128_of_oword e1 = E1 (U128OfOWord, e1)
   let data_ptr_add e1 e2 = E2 (DataPtrAdd, e1, e2)
+  let data_ptr_sub e1 e2 = E2 (DataPtrSub, e1, e2)
   let data_ptr_push e1 = E1 (DataPtrPush, e1)
   let data_ptr_pop e1 = E1 (DataPtrPop, e1)
   let data_ptr_of_string s = E0 (DataPtrOfString s)
   let data_ptr_of_buffer n = E0 (DataPtrOfBuffer n)
+  let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
   let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)

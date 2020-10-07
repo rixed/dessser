@@ -56,6 +56,18 @@ struct Pointer {
     value(that.value)
   {}
 
+  /* Construct from another Pointer, narrowing a subpart of it */
+  Pointer(Pointer const &that, Size offset_, Size size_) :
+    buffer(that.buffer),
+    size(that.offset + size_),
+    offset(that.offset + offset_),
+    stack(that.stack),
+    value(that.value)
+  {
+    assert(size <= that.size);
+    assert(offset <= that.size);
+  }
+
   /* Construct from any heap allocated value */
   Pointer(std::shared_ptr<void> value_) :
     size(0),

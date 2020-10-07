@@ -642,6 +642,11 @@ struct
         emit ?name p l e (fun oc -> pp oc "Pointer.of_string %S" s)
     | E.E0 (DataPtrOfBuffer n) ->
         emit ?name p l e (fun oc -> pp oc "Pointer.of_buffer %d" n)
+    | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and n3 = print emit p l e3 in
+        emit ?name p l e (fun oc -> pp oc "Pointer.of_pointer %s %s %s" n1 n2 n3)
     | E.E2 (GetBit, e1, e2) ->
         binary_op "Pointer.getBit" e1 e2
     | E.E3 (SetBit, e1, e2, e3) ->

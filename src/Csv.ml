@@ -306,8 +306,10 @@ struct
 
   let is_null () _ _ p =
     (* \N *)
-    and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x5c)))
-         (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x4e)))
+    and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x5c)))
+               (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x4e))))
+         (or_ (eq (rem_size p) (size 2))
+              (eq (peek_byte p (size 2)) (byte_of_const_char separator)))
 
   let dnull _t () _ _ p = skip 2 p
 

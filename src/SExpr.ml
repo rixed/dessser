@@ -321,11 +321,15 @@ struct
   let list_sep () _ _ p = skip1 p
 
   let is_null () _ _ p =
-    (* NULL *)
-    and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x6e)))
-         (and_ (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x75)))
-               (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
-                     (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c)))))
+    (* null *)
+    and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x6e)))
+               (and_ (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x75)))
+                     (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
+                           (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c))))))
+         (or_ (eq (rem_size p) (size 4))
+              (let_ "b" (peek_byte p (size 4))
+                    ~in_:(or_ (eq (identifier "b") (byte_of_const_char ' '))
+                              (eq (identifier "b") (byte_of_const_char ')')))))
 
   let dnull _t () _ _ p = skip 4 p
 

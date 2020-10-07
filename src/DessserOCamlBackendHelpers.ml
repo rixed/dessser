@@ -134,6 +134,9 @@ struct
       length = n ;
       stack = [] }
 
+  let of_pointer p offset length =
+    { p with offset ; length }
+
   (* Check that the given offset is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput { missing = o - l ; offset = o })

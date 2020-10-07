@@ -644,9 +644,10 @@ let sexpr mn =
     let e =
       func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
         let1 alloc_dst (fun tdst ->
-          let src = first (S2T.desser mn src tdst) in
-          let dst = secnd (T2S.desser mn tdst dst) in
-          pair src dst)) in
+          with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
+            let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
+            let dst = secnd (T2S.desser mn tdst dst) in
+            pair src dst))) in
     Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
     make_converter be ~mn e
 
