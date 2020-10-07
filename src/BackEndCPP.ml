@@ -329,7 +329,7 @@ struct
         binary_infix_op e1 ">>" e2
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
-        (match E.type_of l e1 with
+        (match T.develop_user_types (E.type_of l e1) with
         | TValue { vtyp = Mac TU128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
         | TValue { vtyp = Mac TI128 ; _ } ->
