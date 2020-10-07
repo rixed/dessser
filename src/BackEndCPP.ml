@@ -504,7 +504,7 @@ struct
     | E.E2 (DataPtrAdd, e1, e2) ->
         method_call e1 "skip" [ e2 ]
     | E.E2 (DataPtrSub, e1, e2) ->
-        method_call e1 "sub" [ e2 ]
+        binary_infix_op e1 "-" e2
     | E.E1 (DataPtrPush, e1) ->
         method_call e1 "push" []
     | E.E1 (DataPtrPop, e1) ->
