@@ -112,7 +112,7 @@ struct
 
   let vec_cls () _ _ p = p
 
-  let vec_sep _n () _ _ p = sep p
+  let vec_sep () _ _ p = sep conf p
 
   (* Lists are prefixed with a column or their length: *)
   let list_opn () vtyp0 path _ n p =
@@ -317,7 +317,7 @@ struct
 
   let vec_cls () _ _ p = p
 
-  let vec_sep _n () _ _ p = skip1 p
+  let vec_sep () _ _ p = skip1 p
 
   let list_opn =
     KnownSize (fun () vtyp0 path _ p ->

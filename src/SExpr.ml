@@ -84,13 +84,13 @@ struct
   let sum_cls st mn0 path p =
     tup_cls st mn0 path p
 
-  let vec_opn () _ _ _ _ p =
+  let vec_opn _conf _ _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
   let vec_cls () _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let vec_sep _n () _ _ p =
+  let vec_sep () _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let list_opn () vtyp0 path _ n p =
@@ -303,7 +303,7 @@ struct
 
   let vec_cls () _ _ p = skip1 p
 
-  let vec_sep _n () _ _ p = skip1 p
+  let vec_sep () _ _ p = skip1 p
 
   let list_opn =
     if list_prefix_length then

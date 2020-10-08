@@ -44,7 +44,7 @@ struct
   let sum_cls () _ _ p = p
   let vec_opn () _ _ _ _ p = p
   let vec_cls () _ _ p = p
-  let vec_sep _ () _ _ p = p
+  let vec_sep () _ _ p = p
   let list_opn () _ _ _ _ p = p
   let list_cls () _ _ p = p
   let list_sep () _ _ p = p

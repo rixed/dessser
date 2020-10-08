@@ -115,7 +115,7 @@ struct
 
   let vec_opn () _ _ _ _  p = p
   let vec_cls () _ _ p = p
-  let vec_sep _n () _ _ p = p
+  let vec_sep () _ _ p = p
 
   let list_opn () _ _ _ n p =
     let n = match n with
@@ -352,7 +352,7 @@ struct
    * what ClickHouse refers to as arrays. *)
   let vec_opn () _ _ _ _ p = p
   let vec_cls () _ _ p = p
-  let vec_sep _n () _ _ p = p
+  let vec_sep () _ _ p = p
 
   let list_opn = KnownSize
     (fun () _ _ _ p ->

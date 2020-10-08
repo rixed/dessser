@@ -58,7 +58,7 @@ struct
   let sum_cls () _ _ src = src
   let vec_opn () _ _ _ _ src = src
   let vec_cls () _ _ src = src
-  let vec_sep _ () _ _ src = src
+  let vec_sep () _ _ src = src
   let list_opn = KnownSize (fun () _ _ _ src ->
     let b_src = read_byte src in
     map_pair b_src
@@ -118,7 +118,7 @@ struct
   let sum_cls () _ _ dst = dst
   let vec_opn () _ _ _ _ dst = dst
   let vec_cls () _ _ dst = dst
-  let vec_sep _i () _ _ dst = dst
+  let vec_sep () _ _ dst = dst
   let list_opn () _ _ _ _n dst = dst
   let list_cls () _ _ dst = dst
   let list_sep () _ _ dst = dst

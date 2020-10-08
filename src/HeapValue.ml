@@ -26,7 +26,7 @@ struct
           (Des.vec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.vec_sep i dstate mn0 path src in
+                    Des.vec_sep dstate mn0 path src in
         let subpath = T.path_append i path in
         let v_src = make1 dstate mn0 subpath mn src in
         E.with_sploded_pair "dvec" v_src (fun v src ->
@@ -219,7 +219,7 @@ struct
         Ser.vec_cls sstate mn0 path dst
       else
         let dst = if i = 0 then dst else
-                    Ser.vec_sep i sstate mn0 subpath dst in
+                    Ser.vec_sep sstate mn0 subpath dst in
         let_ "dst" dst ~in_:(
           let v' = nth (u32_of_int i) v in
           ser1 sstate mn0 subpath mn v' copy_field (identifier "dst") |>

@@ -84,7 +84,7 @@ sig
   val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val list_opn : state list_opener
   val list_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val list_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -151,7 +151,7 @@ sig
   val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val list_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable -> (*u32*) E.t option -> (*ptr*) E.t -> (*ptr*) E.t
   val list_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val list_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -328,45 +328,38 @@ struct
           (Des.sum_cls dstate mn0 path src)
           (Ser.sum_cls sstate mn0 path dst)))
 
-  (* This will generates a long linear code with one block per array
-   * item, which should be ok since vector dimension is expected to be small.
-   * TODO: use one of the loop expressions instead if the dimension is large *)
   and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in
+    let pair_ptrs = T.TPair (Des.ptr mn0, Ser.ptr mn0) in
     let src_dst =
       E.with_sploded_pair "dsvec1" src_dst (fun src dst ->
         pair
           (Des.vec_opn dstate mn0 path dim mn src)
           (Ser.vec_opn sstate mn0 path dim mn dst)) in
-    let rec loop src_dst i =
-      (* Not really required to keep the actual index, as all indices share the
-       * same type, but helps with debugging: *)
-      let subpath = T.path_append i path in
-      if i >= dim then
-        E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
-          pair
-            (Des.vec_cls dstate mn0 path src)
-            (Ser.vec_cls sstate mn0 path dst))
-      else (
-        let src_dst =
-          if i = 0 then
-            src_dst
-          else
-            E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
-              pair
-                (Des.vec_sep i dstate mn0 path src)
-                (Ser.vec_sep i sstate mn0 path dst)) in
-        (* FIXME: comment is poorly located: *)
-        let src_dst =
-          comment ("Convert field #"^ Stdlib.string_of_int i)
-            (desser_ transform sstate dstate mn0 subpath src_dst) in
-        loop src_dst (i + 1)
-      )
+    (* TODO: Same comment as in dslist apply: we would like to be able to keep
+     * track of a runtime path index: *)
+    let subpath = T.path_append 0 path in
+    let src_dst =
+      repeat
+        ~init:src_dst
+        ~from:(i32 0l) ~to_:(i32 (Int32.of_int dim))
+        ~body:(comment "Convert vector item"
+          (E.func2 T.i32 pair_ptrs (fun _l n src_dst ->
+            let src_dst =
+              choose
+                ~cond:(eq n (i32 0l))
+                ~then_:src_dst
+                ~else_:(
+                  E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
+                    pair
+                      (Des.vec_sep dstate mn0 path src)
+                      (Ser.vec_sep sstate mn0 path dst)))in
+            desser_ transform sstate dstate mn0 subpath src_dst)))
     in
-    let what =
-      Printf.sprintf2 "Convert a vector of %d %a"
-        dim T.print_maybe_nullable mn in
-    comment what (loop src_dst 0)
+    E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
+      pair
+        (Des.vec_cls dstate mn0 path src)
+        (Ser.vec_cls sstate mn0 path dst))
 
   and dslist mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in

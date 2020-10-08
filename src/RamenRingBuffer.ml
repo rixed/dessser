@@ -392,7 +392,7 @@ struct
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let vec_sep _idx () _ _ p_stk = p_stk
+  let vec_sep () _ _ p_stk = p_stk
 
   (* [n] is an u32 *)
   let list_opn () mn0 path mn n p_stk =
@@ -793,7 +793,7 @@ struct
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let vec_sep _n () _ _ p_stk = p_stk
+  let vec_sep () _ _ p_stk = p_stk
 
   (* Sums are encoded with a leading word for the nullmask followed by
    * the label as a u16: *)
