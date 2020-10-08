@@ -7,6 +7,7 @@ open E.Ops
 
 (* TODO: make separator configurable *)
 let separator = ','
+let newline = '\n'
 
 (* In a CSV, all structures are flattened as CSV columns.
  * The problem there is that there is then no way to nullify the whole
@@ -185,10 +186,12 @@ struct
 
   (* Accumulate bytes into a string that is then converted with [op]: *)
   let di op () _ _ p =
-    (* Accumulate everything up to the next space or parenthesis, and then
+    (* Accumulate everything up to the next field or line separator, and then
      * run [op] to convert from a string: *)
     let cond =
-      E.func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char separator)))
+      E.func1 T.byte (fun _l b ->
+        not_ (or_ (eq b (byte_of_const_char separator))
+                  (eq b (byte_of_const_char newline))))
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
