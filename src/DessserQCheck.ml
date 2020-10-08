@@ -44,11 +44,11 @@ let printable_for_comments =
   Gen.(map (fun c ->
     if c = '*' || c = '"' || c = '|' then 'X' else c) printable)
 
-(* For s-expr strings, as long as escaping is not supported: *)
+(* For s-expr and csv strings, as long as escaping is not supported: *)
 let printable_no_escape =
   Gen.(map (fun c ->
     if c = '\\' || c = '"' || c = '\'' || c = '\n' || c = '\r' || c = '\t' ||
-       c = '\b'
+       c = '\b' || c = ','
     then 'X' else c) printable)
 
 (*
