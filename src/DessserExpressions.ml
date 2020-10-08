@@ -58,6 +58,7 @@ type e0 =
   | DWord of Uint32.t
   | QWord of Uint64.t
   | OWord of Uint128.t
+  | Bytes of Bytes.t
   | DataPtrOfString of string
   | DataPtrOfBuffer of int
   (* Identifier are set with `Let` expressions, or obtained from the code
@@ -508,6 +509,7 @@ let rec string_of_e0 = function
   | DWord n -> "dword "^ Uint32.to_string n
   | QWord n -> "qword "^ Uint64.to_string n
   | OWord n -> "oword "^ Uint128.to_string n
+  | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
   | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
   | Identifier s -> "identifier "^ String.quote s
@@ -716,6 +718,7 @@ struct
     | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
     | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
     | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
+    | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
     | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
         E0 (DataPtrOfBuffer (int_of_string n))
@@ -1082,6 +1085,7 @@ let rec type_of l e0 =
   | E0 (DWord _) -> T.dword
   | E0 (QWord _) -> T.qword
   | E0 (OWord _) -> T.oword
+  | E0 (Bytes _) -> T.bytes
   | E2 (Gt, _, _) -> T.bool
   | E2 (Ge, _, _) -> T.bool
   | E2 (Eq, _, _) -> T.bool
@@ -1396,7 +1400,7 @@ let rec type_check l e =
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-         | DataPtrOfString _ | DataPtrOfBuffer _
+         | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
          | Identifier _| Param _
          | CopyField | SkipField | SetFieldNull)
     | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
@@ -1881,6 +1885,7 @@ struct
   let dword n = E0 (DWord n)
   let qword n = E0 (QWord n)
   let oword n = E0 (OWord n)
+  let bytes s = E0 (Bytes s)
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
   let byte_of_const_char c = byte_of_char (char c)
   let choose ~cond ~then_ ~else_ =  E3 (Choose, cond, then_, else_)

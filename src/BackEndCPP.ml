@@ -272,6 +272,8 @@ struct
           pp oc "((((uint128_t)%sULL) << 64U) | %sULL)"
             (Uint64.to_string hi)
             (Uint64.to_string lo))
+    | E.E0 (Bytes s) ->
+        emit ?name p l e (fun oc -> String.print_quoted oc (Bytes.to_string s))
     | E.E0 (I8 i) ->
         emit ?name p l e (fun oc -> pp oc "%s" (Int8.to_string i))
     | E.E0 (I16 i) ->

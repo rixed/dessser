@@ -456,6 +456,8 @@ struct
         emit ?name p l e (lift_u64 u)
     | E.E0 (OWord u) | E.E0 (U128 u) ->
         emit ?name p l e (lift_u128 u)
+    | E.E0 (Bytes s) ->
+        emit ?name p l e (fun oc -> pp oc "Slice.of_string %S" (Bytes.to_string s))
     | E.E0 (I8 i) ->
         emit ?name p l e (fun oc -> pp oc "Int8.of_int (%s)" (Int8.to_string i))
     | E.E0 (I16 i) ->

@@ -8,11 +8,13 @@ open E.Ops
 type csv_config =
   { separator : char ;
     newline : char ;
+    null : string ;
     quote_strings : bool }
 
 let default_config =
   { separator = ',' ;
     newline = '\n' ;
+    null = "\\N" ;  (* À la Postgresql *)
     quote_strings = false }
 
 (* In a CSV, all structures are flattened as CSV columns.
@@ -60,7 +62,7 @@ struct
   let sbytes conf v p =
     let quo = byte_of_const_char '"' in
     let p = if conf.quote_strings then write_byte p quo else p in
-    (* FIXME: escape double quotes: *)
+    (* FIXME: escape double quotes/separator/newline: *)
     let p = write_bytes p v in
     if conf.quote_strings then write_byte p quo else p
 
@@ -136,10 +138,8 @@ struct
 
   let nullable _conf _ _ p = p
 
-  (* Write "\N".
-   * TODO: Make this configurable. *)
-  let snull _t _conf _ _ p =
-    write_word LittleEndian p (word (Uint16.of_int 0x4e_5c))
+  let snull _t conf _ _ p =
+    write_bytes p (bytes (Bytes.of_string conf.null))
 
   let snotnull _t _conf _ _ p = p
 
@@ -222,7 +222,7 @@ struct
     (* Skip the double-quote: *)
     let p = if conf.quote_strings then skip1 p else p in
     (* Read up to next double-quote or separator depending on quote_strings: *)
-    (* FIXME: handle escaping backslash! *)
+    (* FIXME: handle escaping the separator/newline! *)
     let cond =
       E.func1 T.byte (fun _l b ->
         not_ (
@@ -324,8 +324,7 @@ struct
   let sum_opn st mn0 path _ p =
     let c_p = du16 st mn0 path p in
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
-      let p = skip1 p in
-      pair c p)
+      pair c (skip1 p))
 
   let sum_cls _conf _ _ p = p
 
@@ -345,13 +344,24 @@ struct
   let list_sep _conf _ _ p = skip1 p
 
   let is_null conf _ _ p =
-    (* \N *)
-    and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x5c)))
-               (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x4e))))
-         (or_ (eq (rem_size p) (size 2))
-              (eq (peek_byte p (size 2)) (byte_of_const_char conf.separator)))
+    let len = String.length conf.null in
+    let rec loop i =
+      if i >= len then
+        (comment (Printf.sprintf "Test end of string %S" conf.null)
+          (or_ (eq (rem_size p) (size len))
+               (eq (peek_byte
+                     p (size len)) (byte_of_const_char conf.separator))))
+      else
+        and_
+          (comment (Printf.sprintf "Test char %d of %S" i conf.null)
+            (let b = byte (Uint8.of_int (Char.code conf.null.[i])) in
+             eq (peek_byte p (size i)) b))
+          (loop (i + 1))
+    in
+    loop 0
 
-  let dnull _t _conf _ _ p = skip 2 p
+  let dnull _t conf _ _ p =
+    skip (String.length conf.null) p
 
   let dnotnull _t _conf _ _ p = p
 end
