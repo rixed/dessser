@@ -5,9 +5,15 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-(* TODO: make separator configurable *)
-let separator = ','
-let newline = '\n'
+type csv_config =
+  { separator : char ;
+    newline : char ;
+    quote_strings : bool }
+
+let default_config =
+  { separator = ',' ;
+    newline = '\n' ;
+    quote_strings = false }
 
 (* In a CSV, all structures are flattened as CSV columns.
  * The problem there is that there is then no way to nullify the whole
@@ -34,37 +40,38 @@ let rec no_nullable_compound_types mn =
   T.{ vtyp = no_nullable_compound_types_vt mn.T.vtyp ;
       nullable = false }
 
-module Ser : SER =
+module Ser : SER with type config = csv_config =
 struct
-  type state = unit
+  type config = csv_config
+
+  type state = config
 
   let ptr _vtyp = T.dataptr
 
-  let start _v p = (), p
+  let start ?(config=default_config) _v p = config, p
 
-  let stop () p = p
+  let stop _conf p = p
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
-  let sfloat () _ _ v p =
+  let sfloat _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_float v))
 
-  (* TODO: make quoting optional *)
-  let sbytes v p =
+  let sbytes conf v p =
     let quo = byte_of_const_char '"' in
-    let p = write_byte p quo in
+    let p = if conf.quote_strings then write_byte p quo else p in
     (* FIXME: escape double quotes: *)
     let p = write_bytes p v in
-    write_byte p quo
+    if conf.quote_strings then write_byte p quo else p
 
-  let sstring () _ _ v p = sbytes (bytes_of_string v) p
-  let schar () _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
+  let sstring conf _ _ v p = sbytes conf (bytes_of_string v) p
+  let schar conf _ _ v p = sbytes conf (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
-  let sbool () _ _ v p =
+  let sbool _conf _ _ v p =
     write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
-  let si () _ _ v p =
+  let si _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
@@ -86,58 +93,58 @@ struct
   let su64 = si
   let su128 = si
 
-  let sep p =
-    write_byte p (byte_of_const_char separator)
+  let sep conf p =
+    write_byte p (byte_of_const_char conf.separator)
 
-  let tup_opn () _ _ _ p = p
+  let tup_opn _conf _ _ _ p = p
 
-  let tup_cls () _ _ p = p
+  let tup_cls _conf _ _ p = p
 
-  let tup_sep _n () _ _ p = sep p
+  let tup_sep _n conf _ _ p = sep conf p
 
-  let rec_opn () _ _ _ p = p
+  let rec_opn _conf _ _ _ p = p
 
-  let rec_cls () _ _ p = p
+  let rec_cls _conf _ _ p = p
 
-  let rec_sep _n () _ _ p = sep p
+  let rec_sep _n conf _ _ p = sep conf p
 
   (* Sum label comes as a separate column: *)
-  let sum_opn st mn0 path _ lbl p =
-    let p = su16 st mn0 path lbl p in
-    sep p
+  let sum_opn conf mn0 path _ lbl p =
+    let p = su16 conf mn0 path lbl p in
+    sep conf p
 
-  let sum_cls () _ _ p = p
+  let sum_cls _conf _ _ p = p
 
-  let vec_opn () _ _ _ _ p = p
+  let vec_opn _conf _ _ _ _ p = p
 
-  let vec_cls () _ _ p = p
+  let vec_cls _conf _ _ p = p
 
-  let vec_sep () _ _ p = sep conf p
+  let vec_sep conf _ _ p = sep conf p
 
   (* Lists are prefixed with a column or their length: *)
-  let list_opn () vtyp0 path _ n p =
+  let list_opn conf vtyp0 path _ n p =
     match n with
     | Some n ->
-        let p = su32 () vtyp0 path n p in
-        sep p
+        let p = su32 conf vtyp0 path n p in
+        sep conf p
     | None ->
         failwith "Csv.Ser needs list length upfront"
 
-  let list_cls () _ _ p = p
+  let list_cls _conf _ _ p = p
 
-  let list_sep () _ _ p = sep p
+  let list_sep conf _ _ p = sep conf p
 
-  let nullable () _ _ p = p
+  let nullable _conf _ _ p = p
 
   (* Write "\N".
    * TODO: Make this configurable. *)
-  let snull _t () _ _ p =
+  let snull _t _conf _ _ p =
     write_word LittleEndian p (word (Uint16.of_int 0x4e_5c))
 
-  let snotnull _t () _ _ p = p
+  let snotnull _t _conf _ _ p = p
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
-  let todo_ssize () = failwith "TODO: ssize for CSV"
+  let todo_ssize _conf = failwith "TODO: ssize for CSV"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()
   let ssize_of_bool _ _ _ = todo_ssize ()
@@ -168,15 +175,17 @@ struct
   let ssize_of_null _ _ = todo_ssize ()
 end
 
-module Des : DES =
+module Des : DES with type config = csv_config =
 struct
-  type state = unit
+  type config = csv_config
+
+  type state = config
 
   let ptr _vtyp = T.dataptr
 
-  let start _mn p = (), p
+  let start ?(config=default_config) _mn p = config, p
 
-  let stop () p = p
+  let stop _conf p = p
 
   type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
@@ -185,50 +194,57 @@ struct
   let skip1 = skip 1
 
   (* Accumulate bytes into a string that is then converted with [op]: *)
-  let di op () _ _ p =
+  let di op conf _ _ p =
     (* Accumulate everything up to the next field or line separator, and then
      * run [op] to convert from a string: *)
     let cond =
       E.func1 T.byte (fun _l b ->
-        not_ (or_ (eq b (byte_of_const_char separator))
-                  (eq b (byte_of_const_char newline))))
+        not_ (or_ (eq b (byte_of_const_char conf.separator))
+                  (eq b (byte_of_const_char conf.newline))))
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair "di" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
 
-  let tup_cls () _ _ p = p
+  let tup_cls _conf _ _ p = p
 
-  let tup_sep _n () _ _ p = skip1 p
+  let tup_sep _n _conf _ _ p = skip1 p
 
   let dfloat = di float_of_string
 
-  let dbool () _ _ p =
+  let dbool _conf _ _ p =
     E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
       pair (eq b (byte_of_const_char 'T')) p)
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes conv p =
+  let dbytes conf conv p =
     (* Skip the double-quote: *)
-    let p = skip1 p in
-    (* Read up to next double-quote: *)
+    let p = if conf.quote_strings then skip1 p else p in
+    (* Read up to next double-quote or separator depending on quote_strings: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = E.func1 T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
+    let cond =
+      E.func1 T.byte (fun _l b ->
+        not_ (
+          if conf.quote_strings then
+            eq b (byte_of_const_char '"')
+          else
+            or_ (eq b (byte_of_const_char conf.separator))
+                (eq b (byte_of_const_char conf.newline))))
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair "dbytes" str_p (fun str p ->
       (* Skip the closing double-quote: *)
-      let p = skip1 p in
+      let p = if conf.quote_strings then skip1 p else p in
       pair (conv str) p)
 
-  let dstring () _ _ p = dbytes string_of_bytes p
+  let dstring conf _ _ p = dbytes conf string_of_bytes p
   (* Chars are encoded as single char strings *)
-  let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
+  let dchar conf _ _ p = dbytes conf (char_of_string % string_of_bytes) p
 
   (* Accumulate digits into a value with the given reducer: *)
-  let fold init reduce () _ _ p =
+  let fold init reduce _conf _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
     let cond = E.func1 T.byte (fun _l b ->
@@ -293,17 +309,17 @@ struct
   let du128 =
     unsigned T.u128 (u128 Uint128.zero) (u128 (Uint128.of_int 10)) (to_u128 % u8_of_byte)
 
-  let tup_opn () _ _ _ p = p
+  let tup_opn _conf _ _ _ p = p
 
-  let tup_cls () _ _ p = p
+  let tup_cls _conf _ _ p = p
 
-  let tup_sep _n () _ _ p = skip1 p
+  let tup_sep _n _conf _ _ p = skip1 p
 
-  let rec_opn () _ _ _ p = p
+  let rec_opn _conf _ _ _ p = p
 
-  let rec_cls () _ _ p = p
+  let rec_cls _conf _ _ p = p
 
-  let rec_sep _n () _ _ p = skip1 p
+  let rec_sep _n _conf _ _ p = skip1 p
 
   let sum_opn st mn0 path _ p =
     let c_p = du16 st mn0 path p in
@@ -311,31 +327,31 @@ struct
       let p = skip1 p in
       pair c p)
 
-  let sum_cls () _ _ p = p
+  let sum_cls _conf _ _ p = p
 
-  let vec_opn () _ _ _ _ p = p
+  let vec_opn _conf _ _ _ _ p = p
 
-  let vec_cls () _ _ p = p
+  let vec_cls _conf _ _ p = p
 
-  let vec_sep () _ _ p = skip1 p
+  let vec_sep _conf _ _ p = skip1 p
 
-  let list_opn =
-    KnownSize (fun () vtyp0 path _ p ->
-      E.with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
+  let list_opn conf =
+    KnownSize (fun vtyp0 path _ p ->
+      E.with_sploded_pair "list_opn" (du32 conf vtyp0 path p) (fun v p ->
         pair v (skip1 p)))
 
-  let list_cls () _ _ p = p
+  let list_cls _conf _ _ p = p
 
-  let list_sep () _ _ p = skip1 p
+  let list_sep _conf _ _ p = skip1 p
 
-  let is_null () _ _ p =
+  let is_null conf _ _ p =
     (* \N *)
     and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x5c)))
                (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x4e))))
          (or_ (eq (rem_size p) (size 2))
-              (eq (peek_byte p (size 2)) (byte_of_const_char separator)))
+              (eq (peek_byte p (size 2)) (byte_of_const_char conf.separator)))
 
-  let dnull _t () _ _ p = skip 2 p
+  let dnull _t _conf _ _ p = skip 2 p
 
-  let dnotnull _t () _ _ p = p
+  let dnotnull _t _conf _ _ p = p
 end

@@ -5,12 +5,13 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-module Ser : SER =
+module Ser : SER with type config = unit =
 struct
+  type config = unit
   type state = unit
   let ptr _mn = T.dataptr
 
-  let start _mn p = (), p
+  let start ?(config=()) _mn p = config, p
   let stop () p = p
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
@@ -194,12 +195,13 @@ struct
                   (identifier "wlen")))
 end
 
-module Des : DES =
+module Des : DES with type config = unit =
 struct
+  type config = unit
   type state = unit
   let ptr _mn = T.dataptr
 
-  let start _mn p = (), p
+  let start ?(config=()) _mn p = config, p
   let stop () p = p
   type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
@@ -354,8 +356,8 @@ struct
   let vec_cls () _ _ p = p
   let vec_sep () _ _ p = p
 
-  let list_opn = KnownSize
-    (fun () _ _ _ p ->
+  let list_opn () = KnownSize
+    (fun _ _ _ p ->
       E.with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
         pair (u32_of_size dim) p))
 

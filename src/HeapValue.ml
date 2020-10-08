@@ -13,7 +13,7 @@ module E = DessserExpressions
 open E.Ops
 
 module Materialize (Des : DES) : sig
-    val make : T.maybe_nullable -> (*src*) E.t -> (*e*src*) E.t
+    val make : ?config:Des.config -> T.maybe_nullable -> (*src*) E.t -> (*e*src*) E.t
   end =
 struct
 
@@ -39,9 +39,9 @@ struct
     let inits_src_t = T.TPair (init_list_t, Des.ptr mn0) in
     (* good enough to determine the item type but not much more: *)
     let subpath = T.path_append 0 path in
-    match Des.list_opn with
+    match Des.list_opn dstate with
     | KnownSize list_opn ->
-        let dim_src = list_opn dstate mn0 path mn src in
+        let dim_src = list_opn mn0 path mn src in
         let inits_src =
           E.with_sploded_pair "dlist1" dim_src (fun dim src ->
             repeat ~from:(i32 0l) ~to_:(to_i32 dim)
@@ -62,13 +62,13 @@ struct
           pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let fst_inits_src_t = T.TPair (T.bool, inits_src_t) in
-        let src = list_opn dstate mn0 path mn src in
+        let src = list_opn mn0 path mn src in
         let fst_inits_src =
           loop_while
             ~cond:
               (E.func1 fst_inits_src_t (fun _l fst_inits_src ->
                 let src = secnd (secnd fst_inits_src) in
-                not_ (is_end_of_list dstate mn0 path src)))
+                not_ (is_end_of_list mn0 path src)))
             ~body:
               (E.func1 fst_inits_src_t (fun _l fst_inits_src ->
                 E.with_sploded_pair "dlist5" fst_inits_src (fun is_fst inits_src ->
@@ -197,8 +197,8 @@ struct
       des dstate mn0 path src
     )
 
-  let rec make mn0 src =
-    let dstate, src = Des.start mn0 src in
+  let rec make ?config mn0 src =
+    let dstate, src = Des.start ?config mn0 src in
     make1 dstate mn0 [] mn0 src
 end
 
@@ -206,7 +206,7 @@ end
  * serialize that value: *)
 
 module Serialize (Ser :SER) : sig
-    val serialize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*dst*) E.t -> (*dst*) E.t
+    val serialize : ?config:Ser.config -> T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*dst*) E.t -> (*dst*) E.t
     val sersize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*size*size*) E.t
   end =
 struct
@@ -361,9 +361,9 @@ struct
               let ser = ser_of_vt vt in
               ser sstate mn0 path v dst))
 
-  and serialize mn0 ma v dst =
+  and serialize ?config mn0 ma v dst =
     let path = [] in
-    let sstate, dst = Ser.start mn0 dst in
+    let sstate, dst = Ser.start ?config mn0 dst in
     ser1 sstate mn0 path mn0 v ma dst
 
   (*

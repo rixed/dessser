@@ -2,12 +2,13 @@ open Dessser
 module T = DessserTypes
 module E = DessserExpressions
 
-module Ser : SER =
+module Ser : SER with type config = unit =
 struct
+  type config = unit
   type state = unit
   let ptr _vtyp = T.dataptr
 
-  let start _vtyp p = (), p
+  let start ?(config=()) _vtyp p = config, p
   let stop () p = p
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t

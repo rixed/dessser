@@ -8,12 +8,13 @@ module E = DessserExpressions
 open E.Ops
 
 (* The simplest possible deserializer *)
-module TestDes : DES =
+module TestDes : DES with type config = unit =
 struct
+  type config = unit
   type state = unit
   let ptr _vtyp = T.dataptr
 
-  let start _vtyp src = (), src
+  let start ?(config=()) _vtyp src = config, src
   let stop () src = src
   type des = state -> T.maybe_nullable -> T.path -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
@@ -59,7 +60,7 @@ struct
   let vec_opn () _ _ _ _ src = src
   let vec_cls () _ _ src = src
   let vec_sep () _ _ src = src
-  let list_opn = KnownSize (fun () _ _ _ src ->
+  let list_opn () = KnownSize (fun _ _ _ src ->
     let b_src = read_byte src in
     map_pair b_src
       (E.func2 T.byte T.dataptr (fun _l b p ->
@@ -73,12 +74,13 @@ struct
 end
 
 (* The simplest possible serializer *)
-module TestSer : SER =
+module TestSer : SER with type config = unit =
 struct
+  type config = unit
   type state = unit
   let ptr _vtyp = T.dataptr
 
-  let start _v dst = (), dst
+  let start ?(config=()) _v dst = config, dst
   let stop () dst = dst
   type ser = state -> T.maybe_nullable -> T.path -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 

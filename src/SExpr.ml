@@ -5,21 +5,27 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-let list_prefix_length = true
+type sexpr_config =
+  { list_prefix_length : bool }
 
-module Ser : SER =
+let default_config =
+  { list_prefix_length = true }
+
+module Ser : SER with type config = sexpr_config =
 struct
-  type state = unit
+  type config = sexpr_config
+
+  type state = config
 
   let ptr _vtyp = T.dataptr
 
-  let start _v p = (), p
+  let start ?(config=default_config) _v p = config, p
 
-  let stop () p = p
+  let stop _conf p = p
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
-  let sfloat () _ _ v p =
+  let sfloat _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_float v))
 
   let sbytes v p =
@@ -29,13 +35,13 @@ struct
     let p = write_bytes p v in
     write_byte p quo
 
-  let sstring () _ _ v p = sbytes (bytes_of_string v) p
-  let schar () _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
+  let sstring _conf _ _ v p = sbytes (bytes_of_string v) p
+  let schar _conf _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
 
-  let sbool () _ _ v p =
+  let sbool _conf _ _ v p =
     write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
-  let si () _ _ v p =
+  let si _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
@@ -58,22 +64,22 @@ struct
   let su128 = si
 
   (* Could also write the field names with the value in a pair... *)
-  let tup_opn () _ _ _ p =
+  let tup_opn _conf _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let tup_cls () _ _ p =
+  let tup_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let tup_sep _n () _ _ p =
+  let tup_sep _n _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let rec_opn () _ _ _ p =
+  let rec_opn _conf _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let rec_cls () _ _ p =
+  let rec_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let rec_sep _n () _ _ p =
+  let rec_sep _n _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let sum_opn st mn0 path mns lbl p =
@@ -87,18 +93,18 @@ struct
   let vec_opn _conf _ _ _ _ p =
     write_byte p (byte_of_const_char '(')
 
-  let vec_cls () _ _ p =
+  let vec_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let vec_sep () _ _ p =
+  let vec_sep _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let list_opn () vtyp0 path _ n p =
+  let list_opn conf vtyp0 path _ n p =
     let p =
-      if list_prefix_length then
+      if conf.list_prefix_length then
         match n with
         | Some n ->
-            let p = su32 () vtyp0 path n p in
+            let p = su32 conf vtyp0 path n p in
             write_byte p (byte_of_const_char ' ')
         | None ->
             failwith "SExpr.Ser needs list length upfront"
@@ -106,18 +112,18 @@ struct
         p in
     write_byte p (byte_of_const_char '(')
 
-  let list_cls () _ _ p =
+  let list_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let list_sep () _ _ p =
+  let list_sep _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let nullable () _ _ p = p
+  let nullable _conf _ _ p = p
 
-  let snull _t () _ _ p =
+  let snull _t _conf _ _ p =
     write_dword LittleEndian p (dword (Uint32.of_int32 0x6c_6c_75_6el))
 
-  let snotnull _t () _ _ p = p
+  let snotnull _t _conf _ _ p = p
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
   let todo_ssize () = failwith "TODO: ssize for SExpr"
@@ -151,15 +157,17 @@ struct
   let ssize_of_null _ _ = todo_ssize ()
 end
 
-module Des : DES =
+module Des : DES with type config = sexpr_config =
 struct
-  type state = unit
+  type config = sexpr_config
+
+  type state = config
 
   let ptr _vtyp = T.dataptr
 
-  let start _mn p = (), p
+  let start ?(config=default_config) _mn p = config, p
 
-  let stop () p = p
+  let stop _conf p = p
 
   type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
@@ -168,7 +176,7 @@ struct
   let skip1 = skip 1
 
   (* Accumulate bytes into a string that is then converted with [op]: *)
-  let di op () _ _ p =
+  let di op _conf _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
     let cond = E.func1 T.byte (fun _l b ->
@@ -181,13 +189,13 @@ struct
     E.with_sploded_pair "di" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
 
-  let tup_cls () _ _ p = skip1 p
+  let tup_cls _conf _ _ p = skip1 p
 
-  let tup_sep _n () _ _ p = skip1 p
+  let tup_sep _n _conf _ _ p = skip1 p
 
   let dfloat = di float_of_string
 
-  let dbool () _ _ p =
+  let dbool _conf _ _ p =
     E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
       pair (eq b (byte_of_const_char 'T')) p)
 
@@ -206,12 +214,12 @@ struct
       let p = skip1 p in
       pair (conv str) p)
 
-  let dstring () _ _ p = dbytes string_of_bytes p
+  let dstring _conf _ _ p = dbytes string_of_bytes p
   (* Chars are encoded as single char strings *)
-  let dchar () _ _ p = dbytes (char_of_string % string_of_bytes) p
+  let dchar _conf _ _ p = dbytes (char_of_string % string_of_bytes) p
 
   (* Accumulate digits into a value with the given reducer: *)
-  let fold init reduce () _ _ p =
+  let fold init reduce _conf _ _ p =
     (* Accumulate everything up to the next space or parenthesis, and then
      * run [op] to convert from a string: *)
     let cond = E.func1 T.byte (fun _l b ->
@@ -276,17 +284,17 @@ struct
   let du128 =
     unsigned T.u128 (u128 Uint128.zero) (u128 (Uint128.of_int 10)) (to_u128 % u8_of_byte)
 
-  let tup_opn () _ _ _ p = skip1 p
+  let tup_opn _conf _ _ _ p = skip1 p
 
-  let tup_cls () _ _ p = skip1 p
+  let tup_cls _conf _ _ p = skip1 p
 
-  let tup_sep _n () _ _ p = skip1 p
+  let tup_sep _n _conf _ _ p = skip1 p
 
-  let rec_opn () _ _ _ p = skip1 p
+  let rec_opn _conf _ _ _ p = skip1 p
 
-  let rec_cls () _ _ p = skip1 p
+  let rec_cls _conf _ _ p = skip1 p
 
-  let rec_sep _n () _ _ p = skip1 p
+  let rec_sep _n _conf _ _ p = skip1 p
 
   (* Sums are encoded as a pair of numeric label and value: *)
   let sum_opn st mn0 path mns p =
@@ -299,28 +307,28 @@ struct
   let sum_cls st mn0 path p =
     tup_cls st mn0 path p
 
-  let vec_opn () _ _ _ _ p = skip1 p
+  let vec_opn _conf _ _ _ _ p = skip1 p
 
-  let vec_cls () _ _ p = skip1 p
+  let vec_cls _conf _ _ p = skip1 p
 
-  let vec_sep () _ _ p = skip1 p
+  let vec_sep _conf _ _ p = skip1 p
 
-  let list_opn =
-    if list_prefix_length then
-      KnownSize (fun () vtyp0 path _ p ->
-        E.with_sploded_pair "list_opn" (du32 () vtyp0 path p) (fun v p ->
+  let list_opn conf =
+    if conf.list_prefix_length then
+      KnownSize (fun vtyp0 path _ p ->
+        E.with_sploded_pair "list_opn" (du32 conf vtyp0 path p) (fun v p ->
           pair v (skip 2 p)))
     else
       UnknownSize (
-        (fun () _ _ _ p -> skip1 p),
-        (fun () _ _ p ->
+        (fun _ _ _ p -> skip1 p),
+        (fun _ _ p ->
           eq (peek_byte p (size 0)) (byte_of_const_char ')')))
 
-  let list_cls () _ _ p = skip1 p
+  let list_cls _conf _ _ p = skip1 p
 
-  let list_sep () _ _ p = skip1 p
+  let list_sep _conf _ _ p = skip1 p
 
-  let is_null () _ _ p =
+  let is_null _conf _ _ p =
     (* null *)
     and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x6e)))
                (and_ (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x75)))
@@ -331,7 +339,7 @@ struct
                     ~in_:(or_ (eq (identifier "b") (byte_of_const_char ' '))
                               (eq (identifier "b") (byte_of_const_char ')')))))
 
-  let dnull _t () _ _ p = skip 4 p
+  let dnull _t _conf _ _ p = skip 4 p
 
-  let dnotnull _t () _ _ p = p
+  let dnotnull _t _conf _ _ p = p
 end

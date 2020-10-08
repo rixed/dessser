@@ -5,17 +5,17 @@ module T = DessserTypes
 module E = DessserExpressions
 
 (* Used by deserializers to "open" lists: *)
-type 'a list_opener =
+type list_opener =
   (* When a list size is known from the beginning, implement this that
    * returns both the list size and the new src pointer: *)
-  | KnownSize of ('a -> T.maybe_nullable -> T.path -> T.maybe_nullable -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
+  | KnownSize of (T.maybe_nullable -> T.path -> T.maybe_nullable -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the list size is not known beforehand, rather implement
    * this pair of functions, one to parse the ilst header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the list is finished: *)
   | UnknownSize of
-      ('a -> T.maybe_nullable -> T.path -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t) *
-      ('a -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*bool*) E.t)
+      (T.maybe_nullable -> T.path -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t) *
+      (T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*bool*) E.t)
 
 (* Given the above we can built interesting expressions.
  * A DES(serializer) is a module that implements a particular serialization
@@ -24,12 +24,15 @@ type 'a list_opener =
  * DataPtr to a heap value, or a converter between two formats. *)
 module type DES =
 sig
+  (* DES and SER can have some configurable parameters: *)
+  type config
+
   (* No need for a backend (BE) since we merely compute expressions *)
   (* RW state passed to every deserialization operations *)
   type state
   val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr, or whatever really  *)
 
-  val start : T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> (*ptr?*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
@@ -85,7 +88,7 @@ sig
   val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_opn : state list_opener
+  val list_opn : state -> list_opener
   val list_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val list_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
 
@@ -101,11 +104,14 @@ type ssize = ConstSize of int | DynSize of (*size*) E.t
 
 module type SER =
 sig
+  (* DES and SER can have some configurable parameters: *)
+  type config
+
   (* RW state passed to every serialization operations *)
   type state
   val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr *)
 
-  val start : T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
@@ -407,12 +413,14 @@ struct
          * (better than to return a single condition in list_opn for non
          * functional backends such as, eventually, C?) *)
         let src_dst =
-          match Des.list_opn with
+          match Des.list_opn dstate with
           | KnownSize list_opn ->
-              let dim_src = list_opn dstate mn0 path mn src in
+              let dim_src = list_opn mn0 path mn src in
               E.with_sploded_pair "dslist2" dim_src (fun dim src ->
                 let dst = Ser.list_opn sstate mn0 path mn (Some dim) dst in
-                repeat ~from:(i32 0l) ~to_:(to_i32 dim)
+                repeat
+                  ~init:(pair src dst)
+                  ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
                     (E.func2 T.i32 pair_ptrs (fun _l n src_dst ->
                       let src_dst =
@@ -425,18 +433,17 @@ struct
                                 (Des.list_sep dstate mn0 path psrc)
                                 (Ser.list_sep sstate mn0 path pdst))
                           ) in
-                      desser_ transform sstate dstate mn0 subpath src_dst)))
-                  ~init:(pair src dst))
+                      desser_ transform sstate dstate mn0 subpath src_dst))))
           | UnknownSize (list_opn, end_of_list) ->
               let t_fst_src_dst = T.TPair (T.bool, pair_ptrs) in
-              let src = list_opn dstate mn0 path mn src in
+              let src = list_opn mn0 path mn src in
               let dst = Ser.list_opn sstate mn0 path mn None dst in
               let fst_src_dst =
                 loop_while
                   ~cond:(comment "Test end of list"
                     (E.func1 t_fst_src_dst (fun _l fst_src_dst ->
                       let src_dst = secnd fst_src_dst in
-                      not_ (end_of_list dstate mn0 path (first src_dst)))))
+                      not_ (end_of_list mn0 path (first src_dst)))))
                   ~body:(comment "Convert a list item"
                     (E.func1 t_fst_src_dst (fun _l fst_src_dst ->
                       E.with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
@@ -512,12 +519,12 @@ struct
       desser_value_type mn.vtyp transform sstate dstate mn0 path src_dst
     )
 
-  let desser mn0 ?transform src dst =
+  let desser ?ser_config ?des_config mn0 ?transform src dst =
     let no_transform _mn0 _path v = v in
     let transform = transform |? no_transform in
     let open E.Ops in
-    let sstate, dst = Ser.start mn0 dst
-    and dstate, src = Des.start mn0 src in
+    let sstate, dst = Ser.start mn0 ?config:ser_config dst
+    and dstate, src = Des.start mn0 ?config:des_config src in
     let src_dst = pair src dst in
     let src_dst = desser_ transform sstate dstate mn0 [] src_dst in
     E.with_sploded_pair "desser" src_dst (fun src dst ->

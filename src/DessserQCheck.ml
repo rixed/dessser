@@ -583,7 +583,8 @@ let rec sexpr_of_vtyp_gen vtyp =
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
   | T.TList mn ->
       tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
-        (if SExpr.list_prefix_length then
+        (* FIXME: make list_prefix_length a parameter of this function *)
+        (if SExpr.default_config.list_prefix_length then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)

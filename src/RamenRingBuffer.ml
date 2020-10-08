@@ -161,8 +161,9 @@ let may_skip_nullbit mn0 path p_stk =
     let stk = may_set_nullbit false mn0 path stk in
     pair p stk)
 
-module Ser : SER =
+module Ser : SER with type config = unit =
 struct
+  type config = unit
   type state = unit
 
   let ptr _mn = T.(pair dataptr (slist t_frame))
@@ -211,9 +212,9 @@ struct
       let p = f p in
       pair p stk)
 
-  let start mn p =
+  let start ?(config=()) mn p =
     check_rec_fields_ordered mn ;
-    (), pair p (end_of_list t_frame)
+    config, pair p (end_of_list t_frame)
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -578,8 +579,9 @@ struct
   let ssize_of_null _mn _path = ConstSize 0
 end
 
-module Des : DES =
+module Des : DES with type config = unit =
 struct
+  type config = unit
   type state = unit
 
   (* To deserialize we need the same kind of pointer than to serialize: *)
@@ -614,9 +616,9 @@ struct
   let enter_frame_dyn = enter_frame identity skip_nullmask_dyn
   let enter_frame_const = enter_frame (u8 % Uint8.of_int) skip_nullmask_const
 
-  let start mn p =
+  let start ?(config=()) mn p =
     check_rec_fields_ordered mn ;
-    (), pair p (end_of_list t_frame)
+    config, pair p (end_of_list t_frame)
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -816,8 +818,8 @@ struct
   let sum_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let list_opn = KnownSize
-    (fun () mn0 path mn p_stk ->
+  let list_opn () = KnownSize
+    (fun mn0 path mn p_stk ->
       E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
         E.with_sploded_pair "list_opn2" (read_dword LittleEndian p) (fun n p ->
           let n = u32_of_dword n in
