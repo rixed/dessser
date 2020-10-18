@@ -9,13 +9,17 @@ type csv_config =
   { separator : char ;
     newline : char ;
     null : string ;
-    quote_strings : bool }
+    quote_strings : bool ;
+    true_ : string ;
+    false_ : string }
 
 let default_config =
   { separator = ',' ;
     newline = '\n' ;
     null = "\\N" ;  (* À la Postgresql *)
-    quote_strings = false }
+    quote_strings = false ;
+    true_ = "T" ;
+    false_ = "F" }
 
 (* In a CSV, all structures are flattened as CSV columns.
  * The problem there is that there is then no way to nullify the whole
@@ -70,8 +74,9 @@ struct
   let schar conf _ _ v p = sbytes conf (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
-  let sbool _conf _ _ v p =
-    write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
+  let sbool conf _ _ v p =
+    write_bytes p (choose v (bytes (Bytes.of_string conf.true_))
+                            (bytes (Bytes.of_string conf.false_)))
 
   let si _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
@@ -213,9 +218,13 @@ struct
 
   let dfloat = di float_of_string
 
-  let dbool _conf _ _ p =
-    E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
-      pair (eq b (byte_of_const_char 'T')) p)
+  let dbool conf _ _ p =
+    (* TODO: Look for false_.[0] otherwise: *)
+    assert (String.length conf.true_ > 0) ;
+    choose
+      ~cond:(eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
+      ~then_:(pair (bool true) (skip (String.length conf.true_) p))
+      ~else_:(pair (bool false) (skip (String.length conf.false_) p))
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes conf conv p =
