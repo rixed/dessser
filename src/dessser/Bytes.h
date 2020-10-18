@@ -15,6 +15,13 @@ struct Bytes {
   /* Location of this byte string within buffer: */
   size_t offset;
 
+  // Empty constructor for let expressions:
+  Bytes() :
+    capa(0),
+    size(0),
+    offset(0)
+  {}
+
   Bytes(std::shared_ptr<Byte[]> buffer_, size_t size_, size_t offset_) :
     buffer(buffer_),
     capa(size_),
