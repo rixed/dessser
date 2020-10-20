@@ -56,7 +56,8 @@ struct
 
   let start ?(config=default_config) _v p = config, p
 
-  let stop _conf p = p
+  let stop conf p =
+    write_byte p (byte_of_const_char conf.newline)
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
@@ -190,13 +191,20 @@ struct
 
   let start ?(config=default_config) _mn p = config, p
 
-  let stop _conf p = p
-
   type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 
   let skip n p = data_ptr_add p (size n)
 
   let skip1 = skip 1
+
+  (* Skip the final newline if present: *)
+  let stop conf p =
+    choose
+      ~cond:(and_ (gt (rem_size p) (size 0))
+                  (eq (peek_byte p (size 0))
+                      (byte_of_const_char conf.newline)))
+      ~then_:(skip1 p)
+      ~else_:p
 
   (* Accumulate bytes into a string that is then converted with [op]: *)
   let di op conf _ _ p =
@@ -220,6 +228,8 @@ struct
 
   let dbool conf _ _ p =
     (* TODO: Look for false_.[0] otherwise: *)
+    (* TODO: find out where is the first distinct char of true and false (that
+     * may not be in position 0) and test only that one *)
     assert (String.length conf.true_ > 0) ;
     choose
       ~cond:(eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
