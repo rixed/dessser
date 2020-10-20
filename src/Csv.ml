@@ -253,12 +253,12 @@ struct
   let dchar conf _ _ p = dbytes conf (char_of_string % string_of_bytes) p
 
   (* Accumulate digits into a value with the given reducer: *)
-  let fold init reduce _conf _ _ p =
-    (* Accumulate everything up to the next space or parenthesis, and then
-     * run [op] to convert from a string: *)
+  let fold init reduce conf _ _ p =
+    (* Accumulate everything up to the next separator, and then run [op] to
+     * convert from a string: *)
     let cond = E.func1 T.byte (fun _l b ->
-      (* separator (be it ',' or tab) is smaller than '0': *)
-      ge b (byte_of_const_char '0')) in
+      and_ (ne b (byte_of_const_char conf.separator))
+           (ne b (byte_of_const_char conf.newline))) in
     read_while ~cond ~reduce ~init ~pos:p
 
   let int_reducer int_type base of_byte =

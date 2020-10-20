@@ -831,6 +831,19 @@ let sexpr mn =
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
+
+  let check_des des be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let module Des = (val des : DES) in
+    let module DS = DesSer (Des) (SExpr.Ser) in
+    let exe =
+      let e =
+        func2 T.dataptr T.dataptr (fun _l src dst ->
+          DS.desser mn src dst) in
+      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      make_converter be ~mn e in
+    String.trim (run_converter ~timeout:2 exe vs) |>
+    hexify_string
 *)
 (*$= check_ser & ~printer:identity
   "2a" \
@@ -847,4 +860,30 @@ let sexpr mn =
     (check_ser ringbuf_ser ocaml_be "(small u8? | big u16)" "(0 42)")
   "30 2c 34 32" \
     (check_ser csv_ser ocaml_be "(small u8? | big u16)" "(0 42)")
+*)
+
+(* Special version of check_des with a custom CSV configuration: *)
+(*$inject
+  let check_des_csv ?config be ts vs =
+    let mn = T.Parser.maybe_nullable_of_string ts in
+    let module DS = DesSer (Csv.Des) (SExpr.Ser) in
+    let exe =
+      let e =
+        func2 T.dataptr T.dataptr (fun _l src dst ->
+          DS.desser ?des_config:config mn src dst) in
+      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      make_converter be ~mn e in
+    String.trim (run_converter ~timeout:2 exe vs)
+
+  let csv_config_0 =
+    Csv.{ default_config with
+      separator = '|' ;
+      null = "" ;
+      quote_strings = true ;
+      true_ = "true" ;
+      false_ = "false" }
+*)
+(*$= check_des_csv & ~printer:identity
+  "(1 F null)" (check_des_csv ~config:csv_config_0 ocaml_be \
+                                     "{u:U8; b:BOOL; name:STRING?}" "1|false|")
 *)
