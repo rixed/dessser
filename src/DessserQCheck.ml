@@ -879,11 +879,26 @@ let sexpr mn =
     Csv.{ default_config with
       separator = '|' ;
       null = "" ;
-      quote_strings = true ;
+      true_ = "true" ;
+      false_ = "false" }
+
+  let csv_config_1 =
+    Csv.{ default_config with
+      null = "" ;
       true_ = "true" ;
       false_ = "false" }
 *)
 (*$= check_des_csv & ~printer:identity
-  "(1 F null)" (check_des_csv ~config:csv_config_0 ocaml_be \
-                                     "{u:U8; b:BOOL; name:STRING?}" "1|false|")
+  "(1 F null)" \
+    (check_des_csv ~config:csv_config_0 ocaml_be \
+                   "{u:U8; b:BOOL; name:STRING?}" "1|false|\n")
+  "(1 T \"one\")" \
+    (check_des_csv ~config:csv_config_1 ocaml_be \
+                   "{u:U8; b:BOOL; name:STRING?}" "1,true,\"one\"\n")
+  "(2 T \"two\")" \
+    (check_des_csv ~config:csv_config_1 ocaml_be \
+                   "{u:U8; b:BOOL; name:STRING?}" "2,true,\"two\"\n")
+  "(3 F null)" \
+    (check_des_csv ~config:csv_config_1 ocaml_be \
+                   "{u:U8; b:BOOL; name:STRING?}" "3,false,\n")
 *)

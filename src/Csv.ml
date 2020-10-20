@@ -330,13 +330,13 @@ struct
 
   let tup_opn _conf _ _ _ p = p
 
-  let tup_cls _conf _ _ p = p
+  let tup_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
 
   let tup_sep _n _conf _ _ p = skip1 p
 
   let rec_opn _conf _ _ _ p = p
 
-  let rec_cls _conf _ _ p = p
+  let rec_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
 
   let rec_sep _n _conf _ _ p = skip1 p
 
@@ -345,11 +345,11 @@ struct
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
       pair c (skip1 p))
 
-  let sum_cls _conf _ _ p = p
+  let sum_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
 
   let vec_opn _conf _ _ _ _ p = p
 
-  let vec_cls _conf _ _ p = p
+  let vec_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
 
   let vec_sep _conf _ _ p = skip1 p
 
@@ -358,7 +358,7 @@ struct
       E.with_sploded_pair "list_opn" (du32 conf vtyp0 path p) (fun v p ->
         pair v (skip1 p)))
 
-  let list_cls _conf _ _ p = p
+  let list_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
 
   let list_sep _conf _ _ p = skip1 p
 
@@ -368,8 +368,9 @@ struct
       if i >= len then
         (comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
-               (eq (peek_byte
-                     p (size len)) (byte_of_const_char conf.separator))))
+               (let_ "b" (peek_byte p (size len))
+                 ~in_:(or_ (eq (identifier "b") (byte_of_const_char conf.separator))
+                           (eq (identifier "b") (byte_of_const_char conf.newline))))))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)
