@@ -9,7 +9,8 @@ type csv_config =
   { separator : char ;
     newline : char ;
     null : string ;
-    quote_strings : bool ;
+    (* If None, strings are never quoted. Otherwise, look for quotes. *)
+    quote : char option ;
     true_ : string ;
     false_ : string }
 
@@ -17,7 +18,7 @@ let default_config =
   { separator = ',' ;
     newline = '\n' ;
     null = "\\N" ;  (* À la Postgresql *)
-    quote_strings = false ;
+    quote = Some '"' ;
     true_ = "T" ;
     false_ = "F" }
 
@@ -64,15 +65,25 @@ struct
   let sfloat _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_float v))
 
-  let sbytes conf v p =
-    let quo = byte_of_const_char '"' in
-    let p = if conf.quote_strings then write_byte p quo else p in
-    (* FIXME: escape double quotes/separator/newline: *)
+  let sbytes_quoted conf v p =
+    let quote_byte = byte_of_const_char (Option.get conf.quote) in
+    (* Quote systematically: *)
+    let p = write_byte p quote_byte in
+    (* FIXME: escape double quotes: *)
     let p = write_bytes p v in
-    if conf.quote_strings then write_byte p quo else p
+    write_byte p quote_byte
 
-  let sstring conf _ _ v p = sbytes conf (bytes_of_string v) p
-  let schar conf _ _ v p = sbytes conf (bytes_of_string (string_of_char v)) p
+  let sbytes _conf v p =
+    (* FIXME: escape separator/newline: *)
+    write_bytes p v
+
+  let sstring conf _ _ v p =
+    (if conf.quote = None then sbytes else sbytes_quoted)
+      conf (bytes_of_string v) p
+
+  let schar conf _ _ v p =
+    (if conf.quote = None then sbytes else sbytes_quoted)
+      conf (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
   let sbool conf _ _ v p =
@@ -237,30 +248,60 @@ struct
       ~else_:(pair (bool false) (skip (String.length conf.false_) p))
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes conf conv p =
+  let dbytes_quoted conf conv p =
     (* Skip the double-quote: *)
-    let p = if conf.quote_strings then skip1 p else p in
-    (* Read up to next double-quote or separator depending on quote_strings: *)
-    (* FIXME: handle escaping the separator/newline! *)
+    let quote_byte = byte_of_const_char (Option.get conf.quote)
+    and sep_byte = byte_of_const_char conf.separator
+    and nl_byte = byte_of_const_char conf.newline in
+    let_ "had_quote"
+      (and_ (ge (rem_size p) (size 2))
+            (eq (peek_byte p (size 0)) quote_byte))
+      ~in_:(
+        let pos = choose ~cond:(identifier "had_quote")
+                         ~then_:(skip1 p)
+                         ~else_:p in
+        (* Read up to next double-quote or separator/newline, depending on
+         * had_quote: *)
+        (* FIXME: handle escaping the separator/newline! *)
+        let cond =
+          E.func1 T.byte (fun _l b ->
+            not_ (
+              choose ~cond:(identifier "had_quote")
+                     ~then_:(eq b quote_byte)
+                     ~else_:(or_ (eq b sep_byte)
+                                 (eq b nl_byte))))
+        and init = bytes_of_string (string "")
+        and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
+        let str_p = read_while ~cond ~reduce ~init ~pos in
+        E.with_sploded_pair "dbytes_quoted" str_p (fun str p ->
+          (* Skip the closing double-quote: *)
+          let p = choose ~cond:(identifier "had_quote")
+                         ~then_:(skip1 p)
+                         ~else_:p in
+          pair (conv str) p))
+
+  let dbytes conf conv p =
+    let sep_byte = byte_of_const_char conf.separator
+    and nl_byte = byte_of_const_char conf.newline in
+    (* Read up to next separator/newline *)
     let cond =
       E.func1 T.byte (fun _l b ->
-        not_ (
-          if conf.quote_strings then
-            eq b (byte_of_const_char '"')
-          else
-            or_ (eq b (byte_of_const_char conf.separator))
-                (eq b (byte_of_const_char conf.newline))))
+        not_ ((or_ (eq b sep_byte)
+                   (eq b nl_byte))))
     and init = bytes_of_string (string "")
     and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair "dbytes" str_p (fun str p ->
-      (* Skip the closing double-quote: *)
-      let p = if conf.quote_strings then skip1 p else p in
       pair (conv str) p)
 
-  let dstring conf _ _ p = dbytes conf string_of_bytes p
+  let dstring conf _ _ p =
+    (if conf.quote = None then dbytes else dbytes_quoted)
+      conf string_of_bytes p
+
   (* Chars are encoded as single char strings *)
-  let dchar conf _ _ p = dbytes conf (char_of_string % string_of_bytes) p
+  let dchar conf _ _ p =
+    (if conf.quote = None then dbytes else dbytes_quoted)
+      conf (char_of_string % string_of_bytes) p
 
   (* Accumulate digits into a value with the given reducer: *)
   let fold init reduce conf _ _ p =
