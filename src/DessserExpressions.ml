@@ -1430,8 +1430,8 @@ let rec type_check l e =
         if len mod 2 <> 0 then
           raise (Struct_error (e0,
             "record expressions must have an even number of values")) ;
-        if len <= 2 then
-          raise (Struct_error (e0, "record dimension must be ≥ 2")) ;
+        if len < 2 then
+          raise (Struct_error (e0, "record dimension must be ≥ 1")) ;
         List.iteri (fun i e ->
           if i mod 2 = 0 then ignore (field_name_of_expr e)
           else check_maybe_nullable l e
