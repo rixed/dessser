@@ -109,7 +109,8 @@ struct
   type t =
     { bytes : Bytes.t ;
       offset : int ;
-      length : int ;
+      length : int ; (* From the beginning of [bytes] not [offset]! *)
+      (* FIXME: rename offset/length into start/stop, as in Ramen? *)
       (* Saved positions: *)
       stack : int list }
 

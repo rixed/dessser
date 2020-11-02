@@ -14,8 +14,8 @@ struct
 
   let valid_identifier s =
     if s = "" then "v" else
-    if s.[0] = '!' then s
-    else BackEndCLike.valid_identifier s
+    if s.[0] = '!' then s else
+    BackEndCLike.valid_identifier s
 
   let valid_source_name n =
     if n = "" then "f" else
@@ -42,7 +42,8 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let cstr_name n = String.capitalize (valid_identifier n)
+  let cstr_name n =
+    String.capitalize (valid_identifier n)
 
   let rec print_record p oc id mns =
     let id = valid_identifier id in

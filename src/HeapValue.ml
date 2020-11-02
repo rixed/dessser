@@ -128,9 +128,9 @@ struct
     E.with_sploded_pair "dsum1" cstr_src (fun cstr src ->
       let rec choose_cstr i =
         assert (i <= max_lbl) ;
-        let subpath = T.path_append i path in
-        let _, subtyp = mns.(i) in
         let res () =
+          let subpath = T.path_append i path in
+          let _, subtyp = mns.(i) in
           let v_src = make1 dstate mn0 subpath subtyp src in
           E.with_sploded_pair "dsum2" v_src (fun v src ->
             pair
