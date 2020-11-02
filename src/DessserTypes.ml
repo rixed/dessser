@@ -216,6 +216,18 @@ let is_defined vt =
   with Exit ->
     false
 
+let check vt =
+  iter_value_type (function
+    | TSum mns ->
+        Array.fold_left (fun s (n, _) ->
+          if Set.String.mem n s then
+            failwith "Constructor names not unique" ;
+          Set.String.add n s
+        ) Set.String.empty mns |>
+        ignore
+    | _ -> ()
+  ) vt
+
 let rec is_integer = function
   | Unknown -> invalid_arg "is_integer"
   | Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128|
@@ -745,6 +757,7 @@ end
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
   if not (is_defined def) then invalid_arg "register_user_type" ;
+  check def ;
   Hashtbl.modify_opt name (function
     | None ->
         let ut = { name ; def } in
@@ -772,15 +785,17 @@ let () =
   register_user_type "Ip4" (Mac TU32) ;
   register_user_type "Ip6" (Mac TU128) ;
   register_user_type "Ip"
-    (TSum [| "v4", make (Usr (get_user_type "Ip4")) ;
-             "v6", make (Usr (get_user_type "Ip6")) |]) ;
+    (* Note: for simplicity, make sure all constructor names are unique.
+     * Also, start by a lowercase or a "v_" will be prepended needlessly: *)
+    (TSum [| "ipV4", make (Usr (get_user_type "Ip4")) ;
+             "ipV6", make (Usr (get_user_type "Ip6")) |]) ;
   register_user_type "Cidr4" (TRec [| "ip", make (Usr (get_user_type "Ip4")) ;
                                       "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr6" (TRec [| "ip", make (Usr (get_user_type "Ip6")) ;
                                       "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr"
-    (TSum [| "v4", make (Usr (get_user_type "Cidr4")) ;
-             "v6", make (Usr (get_user_type "Cidr6")) |])
+    (TSum [| "cidrV4", make (Usr (get_user_type "Cidr4")) ;
+             "cidrV6", make (Usr (get_user_type "Cidr6")) |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
