@@ -6,8 +6,12 @@ open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 
+type T.backend_id += OCaml
+
 module Config =
 struct
+  let id = OCaml
+
   let valid_identifier s =
     if s = "" then "v" else
     if s.[0] = '!' then s

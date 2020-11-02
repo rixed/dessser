@@ -7,6 +7,10 @@ module P = Parsers.Make (PConfig)
 
 let pp = Printf.fprintf
 
+(* Identifies the backend implementation: *)
+
+type backend_id = ..
+
 (* Basic scalar types that can be used to define more specialized user types *)
 
 type mac_type =

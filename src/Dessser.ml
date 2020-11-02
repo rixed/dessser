@@ -547,6 +547,7 @@ end
 
 module type BACKEND =
 sig
+  val id : T.backend_id
   type state
   val make_state : unit -> state
   val print_definitions : state -> unit IO.output -> unit
