@@ -231,10 +231,6 @@ struct
     E.with_sploded_pair "di" str_p (fun str p ->
       pair (op (string_of_bytes str)) p)
 
-  let tup_cls _conf _ _ p = p
-
-  let tup_sep _n _conf _ _ p = skip1 p
-
   let dfloat = di float_of_string
 
   let dbool conf _ _ p =
