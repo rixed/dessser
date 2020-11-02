@@ -413,6 +413,7 @@ struct
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
           p.indent n ;
+        pp p.def "%sflush stdout ;" p.indent ;
         "()"
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
