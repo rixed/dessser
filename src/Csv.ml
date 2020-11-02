@@ -5,6 +5,8 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
+let debug = false
+
 type csv_config =
   { separator : char ;
     newline : char ;
@@ -208,14 +210,39 @@ struct
 
   let skip1 = skip 1
 
+  let skip_byte b p =
+    (* On debug, check that the expected character is present: *)
+    if debug then
+      seq [ assert_ (eq (peek_byte p (size 0)) b) ;
+            skip1 p ]
+    else
+      skip1 p
+
+  let skip_char c p =
+    skip_byte (byte_of_const_char c) p
+
+  let skip_sep conf p =
+    skip_char conf.separator p
+
+  let skip_nl conf p =
+    skip_char conf.newline p
+
   (* Skip the final newline if present: *)
   let stop conf p =
-    choose
-      ~cond:(and_ (gt (rem_size p) (size 0))
-                  (eq (peek_byte p (size 0))
-                      (byte_of_const_char conf.newline)))
-      ~then_:(skip1 p)
-      ~else_:p
+    let ret =
+      choose
+        ~cond:(gt (rem_size p) (size 0))
+        ~then_:(skip_nl conf p)
+        ~else_:p in
+    if debug then
+      seq [ dump (string "rec stop at offset ") ;
+            dump (data_ptr_offset p) ;
+            dump (string "with rem size ") ;
+            dump (data_ptr_remsize p) ;
+            dump (string "\n") ;
+            ret ]
+    else
+      ret
 
   (* Accumulate bytes into a string that is then converted with [op]: *)
   let di op conf _ _ p =
@@ -254,7 +281,7 @@ struct
             (eq (peek_byte p (size 0)) quote_byte))
       ~in_:(
         let pos = choose ~cond:(identifier "had_quote")
-                         ~then_:(skip1 p)
+                         ~then_:(skip_byte quote_byte p)
                          ~else_:p in
         (* Read up to next double-quote or separator/newline, depending on
          * had_quote: *)
@@ -272,7 +299,7 @@ struct
         E.with_sploded_pair "dbytes_quoted" str_p (fun str p ->
           (* Skip the closing double-quote: *)
           let p = choose ~cond:(identifier "had_quote")
-                         ~then_:(skip1 p)
+                         ~then_:(skip_byte quote_byte p)
                          ~else_:p in
           pair (conv str) p))
 
@@ -317,14 +344,14 @@ struct
   let unsigned int_type zero ten of_byte =
     fold zero (int_reducer int_type ten of_byte)
 
-  let signed int_type zero one neg_one ten of_byte st mn0 path p =
+  let signed int_type zero one neg_one ten of_byte conf mn0 path p =
     E.with_sploded_pair "maybe_sign1" (read_byte p) (fun b p' ->
       E.with_sploded_pair "maybe_sign2"
         (choose ~cond:(eq b (byte (Uint8.of_int (Char.code '-'))))
                 ~then_:(pair p' neg_one)
                 ~else_:(pair p one))
         (fun p sign ->
-          let cont = unsigned int_type zero ten of_byte st mn0 path p in
+          let cont = unsigned int_type zero ten of_byte conf mn0 path p in
           E.with_sploded_pair "maybe_sign3" cont (fun v p ->
             pair (mul sign v) p)))
 
@@ -367,37 +394,45 @@ struct
 
   let tup_opn _conf _ _ _ p = p
 
-  let tup_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
+  let tup_cls _conf _ _ p = p
 
-  let tup_sep _n _conf _ _ p = skip1 p
+  let tup_sep _n conf _ _ p =
+    skip_sep conf p
 
   let rec_opn _conf _ _ _ p = p
 
-  let rec_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
+  let rec_cls _conf _ _ p = p
 
-  let rec_sep _n _conf _ _ p = skip1 p
+  let rec_sep n conf _ _ p =
+    if debug then
+      seq [ dump (string ("rec_sep field="^ n ^"\n")) ;
+            skip_sep conf p ]
+    else
+      skip_sep conf p
 
-  let sum_opn st mn0 path _ p =
-    let c_p = du16 st mn0 path p in
+  let sum_opn conf mn0 path _ p =
+    let c_p = du16 conf mn0 path p in
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
-      pair c (skip1 p))
+      pair c (skip_sep conf p))
 
-  let sum_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
+  let sum_cls _conf _ _ p = p
 
   let vec_opn _conf _ _ _ _ p = p
 
-  let vec_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
+  let vec_cls _conf _ _ p = p
 
-  let vec_sep _conf _ _ p = skip1 p
+  let vec_sep conf _ _ p =
+    skip_sep conf p
 
   let list_opn conf =
     KnownSize (fun vtyp0 path _ p ->
       E.with_sploded_pair "list_opn" (du32 conf vtyp0 path p) (fun v p ->
-        pair v (skip1 p)))
+        pair v (skip_sep conf p)))
 
-  let list_cls _conf _ _ p = skip1 p (* Either a separator or a newline *)
+  let list_cls _conf _ _ p = p
 
-  let list_sep _conf _ _ p = skip1 p
+  let list_sep conf _ _ p =
+    skip_sep conf p
 
   let is_null conf _ _ p =
     let len = String.length conf.null in
