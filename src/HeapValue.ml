@@ -199,7 +199,8 @@ struct
 
   let rec make ?config mn0 src =
     let dstate, src = Des.start ?config mn0 src in
-    make1 dstate mn0 [] mn0 src
+    E.with_sploded_pair "make" (make1 dstate mn0 [] mn0 src) (fun v src ->
+      pair v (Des.stop dstate src))
 end
 
 (* The other way around: given a heap value of some type and a serializer,
@@ -364,7 +365,8 @@ struct
   and serialize ?config mn0 ma v dst =
     let path = [] in
     let sstate, dst = Ser.start ?config mn0 dst in
-    ser1 sstate mn0 path mn0 v ma dst
+    let dst = ser1 sstate mn0 path mn0 v ma dst in
+    Ser.stop sstate dst
 
   (*
    * Compute the sersize of a expression:
