@@ -93,7 +93,7 @@ let user_type_gen =
 let rec value_type_gen depth =
   let open Gen in
   if depth > 0 then
-    let mn_gen = maybe_nullable_gen (depth - 1) in
+    let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
     let lst =
       [ 4, map (fun mt -> T.Mac mt) mac_type_gen ;
         1, map (fun ut -> T.Usr ut) user_type_gen ;
@@ -108,7 +108,7 @@ let rec value_type_gen depth =
   else
     map (fun mt -> T.Mac mt) mac_type_gen
 
-and maybe_nullable_gen depth =
+and maybe_nullable_gen_of_depth depth =
   Gen.(fix (fun _self depth ->
     map2 (fun nullable vtyp ->
       T.make ~nullable vtyp
@@ -119,7 +119,7 @@ let value_type_gen =
   Gen.(sized_size (int_bound 4) value_type_gen)
 
 let maybe_nullable_gen =
-  Gen.(sized_size (int_bound 4) maybe_nullable_gen)
+  Gen.(sized_size (int_bound 4) maybe_nullable_gen_of_depth)
 
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
