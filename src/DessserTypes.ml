@@ -787,15 +787,15 @@ let () =
   register_user_type "Ip"
     (* Note: for simplicity, make sure all constructor names are unique.
      * Also, start by a lowercase or a "v_" will be prepended needlessly: *)
-    (TSum [| "ipV4", make (Usr (get_user_type "Ip4")) ;
-             "ipV6", make (Usr (get_user_type "Ip6")) |]) ;
+    (TSum [| "v4", make (Usr (get_user_type "Ip4")) ;
+             "v6", make (Usr (get_user_type "Ip6")) |]) ;
   register_user_type "Cidr4" (TRec [| "ip", make (Usr (get_user_type "Ip4")) ;
                                       "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr6" (TRec [| "ip", make (Usr (get_user_type "Ip6")) ;
                                       "mask", make (Mac TU8) |]) ;
   register_user_type "Cidr"
-    (TSum [| "cidrV4", make (Usr (get_user_type "Cidr4")) ;
-             "cidrV6", make (Usr (get_user_type "Cidr6")) |])
+    (TSum [| "v4", make (Usr (get_user_type "Cidr4")) ;
+             "v6", make (Usr (get_user_type "Cidr6")) |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then

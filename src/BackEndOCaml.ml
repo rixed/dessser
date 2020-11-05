@@ -17,6 +17,10 @@ struct
     if s.[0] = '!' then s else
     BackEndCLike.valid_identifier s
 
+  let valid_module_name s =
+    assert (s <> "" && s.[0] <> '!') ;
+    String.capitalize (valid_identifier s)
+
   let valid_source_name n =
     if n = "" then "f" else
     String.mapi (fun i c ->
@@ -40,40 +44,57 @@ struct
          %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
+  let module_of_type t =
+    valid_module_name (T.uniq_id t)
+
   let tuple_field_name i = "field_"^ string_of_int i
 
   let cstr_name n =
     String.capitalize (valid_identifier n)
 
   let rec print_record p oc id mns =
+    let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%stype %s = {\n" p.indent id ;
+    pp oc "%smodule %s = struct\n" p.indent m ;
     indent_more p (fun () ->
-      Array.iter (fun (field_name, mn) ->
-        let typ_id = type_identifier p (T.TValue mn) in
-        pp oc "%smutable %s : %s;\n" p.indent (valid_identifier field_name) typ_id
-      ) mns
+      pp oc "%stype t = {\n" p.indent ;
+      indent_more p (fun () ->
+        Array.iter (fun (field_name, mn) ->
+          let typ_id = type_identifier p (T.TValue mn) in
+          pp oc "%smutable %s : %s;\n"
+            p.indent (valid_identifier field_name) typ_id
+        ) mns
+      ) ;
+      pp oc "%s}\n" p.indent
     ) ;
-    pp oc "%s}\n\n" p.indent
+    pp oc "%send\n" p .indent ;
+    (* Also define the type alias: *)
+    pp oc "%stype %s = %s.t\n\n" p.indent id m
 
   and print_sum p oc id mns =
+    let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%stype %s = \n" p.indent id ;
+    pp oc "%smodule %s = struct\n" p.indent m ;
     indent_more p (fun () ->
-      Array.iter (fun (n, mn) ->
-        let typ_id = type_identifier p (T.TValue mn) in
-        pp oc "%s| %s of %s\n" p.indent (cstr_name n) typ_id
-      ) mns
+      pp oc "%stype t = \n" p.indent ;
+      indent_more p (fun () ->
+        Array.iter (fun (n, mn) ->
+          let typ_id = type_identifier p (T.TValue mn) in
+          pp oc "%s| %s of %s\n" p.indent (cstr_name n) typ_id
+        ) mns
+      ) ;
+      pp oc "\n" ;
+      (* Associated "label_of_cstr": *)
+      pp oc "%slet label_of_cstr = function\n" p.indent ;
+      indent_more p (fun () ->
+        Array.iteri (fun i (n, _) ->
+          pp oc "%s| %s _ -> Uint16.of_int %d" p.indent (cstr_name n) i
+        ) mns
+      ) ;
     ) ;
-    pp oc "\n" ;
-    (* Associated "label_of_cstr": *)
-    pp oc "%slet label_of_cstr_%s = function\n" p.indent id ;
-    indent_more p (fun () ->
-      Array.iteri (fun i (n, _) ->
-        pp oc "%s| %s _ -> Uint16.of_int %d" p.indent (cstr_name n) i
-      ) mns
-    ) ;
-    pp oc "\n\n"
+    pp oc "\n%send\n" p.indent ;
+    (* Also define the type alias: *)
+    pp oc "%stype %s = %s.t\n\n" p.indent id m
 
   and value_type_identifier p = function
     | T.{ vtyp ; nullable = true } ->
@@ -243,23 +264,31 @@ struct
         String.print oc "Uint128.zero"
     | { vtyp = Usr nn ; _ } ->
         print_default_value indent oc { vtyp = nn.def ; nullable = false }
-    | { vtyp = TTup mns ; _ } ->
-        Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
+    | { vtyp = TTup mns ; _ } as mn ->
+        let m = module_of_type (T.TValue mn) in
+        Array.print ~first:(m ^".{\n"^indent^"  ")
+                    ~last:("\n"^indent^"}")
+                    ~sep:(";\n"^indent^"  ")
           (fun oc (i, mn) ->
             let fname = tuple_field_name i in
             Printf.fprintf oc "%s = %a"
               fname (print_default_value (indent^"  ")) mn)
           oc (Array.mapi (fun i mn -> (i, mn)) mns)
-    | { vtyp = TRec mns ; _ } ->
-        Array.print ~first:("{\n"^indent^"  ") ~last:("\n"^indent^"}") ~sep:(";\n"^indent^"  ")
+    | { vtyp = TRec mns ; _ } as mn ->
+        let m = module_of_type (T.TValue mn) in
+        Array.print ~first:(m ^".{\n"^indent^"  ")
+                    ~last:("\n"^indent^"}")
+                    ~sep:(";\n"^indent^"  ")
           (fun oc (fname, mn) ->
             Printf.fprintf oc "%s = %a"
               (valid_identifier fname)
               (print_default_value (indent^"  ")) mn)
           oc mns
-    | { vtyp = TSum mns ; _ } ->
+    | { vtyp = TSum mns ; _ } as mn ->
+        let m = module_of_type (T.TValue mn) in
         assert (Array.length mns > 0) ;
-        Printf.fprintf oc "%s (\n%a%s)"
+        Printf.fprintf oc "%s.%s (\n%a%s)"
+          m
           (cstr_name (fst mns.(0)))
           (print_default_value (indent^"  ")) (snd mns.(0))
           indent
@@ -378,9 +407,10 @@ struct
         let inits = List.map (print emit p l) es in
         (* TODO: There is no good reason any longer to avoid using actual
          * OCaml tuples to represent tuples *)
+        let m = module_of_type (E.type_of l e) in
         let i = ref 0 in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:"; " (fun oc n ->
+          List.print ~first:(m ^".{ ") ~last:" }" ~sep:"; " (fun oc n ->
             Printf.fprintf oc "%s = %s" (tuple_field_name !i) n ;
             incr i) oc inits)
     | E.E0S (MakeRec, es) ->
@@ -394,8 +424,9 @@ struct
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
         let inits = List.rev inits in
+        let m = module_of_type (E.type_of l e) in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:"; "
+          List.print ~first:(m ^".{ ") ~last:" }" ~sep:"; "
             (fun oc (name, n) ->
               Printf.fprintf oc "%s = %s" name n) oc inits)
     | E.E1 (Ignore, e1) ->
@@ -552,7 +583,15 @@ struct
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
     | E.E1 (FloatOfString, e1) ->
-        unary_op "float_of_string" e1
+(*        unary_op "float_of_string" e1*)
+
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          pp oc
+            "(try float_of_string %s \
+              with Failure _ as e -> Printf.eprintf \"float_of_string %%S\\n\" %s ; raise e)" n1 n1)
+
+
     | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)
     | E.E1 (WordOfU16, e1) | E.E1 (U16OfWord, e1)
     | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)
@@ -889,18 +928,21 @@ struct
               if i > 0 then String.print oc ", " ;
               String.print oc (if i = n then res else "_")
             done) *)
+        let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
+          Printf.fprintf oc "%s.%s.%s" n1 m (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
+        let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 s)
+          Printf.fprintf oc "%s.%s.%s" n1 m s)
     | E.E1 (GetAlt s, e1) ->
         let n1 = print emit p l e1 in
+        let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           let cstr = cstr_name s in
-          Printf.fprintf oc "(match %s with %s x -> x) [@@ocaml.warning \"-8\"]"
-            n1 cstr)
+          Printf.fprintf oc "(match %s with %s.%s x -> x) [@@ocaml.warning \"-8\"]"
+            n1 m cstr)
     | E.E1 (Construct (mns, i), e1) ->
         let n1 = print emit p l e1 in
         assert (i < Array.length mns) ;
@@ -920,8 +962,8 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           let t1 = E.type_of l e1 in
-          let id = T.uniq_id t1 |> valid_identifier in
-          pp oc "label_of_cstr_%s %s" id n1)
+          let m = T.uniq_id t1 |> valid_module_name in
+          pp oc "%s.label_of_cstr %s" m n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask.Copy")
     | E.E0 SkipField ->
