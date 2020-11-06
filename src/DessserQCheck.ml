@@ -109,11 +109,9 @@ let rec value_type_gen depth =
     map (fun mt -> T.Mac mt) mac_type_gen
 
 and maybe_nullable_gen_of_depth depth =
-  Gen.(fix (fun _self depth ->
-    map2 (fun nullable vtyp ->
-      T.make ~nullable vtyp
-    ) bool (value_type_gen depth)
-  ) depth)
+  Gen.map2 (fun nullable vtyp ->
+    T.make ~nullable vtyp
+  ) Gen.bool (value_type_gen depth)
 
 let value_type_gen =
   Gen.(sized_size (int_bound 4) value_type_gen)
