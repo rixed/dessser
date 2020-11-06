@@ -65,6 +65,29 @@ let make ?(nullable=false) vtyp =
 
 let maken = make ~nullable:true
 
+let rec depth ?(opaque_user_type=false) = function
+  | Unknown -> invalid_arg "depth"
+  | Mac _ -> 1
+  | Usr { def ; _ } ->
+      if opaque_user_type then 1 else depth ~opaque_user_type def
+  | TVec (_, mn) | TList mn ->
+      1 + depth ~opaque_user_type mn.vtyp
+  | TTup mns ->
+      1 + Array.fold_left (fun d mn ->
+        max d (depth ~opaque_user_type mn.vtyp)
+      ) 0 mns
+  | TRec mns | TSum mns ->
+      1 + Array.fold_left (fun d (_, mn) ->
+        max d (depth ~opaque_user_type mn.vtyp)
+      ) 0 mns
+  | TMap (k, v) ->
+      1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
+
+(*$= depth & ~printer:string_of_int
+  1 (depth (Mac TU8))
+  3 (depth (TTup [| make (Mac TU8) ; make (TList (make (Mac TU8))) |]))
+*)
+
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
 let cmp_nv (n1, _) (n2, _) =
