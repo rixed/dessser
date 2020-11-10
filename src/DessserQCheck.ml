@@ -229,7 +229,7 @@ let maybe_nullable =
 (*$Q maybe_nullable & ~count:100
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_maybe_nullable mn in \
-    let mn' = T.Parser.maybe_nullable_of_string str in \
+    let mn' = T.maybe_nullable_of_string str in \
     T.maybe_nullable_eq mn' mn)
 *)
 
@@ -745,34 +745,35 @@ let sexpr mn =
  * back-end: *)
 (*$inject
   let check_sexpr be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let exe = sexpr_to_sexpr be mn in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_rowbinary be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let des = (module RowBinary.Des : DES)
     and ser = (module RowBinary.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_ringbuffer be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let des = (module RamenRingBuffer.Des : DES)
     and ser = (module RamenRingBuffer.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_csv be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let des = (module Csv.Des : DES)
     and ser = (module Csv.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let e = heap_convert_expr mn in
     Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
     let exe = make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
+
 (* Check that the AND is short-cutting, otherwise [is_null] is going to
  * read past the input end: *)
 (*$= check_sexpr & ~printer:identity
@@ -818,7 +819,7 @@ let sexpr mn =
   let sexpr_des = (module SExpr.Des : DES)
 
   let check_ser ser be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let module Ser = (val ser : SER) in
     let module DS = DesSer (SExpr.Des) (Ser) in
     let exe =
@@ -831,7 +832,7 @@ let sexpr mn =
     hexify_string
 
   let check_des des be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let module Des = (val des : DES) in
     let module DS = DesSer (Des) (SExpr.Ser) in
     let exe =
@@ -863,7 +864,7 @@ let sexpr mn =
 (* Special version of check_des with a custom CSV configuration: *)
 (*$inject
   let check_des_csv ?config be ts vs =
-    let mn = T.Parser.maybe_nullable_of_string ts in
+    let mn = T.maybe_nullable_of_string ts in
     let module DS = DesSer (Csv.Des) (SExpr.Ser) in
     let exe =
       let e =

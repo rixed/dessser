@@ -686,7 +686,7 @@ struct
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
     | Lst [ Sym "null" ; Str s] ->
-        E0 (Null ((T.Parser.maybe_nullable_of_string s).vtyp))
+        E0 (Null ((T.maybe_nullable_of_string s).vtyp))
     | Lst [ Sym "end-of-list" ; Str vt ] ->
         E0 (EndOfList (T.Parser.of_string vt))
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
@@ -754,7 +754,7 @@ struct
         E1 (GetAlt s, e x)
     | Lst [ Sym "construct" ; Str s ; Sym i ; x ] ->
         let i = int_of_string i in
-        (match T.Parser.maybe_nullable_of_string s with
+        (match T.maybe_nullable_of_string s with
         | { vtyp = TSum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
             if i > max_lbl then

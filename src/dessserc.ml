@@ -298,7 +298,7 @@ let dest_fname =
   Arg.(required (opt (some string) None i))
 
 let maybe_nullable_of_string str =
-  let p = T.Parser.maybe_nullable_of_string ~what:"schema" in
+  let p = T.maybe_nullable_of_string ~what:"schema" in
   let parse_as_string str = p str in
   (* First try to parse that file, then to parse that string: *)
   try (

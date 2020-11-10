@@ -668,10 +668,6 @@ struct
       | Ok (res, _) ->
           res
 
-  let maybe_nullable_of_string ?what =
-    let print = print_maybe_nullable in
-    string_parser ~print ?what maybe_nullable
-
   (*$< Parser *)
   (*$inject
     open Batteries
@@ -776,6 +772,10 @@ struct
 
   (*$>*)
 end
+
+let maybe_nullable_of_string ?what =
+  let print = print_maybe_nullable in
+  Parser.(string_parser ~print ?what maybe_nullable)
 
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =

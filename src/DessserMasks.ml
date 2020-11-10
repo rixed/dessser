@@ -218,7 +218,7 @@ let rec project mn ma =
 
 
 (*$inject
-  let s2t = T.Parser.maybe_nullable_of_string
+  let s2t = T.maybe_nullable_of_string
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
