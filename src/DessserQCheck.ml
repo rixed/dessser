@@ -717,8 +717,8 @@ let sexpr mn =
     let mn_ringbuf = T.maybe_nullable_to_not_nullable mn in
     (* RamenRingBuffer require record field names to be ordered: *)
     let mn_ringbuf = RamenRingBuffer.order_rec_fields mn_ringbuf in
-    (* CSV cannot encode nullable compound types: *)
-    let mn_csv = Csv.no_nullable_compound_types mn in
+    (* CSV cannot encode some nullable compound types: *)
+    let mn_csv = Csv.make_serializable mn in
 
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
@@ -900,4 +900,11 @@ let sexpr mn =
   "(3 F null)" \
     (check_des_csv ~config:csv_config_1 ocaml_be \
                    "{u:U8; b:BOOL; name:STRING?}" "3,false,\n")
+*)
+
+(* Test Csv.make_serializable: *)
+(*$Q maybe_nullable & ~count:100
+  maybe_nullable (fun mn -> \
+    let mn = Csv.make_serializable mn in \
+    Csv.is_serializable mn)
 *)

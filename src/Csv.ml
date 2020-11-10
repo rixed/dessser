@@ -5,6 +5,11 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
+(*$inject
+  open Batteries
+  module T = DessserTypes
+*)
+
 let debug = false
 
 type csv_config =
@@ -24,30 +29,127 @@ let default_config =
     true_ = "T" ;
     false_ = "F" }
 
-(* In a CSV, all structures are flattened as CSV columns.
- * The problem there is that there is then no way to nullify the whole
- * compound value. *)
-let rec no_nullable_compound_types mn =
-  let rec no_nullable_compound_types_vt = function
-    | T.Unknown | Mac _ as vt ->
-        vt
-    | Usr { def ; name } ->
-        Usr { def = no_nullable_compound_types_vt def ; name }
-    | TVec (d, mn) ->
-        TVec (d, no_nullable_compound_types mn)
-    | TList mn ->
-        TList (no_nullable_compound_types mn)
-    | TTup mns ->
-        TTup (Array.map no_nullable_compound_types mns)
-    | TRec mns ->
-        TRec (Array.map (fun (n, mn) -> n, no_nullable_compound_types mn) mns)
-    | TSum mns ->
-        TSum (Array.map (fun (n, mn) -> n, no_nullable_compound_types mn) mns)
-    | TMap (k, v) ->
-        TMap (no_nullable_compound_types k, no_nullable_compound_types v)
-  in
-  T.{ vtyp = no_nullable_compound_types_vt mn.T.vtyp ;
-      nullable = false }
+(* Given how tuples/arrays/lists are flattened then any nullable compound type
+ * must have no nullable types up to and including its first concrete item
+ * (first actual serialized value). For simplicity, nullable compound types
+ * are just declared invalid: *)
+let rec is_serializable ?(to_first_concrete=false) mn =
+  if mn.T.nullable && to_first_concrete then false else
+  let to_first_concrete' = to_first_concrete || mn.nullable in
+  let are_serializable mns =
+    match Enum.get mns with
+    | None -> false
+    | Some fst ->
+        is_serializable ~to_first_concrete:to_first_concrete' fst &&
+        Enum.for_all (is_serializable ~to_first_concrete:false) mns in
+  match mn.T.vtyp with
+  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+      false
+  | Mac _ ->
+      true
+  | Usr { def ; _ } ->
+      is_serializable ~to_first_concrete T.{ mn with vtyp = def }
+  | TVec (_, mn') | TList mn' ->
+      is_serializable ~to_first_concrete:to_first_concrete' mn'
+  | TTup mns ->
+      are_serializable (Array.enum mns)
+  | TRec mns ->
+      are_serializable (Array.enum mns |> Enum.map snd)
+  | TSum mns ->
+      (* Each alternative must be serializable independently: *)
+      Array.for_all (fun (_, mn') ->
+        is_serializable ~to_first_concrete:to_first_concrete' mn'
+      ) mns
+
+(*$T is_serializable
+  is_serializable (T.maybe_nullable_of_string "Ip6?")
+*)
+
+(* Take a maybe-nullable and make it serializable by making some compound
+ * types non nullable: *)
+let rec nullable_at_first mn =
+  mn.T.nullable ||
+  match mn.vtyp with
+  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+      invalid_arg "nullable_at_first"
+  | Mac _ ->
+      false
+  | Usr { def ; _ } ->
+      nullable_at_first T.{ mn with vtyp = def }
+  | TVec (_, mn') | TList mn' ->
+      nullable_at_first mn'
+  | TTup mns ->
+      nullable_at_first mns.(0)
+  | TRec mns ->
+      nullable_at_first (snd mns.(0))
+  | TSum mns ->
+      Array.exists (fun (_, mn) ->
+        nullable_at_first mn
+      ) mns
+
+(*$T nullable_at_first
+  nullable_at_first (T.maybe_nullable_of_string "(a BOOL? | b BOOL)")
+  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)")
+  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)[]")
+  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)[1]")
+  not (nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL)"))
+*)
+
+let rec make_serializable mn =
+  match mn.T.vtyp with
+  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+      invalid_arg "make_serializable"
+  | Mac _ ->
+      mn
+  | Usr { def ; _ } ->
+      let mn' = T.{ mn with vtyp = def } in
+      if is_serializable mn' then mn else make_serializable mn'
+  | TVec (d, mn') ->
+      let mn' = make_serializable mn' in
+      { nullable = if nullable_at_first mn' then false else mn.nullable ;
+        vtyp = TVec (d, mn') }
+  | TList mn' ->
+      let mn' = make_serializable mn' in
+      { nullable = if nullable_at_first mn' then false else mn.nullable ;
+        vtyp = TList mn' }
+  | TTup mns ->
+      let mns = Array.map make_serializable mns in
+      { nullable = if nullable_at_first mns.(0) then false else mn.nullable ;
+        vtyp = TTup mns }
+  | TRec mns ->
+      let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
+      { nullable =
+          if nullable_at_first (snd mns.(0)) then false else mn.nullable ;
+        vtyp = TRec mns }
+  | TSum mns ->
+      let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
+      { nullable =
+          if Array.exists (fun (_, mn) -> nullable_at_first mn) mns then false
+          else mn.nullable ;
+        vtyp = TSum mns }
+
+let make_serializable =
+  if debug then
+    fun mn ->
+      let mn = make_serializable mn in
+      assert (is_serializable mn) ;
+      mn
+  else
+    make_serializable
+
+(*$inject
+  let make_serializable_str =
+    T.string_of_maybe_nullable %
+    make_serializable %
+    T.maybe_nullable_of_string
+*)
+(*$= make_serializable_str & ~printer:identity
+  "BOOL?[4][5]" ("BOOL?[4][5]?" |> make_serializable_str)
+  "(gnlj BOOL | jdlg BOOL?)[]" \
+                ("(gnlj BOOL | jdlg BOOL?)[]?" |> make_serializable_str)
+  "{b: {e: U32; f: (U64[]?; CHAR)[1]}[2]}" \
+                ("{b: {e: U32; f: (U64[]?; CHAR)?[1]?}[2]}" |> make_serializable_str)
+*)
 
 module Ser : SER with type config = csv_config =
 struct
@@ -55,7 +157,9 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.dataptr
+  let ptr mn =
+    if not (is_serializable mn) then invalid_arg "not serializable" ;
+    T.dataptr
 
   let start ?(config=default_config) _v p = config, p
 
@@ -200,7 +304,9 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.dataptr
+  let ptr mn =
+    if not (is_serializable mn) then invalid_arg "not serializable" ;
+    T.dataptr
 
   let start ?(config=default_config) _mn p = config, p
 

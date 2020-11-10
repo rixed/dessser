@@ -202,7 +202,8 @@ TESTABLE_SOURCES = \
 	src/DessserMasks.ml \
 	src/BackEndCPP.ml \
 	src/DessserQCheck.ml \
-	src/DessserOCamlBackendHelpers.ml
+	src/DessserOCamlBackendHelpers.ml \
+	src/Csv.ml
 
 LINKED_FOR_TESTS = \
 	src/DessserFloatTools.ml \
