@@ -6,6 +6,11 @@ open DessserTools
 open DessserFloatTools
 module T = DessserTypes
 
+(*$inject
+   open Batteries
+   module T = DessserTypes
+   module E = DessserExpressions *)
+
 (*
  * Some misc generators
  *)
@@ -92,32 +97,47 @@ let user_type_gen =
 
 let rec value_type_gen depth =
   let open Gen in
-  if depth > 0 then
-    let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
-    let lst =
-      [ 4, map (fun mt -> T.Mac mt) mac_type_gen ;
-        1, map (fun ut -> T.Usr ut) user_type_gen ;
-        2, map2 (fun dim mn -> T.TVec (dim, mn)) (int_range 1 10) mn_gen ;
-        2, map (fun mn -> T.TList mn) mn_gen ;
-        2, map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
-        2, map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
-        2, map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
-        (* Avoid maps for now, as there is no manipulable values of that type: *)
-        0, map2 (fun k v -> T.TMap (k, v)) mn_gen mn_gen ] in
-    frequency lst
+  assert (depth > 0) ;
+  if depth = 1 then
+    frequency
+      (* User types are always considered opaque: *)
+      [ 1, map (fun ut -> T.Usr ut) user_type_gen ;
+        9, map (fun mt -> T.Mac mt) mac_type_gen ]
   else
-    map (fun mt -> T.Mac mt) mac_type_gen
+    let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
+    oneof
+      [ map2 (fun dim mn -> T.TVec (dim, mn)) (int_range 1 10) mn_gen ;
+        map (fun mn -> T.TList mn) mn_gen ;
+        map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
+        map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
+        map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
+        (* Avoid maps for now, as there is no manipulable values of that type:
+        map2 (fun k v -> T.TMap (k, v)) mn_gen mn_gen *) ]
 
 and maybe_nullable_gen_of_depth depth =
   Gen.map2 (fun nullable vtyp ->
     T.make ~nullable vtyp
   ) Gen.bool (value_type_gen depth)
 
+(*$Q maybe_nullable_gen_of_depth
+  (Q.int_range 1 10) (fun d -> \
+    let mn = Q.Gen.generate1 (maybe_nullable_gen_of_depth d) in \
+    let dep = T.depth ~opaque_user_type:true mn.T.vtyp in \
+    if d <> dep then \
+      BatPrintf.printf "type = %a, depth = %d <> %d\n%!" \
+        T.print_maybe_nullable mn dep d ; \
+    dep = d)
+*)
+
 let value_type_gen =
-  Gen.(sized_size (int_bound 4) value_type_gen)
+  Gen.(frequency
+    [ 6, value_type_gen 1 ;
+      2, value_type_gen 2 ;
+      2, value_type_gen 3 ;
+      1, value_type_gen 4 ])
 
 let maybe_nullable_gen =
-  Gen.(sized_size (int_bound 4) maybe_nullable_gen_of_depth)
+  Gen.(sized_size (int_range 1 5) maybe_nullable_gen_of_depth)
 
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
@@ -220,11 +240,6 @@ let maybe_nullable =
   and small = size_of_maybe_nullable
   and shrink = shrink_maybe_nullable in
   make ~print ~small ~shrink maybe_nullable_gen
-
-(*$inject
-   open Batteries
-   module T = DessserTypes
-   module E = DessserExpressions *)
 
 (*$Q maybe_nullable & ~count:100
   maybe_nullable (fun mn -> \
