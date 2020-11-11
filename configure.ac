@@ -15,7 +15,6 @@ AS_IF(
   AC_MSG_ERROR([You must install OCaml findlib (the ocamlfind command).]))
 
 AC_CHECK_OCAML_PKG(batteries)
-AC_CHECK_OCAML_PKG(parsercombinator)
 AC_CHECK_OCAML_PKG(stdint)
 AC_CHECK_OCAML_PKG(cmdliner)
 AC_CHECK_OCAML_PKG(parsercombinator)
