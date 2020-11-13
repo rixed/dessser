@@ -179,10 +179,10 @@ let with_subprocess ?env cmd args k =
   let his_in, my_in = pipe ~cloexec:false ()
   and my_out, his_out = pipe ~cloexec:false ()
   and my_err, his_err = pipe ~cloexec:false () in
-  let close what fd =
+  let close _what fd =
     try Unix.close fd
-    with e ->
-      Printf.eprintf "close %s failed: %s\n" what (Printexc.to_string e) in
+    with _e ->
+      () (*Printf.eprintf "close %s failed: %s\n" what (Printexc.to_string e)*) in
   let rec fork_loop n =
     flush_all () ;
     match Unix.fork () with

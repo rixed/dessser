@@ -137,7 +137,7 @@ let value_type_gen =
       1, value_type_gen 4 ])
 
 let maybe_nullable_gen =
-  Gen.(sized_size (int_range 1 5) maybe_nullable_gen_of_depth)
+  Gen.(sized_size (int_range 1 4) maybe_nullable_gen_of_depth)
 
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
@@ -241,7 +241,7 @@ let maybe_nullable =
   and shrink = shrink_maybe_nullable in
   make ~print ~small ~shrink maybe_nullable_gen
 
-(*$Q maybe_nullable & ~count:100
+(*$Q maybe_nullable & ~count:20
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_maybe_nullable mn in \
     let mn' = T.maybe_nullable_of_string str in \
@@ -479,7 +479,7 @@ let expression =
   and small = size_of_expression in
   make ~print ~small expression_gen
 
-(*$Q expression & ~count:100
+(*$Q expression & ~count:20
   expression (fun e -> \
     let str = IO.to_string E.print e in \
     match E.Parser.expr str with \
@@ -514,7 +514,7 @@ let expression =
     can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
 *)
 
-(*$Q expression & ~count:100
+(*$Q expression & ~count:20
   expression (fun e -> \
     match type_check [] e with \
     | exception _ -> true \
@@ -918,7 +918,7 @@ let sexpr mn =
 *)
 
 (* Test Csv.make_serializable: *)
-(*$Q maybe_nullable & ~count:100
+(*$Q maybe_nullable & ~count:20
   maybe_nullable (fun mn -> \
     let mn = Csv.make_serializable mn in \
     Csv.is_serializable mn)

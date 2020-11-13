@@ -304,6 +304,10 @@ and expr_eq e1 e2 =
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
 
+let is_const_null = function
+  | E0 (Null _) -> true
+  | _ -> false
+
 let string_of_path = IO.to_string T.print_path
 
 let string_of_e0s =function

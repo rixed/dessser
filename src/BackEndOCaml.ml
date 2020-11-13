@@ -38,7 +38,7 @@ struct
   let compile_cmd ~optim ~link src dst =
     let optim = cap 2 3 optim in
     Printf.sprintf
-      "ocamlfind ocamlopt -g -annot -O%d -w -26 -I src \
+      "ocamlfind ocamlopt -g -annot -O%d -w -8-26 -I src \
          -package stdint,batteries,lmdb \
          -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackendHelpers.cmx \
          %s %S -o %S"
@@ -306,6 +306,9 @@ struct
 
   let print_binding n tn f oc =
     pp oc "let %s : %s = %t in" n tn f
+
+  let print_inline tn f oc =
+    pp oc "(%t : %s)" f tn
 
   let print_comment oc fmt =
     pp oc ("(* " ^^ fmt ^^ " *)\n")
@@ -941,7 +944,9 @@ struct
         let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           let cstr = cstr_name s in
-          Printf.fprintf oc "(match %s with %s.%s x -> x) [@@ocaml.warning \"-8\"]"
+          (* FIXME: figure out where to add this whether the expression is a
+           * binding or inlined: [@@ocaml.warning "-8"] *)
+          Printf.fprintf oc "(match %s with %s.%s x -> x)"
             n1 m cstr)
     | E.E1 (Construct (mns, i), e1) ->
         let n1 = print emit p l e1 in

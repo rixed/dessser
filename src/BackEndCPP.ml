@@ -123,8 +123,18 @@ struct
   let print_binding n tn f oc =
     if tn = "void" then (
       pp oc "%t;" f
-    ) else
-      pp oc "%s %s(%t);" tn n f
+    ) else (
+      (* Beware that this must not be parsed as a function declaration. Thus
+       * the use of the "uniform initialization" syntax. But then a new issue
+       * arises since when the function [f] will emit an immediate structure
+       * the presence of two curly braces will cause a syntax error.
+       * Work around: check that f's output does not start with a curly brace.
+       * Oh boy! *)
+      pp oc "%s %s { %t };" tn n f
+    )
+
+  let print_inline tn f oc =
+    pp oc "%s(%t)" tn f
 
   let print_comment oc fmt =
     pp oc ("/* "^^ fmt ^^" */\n")
@@ -164,9 +174,11 @@ struct
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
     let binary_infix_op e1 op e2 =
+      (* Prevent integer promotion by casting to type_of e: *)
       let n1 = print emit p l e1
-      and n2 = print emit p l e2 in
-      emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
+      and n2 = print emit p l e2
+      and tn = E.type_of l e |> type_identifier p in
+      emit ?name p l e (fun oc -> pp oc "%s(%s %s %s)" tn n1 op n2) in
     let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
       let n1 = print emit p l e1 in
       let res = gen_sym ?name "shortcut_res_" in
@@ -199,7 +211,7 @@ struct
     | E.E0S ((MakeVec | MakeList | MakeTup), es) ->
         let inits = List.map (print emit p l) es in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:", " String.print oc inits)
+          List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
     | E.E0S (MakeRec, es) ->
         let _, inits =
           List.fold_left (fun (prev_name, inits) e ->
@@ -212,7 +224,7 @@ struct
           ) (None, []) es in
         let inits = List.rev inits in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:", "
+          List.print ~first:" " ~last:" " ~sep:", "
             (fun oc (name, n) ->
               Printf.fprintf oc ".%s = %s" name n) oc inits)
     | E.E1 (Ignore, e1) ->
@@ -226,12 +238,20 @@ struct
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
     | E.E1 (IsNull, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
+        if E.is_const_null e1 then
+          (* Cannot call has_value on nullopt: *)
+          emit ?name p l e (fun oc -> pp oc "true")
+        else
+          let n = print emit p l e1 in
+          emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
     | E.E2 (Coalesce, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
+        let n2 = print emit p l e2 in
+        if E.is_const_null e1 then
+          (* Cannot call has_value on nullopt: *)
+          n2
+        else
+          let n1 = print emit p l e1 in
+          emit ?name p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -346,25 +366,29 @@ struct
     | E.E1 (U24OfString, e1)
     | E.E1 (U32OfString, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stoul(%s)" n)
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc -> pp oc "%s(std::stoul(%s))" tn n)
     | E.E1 (U40OfString, e1)
     | E.E1 (U48OfString, e1)
     | E.E1 (U56OfString, e1)
     | E.E1 (U64OfString, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stoull(%s)" n)
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc -> pp oc "%s(std::stoull(%s))" tn n)
     | E.E1 (I8OfString, e1)
     | E.E1 (I16OfString, e1)
     | E.E1 (I24OfString, e1)
     | E.E1 (I32OfString, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stol(%s)" n)
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc -> pp oc "%s(std::stol(%s))" tn n)
     | E.E1 (I40OfString, e1)
     | E.E1 (I48OfString, e1)
     | E.E1 (I56OfString, e1)
     | E.E1 (I64OfString, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stoll(%s)" n)
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc -> pp oc "%s(std::stoll(%s))" tn n)
     | E.E1 (U128OfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
@@ -408,7 +432,8 @@ struct
     | E.E1 (ToU128, e1) | E.E1 (ToI128, e1)
     | E.E1 (U8OfBool, e1) | E.E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s" n)
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc -> pp oc "%s(%s)" tn n)
     | E.E1 (ListOfSList, e1) ->
         method_call e1 "toList" []
     | E.E1 (ListOfSListRev, e1) ->

@@ -16,6 +16,12 @@ struct List : public std::vector<T> {
     this->reserve(10);
     this->insert(this->begin(), lst);
   }
+
+  /* Overwrite size to return an uint32_t as specified in E.type_of */
+  uint32_t size()
+  {
+    return std::vector<T>::size();
+  }
 };
 
 #endif

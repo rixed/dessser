@@ -71,6 +71,9 @@ sig
   val print_binding :
     string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
 
+  val print_inline :
+    string -> ('a IO.output -> unit) -> 'a IO.output -> unit
+
   val print_binding_toplevel :
     emitter -> string -> print_state -> (E.t * T.t) list -> E.t -> unit
 
@@ -166,12 +169,43 @@ struct
   let find_or_declare_type _p _t =
     assert false
 
+  (* As inlined expressions may be reordered, those must all be stateless *)
+  let rec can_inline = function
+    | E.E0 (
+        (* FIXME: Cannot inline Null because of C++ backend std::nullopt not
+         * being a proper object (on which one can call has_value()) but only
+         * an initializer *)
+        Param _ | Null _ |
+        EndOfList _ | Float _ | String _ | Bool _ | Bytes _ | Identifier _ |
+        Bit _ | Char _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _ |
+        U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _ |
+        I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _) ->
+        true
+    | E1 ((
+        GetItem _ | GetField _ | GetAlt _ | IsNull | ToNullable | ToNotNullable |
+        ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
+        ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
+        LogNot | SizeOfU32 | BitOfBool | U8OfBool | BoolOfU8 | StringLength |
+        Not | Neg | Fst | Snd | Head | Tail), e1) ->
+        can_inline e1
+    | E2 ((
+        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem |
+        LogAnd | LogOr | LogXor | LeftShift | RightShift | GetBit |
+        And | Or | Cons), e1, e2) ->
+        can_inline e1 && can_inline e2
+    | _ ->
+        false
+
   let emit ?name p l e f =
-    let n = match name with Some n -> n | None -> gen_sym () in
     let t = E.type_of l e in
     let tn = C.type_identifier p t in
-    pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
-    n
+    if name = None && can_inline e then (
+      Printf.sprintf2 "%t" (C.print_inline tn f)
+    ) else (
+      let n = match name with Some n -> n | None -> gen_sym () in
+      pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
+      n
+    )
 
   let define name p l e =
     let name = valid_identifier name in
