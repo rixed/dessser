@@ -160,9 +160,9 @@ let name_of_signal s =
   else if s = sigxfsz then "XFSZ"
   else "Unknown OCaml signal number "^ string_of_int s
 
-let wait_log () =
+let wait_log pid =
   let open Unix in
-  match restart_on_EINTR wait () with
+  match restart_on_EINTR waitpid [] pid with
   | _, WEXITED 126 ->
       Printf.eprintf "couldn't execve after fork\n%!"
   | _, WEXITED code ->
@@ -179,34 +179,48 @@ let with_subprocess ?env cmd args k =
   let his_in, my_in = pipe ~cloexec:false ()
   and my_out, his_out = pipe ~cloexec:false ()
   and my_err, his_err = pipe ~cloexec:false () in
-  flush_all () ;
-  match Unix.fork () with
-  | 0 -> (* Child *)
-    (try
-      (* Move the fd in pos 0, 1 and 2: *)
-      let move_fd s d =
-        dup2 ~cloexec:false s d ;
-        close s in
-      move_fd his_err stderr ;
-      move_fd his_in stdin ;
-      move_fd his_out stdout ;
-      execve cmd args env
+  let close what fd =
+    try Unix.close fd
     with e ->
-      Printf.eprintf "Cannot execve: %s\n%!" (Printexc.to_string e) ;
-      sys_exit 126)
-  | _pid -> (* Parent *)
-    close his_in ; close his_out ; close his_err ;
-    let close_all () =
-      close my_in ;
-      close my_out ;
-      close my_err in
-    let close_wait () =
-      close_all () ;
-      wait_log () in
-    finally close_wait
-      k (out_channel_of_descr my_in,
-         in_channel_of_descr my_out,
-         in_channel_of_descr my_err)
+      Printf.eprintf "close %s failed: %s\n" what (Printexc.to_string e) in
+  let rec fork_loop n =
+    flush_all () ;
+    match Unix.fork () with
+    | exception (Unix.Unix_error (Unix.EAGAIN, _, _) as e) ->
+        if n >= 10 then raise e ;
+        Printf.eprintf "Cannot fork, too many processes, waiting...\n" ;
+        Unix.sleep 1 ;
+        fork_loop (n + 1)
+    | 0 -> (* Child *)
+      (try
+        (* Move the fd in pos 0, 1 and 2: *)
+        let move_fd s d =
+          dup2 ~cloexec:false s d ;
+          Unix.close s in
+        move_fd his_err stderr ;
+        move_fd his_in stdin ;
+        move_fd his_out stdout ;
+        execve cmd args env
+      with e ->
+        Printf.eprintf "Cannot execve: %s\n%!" (Printexc.to_string e) ;
+        sys_exit 126)
+    | pid -> (* Parent *)
+      close "his_in" his_in ;
+      close "his_out" his_out ;
+      close "his_err" his_err ;
+      let close_all () =
+        close "my_in" my_in ;
+        close "my_out" my_out ;
+        close "my_err" my_err in
+      let close_wait () =
+        close_all () ;
+        wait_log pid in
+      finally close_wait
+        k (out_channel_of_descr my_in,
+           in_channel_of_descr my_out,
+           in_channel_of_descr my_err)
+  in
+  fork_loop 0
 
 let read_whole_channel ic =
   let read_chunk = 1000 in

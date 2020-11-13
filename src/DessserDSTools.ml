@@ -4,6 +4,17 @@ open DessserTools
 open Dessser
 module E = DessserExpressions
 
+let timeout_cmd = ref "/usr/bin/timeout"
+
+let has_timeout () =
+  let open Unix in
+  match stat !timeout_cmd with
+  | exception Unix_error (ENOENT, _, _) ->
+      false
+  | s ->
+      s.st_kind = S_REG &&
+      s.st_perm land 1 = 1
+
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
@@ -46,11 +57,14 @@ let make_converter ?exe_fname ?mn backend convert =
  * output: *)
 let run_converter ?timeout exe param =
   let str = IO.output_string () in
-  let cmd, args = match timeout with
-    | None -> exe, [| exe ; param |]
-    | Some t ->
-        let timeout_cmd = "/usr/bin/timeout" in
-        timeout_cmd, [| timeout_cmd ; string_of_int t ; exe ; param |] in
+  let cmd, args =
+    match timeout with
+    | Some t when has_timeout () ->
+        !timeout_cmd, [| !timeout_cmd ; string_of_int t ; exe ; param |]
+    | _ ->
+        if timeout <> None then
+          Printf.eprintf "Cannot set a timeout without %s.\n" !timeout_cmd ;
+        exe, [| exe ; param |] in
   let env = [| "OCAMLRUNPARAM=b" |] in
   (try
     with_stdout_from_command ~env cmd args (fun ic ->
