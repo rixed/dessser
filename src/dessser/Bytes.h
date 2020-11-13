@@ -7,7 +7,9 @@
 
 struct Bytes {
   /* Shared with pointers: */
-  std::shared_ptr<Byte[]> buffer;
+  //std::shared_ptr<Byte[]> buffer;
+  // Work around MacOS c17 issue:
+  std::shared_ptr<Byte> buffer;
   /* total capacity of the whole buffer: */
   size_t capa;
   /* Size of this byte string: */
@@ -22,7 +24,7 @@ struct Bytes {
     offset(0)
   {}
 
-  Bytes(std::shared_ptr<Byte[]> buffer_, size_t size_, size_t offset_) :
+  Bytes(std::shared_ptr<Byte> buffer_, size_t size_, size_t offset_) :
     buffer(buffer_),
     capa(size_),
     size(size_),
@@ -32,7 +34,7 @@ struct Bytes {
   Bytes(std::string const s)
   {
     capa = size = s.size();
-    buffer = std::shared_ptr<Byte[]>(new Byte[size]);
+    buffer = std::shared_ptr<Byte>(new Byte[size]);
     offset = 0;
     memcpy(buffer.get(), s.c_str(), size);
   }
@@ -61,27 +63,27 @@ struct Bytes {
       copyFrom(b1);
     } else { /* slow path */
       capa = size = b1.size + b2.size;
-      buffer = std::shared_ptr<Byte[]>(new Byte[size]);
+      buffer = std::shared_ptr<Byte>(new Byte[size]);
       offset = 0;
-      memcpy(buffer.get(), &b1.buffer[b1.offset], b1.size);
-      memcpy(&buffer[b1.size], b2.buffer.get(), b2.size);
+      memcpy(buffer.get(), b1.buffer.get()+b1.offset, b1.size);
+      memcpy(buffer.get()+b1.size, b2.buffer.get(), b2.size);
     }
   }
 
   Bytes(Bytes const &b1, Byte b)
   {
     if (b1.offset + b1.size < b1.capa &&
-        b1.buffer[b1.offset + b1.size] == b) { /* fast path */
+        b1.buffer.get()[b1.offset + b1.size] == b) { /* fast path */
       capa = b1.capa;
       buffer = b1.buffer;
       offset = b1.offset;
       size = b1.size + 1;
     } else { /* slow path */
       capa = size = b1.size + 1;
-      buffer = std::shared_ptr<Byte[]>(new Byte[size]);
+      buffer = std::shared_ptr<Byte>(new Byte[size]);
       offset = 0;
-      memcpy(buffer.get(), &b1.buffer[b1.offset], b1.size);
-      buffer[b1.size] = b;
+      memcpy(buffer.get(), b1.buffer.get()+b1.offset, b1.size);
+      buffer.get()[b1.size] = b;
     }
   }
 
