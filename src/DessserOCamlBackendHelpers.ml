@@ -3,10 +3,6 @@ include DessserFloatTools
 
 let debug = false
 
-let option_get = function
-  | Some x -> x
-  | None -> invalid_arg "option_get"
-
 let string_of_char c = String.make 1 c
 
 let array_of_list_rev l =
@@ -40,6 +36,68 @@ let () =
             b.offset)
     | _ ->
         None)
+
+type 'a nullable = Null | NotNull of 'a
+
+(* Nulls propagate outward. The quickest way to implement this is to fire an
+ * exception when encountering a Null, to longjmp to the outward operation. *)
+exception ImNull
+
+module Nullable =
+struct
+  type 'a t = 'a nullable
+
+  let map f = function
+    | Null -> Null
+    | NotNull x ->
+        (try NotNull (f x) with ImNull -> Null)
+
+  let map_no_fail f = function
+    | Null -> Null
+    | NotNull x ->
+        (try NotNull (f x) with _ -> Null)
+
+  let get = function
+    | Null -> invalid_arg "Nullable.get"
+    | NotNull x -> x
+
+  let (|!) a b =
+    match a with Null -> b | NotNull a -> a
+
+  let default d = function
+    | Null -> d
+    | NotNull x -> x
+
+  let default_delayed f = function
+    | Null -> f ()
+    | NotNull x -> x
+
+  let of_option = function
+    | None -> Null
+    | Some x -> NotNull x
+
+  let to_option = function
+    | Null -> None
+    | NotNull x -> Some x
+
+  let compare cmp a b =
+    match a, b with
+    | Null, _ -> -1
+    | _, Null -> 1
+    | a, b -> cmp a b
+
+  let compare_left cmp a b =
+    match a with
+    | Null -> -1
+    | a -> cmp a b
+
+  let compare_right cmp a b =
+    match b with
+    | Null -> 1
+    | b -> cmp a b
+end
+
+let (|!) = Nullable.(|!)
 
 module Size =
 struct

@@ -98,7 +98,7 @@ struct
 
   and value_type_identifier p = function
     | T.{ vtyp ; nullable = true } ->
-        value_type_identifier p { vtyp ; nullable = false } ^" option"
+        value_type_identifier p { vtyp ; nullable = false } ^" nullable"
     | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
     | { vtyp = Mac TChar ; _ } -> "char"
     | { vtyp = Mac TString ; _ } -> "string"
@@ -212,9 +212,9 @@ struct
 
   let rec print_default_value indent oc = function
     | T.{ vtyp ; nullable = true } ->
-        (* Unfortunately we cannot start with None as we want the whole tree
+        (* Unfortunately we cannot start with Null as we want the whole tree
          * of values to be populated. *)
-        Printf.fprintf oc "Some (%a)"
+        Printf.fprintf oc "NotNull (%a)"
           (print_default_value indent) { vtyp ; nullable = false }
     | { vtyp = T.Unknown ; _ } ->
         invalid_arg "print_default_value"
@@ -453,9 +453,9 @@ struct
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
     | E.E1 (IsNull, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s = None" n)
+        emit ?name p l e (fun oc -> pp oc "%s = Null" n)
     | E.E2 (Coalesce, e1, e2) ->
-        binary_infix_op e1 "|?" e2
+        binary_infix_op e1 "|!" e2
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1 in
         let n2 = print emit p l e2 in
@@ -464,12 +464,12 @@ struct
           Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
     | E.E1 (ToNullable, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Some %s" n1)
+        emit ?name p l e (fun oc -> pp oc "NotNull %s" n1)
     | E.E1 (ToNotNullable, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> Printf.fprintf oc "option_get %s" n1)
+        emit ?name p l e (fun oc -> Printf.fprintf oc "Nullable.get %s" n1)
     | E.E0 (Null _) ->
-        emit ?name p l e (fun oc -> pp oc "None")
+        emit ?name p l e (fun oc -> pp oc "Null")
     | E.E0 (Float f) ->
         emit ?name p l e (print_float_literal f)
     | E.E0 (String s) ->
