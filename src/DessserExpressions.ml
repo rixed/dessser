@@ -116,6 +116,27 @@ type e1 =
   | I56OfString
   | I64OfString
   | I128OfString
+  (* Faster versions of the above: *)
+  | FloatOfPtr
+  | CharOfPtr
+  | U8OfPtr
+  | U16OfPtr
+  | U24OfPtr
+  | U32OfPtr
+  | U40OfPtr
+  | U48OfPtr
+  | U56OfPtr
+  | U64OfPtr
+  | U128OfPtr
+  | I8OfPtr
+  | I16OfPtr
+  | I24OfPtr
+  | I32OfPtr
+  | I40OfPtr
+  | I48OfPtr
+  | I56OfPtr
+  | I64OfPtr
+  | I128OfPtr
   (* Integers can be cast upon others regardless of sign and width: *)
   | ToU8
   | ToU16
@@ -358,6 +379,26 @@ let string_of_e1 = function
   | I56OfString -> "i56-of-string"
   | I64OfString -> "i64-of-string"
   | I128OfString -> "i128-of-string"
+  | FloatOfPtr -> "float-of-ptr"
+  | CharOfPtr -> "char-of-ptr"
+  | U8OfPtr -> "u8-of-ptr"
+  | U16OfPtr -> "u16-of-ptr"
+  | U24OfPtr -> "u24-of-ptr"
+  | U32OfPtr -> "u32-of-ptr"
+  | U40OfPtr -> "u40-of-ptr"
+  | U48OfPtr -> "u48-of-ptr"
+  | U56OfPtr -> "u56-of-ptr"
+  | U64OfPtr -> "u64-of-ptr"
+  | U128OfPtr -> "u128-of-ptr"
+  | I8OfPtr -> "i8-of-ptr"
+  | I16OfPtr -> "i16-of-ptr"
+  | I24OfPtr -> "i24-of-ptr"
+  | I32OfPtr -> "i32-of-ptr"
+  | I40OfPtr -> "i40-of-ptr"
+  | I48OfPtr -> "i48-of-ptr"
+  | I56OfPtr -> "i56-of-ptr"
+  | I64OfPtr -> "i64-of-ptr"
+  | I128OfPtr -> "i128-of-ptr"
   | ToU8 -> "to-u8"
   | ToU16 -> "to-u16"
   | ToU24 -> "to-u24"
@@ -797,6 +838,26 @@ struct
     | Lst [ Sym "i56-of-string" ; x ] -> E1 (I56OfString, e x)
     | Lst [ Sym "i64-of-string" ; x ] -> E1 (I64OfString, e x)
     | Lst [ Sym "i128-of-string" ; x ] -> E1 (I128OfString, e x)
+    | Lst [ Sym "float-of-ptr" ; x ] -> E1 (FloatOfPtr, e x)
+    | Lst [ Sym "char-of-ptr" ; x ] -> E1 (CharOfPtr, e x)
+    | Lst [ Sym "u8-of-ptr" ; x ] -> E1 (U8OfPtr, e x)
+    | Lst [ Sym "u16-of-ptr" ; x ] -> E1 (U16OfPtr, e x)
+    | Lst [ Sym "u24-of-ptr" ; x ] -> E1 (U24OfPtr, e x)
+    | Lst [ Sym "u32-of-ptr" ; x ] -> E1 (U32OfPtr, e x)
+    | Lst [ Sym "u40-of-ptr" ; x ] -> E1 (U40OfPtr, e x)
+    | Lst [ Sym "u48-of-ptr" ; x ] -> E1 (U48OfPtr, e x)
+    | Lst [ Sym "u56-of-ptr" ; x ] -> E1 (U56OfPtr, e x)
+    | Lst [ Sym "u64-of-ptr" ; x ] -> E1 (U64OfPtr, e x)
+    | Lst [ Sym "u128-of-ptr" ; x ] -> E1 (U128OfPtr, e x)
+    | Lst [ Sym "i8-of-ptr" ; x ] -> E1 (I8OfPtr, e x)
+    | Lst [ Sym "i16-of-ptr" ; x ] -> E1 (I16OfPtr, e x)
+    | Lst [ Sym "i24-of-ptr" ; x ] -> E1 (I24OfPtr, e x)
+    | Lst [ Sym "i32-of-ptr" ; x ] -> E1 (I32OfPtr, e x)
+    | Lst [ Sym "i40-of-ptr" ; x ] -> E1 (I40OfPtr, e x)
+    | Lst [ Sym "i48-of-ptr" ; x ] -> E1 (I48OfPtr, e x)
+    | Lst [ Sym "i56-of-ptr" ; x ] -> E1 (I56OfPtr, e x)
+    | Lst [ Sym "i64-of-ptr" ; x ] -> E1 (I64OfPtr, e x)
+    | Lst [ Sym "i128-of-ptr" ; x ] -> E1 (I128OfPtr, e x)
     | Lst [ Sym "to-u8" ; x ] -> E1 (ToU8, e x)
     | Lst [ Sym "to-u16" ; x ] -> E1 (ToU16, e x)
     | Lst [ Sym "to-u24" ; x ] -> E1 (ToU24, e x)
@@ -1117,6 +1178,26 @@ let rec type_of l e0 =
   | E1 (I56OfString, _) -> T.i56
   | E1 (I64OfString, _) -> T.i64
   | E1 (I128OfString, _) -> T.i128
+  | E1 (CharOfPtr, _) -> T.pair T.char T.dataptr
+  | E1 (FloatOfPtr, _) -> T.pair T.float T.dataptr
+  | E1 (U8OfPtr, _) -> T.pair T.u8 T.dataptr
+  | E1 (U16OfPtr, _) -> T.pair T.u16 T.dataptr
+  | E1 (U24OfPtr, _) -> T.pair T.u24 T.dataptr
+  | E1 (U32OfPtr, _) -> T.pair T.u32 T.dataptr
+  | E1 (U40OfPtr, _) -> T.pair T.u40 T.dataptr
+  | E1 (U48OfPtr, _) -> T.pair T.u48 T.dataptr
+  | E1 (U56OfPtr, _) -> T.pair T.u56 T.dataptr
+  | E1 (U64OfPtr, _) -> T.pair T.u64 T.dataptr
+  | E1 (U128OfPtr, _) -> T.pair T.u128 T.dataptr
+  | E1 (I8OfPtr, _) -> T.pair T.i8 T.dataptr
+  | E1 (I16OfPtr, _) -> T.pair T.i16 T.dataptr
+  | E1 (I24OfPtr, _) -> T.pair T.i24 T.dataptr
+  | E1 (I32OfPtr, _) -> T.pair T.i32 T.dataptr
+  | E1 (I40OfPtr, _) -> T.pair T.i40 T.dataptr
+  | E1 (I48OfPtr, _) -> T.pair T.i48 T.dataptr
+  | E1 (I56OfPtr, _) -> T.pair T.i56 T.dataptr
+  | E1 (I64OfPtr, _) -> T.pair T.i64 T.dataptr
+  | E1 (I128OfPtr, _) -> T.pair T.i128 T.dataptr
   | E1 (FloatOfQWord, _) -> T.float
   | E1 (QWordOfFloat, _) -> T.qword
   | E1 (U8OfByte, _) -> T.u8
@@ -1476,6 +1557,12 @@ let rec type_check l e =
          | I48OfString | I56OfString | I64OfString | I128OfString
          | StringLength | BytesOfString), e) ->
         check_eq l e T.string
+    | E1 ((FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr
+         | U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr
+         | U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr
+         | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr
+         | I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), e) ->
+        check_eq l e T.dataptr
     | E1 ((FloatOfQWord | U64OfQWord), e) ->
         check_eq l e T.qword
     | E1 ((QWordOfFloat | StringOfFloat), e) ->
@@ -1823,6 +1910,8 @@ struct
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int_ e1 = E1 (StringOfInt, e1)
+  let float_of_string e1 = E1 (FloatOfString, e1)
+  let char_of_string e1 = E1 (CharOfString, e1)
   let u8_of_string e1 = E1 (U8OfString, e1)
   let u16_of_string e1 = E1 (U16OfString, e1)
   let u24_of_string e1 = E1 (U24OfString, e1)
@@ -1841,6 +1930,26 @@ struct
   let i56_of_string e1 = E1 (I56OfString, e1)
   let i64_of_string e1 = E1 (I64OfString, e1)
   let i128_of_string e1 = E1 (I128OfString, e1)
+  let float_of_ptr e1 = E1 (FloatOfPtr, e1)
+  let char_of_ptr e1 = E1 (CharOfPtr, e1)
+  let u8_of_ptr e1 = E1 (U8OfPtr, e1)
+  let u16_of_ptr e1 = E1 (U16OfPtr, e1)
+  let u24_of_ptr e1 = E1 (U24OfPtr, e1)
+  let u32_of_ptr e1 = E1 (U32OfPtr, e1)
+  let u40_of_ptr e1 = E1 (U40OfPtr, e1)
+  let u48_of_ptr e1 = E1 (U48OfPtr, e1)
+  let u56_of_ptr e1 = E1 (U56OfPtr, e1)
+  let u64_of_ptr e1 = E1 (U64OfPtr, e1)
+  let u128_of_ptr e1 = E1 (U128OfPtr, e1)
+  let i8_of_ptr e1 = E1 (I8OfPtr, e1)
+  let i16_of_ptr e1 = E1 (I16OfPtr, e1)
+  let i24_of_ptr e1 = E1 (I24OfPtr, e1)
+  let i32_of_ptr e1 = E1 (I32OfPtr, e1)
+  let i40_of_ptr e1 = E1 (I40OfPtr, e1)
+  let i48_of_ptr e1 = E1 (I48OfPtr, e1)
+  let i56_of_ptr e1 = E1 (I56OfPtr, e1)
+  let i64_of_ptr e1 = E1 (I64OfPtr, e1)
+  let i128_of_ptr e1 = E1 (I128OfPtr, e1)
   let string_of_float e1 = E1 (StringOfFloat, e1)
   let byte_of_u8 e1 = E1 (ByteOfU8, e1)
   let bool_of_u8 e1 = E1 (BoolOfU8, e1)
@@ -1986,8 +2095,6 @@ struct
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)
-  let float_of_string e1 = E1 (FloatOfString, e1)
-  let char_of_string e1 = E1 (CharOfString, e1)
   let string_of_char e1 = E1 (StringOfChar, e1)
   let size_of_dword = size_of_u32 % u32_of_dword
   let bool_of_byte = bool_of_u8 % u8_of_byte

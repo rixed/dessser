@@ -91,6 +91,7 @@ inline std::string string_of_i128(int128_t const i128)
 }
 
 inline bool is_sign(char const x) { return x == '-' || x == '+'; }
+inline bool is_digit(char const x) { return x >= '0' && x <= '9'; }
 
 inline int128_t i128_of_string(std::string const &s)
 {
@@ -104,6 +105,28 @@ inline int128_t i128_of_string(std::string const &s)
   int128_t const lo(i128_of_string(s.substr(hi_len, E10_INT64)));
   return
     hi >= 0 ? hi * P10_INT64 + lo : hi * P10_INT64 - lo;
+}
+
+inline size_t i128_from_chars(char const *start, char const *stop, int128_t *res)
+{
+  assert(stop > start);
+  size_t count = is_sign(*start) ? 1 : 0;
+  for (; start + count < stop && is_digit(start[count]); count++) ;
+  assert(count > 0);
+  std::string const s { start, count };
+  *res = i128_of_string(s);
+  return count;
+}
+
+inline size_t u128_from_chars(char const *start, char const *stop, uint128_t *res)
+{
+  assert(stop > start);
+  size_t count = is_sign(*start) ? 1 : 0;
+  for (count = 0 ; start + count < stop && is_digit(start[count]); count++) ;
+  assert(count > 0);
+  std::string const s { start, count };
+  *res = (uint128_t)i128_of_string(s);
+  return count;
 }
 
 #endif

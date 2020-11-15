@@ -273,7 +273,7 @@ let get_next_fid =
     incr next_fid ;
     !next_fid
 
-(* Those with no arguments only *)
+(* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
     E.[| Dump ; Ignore ; IsNull ; ToNullable ; ToNotNullable ; StringOfFloat ;
@@ -281,15 +281,18 @@ let e1_of_int n =
          U16OfString ; U24OfString ; U32OfString ; U40OfString ; U48OfString ;
          U56OfString ; U64OfString ; U128OfString ; I8OfString ; I16OfString ;
          I24OfString ; I32OfString ; I40OfString ; I48OfString ; I56OfString ;
-         I64OfString ; I128OfString ; ToU8 ; ToU16 ; ToU24 ; ToU32 ; ToU40 ;
-         ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16 ; ToI24 ; ToI32 ; ToI40 ;
-         ToI48 ; ToI56 ; ToI64 ; ToI128 ; LogNot ; FloatOfQWord ; QWordOfFloat ;
-         U8OfByte ; ByteOfU8 ; U16OfWord ; WordOfU16 ; U32OfDWord ; DWordOfU32 ;
-         U64OfQWord ; QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ;
-         CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ;
-         BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; ListLength ;
-         ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Neg ;
-         Fst ; Snd |] in
+         I64OfString ; I128OfString ; FloatOfPtr ; CharOfPtr ; U8OfPtr ;
+         U16OfPtr ; U24OfPtr ; U32OfPtr ; U40OfPtr ; U48OfPtr ; U56OfPtr ;
+         U64OfPtr ; U128OfPtr ; I8OfPtr ; I16OfPtr ; I24OfPtr ; I32OfPtr ;
+         I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
+         ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16 ;
+         ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; LogNot ;
+         FloatOfQWord ; QWordOfFloat ; U8OfByte ; ByteOfU8 ; U16OfWord ;
+         WordOfU16 ; U32OfDWord ; DWordOfU32 ; U64OfQWord ; QWordOfU64 ;
+         U128OfOWord ; OWordOfU128 ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
+         U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ; BoolOfU8 ; StringLength ;
+         StringOfBytes ; BytesOfString ; ListLength ; ReadByte ; DataPtrPush ;
+         DataPtrPop ; RemSize ; Not ; Neg ; Fst ; Snd |] in
   e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
@@ -662,7 +665,7 @@ let sexpr mn =
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
             let dst = secnd (T2S.desser mn tdst dst) in
             pair src dst))) in
-    Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
     make_converter be ~mn e
 
   let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
@@ -679,9 +682,9 @@ let sexpr mn =
     let exe = sexpr_to_sexpr be mn in
     Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
-      Printf.eprintf "Will test s-expr %S of type %a\n%!"
-        s T.print_maybe_nullable mn ;
       let s' = String.trim (run_converter ~timeout:2 exe s) in
+      Printf.eprintf "Testing s-expr %S of type %a -> %S\n%!"
+        s T.print_maybe_nullable mn s' ;
       assert_equal ~printer:identity s s') in
   try
     Gen.generate ~n:5 maybe_nullable_gen |>
@@ -700,9 +703,9 @@ let sexpr mn =
   let test_exe format mn exe =
     Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
-      Printf.eprintf "Will test %s %S of type %a\n%!"
-        format s T.print_maybe_nullable mn ;
       let s' = String.trim (run_converter ~timeout:2 exe s) in
+      Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
+        format s T.print_maybe_nullable mn s' ;
       assert_equal ~printer:identity s s')
 
   let test_format be mn des ser format =
@@ -722,7 +725,7 @@ let sexpr mn =
 (*$R
   let test_heap be mn =
     let e = heap_convert_expr mn in
-    Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
     let exe = make_converter be ~mn e in
     test_exe "heap-value" mn exe in
 
@@ -762,7 +765,9 @@ let sexpr mn =
   let check_sexpr be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let exe = sexpr_to_sexpr be mn in
-    String.trim (run_converter ~timeout:2 exe vs)
+    let rs = run_converter ~timeout:2 exe vs in
+    Printf.eprintf "\ncheck_sexpr: %S vs %S\n%!" rs vs ;
+    String.trim rs = vs
   let check_rowbinary be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let des = (module RowBinary.Des : DES)
@@ -784,19 +789,23 @@ let sexpr mn =
   let check_heapvalue be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let e = heap_convert_expr mn in
-    Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
     let exe = make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
 
 (* Check that the AND is short-cutting, otherwise [is_null] is going to
  * read past the input end: *)
-(*$= check_sexpr & ~printer:identity
-  "1" (check_sexpr ocaml_be "u8?" "1")
-  "15134052" (check_sexpr ocaml_be "u24" "15134052")
-  "1 (2)" (check_sexpr ocaml_be "I8[]" "1 (2)")
-  "1 ((2 1))" (check_sexpr ocaml_be "(I8?; I40?)[]" "1 ((2 1))")
-  "-161920788051" (check_sexpr ocaml_be "i40" "-161920788051")
+(*$T check_sexpr
+  check_sexpr ocaml_be "u8?" "1"
+  check_sexpr ocaml_be "u24" "15134052"
+  check_sexpr ocaml_be "I8[]" "1 (2)"
+  check_sexpr ocaml_be "(I8?; I40?)[]" "1 ((2 1))"
+  check_sexpr ocaml_be "i40" "-161920788051"
+  check_sexpr ocaml_be "{bajg: CHAR; bqgbef: U32?; eibho: U24?; gvrh: U16?}[]" \
+    "1 ((\"+\" 3545637917 null 14235))"
+  check_sexpr cpp_be "{bajg: CHAR; bqgbef: U32?; eibho: U24?; gvrh: U16?}[]" \
+    "1 ((\"+\" 3545637917 null 14235))"
 *)
 (*$= check_rowbinary & ~printer:identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
@@ -841,7 +850,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -854,7 +863,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -885,7 +894,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser ?des_config:config mn src dst) in
-      Printf.eprintf "Expression:\n%a\n" (E.print ?max_depth:None) e ;
+      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 
@@ -915,6 +924,14 @@ let sexpr mn =
   "(3 F null)" \
     (check_des_csv ~config:csv_config_1 ocaml_be \
                    "{u:U8; b:BOOL; name:STRING?}" "3,false,\n")
+*)
+(*$= check_des_csv & ~printer:identity
+  "-0x1.79c428d047e73p-16" \
+    (check_des_csv ~config:csv_config_0 ocaml_be \
+                   "FLOAT?" "-0x1.79c428d047e73p-16\n")
+  "-0x1.79c428d047e73p-16" \
+    (check_des_csv ~config:csv_config_0 cpp_be \
+                   "FLOAT?" "-0x1.79c428d047e73p-16\n")
 *)
 
 (* Test Csv.make_serializable: *)

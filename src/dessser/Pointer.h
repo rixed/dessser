@@ -8,12 +8,7 @@
 #include "dessser/Pair.h"
 #include "dessser/typedefs.h"
 
-/* We have 2 types of pointers:
- * Pointers that point to a byte buffer used to (de)serialize values, and
- * pointers that point to a heap allocated value.
- * In a few cases we can use both interchangeably, although they share
- * nothing in common, including copying them by value (which makes
- * inheritance unpractical). */
+/* Pointers that point to a byte buffer used to (de)serialize values. */
 
 /* The type of pointer used to serialize/deserialize with write/read functions: */
 struct Pointer {

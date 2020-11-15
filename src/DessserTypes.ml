@@ -170,6 +170,11 @@ type t =
   | TSList of t
   | TFunction of t array * (* result: *) t
 
+(* Helper to get the two types constituting a TPair: *)
+let pair_of_tpair = function
+  | TPair (t1, t2) -> t1, t2
+  | _ -> invalid_arg "pair_of_tpair"
+
 (*
  * Iterators
  *)

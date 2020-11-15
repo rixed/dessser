@@ -246,7 +246,7 @@ let main () =
         ) in
 
   read_whole_file !fname |>
-  String.nsplit ~by:!eov_delim |>
+  String.split_on_string ~by:!eov_delim |>
   split_kv |>
   List.iter (fun (k, v) ->
     let src = Pointer.of_string k in

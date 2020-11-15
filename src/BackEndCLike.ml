@@ -182,8 +182,19 @@ struct
         GetItem _ | GetField _ | GetAlt _ | IsNull | ToNullable | ToNotNullable |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
         ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
-        LogNot | SizeOfU32 | BitOfBool | U8OfBool | BoolOfU8 | StringLength |
-        Not | Neg | Fst | Snd | Head | Tail), e1) ->
+        CharOfString | FloatOfString | U8OfString | I8OfString | U16OfString |
+        I16OfString | U24OfString | I24OfString | U32OfString | I32OfString |
+        U40OfString | I40OfString | U48OfString | I48OfString | U56OfString |
+        I56OfString | U64OfString | I64OfString | U128OfString | I128OfString |
+        CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |
+        U24OfPtr | I24OfPtr | U32OfPtr | I32OfPtr | U40OfPtr | I40OfPtr |
+        U48OfPtr | I48OfPtr | U56OfPtr | I56OfPtr | U64OfPtr | I64OfPtr |
+        U128OfPtr | I128OfPtr | FloatOfQWord | QWordOfFloat | U8OfByte |
+        ByteOfU8 | U16OfWord | WordOfU16 | U32OfDWord | DWordOfU32 |
+        U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
+        CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
+        BoolOfU8 | LogNot | StringLength | RemSize | Not | Neg | Fst | Snd |
+        Head | Tail), e1) ->
         can_inline e1
     | E2 ((
         Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem |

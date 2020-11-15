@@ -350,21 +350,8 @@ struct
     else
       ret
 
-  (* Locate the value and extract it as bytes and convert it with [op]. *)
-  let di op conf _ _ p =
-    let cond =
-      E.func1 T.byte (fun _l b ->
-        not_ (or_ (eq b (byte_of_const_char conf.separator))
-                  (eq b (byte_of_const_char conf.newline))))
-    and init = size 0
-    and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
-    let sz_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "di" sz_p (fun sz p' ->
-      let bytes_p = read_bytes p sz in
-      pair (op (first bytes_p)) p')
-
-  let dfloat =
-    di (fun b -> float_of_string (string_of_bytes b))
+  let dfloat _conf _ _ p =
+    float_of_ptr p
 
   let dbool conf _ _ p =
     (* TODO: Look for false_.[0] otherwise: *)
@@ -435,71 +422,24 @@ struct
     (if conf.quote = None then dbytes else dbytes_quoted)
       conf (char_of_string % string_of_bytes) p
 
-  (* Accumulate digits into a value with the given reducer: *)
-  let fold init reduce conf _ _ p =
-    (* Accumulate everything up to the next separator, and then run [op] to
-     * convert from a string: *)
-    let cond = E.func1 T.byte (fun _l b ->
-      and_ (ne b (byte_of_const_char conf.separator))
-           (ne b (byte_of_const_char conf.newline))) in
-    read_while ~cond ~reduce ~init ~pos:p
-
-  let int_reducer int_type base of_byte =
-    E.func2 int_type T.byte (fun _l n b ->
-      add
-        (mul n base)
-        (of_byte (sub b (byte (Uint8.of_int (Char.code '0'))))))
-
-  let unsigned int_type zero ten of_byte =
-    fold zero (int_reducer int_type ten of_byte)
-
-  let signed int_type zero one neg_one ten of_byte conf mn0 path p =
-    E.with_sploded_pair "maybe_sign1" (read_byte p) (fun b p' ->
-      E.with_sploded_pair "maybe_sign2"
-        (choose ~cond:(eq b (byte (Uint8.of_int (Char.code '-'))))
-                ~then_:(pair p' neg_one)
-                ~else_:(pair p one))
-        (fun p sign ->
-          let cont = unsigned int_type zero ten of_byte conf mn0 path p in
-          E.with_sploded_pair "maybe_sign3" cont (fun v p ->
-            pair (mul sign v) p)))
-
-  let di8 =
-    signed T.i8 (i8 Int8.zero) (i8 Int8.one) (i8 (Int8.of_int ~-1)) (i8 (Int8.of_int 10)) (to_i8 % u8_of_byte)
-  let du8 =
-    unsigned T.u8 (u8 Uint8.zero) (u8 (Uint8.of_int 10)) u8_of_byte
-  let di16 =
-    signed T.i16 (i16 Int16.zero) (i16 Int16.one) (i16 (Int16.of_int ~-1)) (i16 (Int16.of_int 10)) (to_i16 % u8_of_byte)
-  let du16 =
-    unsigned T.u16 (u16 Uint16.zero) (u16 (Uint16.of_int 10)) (to_u16 % u8_of_byte)
-  let di24 =
-    signed T.i24 (i24 Int24.zero) (i24 Int24.one) (i24 (Int24.of_int ~-1)) (i24 (Int24.of_int 10)) (to_i24 % u8_of_byte)
-  let du24 =
-    unsigned T.u24 (u24 Uint24.zero) (u24 (Uint24.of_int 10)) (to_u24 % u8_of_byte)
-  let di32 =
-    signed T.i32 (i32 0l) (i32 1l) (i32 (-1l)) (i32 10l) (to_i32 % u8_of_byte)
-  let du32 =
-    unsigned T.u32 (u32 Uint32.zero) (u32 (Uint32.of_int 10)) (to_u32 % u8_of_byte)
-  let di40 =
-    signed T.i40 (i40 Int40.zero) (i40 Int40.one) (i40 (Int40.of_int ~-1)) (i40 (Int40.of_int 10)) (to_i40 % u8_of_byte)
-  let du40 =
-    unsigned T.u40 (u40 Uint40.zero) (u40 (Uint40.of_int 10)) (to_u40 % u8_of_byte)
-  let di48 =
-    signed T.i48 (i48 Int48.zero) (i48 Int48.one) (i48 (Int48.of_int ~-1)) (i48 (Int48.of_int 10)) (to_i48 % u8_of_byte)
-  let du48 =
-    unsigned T.u48 (u48 Uint48.zero) (u48 (Uint48.of_int 10)) (to_u48 % u8_of_byte)
-  let di56 =
-    signed T.i56 (i56 Int56.zero) (i56 Int56.one) (i56 (Int56.of_int ~-1)) (i56 (Int56.of_int 10)) (to_i56 % u8_of_byte)
-  let du56 =
-    unsigned T.u56 (u56 Uint56.zero) (u56 (Uint56.of_int 10)) (to_u56 % u8_of_byte)
-  let di64 =
-    signed T.i64 (i64 Int64.zero) (i64 Int64.one) (i64 (Int64.of_int ~-1)) (i64 (Int64.of_int 10)) (to_i64 % u8_of_byte)
-  let du64 =
-    unsigned T.u64 (u64 Uint64.zero) (u64 (Uint64.of_int 10)) (to_u64 % u8_of_byte)
-  let di128 =
-    signed T.i128 (i128 Int128.zero) (i128 Int128.one) (i128 (Int128.of_int ~-1)) (i128 (Int128.of_int 10)) (to_i128 % u8_of_byte)
-  let du128 =
-    unsigned T.u128 (u128 Uint128.zero) (u128 (Uint128.of_int 10)) (to_u128 % u8_of_byte)
+  let di8 _conf _ _ p = i8_of_ptr p
+  let du8 _conf _ _ p = u8_of_ptr p
+  let di16 _conf _ _ p = i16_of_ptr p
+  let du16 _conf _ _ p = u16_of_ptr p
+  let di24 _conf _ _ p = i24_of_ptr p
+  let du24 _conf _ _ p = u24_of_ptr p
+  let di32 _conf _ _ p = i32_of_ptr p
+  let du32 _conf _ _ p = u32_of_ptr p
+  let di40 _conf _ _ p = i40_of_ptr p
+  let du40 _conf _ _ p = u40_of_ptr p
+  let di48 _conf _ _ p = i48_of_ptr p
+  let du48 _conf _ _ p = u48_of_ptr p
+  let di56 _conf _ _ p = i56_of_ptr p
+  let du56 _conf _ _ p = u56_of_ptr p
+  let di64 _conf _ _ p = i64_of_ptr p
+  let du64 _conf _ _ p = u64_of_ptr p
+  let di128 _conf _ _ p = i128_of_ptr p
+  let du128 _conf _ _ p = u128_of_ptr p
 
   let tup_opn _conf _ _ _ p = p
 

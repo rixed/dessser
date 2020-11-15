@@ -6,6 +6,8 @@ open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 
+let debug = false
+
 type T.backend_id += OCaml
 
 module Config =
@@ -551,6 +553,18 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let op = mod_name (E.type_of l e1) ^".to_string" in
         unary_op op e1
+    | E.E1 (CharOfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
+    | E.E1 (FloatOfString, e1) ->
+        if debug then
+          let n1 = print emit p l e1 in
+          emit ?name p l e (fun oc ->
+            pp oc
+              "(try float_of_string %s \
+                with Failure _ as e -> Printf.eprintf \"float_of_string %%S\\n\" %s ; raise e)" n1 n1)
+        else
+          unary_op "float_of_string" e1
     | E.E1 (U8OfString, e1)
     | E.E1 (I8OfString, e1)
     | E.E1 (U16OfString, e1)
@@ -570,6 +584,56 @@ struct
     | E.E1 (U128OfString, e1)
     | E.E1 (I128OfString, e1) ->
         unary_mod_op "of_string" e1
+    | E.E1 (CharOfPtr, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc ->
+          pp oc "Char.chr (Pointer.peekByte %s 0), Pointer.skip %s 1" n n)
+    | E.E1 (FloatOfPtr, e1) ->
+        let n1 = print emit p l e1 in
+        (* FIXME: no string copy -> have pointers use a string! *)
+        pp p.def "%slet s_ = Bytes.sub_string %s.Pointer.bytes %s.start \
+                               (%s.stop-%s.start) in\n"
+          p.indent n1 n1 n1 n1 ;
+        (* Note: Scanf uses two distinct format specifiers for "normal"
+         * and hex notations so detect it and pick the proper one: *)
+        pp p.def "%slet is_hex_ = String.length s_ > 2 && (\n" p.indent ;
+        indent_more p (fun () ->
+          pp p.def "%slet o_ = if s_.[0] = '-' || s_.[0] = '+' then 1 else 0 in\n"
+            p.indent ;
+          pp p.def "%sString.length s_ > 2 + o_ && \
+                      s_.[o_] = '0' && \
+                      (s_.[o_+1] = 'x' || s_.[o_+1] = 'X')) in\n" p.indent) ;
+        emit ?name p l e (fun oc ->
+          pp oc "Scanf.sscanf s_ (if is_hex_ then \" %%h%%n\" else \
+                                                  \" %%f%%n\") \
+                   (fun f_ o_ -> f_, Pointer.skip %s o_)" n1)
+    | E.E1 (U8OfPtr, e1)
+    | E.E1 (I8OfPtr, e1)
+    | E.E1 (U16OfPtr, e1)
+    | E.E1 (I16OfPtr, e1)
+    | E.E1 (U24OfPtr, e1)
+    | E.E1 (I24OfPtr, e1)
+    | E.E1 (U32OfPtr, e1)
+    | E.E1 (I32OfPtr, e1)
+    | E.E1 (U40OfPtr, e1)
+    | E.E1 (I40OfPtr, e1)
+    | E.E1 (U48OfPtr, e1)
+    | E.E1 (I48OfPtr, e1)
+    | E.E1 (U56OfPtr, e1)
+    | E.E1 (I56OfPtr, e1)
+    | E.E1 (U64OfPtr, e1)
+    | E.E1 (I64OfPtr, e1)
+    | E.E1 (U128OfPtr, e1)
+    | E.E1 (I128OfPtr, e1) ->
+        let n1 = print emit p l e1 in
+        let m = mod_name (E.type_of l e |> T.pair_of_tpair |> fst) in
+        emit ?name p l e (fun oc ->
+          indent_more p (fun () ->
+            pp oc "\n%slet s_ = Bytes.to_string %s.Pointer.bytes in\n"
+              p.indent n1 (* FIXME *) ;
+            pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.Pointer.start) s_ in\n"
+              p.indent m n1 ;
+            pp oc "%sn_, Pointer.skip %s (o_ - %s.start)" p.indent n1 n1))
     | E.E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -582,19 +646,6 @@ struct
         unary_op "hexstring_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         unary_op "string_of_char" e1
-    | E.E1 (CharOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
-    | E.E1 (FloatOfString, e1) ->
-(*        unary_op "float_of_string" e1*)
-
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc ->
-          pp oc
-            "(try float_of_string %s \
-              with Failure _ as e -> Printf.eprintf \"float_of_string %%S\\n\" %s ; raise e)" n1 n1)
-
-
     | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)
     | E.E1 (WordOfU16, e1) | E.E1 (U16OfWord, e1)
     | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)

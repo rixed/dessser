@@ -166,7 +166,7 @@ end
 module Pointer =
 struct
   type t =
-    { bytes : Bytes.t ;
+    { bytes : Bytes.t ; (* FIXME: should be string *)
       start : int ;
       stop : int ; (* From the beginning of [bytes] not [start]! *)
       stack : int list }

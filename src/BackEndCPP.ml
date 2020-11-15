@@ -361,6 +361,12 @@ struct
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
+    | E.E1 (CharOfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s[0]" n)
+    | E.E1 (FloatOfString, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "std::stod(%s)" n)
     | E.E1 (U8OfString, e1)
     | E.E1 (U16OfString, e1)
     | E.E1 (U24OfString, e1)
@@ -395,6 +401,73 @@ struct
     | E.E1 (I128OfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
+    | E.E1 (CharOfPtr, e1) ->
+        let n = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
+    | E.E1 (FloatOfPtr, e1) ->
+        let n = print emit p l e1 in
+        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
+          p.indent n n ;
+        (* Nice but not supported yet on ordinary g++/clang:
+        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
+          p.indent n n ;
+        pp p.def "%sdouble val_;\n" p.indent ;
+        pp p.def "%sbool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
+                    (*start_ == 'x' || *start_ == 'X') };\n"
+          p.indent ;
+        pp p.def "%sif (is_hex_) start_ += 2;\n" p.indent ;
+        pp p.def "%sstruct std::from_chars_result res_ = \
+                    std::from_chars(\
+                      start_ + (is_hex_ ? 2 : 0), stop_, val_, \
+                      is_hex_ ? std::chars_format::hex : \
+                                std::chars_format::general);\n"
+          p.indent ;
+        emit ?name p l e (fun oc ->
+          pp oc "val_, %s.skip(res_.ptr - start_)" n)
+        *)
+        pp p.def "%schar *end_;\n" p.indent ;
+        (* This assumes there will always be a non-digit at the end to prevent
+         * strtod to read past the end of the buffer: *)
+        pp p.def "%sdouble const val_ = strtod(start_, &end_);\n" p.indent ;
+        emit ?name p l e (fun oc ->
+          pp oc "val_, %s.skip(end_ - start_)" n)
+    | E.E1 ((U8OfPtr | U16OfPtr | U24OfPtr | U32OfPtr | U40OfPtr |
+             U48OfPtr | U56OfPtr | U64OfPtr |
+             I8OfPtr | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
+             I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
+        let n = print emit p l e1 in
+        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
+        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
+          p.indent n n ;
+        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
+          p.indent n n ;
+        pp p.def "%sstruct std::from_chars_result res_ = \
+                    std::from_chars(start_, stop_, val_);\n" p.indent ;
+        emit ?name p l e (fun oc ->
+          pp oc "val_, %s.skip(res_.ptr - start_)" n)
+    | E.E1 (U128OfPtr, e1) ->
+        let n = print emit p l e1 in
+        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
+        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
+          p.indent n n ;
+        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
+          p.indent n n ;
+        pp p.def "%ssize_t count_ = u128_from_chars(start_, stop_, &val_);\n"
+          p.indent ;
+        emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
+    | E.E1 (I128OfPtr, e1) ->
+        let n = print emit p l e1 in
+        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
+        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
+          p.indent n n ;
+        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
+          p.indent n n ;
+        pp p.def "%ssize_t count_ = i128_from_chars(start_, stop_, &val_);\n"
+          p.indent ;
+        emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "floatOfQword(%s)" n)
@@ -406,13 +479,9 @@ struct
         emit ?name p l e (fun oc -> pp oc "hexStringOfFloat(%s)" n)
     | E.E1 (StringOfChar, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "1, %s" n)
-    | E.E1 (CharOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s[0]" n)
-    | E.E1 (FloatOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stod(%s)" n)
+        (* This will use the list-initializer. Beware that "1, %s" would _also_ use
+         * the list initializer, not the (count, char) constructor! *)
+        emit ?name p l e (fun oc -> pp oc "%s" n)
     | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)
     | E.E1 (WordOfU16, e1) | E.E1 (U16OfWord, e1)
     | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)
@@ -755,6 +824,7 @@ struct
 
   let source_intro =
     "#include <iostream>\n\
+     #include <charconv>\n\
      #include <fstream>\n\
      #include <functional>\n\
      #include <optional>\n\
