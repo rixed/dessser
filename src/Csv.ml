@@ -350,21 +350,21 @@ struct
     else
       ret
 
-  (* Accumulate bytes into a string that is then converted with [op]: *)
+  (* Locate the value and extract it as bytes and convert it with [op]. *)
   let di op conf _ _ p =
-    (* Accumulate everything up to the next field or line separator, and then
-     * run [op] to convert from a string: *)
     let cond =
       E.func1 T.byte (fun _l b ->
         not_ (or_ (eq b (byte_of_const_char conf.separator))
                   (eq b (byte_of_const_char conf.newline))))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "di" str_p (fun str p ->
-      pair (op (string_of_bytes str)) p)
+    and init = size 0
+    and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
+    let sz_p = read_while ~cond ~reduce ~init ~pos:p in
+    E.with_sploded_pair "di" sz_p (fun sz p' ->
+      let bytes_p = read_bytes p sz in
+      pair (op (first bytes_p)) p')
 
-  let dfloat = di float_of_string
+  let dfloat =
+    di (fun b -> float_of_string (string_of_bytes b))
 
   let dbool conf _ _ p =
     (* TODO: Look for false_.[0] otherwise: *)
@@ -377,7 +377,7 @@ struct
       ~else_:(pair (bool false) (skip (String.length conf.false_) p))
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes_quoted conf conv p =
+  let dbytes_quoted conf op p =
     (* Skip the double-quote: *)
     let quote_byte = byte_of_const_char (Option.get conf.quote)
     and sep_byte = byte_of_const_char conf.separator
@@ -399,17 +399,19 @@ struct
                      ~then_:(eq b quote_byte)
                      ~else_:(or_ (eq b sep_byte)
                                  (eq b nl_byte))))
-        and init = bytes_of_string (string "")
-        and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-        let str_p = read_while ~cond ~reduce ~init ~pos in
-        E.with_sploded_pair "dbytes_quoted" str_p (fun str p ->
+        and init = size 0
+        and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
+        let sz_p = read_while ~cond ~reduce ~init ~pos in
+        E.with_sploded_pair "dbytes_quoted1" sz_p (fun sz p' ->
+          (* Skip the initial double-quote: *)
+          let bytes_p = read_bytes pos sz in
           (* Skip the closing double-quote: *)
-          let p = choose ~cond:(identifier "had_quote")
-                         ~then_:(skip_byte quote_byte p)
-                         ~else_:p in
-          pair (conv str) p))
+          let p' = choose ~cond:(identifier "had_quote")
+                          ~then_:(skip_byte quote_byte p')
+                          ~else_:p' in
+          pair (op (first bytes_p)) p'))
 
-  let dbytes conf conv p =
+  let dbytes conf op p =
     let sep_byte = byte_of_const_char conf.separator
     and nl_byte = byte_of_const_char conf.newline in
     (* Read up to next separator/newline *)
@@ -417,11 +419,12 @@ struct
       E.func1 T.byte (fun _l b ->
         not_ ((or_ (eq b sep_byte)
                    (eq b nl_byte))))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dbytes" str_p (fun str p ->
-      pair (conv str) p)
+    and init = size 0
+    and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
+    let sz_p = read_while ~cond ~reduce ~init ~pos:p in
+    E.with_sploded_pair "dbytes" sz_p (fun sz p' ->
+      let bytes_p = read_bytes p sz in
+      pair (op (first bytes_p)) p')
 
   let dstring conf _ _ p =
     (if conf.quote = None then dbytes else dbytes_quoted)
