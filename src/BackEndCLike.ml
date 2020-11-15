@@ -172,9 +172,6 @@ struct
   (* As inlined expressions may be reordered, those must all be stateless *)
   let rec can_inline = function
     | E.E0 (
-        (* FIXME: Cannot inline Null because of C++ backend std::nullopt not
-         * being a proper object (on which one can call has_value()) but only
-         * an initializer *)
         Param _ | Null _ |
         EndOfList _ | Float _ | String _ | Bool _ | Bytes _ | Identifier _ |
         Bit _ | Char _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _ |

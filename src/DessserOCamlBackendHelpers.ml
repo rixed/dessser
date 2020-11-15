@@ -121,6 +121,7 @@ struct
   let shift_right_logical v1 s = v1 lsr s
 end
 
+(* Persistent data container => no to be used as a buffer! *)
 module Slice =
 struct
   type t = { bytes : Bytes.t ; offset : int ; length : int }
@@ -166,62 +167,60 @@ module Pointer =
 struct
   type t =
     { bytes : Bytes.t ;
-      offset : int ;
-      length : int ; (* From the beginning of [bytes] not [offset]! *)
-      (* FIXME: rename offset/length into start/stop, as in Ramen? *)
-      (* Saved positions: *)
+      start : int ;
+      stop : int ; (* From the beginning of [bytes] not [start]! *)
       stack : int list }
 
   let make sz =
     { bytes = Bytes.create sz ;
-      offset = 0 ;
-      length = sz ;
+      start = 0 ;
+      stop = sz ;
       stack = [] }
 
-  let of_bytes bytes offset length =
-    { bytes ; offset ; length ; stack = [] }
+  let of_bytes bytes start stop =
+    { bytes ; start ; stop ; stack = [] }
 
   let of_string s =
     { bytes = Bytes.of_string s ;
-      offset = 0 ;
-      length = String.length s ;
+      start = 0 ;
+      stop = String.length s ;
       stack = [] }
 
   let of_buffer n =
     { bytes = Bytes.create n ;
-      offset = 0 ;
-      length = n ;
+      start = 0 ;
+      stop = n ;
       stack = [] }
 
-  let of_pointer p offset length =
-    { p with offset ; length }
+  let of_pointer p start stop =
+    { p with start ; stop }
 
-  (* Check that the given offset is not past the end; But end position is OK *)
+  (* Check that the given start is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput { missing = o - l ; offset = o })
 
   let skip p n =
     if debug then
-      Printf.eprintf "Advance from %d to %d\n%!" p.offset (p.offset + n) ;
-    check_input_length (p.offset + n) p.length ;
-    { p with offset = p.offset + n }
+      Printf.eprintf "Advance from %d to %d\n%!" p.start (p.start + n) ;
+    check_input_length (p.start + n) p.stop ;
+    { p with start = p.start + n }
 
   let sub p1 p2 =
     assert (p1.bytes == p2.bytes) ;
-    assert (p1.offset >= p2.offset) ;
-    Size.of_int (p1.offset - p2.offset)
+    assert (p1.start >= p2.start) ;
+    Size.of_int (p1.start - p2.start)
 
   let remSize p =
-    Size.of_int (p.length - p.offset)
+    Size.of_int (p.stop - p.start)
 
   let offset p =
-    Size.of_int p.offset
+    Size.of_int p.start
 
   let peekByte p at =
-    check_input_length (p.offset + at + 1) p.length ;
-    let c = Bytes.get p.bytes (p.offset + at) in
+    check_input_length (p.start + at + 1) p.stop ;
+    let c = BatBytes.unsafe_get p.bytes (p.start + at) in
     if debug then
-      Printf.eprintf "PeekByte 0x%02x at %d\n%!" (Char.code c) (p.offset+at) ;
+      Printf.eprintf "PeekByte 0x%02x at %d\n%!" (Char.code c) (p.start+at) ;
     Uint8.of_int (Char.code c)
 
   let peekWord ?(big_endian=false) p at =
@@ -272,17 +271,17 @@ struct
     peekOWord ~big_endian p 0, skip p 16
 
   let readBytes p sz =
-    Slice.make p.bytes p.offset sz,
+    Slice.make p.bytes p.start sz,
     skip p sz
 
   let pokeByte p at v =
-    Bytes.set p.bytes (p.offset + at) (Uint8.to_int v |> Char.chr)
+    Bytes.set p.bytes (p.start + at) (Uint8.to_int v |> Char.chr)
 
   let pokeWord ?(big_endian=false) p at v =
     let fst, snd = v, Uint16.shift_right_logical v 8 in
     let fst, snd = if big_endian then snd, fst else fst, snd in
     if debug then
-      Printf.eprintf "PokeWord 0x%04x at %d\n%!" (Uint16.to_int v) (p.offset + at) ;
+      Printf.eprintf "PokeWord 0x%04x at %d\n%!" (Uint16.to_int v) (p.start + at) ;
     pokeByte p at (Uint16.to_uint8 fst) ;
     pokeByte p (at+1) (Uint16.to_uint8 snd)
 
@@ -290,7 +289,7 @@ struct
     let fst, snd = v, Uint32.shift_right_logical v 16 in
     let fst, snd = if big_endian then snd, fst else fst, snd in
     if debug then
-      Printf.eprintf "PokeDWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (p.offset + at) ;
+      Printf.eprintf "PokeDWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (p.start + at) ;
     pokeWord ~big_endian p at (Uint32.to_uint16 fst) ;
     pokeWord ~big_endian p (at+2) (Uint32.to_uint16 snd)
 
@@ -337,27 +336,27 @@ struct
 
   let writeBytes p v =
     let len = v.Slice.length in
-    Bytes.blit v.bytes v.offset p.bytes p.offset len ;
+    Bytes.blit v.bytes v.offset p.bytes p.start len ;
     skip p len
 
   let blitBytes p v sz =
     let c = Char.chr (Uint8.to_int v) in
-    for i = p.offset to p.offset + sz - 1 do
+    for i = p.start to p.start + sz - 1 do
       Bytes.set p.bytes i c
     done ;
     skip p sz
 
   let push p =
-    { p with stack = p.offset :: p.stack }
+    { p with stack = p.start :: p.stack }
 
   let pop p =
-    let offset, stack =
+    let start, stack =
       match p.stack with
       | [] ->
           Printf.eprintf "Cannot pop pointer offset from empty stack\n%!" ;
           assert false
       | o :: s -> o, s in
-    { p with offset ; stack }
+    { p with start ; stack }
 end
 
 (* Runtime Field Masks *)

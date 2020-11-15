@@ -21,7 +21,7 @@ struct Pointer {
   //std::shared_ptr<Byte[]> buffer;
   // Work around MacOS c17 issue:
   std::shared_ptr<Byte> buffer;
-  // Total size of the buffer
+  // Total size of the buffer (regardless of offset)
   size_t size;
   // Current location of the read/write pointer inside the buffer:
   size_t offset;
@@ -82,7 +82,7 @@ struct Pointer {
 
   Size rem() const
   {
-    return (size - offset);
+    return size - offset;
   }
 
   void checkOffset(size_t offs) const
@@ -298,7 +298,7 @@ struct Pointer {
   Pointer writeByte(Byte v)
   {
     pokeByte(v);
-    return (skip(1));
+    return skip(1);
   }
 
   Pointer writeWordLe(Word v)
@@ -306,7 +306,7 @@ struct Pointer {
     checkOffset(offset + 2);
     buffer.get()[offset] = v;
     buffer.get()[offset+1] = v >> 8;
-    return (skip(2));
+    return skip(2);
   }
 
   Pointer writeWordBe(Word v)
@@ -314,7 +314,7 @@ struct Pointer {
     checkOffset(offset + 2);
     buffer.get()[offset+1] = v;
     buffer.get()[offset] = v >> 8;
-    return (skip(2));
+    return skip(2);
   }
 
   Pointer writeDWordLe(DWord v)
@@ -324,7 +324,7 @@ struct Pointer {
     buffer.get()[offset+1] = v >> 8;
     buffer.get()[offset+2] = v >> 16;
     buffer.get()[offset+3] = v >> 24;
-    return (skip(4));
+    return skip(4);
   }
 
   Pointer writeDWordBe(DWord v)
@@ -334,7 +334,7 @@ struct Pointer {
     buffer.get()[offset+2] = v >> 8;
     buffer.get()[offset+1] = v >> 16;
     buffer.get()[offset] = v >> 24;
-    return (skip(4));
+    return skip(4);
   }
 
   Pointer writeQWordLe(QWord v)
@@ -348,7 +348,7 @@ struct Pointer {
     buffer.get()[offset+5] = v >> 40;
     buffer.get()[offset+6] = v >> 48;
     buffer.get()[offset+7] = v >> 56;
-    return (skip(8));
+    return skip(8);
   }
 
   Pointer writeQWordBe(QWord v)
@@ -362,7 +362,7 @@ struct Pointer {
     buffer.get()[offset+2] = v >> 40;
     buffer.get()[offset+1] = v >> 48;
     buffer.get()[offset] = v >> 56;
-    return (skip(8));
+    return skip(8);
   }
 
   Pointer writeOWordLe(OWord v)
@@ -384,7 +384,7 @@ struct Pointer {
     buffer.get()[offset+13] = v >> 104;
     buffer.get()[offset+14] = v >> 112;
     buffer.get()[offset+15] = v >> 120;
-    return (skip(16));
+    return skip(16);
   }
 
   Pointer writeOWordBe(OWord v)
@@ -406,7 +406,7 @@ struct Pointer {
     buffer.get()[offset+2] = v >> 104;
     buffer.get()[offset+1] = v >> 112;
     buffer.get()[offset] = v >> 120;
-    return (skip(16));
+    return skip(16);
   }
 
   Pointer writeBytes(Bytes const &v)

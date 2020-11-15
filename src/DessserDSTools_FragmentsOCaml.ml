@@ -60,8 +60,8 @@ let main () =
     if Pointer.remSize src <= 0 then src else (
       let dst = Pointer.make %d in
       let src, dst = %s src dst in
-      assert (dst.Pointer.offset <= dst.Pointer.length) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
+      assert (dst.Pointer.start <= dst.Pointer.stop) ;
+      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       Char.print stdout !delim ;
       flush stdout ;
       if !single_input <> "" && Pointer.remSize src > 0 then
@@ -139,14 +139,14 @@ let main () =
       let src = Pointer.of_string k in
       let dst = Pointer.make out_buf_sz in
       let src, dst = %s src dst in
-      assert (dst.Pointer.offset <= dst.Pointer.length) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
+      assert (dst.Pointer.start <= dst.Pointer.stop) ;
+      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       String.print stdout !kv_delim ;
       let src = Pointer.of_string v in
       let dst = Pointer.make out_buf_sz in
       let src, dst = %s src dst in
-      assert (dst.Pointer.offset <= dst.Pointer.length) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.offset) ;
+      assert (dst.Pointer.start <= dst.Pointer.stop) ;
+      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       String.print stdout !eov_delim ;
       flush stdout
     ) map
@@ -253,15 +253,15 @@ let main () =
     let dst = Pointer.make out_buf_sz in
     let src, dst = %s src dst in
     assert (Pointer.remSize src = 0) ;
-    assert (dst.Pointer.offset <= dst.Pointer.length) ;
-    let key = Bytes.sub_string dst.bytes 0 dst.offset in
+    assert (dst.Pointer.start <= dst.Pointer.stop) ;
+    let key = Bytes.sub_string dst.bytes 0 dst.start in
 
     let src = Pointer.of_string v in
     let dst = Pointer.make out_buf_sz in
     let src, dst = %s src dst in
     assert (Pointer.remSize src = 0) ;
-    assert (dst.Pointer.offset <= dst.Pointer.length) ;
-    let value = Bytes.sub_string dst.bytes 0 dst.offset in
+    assert (dst.Pointer.start <= dst.Pointer.stop) ;
+    let value = Bytes.sub_string dst.bytes 0 dst.start in
 
     Map.set map key value ;
   )
