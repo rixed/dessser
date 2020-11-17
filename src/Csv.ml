@@ -499,8 +499,12 @@ struct
              eq (peek_byte p (size i)) b))
           (loop (i + 1))
     in
-    (and_ (ge (rem_size p) (size len))
-          (loop 0))
+    (* Note: avoids a warning when comparing size >= len if len is 0: *)
+    if len > 0 then
+      (and_ (ge (rem_size p) (size len))
+            (loop 0))
+    else
+      (loop 0)
 
   let dnull _t conf _ _ p =
     skip (String.length conf.null) p

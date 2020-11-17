@@ -411,7 +411,7 @@ struct
         (* Nice but not supported yet on ordinary g++/clang:
         pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
           p.indent n n ;
-        pp p.def "%sdouble val_;\n" p.indent ;
+        pp p.def "%sdouble val_ { 0. /* don't warn */ };\n" p.indent ;
         pp p.def "%sbool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
                     (*start_ == 'x' || *start_ == 'X') };\n"
           p.indent ;
@@ -437,7 +437,7 @@ struct
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
         pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
           p.indent n n ;
         pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
@@ -449,7 +449,7 @@ struct
     | E.E1 (U128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
         pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
           p.indent n n ;
         pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
@@ -460,7 +460,7 @@ struct
     | E.E1 (I128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_;\n" p.indent tn ;
+        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
         pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
           p.indent n n ;
         pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
