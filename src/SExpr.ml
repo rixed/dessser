@@ -175,25 +175,12 @@ struct
 
   let skip1 = skip 1
 
-  (* Accumulate bytes into a string that is then converted with [op]: *)
-  let di op _conf _ _ p =
-    (* Accumulate everything up to the next space or parenthesis, and then
-     * run [op] to convert from a string: *)
-    let cond = E.func1 T.byte (fun _l b ->
-      (* No other options as we would meet a space before a '(' or '"': *)
-      not_ (or_ (eq b (byte_of_const_char ' '))
-                (eq b (byte_of_const_char ')'))))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 T.bytes T.byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "di" str_p (fun str p ->
-      pair (op (string_of_bytes str)) p)
-
   let tup_cls _conf _ _ p = skip1 p
 
   let tup_sep _n _conf _ _ p = skip1 p
 
-  let dfloat = di float_of_string
+  let dfloat _conf _ _ p =
+    float_of_ptr p
 
   let dbool _conf _ _ p =
     E.with_sploded_pair "dbool" (read_byte p) (fun b p ->
