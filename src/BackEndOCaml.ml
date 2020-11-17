@@ -590,21 +590,34 @@ struct
           pp oc "Char.chr (Pointer.peekByte %s 0), Pointer.skip %s 1" n n)
     | E.E1 (FloatOfPtr, e1) ->
         let n1 = print emit p l e1 in
-        (* FIXME: no string copy -> have pointers use a string! *)
-        pp p.def "%slet s_ = Bytes.sub_string %s.Pointer.bytes %s.start \
-                               (%s.stop-%s.start) in\n"
-          p.indent n1 n1 n1 n1 ;
         (* Note: Scanf uses two distinct format specifiers for "normal"
          * and hex notations so detect it and pick the proper one: *)
-        pp p.def "%slet is_hex_ = String.length s_ > 2 && (\n" p.indent ;
+        pp p.def "%slet len_ = %s.Pointer.stop - %s.start in\n" p.indent n1 n1 ;
+        pp p.def "%slet is_hex_ = len_ > 2 && (\n" p.indent ;
         indent_more p (fun () ->
-          pp p.def "%slet o_ = if s_.[0] = '-' || s_.[0] = '+' then 1 else 0 in\n"
-            p.indent ;
-          pp p.def "%sString.length s_ > 2 + o_ && \
-                      s_.[o_] = '0' && \
-                      (s_.[o_+1] = 'x' || s_.[o_+1] = 'X')) in\n" p.indent) ;
+          pp p.def "%slet o_ =\n" p.indent ;
+          indent_more p (fun () ->
+            pp p.def "%slet c_ = Bytes.get %s.bytes %s.start in\n"
+              p.indent n1 n1 ;
+            pp p.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.indent) ;
+          pp p.def "%slen_ > 2 + o_ && \
+                      Bytes.get %s.bytes (%s.start + o_) = '0' && \
+                      (let c2_ = Bytes.get %s.bytes (%s.start + o_ + 1) in \
+                       c2_ = 'x' || c2_ = 'X')) in\n"
+            p.indent n1 n1 n1 n1) ;
+        pp p.def "%slet s_ =\n" p.indent ;
+        indent_more p (fun () ->
+          pp p.def "%slet off_ = ref %s.Pointer.start in\n" p.indent n1 ;
+          pp p.def "%sScanf.Scanning.from_function (fun () ->\n" p.indent ;
+          indent_more p (fun () ->
+            pp p.def "%sif !off_ >= %s.Pointer.stop then raise End_of_file ;\n"
+              p.indent n1 ;
+            pp p.def "%slet c_ = Bytes.get %s.Pointer.bytes !off_ in\n"
+              p.indent n1 ;
+            pp p.def "%sincr off_ ;\n" p.indent ;
+            pp p.def "%sc_) in\n" p.indent)) ;
         emit ?name p l e (fun oc ->
-          pp oc "Scanf.sscanf s_ (if is_hex_ then \" %%h%%n\" else \
+          pp oc "Scanf.bscanf s_ (if is_hex_ then \" %%h%%n\" else \
                                                   \" %%f%%n\") \
                    (fun f_ o_ -> f_, Pointer.skip %s o_)" n1)
     | E.E1 (U8OfPtr, e1)

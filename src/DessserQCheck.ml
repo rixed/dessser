@@ -806,6 +806,9 @@ let sexpr mn =
     "1 ((\"+\" 3545637917 null 14235))"
   check_sexpr cpp_be "{bajg: CHAR; bqgbef: U32?; eibho: U24?; gvrh: U16?}[]" \
     "1 ((\"+\" 3545637917 null 14235))"
+  check_sexpr ocaml_be "float" "0x1.79c428d047e73p-16"
+  check_sexpr ocaml_be "float" "-0x1.79c428d047e73p-16"
+  check_sexpr cpp_be "float" "-0x1.79c428d047e73p-16"
 *)
 (*$= check_rowbinary & ~printer:identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
