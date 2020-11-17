@@ -488,7 +488,10 @@ struct
     | E.E1 (U64OfQWord, e1) | E.E1 (QWordOfU64, e1)
     | E.E1 (U128OfOWord, e1) | E.E1 (OWordOfU128, e1)
     | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1)
-    | E.E1 (U8OfChar, e1) | E.E1 (CharOfU8, e1)
+    | E.E1 (U8OfChar, e1) | E.E1 (CharOfU8, e1) ->
+        (* Those are NoOps: *)
+        let n = print emit p l e1 in
+        n
     | E.E1 (SizeOfU32, e1) | E.E1 (U32OfSize, e1)
     | E.E1 (ToU8, e1) | E.E1 (ToI8, e1)
     | E.E1 (ToU16, e1) | E.E1 (ToI16, e1)
