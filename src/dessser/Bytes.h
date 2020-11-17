@@ -66,7 +66,7 @@ struct Bytes {
       buffer = std::shared_ptr<Byte>(new Byte[size]);
       offset = 0;
       memcpy(buffer.get(), b1.buffer.get()+b1.offset, b1.size);
-      memcpy(buffer.get()+b1.size, b2.buffer.get(), b2.size);
+      memcpy(buffer.get()+b1.size, b2.buffer.get()+b2.offset, b2.size);
     }
   }
 
