@@ -642,8 +642,8 @@ struct
         let m = mod_name (E.type_of l e |> T.pair_of_tpair |> fst) in
         emit ?name p l e (fun oc ->
           indent_more p (fun () ->
-            pp oc "\n%slet s_ = Bytes.to_string %s.Pointer.bytes in\n"
-              p.indent n1 (* FIXME *) ;
+            pp oc "\n%slet s_ = Bytes.unsafe_to_string %s.Pointer.bytes in\n"
+              p.indent n1 ;
             pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.Pointer.start) s_ in\n"
               p.indent m n1 ;
             pp oc "%sn_, Pointer.skip %s (o_ - %s.start)" p.indent n1 n1))
