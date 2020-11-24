@@ -28,7 +28,7 @@
  * Basically this is currently only the minimum required by Ramen.
  * TODO:
  * - Support Insert/Replace in runtime fieldmasks;
- * - Generating a function to projecting a HeapValue into another one;
+ * - Generating a function to project a HeapValue into another one;
  * - Apply a runtime fieldmask when deserializing a heap value;
  * - Apply a runtime fieldmask in dessser for any format;
  * - Generate more efficient proj/ser/des for when the fieldmask is given at

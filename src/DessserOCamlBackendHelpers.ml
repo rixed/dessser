@@ -156,6 +156,7 @@ struct
       Bytes.set bytes s1.length b ;
       { bytes ; offset = 0 ; length }
 
+  (* FIXME: the string type should be implemented as a slice *)
   let to_string s =
     Bytes.sub_string s.bytes s.offset s.length
 

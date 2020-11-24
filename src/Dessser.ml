@@ -33,7 +33,7 @@ sig
   val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr, or whatever really  *)
 
   val start : ?config:config -> T.maybe_nullable -> (*dataptr*) E.t -> state * (*ptr*) E.t
-  val stop : state -> (*ptr?*) E.t -> (*ptr*) E.t
+  val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
    * yielding a pointer (either a CodePtr pointing at a byte stream or a
