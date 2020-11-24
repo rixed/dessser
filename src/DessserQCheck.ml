@@ -665,7 +665,7 @@ let sexpr mn =
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
             let dst = secnd (T2S.desser mn tdst dst) in
             pair src dst))) in
-    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     make_converter be ~mn e
 
   let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
@@ -725,7 +725,7 @@ let sexpr mn =
 (*$R
   let test_heap be mn =
     let e = heap_convert_expr mn in
-    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     let exe = make_converter be ~mn e in
     test_exe "heap-value" mn exe in
 
@@ -789,7 +789,7 @@ let sexpr mn =
   let check_heapvalue be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let e = heap_convert_expr mn in
-    Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     let exe = make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
@@ -853,7 +853,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -866,7 +866,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -897,7 +897,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser ?des_config:config mn src dst) in
-      Printf.eprintf "Expression:\n%a\n%!" (E.print ?max_depth:None) e ;
+      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 

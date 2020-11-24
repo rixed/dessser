@@ -562,7 +562,7 @@ let rec string_of_e0 = function
   | SkipField -> "skip-field"
   | SetFieldNull -> "set-field-null"
 
-(* Display in a single line to help with tests. TODO: pretty_print_expr *)
+(* Display in a single line to help with tests. *)
 and print ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
     pp oc "…"
@@ -587,6 +587,27 @@ and print ?max_depth oc e =
 
 let to_string ?max_depth e =
   IO.to_string (print ?max_depth) e
+
+let rec pretty_print fmt =
+  let p s es =
+    Format.fprintf fmt "@[<hov 2>(%s" s ;
+    List.iter (fun e ->
+      Format.fprintf fmt "@ %a" pretty_print e
+    ) es ;
+    Format.fprintf fmt ")@]" in
+  function
+  | E0 op ->
+      p (string_of_e0 op) []
+  | E0S (op, es) ->
+      p (string_of_e0s op) es
+  | E1 (op, e1) ->
+      p (string_of_e1 op) [ e1 ]
+  | E2 (op, e1, e2) ->
+      p (string_of_e2 op) [ e1 ; e2 ]
+  | E3 (op, e1, e2, e3) ->
+      p (string_of_e3 op) [ e1 ; e2 ; e3 ]
+  | E4 (op, e1, e2, e3, e4) ->
+      p (string_of_e4 op) [ e1 ; e2 ; e3 ; e4 ]
 
 module Parser =
 struct
