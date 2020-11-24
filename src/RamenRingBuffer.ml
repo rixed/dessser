@@ -347,7 +347,7 @@ struct
   let tup_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let tup_sep _n () _ _ p_stk = p_stk
+  let tup_sep () _ _ p_stk = p_stk
 
   let rec_opn () mn0 path mns p_stk =
     let mns = tuple_typs_of_record mns in
@@ -356,7 +356,7 @@ struct
   let rec_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let rec_sep _fname () _ _ p_stk = p_stk
+  let rec_sep () _ _ p_stk = p_stk
 
   (* Sum types are encoded with a 1-dword header composed of:
    * - a 16bits nullmask, of which only bit 0 will ever be used
@@ -773,7 +773,7 @@ struct
   let tup_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let tup_sep _n () _ _ p_stk = p_stk
+  let tup_sep () _ _ p_stk = p_stk
 
   let rec_opn () mn0 path mns p_stk =
     let mns = tuple_typs_of_record mns in
@@ -782,7 +782,7 @@ struct
   let rec_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let rec_sep _n () _ _ p_stk = p_stk
+  let rec_sep () _ _ p_stk = p_stk
 
   let vec_opn () mn0 path dim mn p_stk =
     let nullmask_bits =

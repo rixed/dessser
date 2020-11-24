@@ -225,13 +225,13 @@ struct
 
   let tup_cls _conf _ _ p = p
 
-  let tup_sep _n conf _ _ p = sep conf p
+  let tup_sep conf _ _ p = sep conf p
 
   let rec_opn _conf _ _ _ p = p
 
   let rec_cls _conf _ _ p = p
 
-  let rec_sep _n conf _ _ p = sep conf p
+  let rec_sep conf _ _ p = sep conf p
 
   (* Sum label comes as a separate column: *)
   let sum_opn conf mn0 path _ lbl p =
@@ -445,18 +445,14 @@ struct
 
   let tup_cls _conf _ _ p = p
 
-  let tup_sep _n conf _ _ p =
+  let tup_sep conf _ _ p =
     skip_sep conf p
 
   let rec_opn _conf _ _ _ p = p
 
   let rec_cls _conf _ _ p = p
 
-  let rec_sep n conf _ _ p =
-    if debug then
-      seq [ dump (string ("rec_sep field="^ n ^"\n")) ;
-            skip_sep conf p ]
-    else
+  let rec_sep conf _ _ p =
       skip_sep conf p
 
   let sum_opn conf mn0 path _ p =

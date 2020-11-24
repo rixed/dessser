@@ -51,10 +51,10 @@ struct
   let du128 () = from_byte (u128 Uint128.one) (u128 Uint128.zero)
   let tup_opn () _ _ _ src = src
   let tup_cls () _ _ src = src
-  let tup_sep _ () _ _ src = src
+  let tup_sep () _ _ src = src
   let rec_opn () _ _ _ src = src
   let rec_cls () _ _ src = src
-  let rec_sep _ () _ _ src = src
+  let rec_sep () _ _ src = src
   let sum_opn () _ _ _ src = src
   let sum_cls () _ _ src = src
   let vec_opn () _ _ _ _ src = src
@@ -112,10 +112,10 @@ struct
   let su128 () _ _ = from_eq (u128 Uint128.one)
   let tup_opn () _ _ _ dst = dst
   let tup_cls () _ _ dst = dst
-  let tup_sep _i () _ _ dst = dst
+  let tup_sep () _ _ dst = dst
   let rec_opn () _ _ _ dst = dst
   let rec_cls () _ _ dst = dst
-  let rec_sep _i () _ _ dst = dst
+  let rec_sep () _ _ dst = dst
   let sum_opn () _ _ _ _ dst = dst
   let sum_cls () _ _ dst = dst
   let vec_opn () _ _ _ _ dst = dst

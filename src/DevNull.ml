@@ -37,10 +37,10 @@ struct
   let schar () _ _ _v p = p
   let tup_opn () _ _ _ p = p
   let tup_cls () _ _ p = p
-  let tup_sep _ () _ _ p = p
+  let tup_sep () _ _ p = p
   let rec_opn () _ _ _ p = p
   let rec_cls () _ _ p = p
-  let rec_sep _ () _ _ p = p
+  let rec_sep () _ _ p = p
   let sum_opn () _ _ _ _ p = p
   let sum_cls () _ _ p = p
   let vec_opn () _ _ _ _ p = p

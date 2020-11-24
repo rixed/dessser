@@ -100,16 +100,16 @@ struct
 
   let tup_opn () _ _ _ p = p
   let tup_cls () _ _ p = p
-  let tup_sep _n () _ _ p = p
+  let tup_sep () _ _ p = p
 
   let rec_opn () _ _ _ p = p
   let rec_cls () _ _ p = p
-  let rec_sep _n () _ _ p = p
+  let rec_sep () _ _ p = p
 
   let sum_opn st mn0 path mns lbl p =
     let p = tup_opn st mn0 path mns p in
     let p = su16 st mn0 path lbl p in
-    tup_sep 0 st mn0 path p
+    tup_sep st mn0 path p
 
   let sum_cls st mn0 path p =
     tup_cls st mn0 path p
@@ -330,18 +330,18 @@ struct
   (* Items of a tuples are just concatenated together: *)
   let tup_opn () _ _ _ p = p
   let tup_cls () _ _ p = p
-  let tup_sep _n () _ _ p = p
+  let tup_sep () _ _ p = p
 
   let rec_opn () _ _ _ p = p
   let rec_cls () _ _ p = p
-  let rec_sep _n () _ _ p = p
+  let rec_sep () _ _ p = p
 
   (* RowBinary has no sum types, so we encode the value as a pair: *)
   let sum_opn st mn0 path mns p =
     let p = tup_opn st mn0 path mns p in
     let c_p = du16 st mn0 path p in
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
-      let p = tup_sep 0 st mn0 path p in
+      let p = tup_sep st mn0 path p in
       pair c p)
 
   let sum_cls st mn0 path p =

@@ -97,7 +97,7 @@ struct
           (Des.tup_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.tup_sep i dstate mn0 path src in
+                    Des.tup_sep dstate mn0 path src in
         let subpath = T.path_append i path in
         let v_src = make1 dstate mn0 subpath mns.(i) src in
         E.with_sploded_pair "dtup" v_src (fun v src ->
@@ -115,7 +115,7 @@ struct
           (Des.rec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.rec_sep (fst mns.(i)) dstate mn0 path src in
+                    Des.rec_sep dstate mn0 path src in
         let subpath = T.path_append i path in
         let v_src = make1 dstate mn0 subpath (snd mns.(i)) src in
         E.with_sploded_pair "drec" v_src (fun v src ->
@@ -253,7 +253,7 @@ struct
         let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
-                    Ser.tup_sep i sstate mn0 subpath dst)
+                    Ser.tup_sep sstate mn0 subpath dst)
           ~in_:(ser1 sstate mn0 subpath mn (get_item i v) (mask_get i m)
                      (identifier "dst"))
       ) dst mns in
@@ -267,7 +267,7 @@ struct
         let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
-                    Ser.rec_sep field sstate mn0 subpath dst)
+                    Ser.rec_sep sstate mn0 subpath dst)
           ~in_:(comment ("serialize field "^ field)
                   (ser1 sstate mn0 subpath mn (get_field field v) (mask_get i m)
                         (identifier "dst")))

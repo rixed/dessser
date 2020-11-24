@@ -70,7 +70,7 @@ struct
   let tup_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let tup_sep _n _conf _ _ p =
+  let tup_sep _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let rec_opn _conf _ _ _ p =
@@ -79,13 +79,13 @@ struct
   let rec_cls _conf _ _ p =
     write_byte p (byte_of_const_char ')')
 
-  let rec_sep _n _conf _ _ p =
+  let rec_sep _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
   let sum_opn st mn0 path mns lbl p =
     let p = tup_opn st mn0 path mns p in
     let p = su16 st mn0 path lbl p in
-    tup_sep 0 st mn0 path p
+    tup_sep st mn0 path p
 
   let sum_cls st mn0 path p =
     tup_cls st mn0 path p
@@ -177,7 +177,7 @@ struct
 
   let tup_cls _conf _ _ p = skip1 p
 
-  let tup_sep _n _conf _ _ p = skip1 p
+  let tup_sep _conf _ _ p = skip1 p
 
   let dfloat _conf _ _ p =
     float_of_ptr p
@@ -228,20 +228,20 @@ struct
 
   let tup_cls _conf _ _ p = skip1 p
 
-  let tup_sep _n _conf _ _ p = skip1 p
+  let tup_sep _conf _ _ p = skip1 p
 
   let rec_opn _conf _ _ _ p = skip1 p
 
   let rec_cls _conf _ _ p = skip1 p
 
-  let rec_sep _n _conf _ _ p = skip1 p
+  let rec_sep _conf _ _ p = skip1 p
 
   (* Sums are encoded as a pair of numeric label and value: *)
   let sum_opn st mn0 path mns p =
     let p = tup_opn st mn0 path mns p in
     let c_p = du16 st mn0 path p in
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
-      let p = tup_sep 0 st mn0 path p in
+      let p = tup_sep st mn0 path p in
       pair c p)
 
   let sum_cls st mn0 path p =

@@ -71,17 +71,15 @@ sig
   (* Paths passed to opn/cls/sep functions are the path of the compound structure
    * itself *)
 
-  (* TODO: not sure the _sep function need all the extra parameters that they
-   * better not use (esp the index, that's wrong!)
-   * Get rid of the _seps (in SExpr, use a state to add a separator before any
+  (* Get rid of the _seps (in SExpr, use a state to add a separator before any
    * value instead). That would make the code generated for dessser significantly
    * simpler, and even more so when runtime fieldmasks enter the stage! *)
   val tup_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable array -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : string (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   (* Returns the label as an u16 and the new pointer: *)
   val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (* u16*ptr *) E.t
   val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -148,10 +146,10 @@ sig
    * of the current fieldmask (as in CodeGen_OCaml). *)
   val tup_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable array -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : int (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : string (* before *) -> state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
   (* Takes the label as an u16: *)
   val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
   val sum_cls : state -> T.maybe_nullable -> T.path -> (*ptr*) E.t -> (*ptr*) E.t
@@ -272,8 +270,8 @@ struct
             let src_dst =
               E.with_sploded_pair "dstup2" src_dst (fun src dst ->
                 pair
-                  (Des.tup_sep i dstate mn0 path src)
-                  (Ser.tup_sep i sstate mn0 path dst)) in
+                  (Des.tup_sep dstate mn0 path src)
+                  (Ser.tup_sep sstate mn0 path dst)) in
             desser_ transform sstate dstate mn0 subpath src_dst)
       ) src_dst mns in
     E.with_sploded_pair "dstup3" src_dst (fun src dst ->
@@ -298,8 +296,8 @@ struct
               let src_dst =
                 E.with_sploded_pair "dsrec2" src_dst (fun src dst ->
                   pair
-                    (Des.rec_sep name dstate mn0 path src)
-                    (Ser.rec_sep name sstate mn0 path dst)) in
+                    (Des.rec_sep dstate mn0 path src)
+                    (Ser.rec_sep sstate mn0 path dst)) in
               desser_ transform sstate dstate mn0 subpath src_dst)
       ) src_dst mns in
     let src_dst = comment "Convert a Record" src_dst in
