@@ -61,7 +61,7 @@ let rec are_rec_fields_ordered mn =
     | T.TRec mns ->
         array_for_alli (fun i (_name, mn) ->
           are_rec_fields_ordered mn &&
-          i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0
+          (i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0)
         ) mns
     | T.TTup mns ->
         Array.for_all are_rec_fields_ordered mns
