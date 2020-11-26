@@ -315,6 +315,8 @@ let rec e0_gen l depth =
   let open Gen in
   let lst = [
     1, map null value_type_gen ;
+    1, return E.Ops.now ;
+    1, return E.Ops.rand ;
     1, map E.Ops.float float ;
     1, map E.Ops.string small_string ;
     1, map E.Ops.bool bool ;

@@ -876,6 +876,10 @@ struct
         binary_infix_op e1 "::" e2
     | E.E0 (EndOfList _) ->
         emit ?name p l e (fun oc -> pp oc "[]")
+    | E.E0 Now ->
+        emit ?name p l e (fun oc -> pp oc "Unix.gettimeofday ()")
+    | E.E0 Random ->
+        emit ?name p l e (fun oc -> pp oc "Random.float 1.")
     | E.E1 (Head, e1) ->
         unary_op "List.hd" e1
     | E.E1 (Tail, e1) ->

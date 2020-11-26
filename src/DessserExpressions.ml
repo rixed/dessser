@@ -29,6 +29,8 @@ type e0 =
   | Param of (*function id*) int * (*param no*) int
   | Null of T.value_type
   | EndOfList of T.t
+  | Now
+  | Random
   | Float of float
   | String of string
   | Bool of bool
@@ -533,6 +535,8 @@ let rec string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
   | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
+  | Now -> "now"
+  | Random -> "rand"
   | Float f -> "float "^ hexstring_of_float f
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
@@ -763,6 +767,8 @@ struct
         E0 (Null ((T.maybe_nullable_of_string s).vtyp))
     | Lst [ Sym "end-of-list" ; Str vt ] ->
         E0 (EndOfList (T.Parser.of_string vt))
+    | Lst [ Sym "now" ] -> E0 Now
+    | Lst [ Sym "rand" ] -> E0 Random
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
     | Lst [ Sym "string" ; Str s ] -> E0 (String s)
     | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
@@ -1163,6 +1169,8 @@ let rec type_of l e0 =
   | E1 (IsNull, _) -> T.bool
   | E0 (Null vt) -> TValue { vtyp = vt ; nullable = true }
   | E0 (EndOfList t) -> TSList t
+  | E0 Now -> T.float
+  | E0 Random -> T.float
   | E0 (Float _) -> T.float
   | E0 (String _) -> T.string
   | E0 (Bool _) -> T.bool
@@ -1538,7 +1546,8 @@ let rec type_check l e =
           done
       | _ -> raise (Apply_error (e0, "argument must be a function")) in
     match e0 with
-    | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
+    | E0 (Null _ | EndOfList _ | Now | Random
+         | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
@@ -2039,6 +2048,8 @@ struct
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
   let null vt = E0 (Null vt)
   let eol t = E0 (EndOfList t)
+  let now = E0 Now
+  let rand = E0 Random
   let bit n = E0 (Bit n)
   let bool n = E0 (Bool n)
   let i8 n = E0 (I8 n)
