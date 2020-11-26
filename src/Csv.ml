@@ -193,8 +193,8 @@ struct
 
   (* TODO: make true/false values optional *)
   let sbool conf _ _ v p =
-    write_bytes p (choose v (bytes (Bytes.of_string conf.true_))
-                            (bytes (Bytes.of_string conf.false_)))
+    write_bytes p (if_ v (bytes (Bytes.of_string conf.true_))
+                         (bytes (Bytes.of_string conf.false_)))
 
   let si _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
@@ -336,7 +336,7 @@ struct
   (* Skip the final newline if present: *)
   let stop conf p =
     let ret =
-      choose
+      if_
         ~cond:(gt (rem_size p) (size 0))
         ~then_:(skip_nl conf p)
         ~else_:p in
@@ -358,7 +358,7 @@ struct
     (* TODO: find out where is the first distinct char of true and false (that
      * may not be in position 0) and test only that one *)
     assert (String.length conf.true_ > 0) ;
-    choose
+    if_
       ~cond:(eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
       ~then_:(pair (bool true) (skip (String.length conf.true_) p))
       ~else_:(pair (bool false) (skip (String.length conf.false_) p))
@@ -373,19 +373,19 @@ struct
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
       ~in_:(
-        let pos = choose ~cond:(identifier "had_quote")
-                         ~then_:(skip_byte quote_byte p)
-                         ~else_:p in
+        let pos = if_ ~cond:(identifier "had_quote")
+                      ~then_:(skip_byte quote_byte p)
+                      ~else_:p in
         (* Read up to next double-quote or separator/newline, depending on
          * had_quote: *)
         (* FIXME: handle escaping the separator/newline! *)
         let cond =
           E.func1 T.byte (fun _l b ->
             not_ (
-              choose ~cond:(identifier "had_quote")
-                     ~then_:(eq b quote_byte)
-                     ~else_:(or_ (eq b sep_byte)
-                                 (eq b nl_byte))))
+              if_ ~cond:(identifier "had_quote")
+                  ~then_:(eq b quote_byte)
+                  ~else_:(or_ (eq b sep_byte)
+                              (eq b nl_byte))))
         and init = size 0
         and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
@@ -393,9 +393,9 @@ struct
           (* Skip the initial double-quote: *)
           let bytes_p = read_bytes pos sz in
           (* Skip the closing double-quote: *)
-          let p' = choose ~cond:(identifier "had_quote")
-                          ~then_:(skip_byte quote_byte p')
-                          ~else_:p' in
+          let p' = if_ ~cond:(identifier "had_quote")
+                       ~then_:(skip_byte quote_byte p')
+                       ~else_:p' in
           pair (op (first bytes_p)) p'))
 
   let dbytes conf op p =

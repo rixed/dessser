@@ -39,7 +39,7 @@ struct
   let schar _conf _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
 
   let sbool _conf _ _ v p =
-    write_byte p (choose v (byte_of_const_char 'T') (byte_of_const_char 'F'))
+    write_byte p (if_ v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
   let si _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))

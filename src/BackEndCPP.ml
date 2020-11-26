@@ -707,7 +707,7 @@ struct
           pp oc "%s" p.indent)
     | E.E0 (Param (fid, n)) ->
         param fid n
-    | E.E3 (Choose, e1, e2, e3) ->
+    | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         let res = gen_sym ?name "choose_res_" in
         let t2 = E.type_of l e2 in

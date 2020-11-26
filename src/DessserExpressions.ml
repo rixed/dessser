@@ -262,7 +262,7 @@ type e3 =
   | Apply
   | SetBit
   | BlitByte
-  | Choose (* Condition * Consequent * Alternative *)
+  | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
   (* Get a slice from a pointer, starting at given offset and shortened to
@@ -517,7 +517,7 @@ let string_of_e3 = function
   | SetBit -> "set-bit"
   | Apply -> "apply"
   | BlitByte -> "blit-byte"
-  | Choose -> "choose"
+  | If -> "if"
   | LoopWhile -> "loop-while"
   | LoopUntil -> "loop-until"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
@@ -1015,7 +1015,7 @@ struct
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
-    | Lst [ Sym "choose" ; x1 ; x2 ; x3 ] -> E3 (Choose, e x1, e x2, e x3)
+    | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
     | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
     | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
@@ -1369,7 +1369,7 @@ let rec type_of l e0 =
           Printf.sprintf2 "Cannot find parameter #%d of function %d in %a\n%!"
             n fid (List.print (fun oc (e, _) -> print oc e)) l |>
           failwith)
-  | E3 (Choose, _, e, _) -> type_of l e
+  | E3 (If, _, e, _) -> type_of l e
   | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
   | E3 (LoopWhile, _, _, e) -> type_of l e
   | E3 (LoopUntil, _, _, e) -> type_of l e
@@ -1755,7 +1755,7 @@ let rec type_check l e =
     | E2 (MapPair, e1, e2) ->
         check_pair l e1 ;
         check_function 2 l e2
-    | E3 (Choose, e1, e2, e3) ->
+    | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
     | E4 (ReadWhile, e1 (*byte->bool*), e2 (*'a->byte->'a*), e3 (*'a*), e4 (*ptr*)) ->
@@ -2071,7 +2071,7 @@ struct
   let bytes s = E0 (Bytes s)
   let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
   let byte_of_const_char c = byte_of_char (char c)
-  let choose ~cond ~then_ ~else_ =  E3 (Choose, cond, then_, else_)
+  let if_ ~cond ~then_ ~else_ =  E3 (If, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword e1 = E1 (FloatOfQWord, e1)
   let qword_of_float e1 = E1 (QWordOfFloat, e1)

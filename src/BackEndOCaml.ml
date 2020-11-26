@@ -931,7 +931,7 @@ struct
             pp oc "%s%s)" p.indent n))
     | E.E0 (Param (fid, n)) ->
         param fid n
-    | E.E3 (Choose, e1, e2, e3) ->
+    | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;

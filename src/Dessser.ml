@@ -322,7 +322,7 @@ struct
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
                 desser_ transform sstate dstate mn0 subpath src_dst ]
             else
-              choose
+              if_
                 ~cond:(eq (u16 (Uint16.of_int i)) cstr)
                 ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
@@ -350,7 +350,7 @@ struct
         ~body:(comment "Convert vector item"
           (E.func2 T.i32 pair_ptrs (fun _l n src_dst ->
             let src_dst =
-              choose
+              if_
                 ~cond:(eq n (i32 0l))
                 ~then_:src_dst
                 ~else_:(
@@ -422,7 +422,7 @@ struct
                   ~body:(comment "Convert a list item"
                     (E.func2 T.i32 pair_ptrs (fun _l n src_dst ->
                       let src_dst =
-                        choose
+                        if_
                           ~cond:(eq n (i32 0l))
                           ~then_:src_dst
                           ~else_:(
@@ -446,7 +446,7 @@ struct
                     (E.func1 t_fst_src_dst (fun _l fst_src_dst ->
                       E.with_sploded_pair "dslist4" fst_src_dst (fun is_first src_dst ->
                         let src_dst =
-                          choose
+                          if_
                             ~cond:is_first
                             ~then_:src_dst
                             ~else_:(
@@ -509,7 +509,7 @@ struct
         (* XXX WARNING XXX
          * if any of dnull/snull/snotnull/etc update the state, they will
          * do so in both branches of this alternative. *)
-        choose ~cond
+        if_ ~cond
           ~then_:(dsnull mn.vtyp sstate dstate mn0 path src dst)
           ~else_:(dsnotnull mn.vtyp sstate dstate mn0 path src dst |>
                   desser_value_type mn.vtyp transform sstate dstate mn0 path ))

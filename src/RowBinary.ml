@@ -28,7 +28,7 @@ struct
             E.with_sploded_pair "write_leb128" p_wlen (fun p wlen ->
               let b =
                 byte_of_u8 (
-                  choose ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
+                  if_ ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
                     ~then_:(log_and (to_u8 wlen) (u8 (Uint8.of_int 127)))
                     ~else_:(log_or (to_u8 wlen) (u8 (Uint8.of_int 128)))) in
               pair
