@@ -193,8 +193,8 @@ struct
         ByteOfU8 | U16OfWord | WordOfU16 | U32OfDWord | DWordOfU32 |
         U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
         CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
-        BoolOfU8 | LogNot | StringLength | RemSize | Not | Neg | Fst | Snd |
-        Head | Tail), e1) ->
+        BoolOfU8 | LogNot | StringLength | RemSize | Not | Neg |
+        Lower | Upper | Fst | Snd | Head | Tail), e1) ->
         can_inline e1
     | E2 ((
         Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem |

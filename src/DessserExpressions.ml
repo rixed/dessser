@@ -194,6 +194,8 @@ type e1 =
   | DataPtrOffset
   | Not
   | Neg
+  | Lower
+  | Upper
   (* WARNING: never use Fst and Snd on the same expression or that expression
    * will be computed twice!
    * Instead, use MapPair or Let *)
@@ -458,6 +460,8 @@ let string_of_e1 = function
   | DataPtrOffset -> "data-ptr-offset"
   | Not -> "not"
   | Neg -> "neg"
+  | Lower -> "lower"
+  | Upper -> "upper"
   | Fst -> "fst"
   | Snd -> "snd"
   | Head -> "head"
@@ -950,6 +954,8 @@ struct
     | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
     | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
     | Lst [ Sym "neg" ; x ] -> E1 (Neg, e x)
+    | Lst [ Sym "lower" ; x ] -> E1 (Lower, e x)
+    | Lst [ Sym "upper" ; x ] -> E1 (Upper, e x)
     | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
     | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
     | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
@@ -1314,6 +1320,7 @@ let rec type_of l e0 =
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
   | E1 (Neg, e1) -> type_of l e1
+  | E1 ((Lower | Upper), _) -> T.string
   | E1 (ToU8, _) -> T.u8
   | E1 (ToI8, _) -> T.i8
   | E1 (ToU16, _) -> T.u16
@@ -1669,6 +1676,8 @@ let rec type_check l e =
         check_eq l e T.bool
     | E1 (Neg, e) ->
         check_numeric l e
+    | E1 ((Lower | Upper), e) ->
+        check_eq l e T.string
     | E1 (BoolOfBit, e) ->
         check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev), e) ->
@@ -2141,6 +2150,8 @@ struct
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let rem_size e1 = E1 (RemSize, e1)
   let neg e1 = E1 (Neg, e1)
+  let lower e1 = E1 (Lower, e1)
+  let upper e1 = E1 (Upper, e1)
   let u16_of_word e1 = E1 (U16OfWord, e1)
   let u32_of_dword e1 = E1 (U32OfDWord, e1)
   let u64_of_qword e1 = E1 (U64OfQWord, e1)

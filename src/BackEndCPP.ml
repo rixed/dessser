@@ -641,6 +641,15 @@ struct
         unary_op "!" e1
     | E.E1 (Neg, e1) ->
         unary_op "-" e1
+    | E.E1 ((Lower | Upper as op), e1) ->
+        (* FIXME: proper UTF-8 + use a lib for proper lower/upper casing *)
+        let n1 = print emit p l e1 in
+        let res = gen_sym ?name "case_str_" in
+        ppi p.def "std::string %s(%s.length(), ' ');" res n1 ;
+        let op = match op with Lower -> "tolower" | _ -> "toupper" in
+        ppi p.def "transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
+          n1 n1 res op ;
+        res
     | E.E0 (EndOfList _) ->
         (* Default constructor cannot be called with no-args as that would
          * not be C++ish enough: *)
@@ -849,7 +858,8 @@ struct
     pp p.def "%s%s %s;\n" p.indent tn n
 
   let source_intro =
-    "#include <charconv>\n\
+    "#include <algorithm>\n\
+     #include <charconv>\n\
      #include <chrono>\n\
      #include <fstream>\n\
      #include <functional>\n\
