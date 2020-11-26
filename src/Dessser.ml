@@ -253,6 +253,8 @@ struct
       (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path src))
       (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path dst))
 
+  (* transform is applied to leaf values only, as compound values are not
+   * reified during a dessser operation *)
   let rec dstup mns transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst = comment "Convert a Tuple"

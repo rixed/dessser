@@ -280,20 +280,28 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 	 ./testdb-dump --kv-delim : $$ENVNAME | sort > /tmp/testdb.dump ;\
 	 diff /tmp/testdb.dump testdb.dump
 
-# Check we can build a simple program that increments its input, in any backend
+# Check we can build a simple program that transform its input, in any backend
 convert-check: src/dessserc
-	@for be in OCaml C++; do \
-	   f="$$(tempfile --prefix=desser_convert_check)" &&\
-	   src/dessserc --input-enc s-expr --output-enc s-expr \
-	                --target=converter --language=$$be --schema=i32 \
-	                -e '(fun 0 "i32" (add (i32 1) (param 0 0)))' -o "$$f" &&\
-	   if test "$$($$f 42)" = 43; then \
+	@schema='(i32;float;string)'; \
+	 ok=yes; \
+	 for be in OCaml C++; do \
+	   f="$$(tempfile --prefix=dessser_convert_check_)" &&\
+	   src/dessserc \
+	     --input-enc s-expr --output-enc s-expr -o "$$f" \
+	     --target=converter --language=$$be --schema="$$schema" \
+	     -e '/0:(fun 0 "i32" (add (i32 1) (param 0 0)))' \
+	     -e '/1:(fun 0 "float" (add (float 0.5) (param 0 0)))' \
+	     -e '/2:(fun 0 "string" (upper (param 0 0)))'; \
+	   out=$$($$f '(42 0 "foo")'); \
+	   exp='(43 0x1p-1 "FOO")'; \
+	   if test "$$out" = "$$exp"; then \
 	     rm -f "$$f"* ;\
 	   else \
-	     echo "$$f failed to increment 42 for backend $$be!" ;\
-	     exit 1 ;\
+	     echo "$$f failed for backend $$be: Expected $$exp but got $$out!" ;\
+	     ok=no ;\
 	   fi ;\
-	 done
+	 done ;\
+	 if test "$$ok" = yes; then echo SUCCESS; else echo FAILURE; exit 1; fi
 
 check: unit-check examples-check cpp-check dump-load-check convert-check
 

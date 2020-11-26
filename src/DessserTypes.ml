@@ -839,9 +839,14 @@ let print_path oc p =
   List.print ~first:"/" ~last:"" ~sep:"/" Int.print oc p
 
 let path_of_string s =
+  if s = "" || s.[0] <> '/' then
+    Printf.sprintf "%S" s |> invalid_arg ;
   String.lchop s |>
   String.split_on_char '/' |>
   List.map int_of_string
+
+let string_of_path p =
+  "/" ^ (List.map string_of_int p |> String.join "/")
 
 (* Return both the type and field name: *)
 let type_and_name_of_path t path =
