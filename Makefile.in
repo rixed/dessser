@@ -276,7 +276,22 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 	 ./testdb-dump --kv-delim : $$ENVNAME | sort > /tmp/testdb.dump ;\
 	 diff /tmp/testdb.dump testdb.dump
 
-check: unit-check examples-check cpp-check dump-load-check
+# Check we can build a simple program that increments its input, in any backend
+convert-check: src/dessserc
+	@for be in OCaml C++; do \
+	   f="$$(tempfile --prefix=desser_convert_check)" &&\
+	   src/dessserc --input-enc s-expr --output-enc s-expr \
+	                --target=converter --language=$$be --schema=i32 \
+	                -e '(fun 0 "i32" (add (i32 1) (param 0 0)))' -o "$$f" &&\
+	   if test "$$($$f 42)" = 43; then \
+	     rm -f "$$f"* ;\
+	   else \
+	     echo "$$f failed to increment 42 for backend $$be!" ;\
+	     exit 1 ;\
+	   fi ;\
+	 done
+
+check: unit-check examples-check cpp-check dump-load-check convert-check
 
 # Installation
 

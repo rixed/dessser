@@ -807,7 +807,12 @@ struct
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     (* e1 *)
-    | Lst (Sym "function" :: Sym fid :: (_ :: _ :: _ as tail)) ->
+    | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
+        (* Syntax for functions is:
+         *    (fun id "type arg 1" "type arg 2" ... body)
+         * where:
+         *   - id is an integer used to identify this function when using param
+         *   - body is an expression *)
         let typs, x = list_split_last tail in
         let typs =
           Array.of_list typs |>

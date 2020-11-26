@@ -35,7 +35,8 @@ let check_key_schema = function
 (* Generate just the code to convert from in to out and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let target_lib
-      key_schema schema backend encoding_in encoding_out _fieldmask dest_fname =
+      key_schema schema backend encoding_in encoding_out _fieldmask
+      _modifier_expr dest_fname =
   check_no_key_schema key_schema ;
   let module BE = (val backend : BACKEND) in
   let module Des = (val encoding_in : DES) in
@@ -81,15 +82,20 @@ let target_lib
   Printf.printf "definitions in %S\n" def_fname
 
 let target_converter
-      key_schema schema backend encoding_in encoding_out _fieldmask dest_fname =
+      key_schema schema backend encoding_in encoding_out _fieldmask
+      modifier_expr dest_fname =
   check_no_key_schema key_schema ;
   let module BE = (val backend : BACKEND) in
   let module Des = (val encoding_in : DES) in
   let module Ser = (val encoding_out : SER) in
   let module DS = DesSer (Des) (Ser) in
+  let transform _mn0 path v =
+    match modifier_expr, path with
+    | Some f, [] -> apply f [v]
+    | _ -> v in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
+    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ~transform) in
   if debug then E.type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_id =
@@ -119,7 +125,8 @@ let destruct_pair = function
 let check_is_pair = ignore % destruct_pair
 
 let target_lmdb main
-      key_schema val_schema backend encoding_in encoding_out _fieldmask dest_fname =
+      key_schema val_schema backend encoding_in encoding_out _fieldmask
+      _modifier_expr dest_fname =
   let key_schema = check_key_schema key_schema in
   let module BE = (val backend : BACKEND) in
   let module Des = (val encoding_in : DES) in
@@ -164,7 +171,7 @@ let target_lmdb_load =
       convert_key_id convert_val_id in
   target_lmdb main
 
-let target_lmdb_query _ _ _ _ _ _ _ =
+let target_lmdb_query _ _ _ _ _ _ _ _ =
   todo "target_lmdb_query"
 
 
@@ -294,6 +301,26 @@ let comptime_fieldmask =
   let i = Arg.info ~doc ~docv [ "mask" ; "field-mask" ] in
   Arg.(value (opt fieldmask M.Copy i))
 
+let expression =
+  let parse s =
+    match E.Parser.expr s with
+    | exception e ->
+        Stdlib.Error (`Msg (Printexc.to_string e))
+    | [ s ] ->
+        Stdlib.Ok s
+    | _ ->
+        Stdlib.Error (`Msg "A single s-expression must be provided")
+  in
+  Arg.conv ~docv:"EXPRESSION" (parse, E.pretty_print)
+
+let modifier_expr =
+  let doc =
+    "Expression computing an alternative value to write (function of the \
+     input value)" in
+  let docv = "EXPRESSION" in
+  let i = Arg.info ~doc ~docv [ "e" ; "expression" ] in
+  Arg.(value (opt (some expression) None i))
+
 let dest_fname =
   let doc = "Output file" in
   let docv = "FILE" in
@@ -310,7 +337,8 @@ let maybe_nullable_of_string str =
   ) with _ ->
     parse_as_string str
 
-let start target key_schema val_schema backend encoding_in encoding_out fieldmask dest_fname =
+let start target key_schema val_schema backend encoding_in encoding_out
+          fieldmask modifier_expr dest_fname =
   let target = function_of_target target in
   let key_schema =
     if key_schema = "" then None
@@ -319,7 +347,8 @@ let start target key_schema val_schema backend encoding_in encoding_out fieldmas
   let backend = module_of_backend backend in
   let encoding_in = des_of_encoding encoding_in in
   let encoding_out = ser_of_encoding encoding_out in
-  target key_schema val_schema backend encoding_in encoding_out fieldmask dest_fname
+  target key_schema val_schema backend encoding_in encoding_out fieldmask
+         modifier_expr dest_fname
 
 let () =
   let doc = "Dessser code generator" in
@@ -332,6 +361,7 @@ let () =
      $ encoding_in
      $ encoding_out
      $ comptime_fieldmask
+     $ modifier_expr
      $ dest_fname),
     info "dessserc" ~version ~doc) |>
   eval |> exit)
