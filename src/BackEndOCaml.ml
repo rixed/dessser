@@ -399,6 +399,24 @@ struct
         pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2)
     in
     match e with
+    | E.E1 (Apply, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s ()" n1)
+    | E.E2 (Apply, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s %s" n1 n2)
+    | E.E3 (Apply, e1, e2, e3) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and n3 = print emit p l e3 in
+        emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 n2 n3)
+    | E.E4 (Apply, e1, e2, e3, e4) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and n3 = print emit p l e3
+        and n4 = print emit p l e4 in
+        emit ?name p l e (fun oc -> pp oc "%s %s %s %s" n1 n2 n3 n4)
     | E.E1 (Comment c, e1) ->
         ppi p.def "(* %s *)" c ;
         print ?name emit p l e1

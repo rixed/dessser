@@ -78,6 +78,7 @@ type e0s =
   | MakeRec
 
 type e1 =
+  | Apply
   | Function of (*function id*) int * (*args*) T.t array
   | Comment of string
   | GetItem of int (* for tuples *)
@@ -212,6 +213,7 @@ type e1 =
   | LabelOf
 
 type e2 =
+  | Apply
   | Let of string
   | Coalesce
   (* Deconstructor for vectors/lists: *)
@@ -257,6 +259,7 @@ type e2 =
   | WriteOWord of endianness
 
 type e3 =
+  | Apply
   | SetBit
   | BlitByte
   | Choose (* Condition * Consequent * Alternative *)
@@ -267,6 +270,7 @@ type e3 =
   | DataPtrOfPtr
 
 type e4 =
+  | Apply
   | ReadWhile
       (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
            Result ('a*ptr)
@@ -343,6 +347,7 @@ let string_of_e1 = function
       "function "^ string_of_int fid ^
       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
         Printf.fprintf oc "%S" (IO.to_string T.print t))) typs
+  | Apply -> "apply"
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
@@ -466,6 +471,7 @@ let string_of_e1 = function
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
+  | Apply -> "apply"
   | Coalesce -> "coalesce"
   | Nth -> "nth"
   | Gt -> "gt"
@@ -509,6 +515,7 @@ let string_of_e2 = function
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
+  | Apply -> "apply"
   | BlitByte -> "blit-byte"
   | Choose -> "choose"
   | LoopWhile -> "loop-while"
@@ -517,6 +524,7 @@ let string_of_e3 = function
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
+  | Apply -> "apply"
   | Repeat -> "repeat"
 
 let pp = Printf.fprintf
@@ -1046,6 +1054,7 @@ exception Type_error of t * t * T.t * string
 exception Type_error_param of t * t * int * T.t * string
 exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
+exception Apply_error of t * string
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -1062,6 +1071,13 @@ let rec type_of l e0 =
   | E0S (Seq, [])
   | E1 ((Dump | Debug | Ignore), _) ->
       T.void
+  | E1 (Apply, f)
+  | E2 (Apply, f, _)
+  | E3 (Apply, f, _, _)
+  | E4 (Apply, f, _, _, _) ->
+      (match type_of l f with
+      | TFunction (_, t) -> t
+      | _ -> raise (Apply_error (e0, "argument must be a function")))
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
@@ -1501,6 +1517,21 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | TValue { vtyp = TSum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
+    let check_fun_sign l f ps =
+      match type_of l f with
+      | TFunction (ts, _) ->
+          let lf = Array.length ts and lp = Array.length ps in
+          if lf <> lp then (
+            let err = string_of_int lp ^" parameters but function expect "^
+                      string_of_int lf in
+            raise (Apply_error (e0, err))) ;
+          for i = 0 to lf - 1 do
+            let act = type_of l ps.(i) in
+            if not (T.eq act ts.(i)) then
+              let expected = IO.to_string T.print ts.(i) in
+              raise (Type_error (e0, e, act, "be a "^ expected))
+          done
+      | _ -> raise (Apply_error (e0, "argument must be a function")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -1512,6 +1543,14 @@ let rec type_check l e =
     | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
+    | E1 (Apply, f) ->
+        check_fun_sign l f [||]
+    | E2 (Apply, f, p1) ->
+        check_fun_sign l f [| p1 |]
+    | E3 (Apply, f, p1, p2) ->
+        check_fun_sign l f [| p1 ; p2 |]
+    | E4 (Apply, f, p1, p2, p3) ->
+        check_fun_sign l f [| p1 ; p2 ; p3 |]
     | E0S (Seq, es) ->
         let rec loop = function
           | [] | [_] -> ()
@@ -1789,6 +1828,11 @@ let () =
         Some (
           Printf.sprintf2
             "Invalid type structure: In expression %a, %s"
+            (print ~max_depth) e0 s)
+    | Apply_error (e0, s) ->
+        Some (
+          Printf.sprintf2
+            "Invalid function application: In expression %a, %s"
             (print ~max_depth) e0 s)
     | _ ->
         None)
@@ -2130,4 +2174,10 @@ struct
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField
   let set_field_null = E0 SetFieldNull
+  let apply f = function
+    | [] -> E1 (Apply, f)
+    | [ p1 ] -> E2 (Apply, f, p1)
+    | [ p1 ; p2 ] -> E3 (Apply, f, p1, p2)
+    | [ p1 ; p2 ; p3 ] -> E4 (Apply, f, p1, p2, p3)
+    | _ -> assert false
 end
