@@ -107,6 +107,7 @@ LIBDESSSER_SOURCES = \
 	src/RowBinary.ml \
 	src/RamenRingBuffer.ml \
 	src/DevNull.ml \
+	src/BackEndDIL.ml \
 	src/BackEndCLike.ml \
 	src/BackEndCPP.ml \
 	src/BackEndOCaml.ml \

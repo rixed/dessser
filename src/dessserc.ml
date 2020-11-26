@@ -97,13 +97,14 @@ let target_converter
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
-  let convert_main_for ext convert_id =
-    (if ext = "cc" then DessserDSTools_FragmentsCPP.converter
-                   else DessserDSTools_FragmentsOCaml.converter)
-      convert_id in
+  let convert_main_for convert_id = function
+    | "cc" -> DessserDSTools_FragmentsCPP.converter convert_id
+    | "ml" -> DessserDSTools_FragmentsOCaml.converter convert_id
+    | "dil" -> ""
+    | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->
     BE.print_definitions state oc ;
-    String.print oc (convert_main_for BE.preferred_def_extension convert_id)
+    String.print oc (convert_main_for convert_id BE.preferred_def_extension)
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
@@ -258,15 +259,17 @@ let target =
   let i = Arg.info ~doc ~docv [ "target" ] in
   Arg.(value (opt (enum targets) Converter i))
 
-type backends = Cpp | OCaml
+type backends = DIL | Cpp | OCaml
 
 let module_of_backend = function
+  | DIL -> (module BackEndDIL : BACKEND)
   | Cpp -> (module BackEndCPP : BACKEND)
   | OCaml -> (module BackEndOCaml : BACKEND)
 
 let backend =
   let languages =
-    [ "C++", Cpp ;
+    [ "DIL", DIL ;
+      "C++", Cpp ;
       "OCaml", OCaml ] in
   let doc = "Language to generate code for" in
   let docv = docv_of_enum languages in

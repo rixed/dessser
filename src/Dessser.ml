@@ -558,6 +558,9 @@ sig
    * and the identifier name in the source code.
    * Expression is not allowed to have the null type (which would make little
    * sense anyway): *)
+  (* TODO: all backends are going to do the same type-checking.
+   * Have a functor that perform some of this automatically?
+   * Oe let the backends reuse DIL? *)
   val identifier_of_expression : state -> ?name:string -> E.t -> (state * E.t * string)
   val valid_source_name : string -> string
   val preferred_def_extension : string
