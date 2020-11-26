@@ -344,7 +344,7 @@ let string_of_e0s =function
 
 let string_of_e1 = function
   | Function (fid, typs) ->
-      "function "^ string_of_int fid ^
+      "fun "^ string_of_int fid ^
       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
         Printf.fprintf oc "%S" (IO.to_string T.print t))) typs
   | Apply -> "apply"
@@ -696,7 +696,7 @@ struct
   let () =
     Printexc.register_printer (function
       | Unknown_expression x ->
-          Some (Printf.sprintf2 "Unknown S-Expression: %a" print_sexpr x)
+          Some (Printf.sprintf2 "Unknown expression: %a" print_sexpr x)
       | Extraneous_expressions i ->
           Some ("Extraneous expressions at position "^ string_of_int i)
       | Garbage_after i ->

@@ -844,10 +844,11 @@ struct
     pp p.def "%s%s %s;\n" p.indent tn n
 
   let source_intro =
-    "#include <iostream>\n\
-     #include <charconv>\n\
+    "#include <charconv>\n\
+     #include <chrono>\n\
      #include <fstream>\n\
      #include <functional>\n\
+     #include <iostream>\n\
      #include <optional>\n\
      #include <utility>\n\
      #include <variant>\n\
