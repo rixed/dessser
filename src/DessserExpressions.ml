@@ -193,7 +193,24 @@ type e1 =
   | RemSize
   | DataPtrOffset
   | Not
+  | Abs
   | Neg
+  | Exp
+  | Log
+  | Log10
+  | Sqrt
+  | Ceil
+  | Floor
+  | Round
+  | Cos
+  | Sin
+  | Tan
+  | ACos
+  | ASin
+  | ATan
+  | CosH
+  | SinH
+  | TanH
   | Lower
   | Upper
   (* WARNING: never use Fst and Snd on the same expression or that expression
@@ -459,7 +476,24 @@ let string_of_e1 = function
   | RemSize -> "rem-size"
   | DataPtrOffset -> "data-ptr-offset"
   | Not -> "not"
+  | Abs -> "abs"
   | Neg -> "neg"
+  | Exp -> "exp"
+  | Log -> "log"
+  | Log10 -> "log10"
+  | Sqrt -> "sqrt"
+  | Ceil -> "ceil"
+  | Floor -> "floor"
+  | Round -> "round"
+  | Cos -> "cos"
+  | Sin -> "sin"
+  | Tan -> "tan"
+  | ACos -> "acos"
+  | ASin -> "asin"
+  | ATan -> "atan"
+  | CosH -> "cosh"
+  | SinH -> "sinh"
+  | TanH -> "tanh"
   | Lower -> "lower"
   | Upper -> "upper"
   | Fst -> "fst"
@@ -953,7 +987,24 @@ struct
     | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
     | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
     | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
+    | Lst [ Sym "abs" ; x ] -> E1 (Abs, e x)
     | Lst [ Sym "neg" ; x ] -> E1 (Neg, e x)
+    | Lst [ Sym "exp" ; x ] -> E1 (Exp, e x)
+    | Lst [ Sym "log" ; x ] -> E1 (Log, e x)
+    | Lst [ Sym "log10" ; x ] -> E1 (Log10, e x)
+    | Lst [ Sym "sqrt" ; x ] -> E1 (Sqrt, e x)
+    | Lst [ Sym "ceil" ; x ] -> E1 (Ceil, e x)
+    | Lst [ Sym "floor" ; x ] -> E1 (Floor, e x)
+    | Lst [ Sym "round" ; x ] -> E1 (Round, e x)
+    | Lst [ Sym "cos" ; x ] -> E1 (Cos, e x)
+    | Lst [ Sym "sin" ; x ] -> E1 (Sin, e x)
+    | Lst [ Sym "tan" ; x ] -> E1 (Tan, e x)
+    | Lst [ Sym "acos" ; x ] -> E1 (ACos, e x)
+    | Lst [ Sym "asin" ; x ] -> E1 (ASin, e x)
+    | Lst [ Sym "atan" ; x ] -> E1 (ATan, e x)
+    | Lst [ Sym "cosh" ; x ] -> E1 (CosH, e x)
+    | Lst [ Sym "sinh" ; x ] -> E1 (SinH, e x)
+    | Lst [ Sym "tanh" ; x ] -> E1 (TanH, e x)
     | Lst [ Sym "lower" ; x ] -> E1 (Lower, e x)
     | Lst [ Sym "upper" ; x ] -> E1 (Upper, e x)
     | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
@@ -1319,7 +1370,13 @@ let rec type_of l e0 =
   | E2 (And, _, _) -> T.bool
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
+  | E1 (Abs, e1) -> type_of l e1
   | E1 (Neg, e1) -> type_of l e1
+  | E1 ((Exp | Ceil | Floor | Round |
+         Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), _) ->
+      T.float
+  | E1 ((Log | Log10 | Sqrt), _) ->
+      T.to_nullable T.float
   | E1 ((Lower | Upper), _) -> T.string
   | E1 (ToU8, _) -> T.u8
   | E1 (ToI8, _) -> T.i8
@@ -1674,8 +1731,11 @@ let rec type_check l e =
         check_eq l e T.size
     | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
-    | E1 (Neg, e) ->
+    | E1 ((Abs | Neg), e) ->
         check_numeric l e
+    | E1 ((Exp | Log | Log10 | Sqrt | Ceil | Floor | Round |
+           Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), e) ->
+        check_eq l e T.float
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
     | E1 (BoolOfBit, e) ->
@@ -2103,6 +2163,7 @@ struct
   let lt e1 e2 = E2 (Gt, e2, e1)
   let eq e1 e2 = E2 (Eq, e1, e2)
   let not_ e1 = E1 (Not, e1)
+  let abs_ e1 = E1 (Abs, e1)
   let ne e1 e2 = not_ (eq e1 e2)
   let param fid n = E0 (Param (fid, n))
   let add e1 e2 = E2 (Add, e1, e2)
@@ -2150,6 +2211,22 @@ struct
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let rem_size e1 = E1 (RemSize, e1)
   let neg e1 = E1 (Neg, e1)
+  let exp e1 = E1 (Exp, e1)
+  let log e1 = E1 (Log, e1)
+  let log10 e1 = E1 (Log10, e1)
+  let sqrt e1 = E1 (Sqrt, e1)
+  let ceil e1 = E1 (Ceil, e1)
+  let floor e1 = E1 (Floor, e1)
+  let round e1 = E1 (Round, e1)
+  let cos e1 = E1 (Cos, e1)
+  let sin e1 = E1 (Sin, e1)
+  let tan e1 = E1 (Tan, e1)
+  let aCos e1 = E1 (ACos, e1)
+  let aSin e1 = E1 (ASin, e1)
+  let aTan e1 = E1 (ATan, e1)
+  let cosH e1 = E1 (CosH, e1)
+  let sinH e1 = E1 (SinH, e1)
+  let tanH e1 = E1 (TanH, e1)
   let lower e1 = E1 (Lower, e1)
   let upper e1 = E1 (Upper, e1)
   let u16_of_word e1 = E1 (U16OfWord, e1)

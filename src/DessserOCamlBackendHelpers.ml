@@ -45,6 +45,8 @@ exception ImNull
 
 module Nullable =
 struct
+  (*$< Nullable *)
+
   type 'a t = 'a nullable
 
   let map f = function
@@ -95,6 +97,18 @@ struct
     match b with
     | Null -> 1
     | b -> cmp a b
+
+  let of_nan (x : float) =
+    if x <> x then Null else NotNull x
+
+  (*$= of_nan
+    Null (of_nan nan)
+    (NotNull 0.) (of_nan 0.)
+    (NotNull infinity) (of_nan infinity)
+    (NotNull neg_infinity) (of_nan neg_infinity)
+  *)
+
+  (*$>*)
 end
 
 let (|!) = Nullable.(|!)

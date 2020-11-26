@@ -173,6 +173,15 @@ struct
     let unary_op op e1 =
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
+    let unary_func f e1 =
+      let n1 = print emit p l e1 in
+      emit ?name p l e (fun oc -> pp oc "%s(%s)" f n1) in
+    let unary_func_or_nan f e1 =
+      let n1 = print emit p l e1 in
+      let tmp = gen_sym "test_nan_" in
+      ppi p.def "double const %s { %s(%s) };" tmp f n1 ;
+      emit ?name p l e (fun oc ->
+        pp oc "std::isnan(%s) ? std::nullopt_t : %s" tmp tmp) in
     let binary_infix_op e1 op e2 =
       (* Prevent integer promotion by casting to type_of e: *)
       let n1 = print emit p l e1
@@ -383,8 +392,7 @@ struct
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s[0]" n)
     | E.E1 (FloatOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "std::stod(%s)" n)
+        unary_func "std::stod" e1
     | E.E1 (U8OfString, e1)
     | E.E1 (U16OfString, e1)
     | E.E1 (U24OfString, e1)
@@ -413,12 +421,8 @@ struct
         let n = print emit p l e1 in
         let tn = E.type_of l e |> type_identifier p in
         emit ?name p l e (fun oc -> pp oc "%s(std::stoll(%s))" tn n)
-    | E.E1 (U128OfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
-    | E.E1 (I128OfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "i128_of_string(%s)" n)
+    | E.E1 ((I128OfString | U128OfString), e1) ->
+        unary_func "i128_of_string" e1
     | E.E1 (CharOfPtr, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
@@ -487,14 +491,11 @@ struct
           p.indent ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "floatOfQword(%s)" n)
+        unary_func "floatOfQword" e1
     | E.E1 (QWordOfFloat, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "qwordOfFloat(%s)" n)
+        unary_func "qwordOfFloat" e1
     | E.E1 (StringOfFloat, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "hexStringOfFloat(%s)" n)
+        unary_func "hexStringOfFloat" e1
     | E.E1 (StringOfChar, e1) ->
         let n = print emit p l e1 in
         (* This will use the list-initializer. Beware that "1, %s" would _also_ use
@@ -639,8 +640,42 @@ struct
         shortcutting_binary_infix_op e1 e2 true
     | E.E1 (Not, e1) ->
         unary_op "!" e1
+    | E.E1 (Abs, e1) ->
+        unary_func "std::abs" e1
     | E.E1 (Neg, e1) ->
         unary_op "-" e1
+    | E.E1 (Exp, e1) ->
+        unary_func "std::exp" e1
+    | E.E1 (Log, e1) ->
+        unary_func_or_nan "std::log" e1
+    | E.E1 (Log10, e1) ->
+        unary_func_or_nan "std::log10" e1
+    | E.E1 (Sqrt, e1) ->
+        unary_func_or_nan "std::sqrt" e1
+    | E.E1 (Ceil, e1) ->
+        unary_func "std::ceil" e1
+    | E.E1 (Floor, e1) ->
+        unary_func "std::floor" e1
+    | E.E1 (Round, e1) ->
+        unary_func "std::round" e1
+    | E.E1 (Cos, e1) ->
+        unary_func "std::cos" e1
+    | E.E1 (Sin, e1) ->
+        unary_func "std::sin" e1
+    | E.E1 (Tan, e1) ->
+        unary_func_or_nan "std::tan" e1
+    | E.E1 (ACos, e1) ->
+        unary_func_or_nan "std::acos" e1
+    | E.E1 (ASin, e1) ->
+        unary_func_or_nan "std::asin" e1
+    | E.E1 (ATan, e1) ->
+        unary_func "std::atan" e1
+    | E.E1 (CosH, e1) ->
+        unary_func "std::cosh" e1
+    | E.E1 (SinH, e1) ->
+        unary_func "std::sinh" e1
+    | E.E1 (TanH, e1) ->
+        unary_func "std::tanh" e1
     | E.E1 ((Lower | Upper as op), e1) ->
         (* FIXME: proper UTF-8 + use a lib for proper lower/upper casing *)
         let n1 = print emit p l e1 in
@@ -861,6 +896,7 @@ struct
     "#include <algorithm>\n\
      #include <charconv>\n\
      #include <chrono>\n\
+     #include <cmath>\n\
      #include <fstream>\n\
      #include <functional>\n\
      #include <iostream>\n\

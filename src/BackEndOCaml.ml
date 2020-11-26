@@ -870,8 +870,42 @@ struct
         shortcutting_binary_infix_op e1 "||" e2
     | E.E1 (Not, e1) ->
         unary_op "not" e1
+    | E.E1 (Abs, e1) ->
+        unary_mod_op "abs" e1
     | E.E1 (Neg, e1) ->
         unary_mod_op "neg" e1
+    | E.E1 (Exp, e1) ->
+        unary_op "exp" e1
+    | E.E1 (Log, e1) ->
+        unary_op "(Nullable.of_nan % log)" e1
+    | E.E1 (Log10, e1) ->
+        unary_op "(Nullable.of_nan % log10)" e1
+    | E.E1 (Sqrt, e1) ->
+        unary_op "(Nullable.of_nan % sqrt)" e1
+    | E.E1 (Ceil, e1) ->
+        unary_op "ceil" e1
+    | E.E1 (Floor, e1) ->
+        unary_op "floor" e1
+    | E.E1 (Round, e1) ->
+        unary_op "Float.round" e1
+    | E.E1 (Cos, e1) ->
+        unary_op "cos" e1
+    | E.E1 (Sin, e1) ->
+        unary_op "sin" e1
+    | E.E1 (Tan, e1) ->
+        unary_op "(Nullable.of_nan tan)" e1
+    | E.E1 (ACos, e1) ->
+        unary_op "(Nullable.of_nan acos)" e1
+    | E.E1 (ASin, e1) ->
+        unary_op "(Nullable.of_nan asin)" e1
+    | E.E1 (ATan, e1) ->
+        unary_op "atan" e1
+    | E.E1 (CosH, e1) ->
+        unary_op "cosh" e1
+    | E.E1 (SinH, e1) ->
+        unary_op "sinh" e1
+    | E.E1 (TanH, e1) ->
+        unary_op "tanh" e1
     | E.E1 (Lower, e1) ->
         (* FIXME: UTF-8 + ICU like library *)
         unary_op "String.lowercase_ascii" e1
