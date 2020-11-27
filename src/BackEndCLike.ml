@@ -195,13 +195,13 @@ struct
         CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
         BoolOfU8 | LogNot | StringLength | RemSize | Not | Abs | Neg |
         Exp | Log | Log10 | Sqrt | Ceil | Floor | Round | Cos| Sin | Tan |
-        ACos | ASin | ATan | CosH | SinH | TanH | Lower | Upper | Fst | Snd |
-        Head | Tail), e1) ->
+        ACos | ASin | ATan | CosH | SinH | TanH | Lower | Upper | Hash |
+        Fst | Snd | Head | Tail), e1) ->
         can_inline e1
     | E2 ((
-        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem |
-        LogAnd | LogOr | LogXor | LeftShift | RightShift | GetBit |
-        And | Or | Cons), e1, e2) ->
+        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem | Pow |
+        LogAnd | LogOr | LogXor | LeftShift | RightShift | GetBit | And | Or |
+        Cons | StartsWith | EndsWith | Min | Max), e1, e2) ->
         can_inline e1 && can_inline e2
     | _ ->
         false

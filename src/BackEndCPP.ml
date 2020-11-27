@@ -367,6 +367,12 @@ struct
         binary_infix_op e1 "/" e2
     | E.E2 (Rem, e1, e2) ->
         binary_infix_op e1 "%" e2
+    | E.E2 (Pow, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        let tn = E.type_of l e |> type_identifier p in
+        emit ?name p l e (fun oc ->
+          pp oc "%s(std::pow(%s, %s))" tn n1 n2)
     | E.E2 (LogAnd, e1, e2) ->
         binary_infix_op e1 "&" e2
     | E.E2 (LogOr, e1, e2) ->
@@ -539,6 +545,9 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 (AppendString, e1, e2) ->
         binary_infix_op e1 "+" e2
+    | E.E2 ((StartsWith | EndsWith as op), e1, e2) ->
+        let op = match op with StartsWith -> "starts_with" | _ -> "ends_with" in
+        method_call e1 op [ e2 ]
     | E.E1 (StringLength, e1)
     | E.E1 (ListLength, e1) ->
         method_call e1 "size" []
@@ -685,6 +694,11 @@ struct
         ppi p.def "transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
           n1 n1 res op ;
         res
+    | E.E1 (Hash, e1) ->
+        let n1 = print emit p l e1 in
+        let t = E.type_of l e1 in
+        let tn = type_identifier p t in
+        emit ?name p l e (fun oc -> pp oc "uint64_t(std::hash<%s>{}(%s))" tn n1)
     | E.E0 (EndOfList _) ->
         (* Default constructor cannot be called with no-args as that would
          * not be C++ish enough: *)
@@ -718,6 +732,13 @@ struct
         let pair = print emit p l e1
         and func = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s(%s.v1, %s.v2)" func pair pair)
+    | E.E2 ((Min | Max as op), e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and op = match op with Min -> "min" | _ -> "max" in
+        let t = E.type_of l e in
+        let tn = type_identifier p t in
+        emit ?name p l e (fun oc -> pp oc "std::%s<%s>(%s, %s)" op tn n1 n2)
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->

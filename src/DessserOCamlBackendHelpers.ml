@@ -16,6 +16,8 @@ let array_of_list_rev l =
   done ;
   a
 
+let ( % ) f g x = f (g x)
+
 (*$= array_of_list_rev & ~printer:(BatIO.to_string (BatArray.print BatInt.print))
   [||] (array_of_list_rev [])
   [|1|] (array_of_list_rev [1])

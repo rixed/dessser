@@ -294,16 +294,17 @@ let e1_of_int n =
          StringOfBytes ; BytesOfString ; ListLength ; ReadByte ; DataPtrPush ;
          DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; Log10 ; Sqrt ;
          Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ;
-         SinH ; TanH ; Lower ; Upper ; Fst ; Snd |]
+         SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd |]
   in
   e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
   let e2s =
     E.[| Coalesce ; Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
-         LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
-         AppendString ; GetBit ; ReadBytes ; PeekByte ; WriteByte ; WriteBytes ;
-         PokeByte ; DataPtrAdd ; DataPtrSub ; And ; Or ; Pair ; MapPair |] in
+         Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
+         AppendString ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekByte ;
+         WriteByte ; WriteBytes ; PokeByte ; DataPtrAdd ; DataPtrSub ;
+         And ; Or ; Pair ; MapPair ; Min ; Max |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

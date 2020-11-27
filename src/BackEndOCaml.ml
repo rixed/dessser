@@ -556,6 +556,31 @@ struct
         binary_mod_op "div" e1 e2
     | E.E2 (Rem, e1, e2) ->
         binary_mod_op "rem" e1 e2
+    | E.E2 (Pow, e1, e2) ->
+        (match E.type_of l e1 with
+        | TValue { vtyp = Mac TFloat ; _ } ->
+            (* TODO: if e2 is constant and > 0 then do away with the
+             * Nullable.of_nan: *)
+            binary_op "(Nullable.of_nan % ( ** ))" e1 e2
+        | TValue { vtyp = Mac (TI32 | TI64) ; _ } as t ->
+            let n1 = print emit p l e1
+            and n2 = print emit p l e2 in
+            emit ?name p l e (fun oc ->
+              pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
+                (mod_name t) n1 n2)
+        | TValue {
+            vtyp = (Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
+                        |TI8|TI16|TI24|TI40|TI48|TI56|TI128)) ; _ } as t ->
+            (* For through floats *)
+            let m = mod_name t in
+            let n1 = print emit p l e1
+            and n2 = print emit p l e2 in
+            emit ?name p l e (fun oc ->
+              pp oc "Nullable.map %s.of_float \
+                       (Nullable.of_nan (%s.to_float %s ** %s.to_float %s))"
+                m m n1 m n2)
+        | _ ->
+            assert false (* because of type-checking *))
     | E.E2 (LogAnd, e1, e2) ->
         binary_mod_op "logand" e1 e2
     | E.E2 (LogOr, e1, e2) ->
@@ -762,6 +787,10 @@ struct
         binary_op "Slice.append" e1 e2
     | E.E2 (AppendString, e1, e2) ->
         binary_infix_op e1 "^" e2
+    | E.E2 (StartsWith, e1, e2) ->
+        binary_op "BatString.starts_with" e1 e2
+    | E.E2 (EndsWith, e1, e2) ->
+        binary_op "BatString.ends_with" e1 e2
     | E.E1 (StringLength, e1) ->
         unary_op "Uint32.of_int @@ String.length" e1
     | E.E1 (StringOfBytes, e1) ->
@@ -911,6 +940,8 @@ struct
         unary_op "String.lowercase_ascii" e1
     | E.E1 (Upper, e1) ->
         unary_op "String.uppercase_ascii" e1
+    | E.E1 (Hash, e1) ->
+        unary_op "(Uint64.of_int % Hashtbl.hash)" e1
     | E.E2 (Cons, e1, e2) ->
         binary_infix_op e1 "::" e2
     | E.E0 (EndOfList _) ->
@@ -937,6 +968,10 @@ struct
         let n1_0 = "(fst "^ n1 ^")"
         and n1_1 = "(snd "^ n1 ^")" in
         emit ?name p l e (fun oc -> pp oc "%s %s %s" n2 n1_0 n1_1)
+    | E.E2 (Min, e1, e2) ->
+        binary_op "min" e1 e2
+    | E.E2 (Max, e1, e2) ->
+        binary_op "max" e1 e2
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->

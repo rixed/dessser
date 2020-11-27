@@ -213,6 +213,7 @@ type e1 =
   | TanH
   | Lower
   | Upper
+  | Hash (* Turns anything into an u64 *)
   (* WARNING: never use Fst and Snd on the same expression or that expression
    * will be computed twice!
    * Instead, use MapPair or Let *)
@@ -249,6 +250,7 @@ type e2 =
   | Mul
   | Div
   | Rem
+  | Pow
   | LogAnd
   | LogOr
   | LogXor
@@ -257,6 +259,8 @@ type e2 =
   | AppendByte
   | AppendBytes
   | AppendString
+  | StartsWith
+  | EndsWith
   | GetBit
   | ReadBytes
   | PeekByte
@@ -270,6 +274,8 @@ type e2 =
   | Cons
   | Pair
   | MapPair (* the pair * the function2 *)
+  | Min
+  | Max
   | PeekWord of endianness
   | PeekDWord of endianness
   | PeekQWord of endianness
@@ -496,6 +502,7 @@ let string_of_e1 = function
   | TanH -> "tanh"
   | Lower -> "lower"
   | Upper -> "upper"
+  | Hash -> "hash"
   | Fst -> "fst"
   | Snd -> "snd"
   | Head -> "head"
@@ -523,6 +530,7 @@ let string_of_e2 = function
   | Mul -> "mul"
   | Div -> "div"
   | Rem -> "rem"
+  | Pow -> "pow"
   | LogAnd -> "log-and"
   | LogOr -> "log-or"
   | LogXor -> "log-xor"
@@ -531,6 +539,8 @@ let string_of_e2 = function
   | AppendByte -> "append-byte"
   | AppendBytes -> "append-bytes"
   | AppendString -> "append-string"
+  | StartsWith -> "starts-with"
+  | EndsWith -> "ends-with"
   | GetBit -> "get-bit"
   | ReadBytes -> "read-bytes"
   | PeekByte -> "peek-byte"
@@ -544,6 +554,8 @@ let string_of_e2 = function
   | Cons -> "cons"
   | Pair -> "pair"
   | MapPair -> "map-pair"
+  | Min -> "min"
+  | Max -> "max"
   | PeekWord en -> "peek-word "^ string_of_endianness en
   | PeekDWord en -> "peek-dword "^ string_of_endianness en
   | PeekQWord en -> "peek-qword "^ string_of_endianness en
@@ -1007,6 +1019,7 @@ struct
     | Lst [ Sym "tanh" ; x ] -> E1 (TanH, e x)
     | Lst [ Sym "lower" ; x ] -> E1 (Lower, e x)
     | Lst [ Sym "upper" ; x ] -> E1 (Upper, e x)
+    | Lst [ Sym "hash" ; x ] -> E1 (Hash, e x)
     | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
     | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
     | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
@@ -1038,6 +1051,7 @@ struct
     | Lst [ Sym "mul" ; x1 ; x2 ] -> E2 (Mul, e x1, e x2)
     | Lst [ Sym "div" ; x1 ; x2 ] -> E2 (Div, e x1, e x2)
     | Lst [ Sym "rem" ; x1 ; x2 ] -> E2 (Rem, e x1, e x2)
+    | Lst [ Sym "pow" ; x1 ; x2 ] -> E2 (Pow, e x1, e x2)
     | Lst [ Sym "log-and" ; x1 ; x2 ] -> E2 (LogAnd, e x1, e x2)
     | Lst [ Sym "log-or" ; x1 ; x2 ] -> E2 (LogOr, e x1, e x2)
     | Lst [ Sym "log-xor" ; x1 ; x2 ] -> E2 (LogXor, e x1, e x2)
@@ -1046,6 +1060,8 @@ struct
     | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
     | Lst [ Sym "append-bytes" ; x1 ; x2 ] -> E2 (AppendBytes, e x1, e x2)
     | Lst [ Sym "append-string" ; x1 ; x2 ] -> E2 (AppendString, e x1, e x2)
+    | Lst [ Sym "starts-with" ; x1 ; x2 ] -> E2 (StartsWith, e x1, e x2)
+    | Lst [ Sym "ends-with" ; x1 ; x2 ] -> E2 (EndsWith, e x1, e x2)
     | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
     | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
     | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
@@ -1059,6 +1075,8 @@ struct
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
     | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
     | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
+    | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
+    | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
         E2 (PeekWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "peek-dword" ; Sym en ; x1 ; x2 ] ->
@@ -1210,7 +1228,6 @@ let rec type_of l e0 =
   | E2 (Add, e, _)
   | E2 (Sub, e, _)
   | E2 (Mul, e, _)
-  | E2 (Div, e, _)
   | E2 (Rem, e, _)
   | E2 (LogAnd, e, _)
   | E2 (LogOr, e, _)
@@ -1219,6 +1236,9 @@ let rec type_of l e0 =
   | E2 (RightShift, e, _)
   | E1 (LogNot, e) ->
       type_of l e
+  | E2 (Pow, e, _) ->
+      T.to_nullable  (type_of l e)
+  | E2 (Div, _, _) -> T.float
   | E1 (ToNullable, e) ->
       T.to_nullable (type_of l e)
   | E1 (ToNotNullable, e) ->
@@ -1332,6 +1352,7 @@ let rec type_of l e0 =
   | E2 (AppendByte, _, _) -> T.bytes
   | E2 (AppendBytes, _, _) -> T.bytes
   | E2 (AppendString, _, _) -> T.string
+  | E2 ((StartsWith | EndsWith), _, _) -> T.bool
   | E1 (StringLength, _) -> T.u32
   | E1 (StringOfBytes, _) -> T.string
   | E1 (BytesOfString, _) -> T.bytes
@@ -1378,6 +1399,7 @@ let rec type_of l e0 =
   | E1 ((Log | Log10 | Sqrt), _) ->
       T.to_nullable T.float
   | E1 ((Lower | Upper), _) -> T.string
+  | E1 (Hash, _) -> T.u64
   | E1 (ToU8, _) -> T.u8
   | E1 (ToI8, _) -> T.i8
   | E1 (ToU16, _) -> T.u16
@@ -1420,6 +1442,8 @@ let rec type_of l e0 =
       (match type_of l e |> T.develop_user_types with
       | TFunction (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a function")))
+  | E2 ((Min | Max), e, _) ->
+      type_of l e
   | E0 (Identifier n) as e ->
       (try List.assoc e l
       with Not_found ->
@@ -1618,7 +1642,7 @@ let rec type_check l e =
          | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
          | Identifier _| Param _
          | CopyField | SkipField | SetFieldNull)
-    | E1 ((Comment _ | Dump | Debug | Ignore | Function _), _)
+    | E1 ((Comment _ | Dump | Debug | Ignore | Function _ | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
     | E1 (Apply, f) ->
@@ -1672,10 +1696,10 @@ let rec type_check l e =
         check_not_nullable l e
     | E1 (ToNotNullable, e) ->
         check_nullable l e
-    | E2 ((Gt | Ge | Eq | Ne), e1, e2) ->
+    | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
         check_comparable l e1 ;
         check_same_types l e1 e2
-    | E2 ((Add | Sub | Mul | Div | Rem), e1, e2) ->
+    | E2 ((Add | Sub | Mul | Div | Rem | Pow), e1, e2) ->
         check_numeric l e1 ;
         check_same_types l e1 e2
     | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
@@ -1748,7 +1772,7 @@ let rec type_check l e =
     | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.bytes
-    | E2 (AppendString, e1, e2) ->
+    | E2 ((AppendString | StartsWith | EndsWith), e1, e2) ->
         check_eq l e1 T.string ;
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
@@ -2171,6 +2195,7 @@ struct
   let mul e1 e2 = E2 (Mul, e1, e2)
   let div e1 e2 = E2 (Div, e1, e2)
   let rem e1 e2 = E2 (Rem, e1, e2)
+  let pow e1 e2 = E2 (Pow, e1, e2)
   let left_shift e1 e2 = E2 (LeftShift, e1, e2)
   let right_shift e1 e2 = E2 (RightShift, e1, e2)
   let log_and e1 e2 = E2 (LogAnd, e1, e2)
@@ -2229,6 +2254,7 @@ struct
   let tanH e1 = E1 (TanH, e1)
   let lower e1 = E1 (Lower, e1)
   let upper e1 = E1 (Upper, e1)
+  let hash e1 = E1 (Hash, e1)
   let u16_of_word e1 = E1 (U16OfWord, e1)
   let u32_of_dword e1 = E1 (U32OfDWord, e1)
   let u64_of_qword e1 = E1 (U64OfQWord, e1)
@@ -2254,6 +2280,8 @@ struct
   let get_alt s e1 = E1 (GetAlt s, e1)
   let construct mns i e1 = E1 (Construct (mns, i), e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
+  let min_ e1 e2 = E2 (Min, e1, e2)
+  let max_ e1 e2 = E2 (Max, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_list es = E0S (MakeList, es)
@@ -2264,6 +2292,8 @@ struct
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)
+  let starts_with e1 e2 = E2 (StartsWith, e1, e2)
+  let ends_with e1 e2 = E2 (EndsWith, e1, e2)
   let string_of_char e1 = E1 (StringOfChar, e1)
   let size_of_dword = size_of_u32 % u32_of_dword
   let bool_of_byte = bool_of_u8 % u8_of_byte
