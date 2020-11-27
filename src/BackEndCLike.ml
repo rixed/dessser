@@ -169,7 +169,9 @@ struct
   let find_or_declare_type _p _t =
     assert false
 
-  (* As inlined expressions may be reordered, those must all be stateless *)
+  (* As inlined expressions may be reordered, those must all be stateless.
+   * Include in here all operations that are cheap enough that it's OK to
+   * compute them several times if required *)
   let rec can_inline = function
     | E.E0 (
         Param _ | Null _ |
@@ -182,10 +184,6 @@ struct
         GetItem _ | GetField _ | GetAlt _ | IsNull | ToNullable | ToNotNullable |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
         ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
-        CharOfString | FloatOfString | U8OfString | I8OfString | U16OfString |
-        I16OfString | U24OfString | I24OfString | U32OfString | I32OfString |
-        U40OfString | I40OfString | U48OfString | I48OfString | U56OfString |
-        I56OfString | U64OfString | I64OfString | U128OfString | I128OfString |
         CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |
         U24OfPtr | I24OfPtr | U32OfPtr | I32OfPtr | U40OfPtr | I40OfPtr |
         U48OfPtr | I48OfPtr | U56OfPtr | I56OfPtr | U64OfPtr | I64OfPtr |
@@ -194,14 +192,12 @@ struct
         U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
         CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
         BoolOfU8 | LogNot | StringLength | RemSize | Not | Abs | Neg |
-        Exp | Log | Log10 | Sqrt | Ceil | Floor | Round | Cos| Sin | Tan |
-        ACos | ASin | ATan | CosH | SinH | TanH | Lower | Upper | Hash |
         Fst | Snd | Head | Tail), e1) ->
         can_inline e1
     | E2 ((
-        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Div | Rem | Pow |
-        LogAnd | LogOr | LogXor | LeftShift | RightShift | GetBit | And | Or |
-        Cons | StartsWith | EndsWith | Min | Max), e1, e2) ->
+        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Min | Max |
+        LogAnd | LogOr | LogXor | LeftShift | RightShift | GetBit | And |
+        Or), e1, e2) ->
         can_inline e1 && can_inline e2
     | _ ->
         false
