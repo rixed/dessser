@@ -11,14 +11,26 @@ exception Missing_dependencies of string list
 type print_state =
   { mutable decl : string IO.output ;
     def : string IO.output ;
+    mutable decls : string IO.output list ;
+    mutable defs : string IO.output list ;
     mutable indent : string ;
     mutable declared : Set.String.t }
 
 let make_print_state () =
   { decl = IO.output_string () ;
     def = IO.output_string () ;
+    decls = [] ;
+    defs = [] ;
     indent = "" ;
     declared = Set.String.empty }
+
+let new_top_level p f =
+  let p' = make_print_state () in
+  let res = f p' in
+  (* Merge the new defs and decls into old decls and defs: *)
+  p.defs <- p'.def :: p.defs ;
+  p.decls <- p'.decl :: p.decls ;
+  res
 
 let indent_more p f =
   let indent = p.indent in
@@ -261,23 +273,26 @@ struct
               List.map (fun (name, t) ->
                 E.E0 (Identifier name), t
               ) defined in
-            output_identifier name p l e ;
+            new_top_level p (fun p ->
+              output_identifier name p l e) ;
             let t = E.type_of l e in
             let defined = (name, t) :: defined in
             loop true defined left_overs rest
           ) in
     loop false state.external_identifiers [] identifiers ;
+    let print_ios oc =
+      List.iter (fun io -> String.print oc (IO.close_out io)) in
     Printf.fprintf oc
       "%s\n\n\
        %a\n\
-       %s\n\n\
        %a\n\n\
-       %s"
+       %a\n\n\
+       %a"
       C.source_intro
       C.print_comment "Declarations"
-      (IO.close_out p.decl)
+      print_ios p.decls
       C.print_comment "Definitions"
-      (IO.close_out p.def)
+      print_ios p.defs
 
   let print_definitions state oc =
     print_source define state oc

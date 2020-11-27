@@ -972,6 +972,73 @@ struct
         binary_op "min" e1 e2
     | E.E2 (Max, e1, e2) ->
         binary_op "max" e1 e2
+    | E.E2 (Member, e1, e2) ->
+        let n1 = print emit p l e1 in
+        (* If there are plenty of constants it is worth it to build a constant
+         * hashtable with all of them: *)
+        (* TODO: actually, should count as constant any expression that can be
+         * computed from constants or other expressions in that set *)
+        let rec split_csts csts non_csts = function
+          | [] -> csts, non_csts
+          | e :: es ->
+              let csts, non_csts =
+                if E.can_precompute [] [] e then
+                  (e :: csts), non_csts
+                else
+                  csts, (e :: non_csts) in
+              split_csts csts non_csts es in
+        (* A word about nullability of the elements of the vector:
+         * We are going to emit code such as "A=x1||A=x2" in lieu of
+         * "A IN [x1; x2]". Notice that nulls do not propagate from the xs in
+         * case A is found in the set, but do if it is not; Indeed, "1 IN
+         * [1;NULL]" is true but "2 IN [1;NULL]" is NULL. If A is NULL though,
+         * then the result is NULL unless the set is empty: "NULL in [1; 2]" is
+         * NULL, but "NULL in []" is false. *)
+        (match e2 with
+        | E0S ((MakeVec | MakeList), []) ->
+            "false"
+        | E0S ((MakeVec | MakeList), es) ->
+            let csts, non_csts = split_csts [] [] es in
+            (* Given a list of constant expressions, build a function that check
+             * membership in this set: *)
+            let check_csts_n =
+              (* Temporarily, enter new definitions at the top-level: *)
+              new_top_level p (fun p ->
+                let check_csts_n = gen_sym "check_csts_" in
+                pp p.def "let %s =" check_csts_n ;
+                indent_more p (fun () ->
+                  let ns =
+                    List.map (fun e ->
+                      print emit p [] e
+                    ) csts in
+                  ppi p.def "fun x_ ->" ;
+                  indent_more p (fun () ->
+                    if csts = [] then (
+                      String.print p.def "false"
+                    ) else if List.length csts < 6 (* guessed *) then (
+                      List.print ~first:"" ~last:"" ~sep:" || "
+                        (fun oc n -> Printf.fprintf oc "x_ = %s" n) p.def ns
+                    ) else (
+                      (* TODO: if the csts are nullable filter out the Null and
+                       * make this a list of non nullable values: *)
+                      ppi p.def "let h_ = Hashtbl.of_list %a in"
+                        (List.print String.print) ns ;
+                      ppi p.def "Hashtbl.mem h_ x_"
+                    )) ;
+                  check_csts_n)) in
+            emit ?name p l e (fun oc ->
+              if non_csts = [] then (
+                pp oc "%s x_" check_csts_n
+              ) else (
+                (* FIXME: nullability of non_csts *)
+                let ns = List.map (print emit p l) non_csts in
+                pp oc "let x_ = %s in" n1 ;
+                pp oc "%s x_ || %a"
+                  check_csts_n
+                  (List.print ~first:"" ~last:"" ~sep:" || "
+                     (fun oc n -> Printf.fprintf oc "x_ = %s" n)) ns
+              ))
+        | _ -> assert false (* because of type-checking *))
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->

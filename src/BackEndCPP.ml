@@ -739,6 +739,12 @@ struct
         let t = E.type_of l e in
         let tn = type_identifier p t in
         emit ?name p l e (fun oc -> pp oc "std::%s<%s>(%s, %s)" op tn n1 n2)
+    | E.E2 (Member, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "std::end(%s) != std::find(std::begin(%s), std::end(%s), %s)"
+            n2 n2 n2 n1)
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->

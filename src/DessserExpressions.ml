@@ -26,7 +26,10 @@ let endianness_of_string = function
   | en -> invalid_arg ("endianness_of_string "^ en)
 
 type e0 =
-  | Param of (*function id*) int * (*param no*) int
+  | Param of (* function id *) int * (* param no *) int
+  (* Identifier are set with `Let` expressions, or obtained from the code
+   * generators in exchange for an expression: *)
+  | Identifier of string
   | Null of T.value_type
   | EndOfList of T.t
   | Now
@@ -63,9 +66,6 @@ type e0 =
   | Bytes of Bytes.t
   | DataPtrOfString of string
   | DataPtrOfBuffer of int
-  (* Identifier are set with `Let` expressions, or obtained from the code
-   * generators in exchange for an expression: *)
-  | Identifier of string
   (* Constant mask actions: *)
   | CopyField
   | SkipField
@@ -86,7 +86,8 @@ type e1 =
   | GetItem of int (* for tuples *)
   | GetField of string (* For records *)
   | GetAlt of string (* Destruct a sum type *)
-  | Construct of (string * T.maybe_nullable) array * int (* Construct sum types *)
+  | Construct of (string * T.maybe_nullable) array (* type of the resulting sum *)
+               * int (* Which alternative is constructed *)
   | Dump
   | Debug
   | Ignore
@@ -276,6 +277,7 @@ type e2 =
   | MapPair (* the pair * the function2 *)
   | Min
   | Max
+  | Member (* membership test - not for CIDRs nor strings *)
   | PeekWord of endianness
   | PeekDWord of endianness
   | PeekQWord of endianness
@@ -355,6 +357,65 @@ and expr_eq e1 e2 =
   | E4 (op1, e11, e12, e13, e14), E4 (op2, e21, e22, e23, e24) ->
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
+
+(* Note re. Apply: even if the function can be precomputed (which it usually
+ * can) and its parameters as well, the application can be precomputed only
+ * if the function body can in a context where the parameters can.
+ * Here, p is a list of parameters (function id) that can be precomputed
+ * and i a set of identifiers (names) that can. *)
+let rec can_precompute l i = function
+  | E0 (Now | Random) ->
+      false
+  | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
+       | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
+       | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
+       | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
+       | CopyField | SkipField | SetFieldNull) ->
+      true
+  | E0 (Param (fid, _)) ->
+      List.mem fid l
+  | E0 (Identifier n) ->
+      List.mem n i
+  | E0S (_, es) ->
+      List.for_all (can_precompute l i) es
+  | E1 (Apply, e) ->
+      can_precompute l i e
+  | E1 (Function _, body) ->
+      can_precompute l i body
+  | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _
+       | MaskEnter _), _) ->
+      false
+  | E1 (_, e) -> can_precompute l i e
+  | E2 (Apply, E1 (Function (fid, _), body), e2) ->
+      can_precompute l i e2 &&
+      can_precompute (fid :: l) i body
+  | E2 (Apply, _, _) -> false
+  | E2 (Let n, e1, e2) ->
+      can_precompute l i e1 &&
+      can_precompute l (n :: i) e2
+  | E2 (MapPair, _, _) ->
+      false (* TODO *)
+  | E2 (_, e1, e2) ->
+      can_precompute l i e1 &&
+      can_precompute l i e2
+  | E3 (Apply, E1 (Function (fid, _), body), e2, e3) ->
+      can_precompute l i e2 &&
+      can_precompute l i e3 &&
+      can_precompute (fid :: l) i body
+  | E3 (Apply, _, _, _) -> false
+  | E3 ((LoopWhile | LoopUntil), _, _, _) ->
+      false (* TODO *)
+  | E3 (_, e1, e2, e3) ->
+      can_precompute l i e1 &&
+      can_precompute l i e2 &&
+      can_precompute l i e3
+  | E4 (Apply, E1 (Function (fid, _), body), e2, e3, e4) ->
+      can_precompute l i e2 &&
+      can_precompute l i e3 &&
+      can_precompute l i e4 &&
+      can_precompute (fid :: l) i body
+  | E4 ((Apply | ReadWhile | Repeat), _, _, _, _) -> false
 
 let is_const_null = function
   | E0 (Null _) -> true
@@ -556,6 +617,7 @@ let string_of_e2 = function
   | MapPair -> "map-pair"
   | Min -> "min"
   | Max -> "max"
+  | Member -> "mem"
   | PeekWord en -> "peek-word "^ string_of_endianness en
   | PeekDWord en -> "peek-dword "^ string_of_endianness en
   | PeekQWord en -> "peek-qword "^ string_of_endianness en
@@ -1077,6 +1139,7 @@ struct
     | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
+    | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
     | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
         E2 (PeekWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "peek-dword" ; Sym en ; x1 ; x2 ] ->
@@ -1444,6 +1507,7 @@ let rec type_of l e0 =
       | t -> raise (Type_error (e0, e, t, "be a function")))
   | E2 ((Min | Max), e, _) ->
       type_of l e
+  | E2 (Member, _, _) -> T.bool
   | E0 (Identifier n) as e ->
       (try List.assoc e l
       with Not_found ->
@@ -1702,6 +1766,11 @@ let rec type_check l e =
     | E2 ((Add | Sub | Mul | Div | Rem | Pow), e1, e2) ->
         check_numeric l e1 ;
         check_same_types l e1 e2
+    | E2 (Member, e1, e2) ->
+        (match type_of l e2 |> T.develop_user_types with
+        | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } ->
+            check_eq l e1 (T.TValue t)
+        | t -> raise (Type_error (e0, e, t, "be a vector or list")))
     | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
         check_integer l e1 ;
         check_same_types l e1 e2
@@ -2282,6 +2351,7 @@ struct
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let min_ e1 e2 = E2 (Min, e1, e2)
   let max_ e1 e2 = E2 (Max, e1, e2)
+  let mem_ e1 e2 = E2 (Member, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_list es = E0S (MakeList, es)
