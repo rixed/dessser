@@ -294,6 +294,7 @@ type e3 =
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
+  | Fold (* args are: init, function, list *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
   | DataPtrOfPtr
@@ -404,7 +405,7 @@ let rec can_precompute l i = function
       can_precompute l i e3 &&
       can_precompute (fid :: l) i body
   | E3 (Apply, _, _, _) -> false
-  | E3 ((LoopWhile | LoopUntil), _, _, _) ->
+  | E3 ((LoopWhile | LoopUntil | Fold), _, _, _) ->
       false (* TODO *)
   | E3 (_, e1, e2, e3) ->
       can_precompute l i e1 &&
@@ -634,6 +635,7 @@ let string_of_e3 = function
   | If -> "if"
   | LoopWhile -> "loop-while"
   | LoopUntil -> "loop-until"
+  | Fold -> "fold"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
 
 let string_of_e4 = function
@@ -1162,6 +1164,7 @@ struct
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
     | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
     | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
+    | Lst [ Sym "fold" ; x1 ; x2 ; x3 ] -> E3 (Fold, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
     (* e4 *)
@@ -1531,8 +1534,9 @@ let rec type_of l e0 =
           failwith)
   | E3 (If, _, e, _) -> type_of l e
   | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
-  | E3 (LoopWhile, _, _, e) -> type_of l e
-  | E3 (LoopUntil, _, _, e) -> type_of l e
+  | E3 (LoopWhile, _, _, e)
+  | E3 (LoopUntil, _, _, e)
+  | E3 (Fold, e, _, _)
   | E4 (Repeat, _, _, _, e) -> type_of l e
   | E1 (MaskGet _, _) -> T.mask_action
   | E1 (MaskEnter _, _) -> T.mask
@@ -1641,10 +1645,13 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | TValue { vtyp = TList _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a list")) in
-    let check_list_or_vector l e =
+    (* Return the element type or fail: *)
+    let get_item_type l e =
       match type_of l e |> T.develop_user_types with
-      | TValue { vtyp = (TVec _ | TList _) ; nullable = false } -> ()
+      | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } -> t
       | t -> raise (Type_error (e0, e, t, "be a vector or list")) in
+    let check_list_or_vector l e =
+      ignore (get_item_type l e) in
     let check_slist l e =
       match type_of l e |> T.develop_user_types with
       | TSList _ -> ()
@@ -1952,6 +1959,14 @@ let rec type_check l e =
         check_params1 l e2 (fun t1 t2 ->
           check_eq l e3 t1 ;
           check_param e2 1 t2 T.bool) ;
+    | E3 (Fold, e1, e2, e3) ->
+        (* FOld function first parameter is the result and second is the list
+         * item *)
+        let item_t = T.TValue (get_item_type l e3) in
+        check_params2 l e2 (fun p1 p2 ret ->
+          check_eq l e1 p1 ;
+          check_eq l e1 ret ;
+          check_param e2 1 p2 item_t)
     | E4 (Repeat, e1 (*from*), e2 (*to*), e3 (*idx->'a->'a*), e4 (*'a*)) ->
         check_eq l e1 T.i32 ;
         check_eq l e2 T.i32 ;
@@ -2294,6 +2309,7 @@ struct
   let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
   let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
   let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
+  let fold ~init ~body ~lst = E3 (Fold, init, body, lst)
   let pair e1 e2 = E2 (Pair, e1, e2)
   let first e1 = E1 (Fst, e1)
   let secnd e1 = E1 (Snd, e1)

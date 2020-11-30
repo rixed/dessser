@@ -1131,6 +1131,14 @@ struct
               ppi oc "let accum = %s accum in" body ;
               ppi oc "if %s accum then loop_until accum else accum in" cond) ;
             pp oc "%sloop_until %s" p.indent accum))
+    | E.E3 (Fold, e1, e2, e3) ->
+        let init = print emit p l e1
+        and body = print emit p l e2
+        and lst = print emit p l e3 in
+        (* Both lists and vectors are represented by arrays so Array.fold_left
+         * will do in both cases: *)
+        emit ?name p l e (fun oc ->
+          ppi oc "Array.fold_left %s %s %s" init body lst)
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2

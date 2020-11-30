@@ -308,7 +308,7 @@ let e2_of_int n =
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
-  let e3s = E.[| SetBit ; BlitByte ; If ; LoopWhile ; LoopUntil |] in
+  let e3s = E.[| SetBit ; BlitByte ; If ; LoopWhile ; LoopUntil ; Fold |] in
   e3s.(n mod Array.length e3s)
 
 let e4_of_int n =

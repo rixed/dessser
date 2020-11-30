@@ -842,6 +842,23 @@ struct
           ppi p.def "%s = %s(%s);" res body res) ;
         ppi p.def "} while (%s(%s));" cond res ;
         res
+    | E.E3 (Fold, e1, e2, e3) ->
+        let init = print emit p l e1
+        and body = print emit p l e2
+        and lst = print emit p l e3 in
+        let res = gen_sym ?name "fold_res_" in
+        let t1 = E.type_of l e1 in
+        let item_t =
+          match E.type_of l e3 |> T.develop_user_types with
+          | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } -> t
+          | _ -> assert false (* because of type checking *) in
+        ppi p.def "%s %s { %s };" (type_identifier p t1) res init ;
+        ppi p.def "for (%s x_ : %s) {"
+          (type_identifier p (T.TValue item_t)) lst ;
+        indent_more p (fun () ->
+          ppi p.def "%s = %s(%s, x_);" res body res) ;
+        ppi p.def "}" ;
+        res
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2
