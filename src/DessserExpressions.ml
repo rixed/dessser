@@ -31,7 +31,7 @@ type e0 =
    * generators in exchange for an expression: *)
   | Identifier of string
   | Null of T.value_type
-  | EndOfList of T.t
+  | EndOfList of T.t (* T.t being the type of list items *)
   | Now
   | Random
   | Float of float
@@ -877,7 +877,7 @@ struct
         E0 (Param (int_of_string fid, int_of_string n))
     | Lst [ Sym "null" ; Str s] ->
         E0 (Null ((T.maybe_nullable_of_string s).vtyp))
-    | Lst [ Sym "end-of-list" ; Str vt ] ->
+    | Lst [ Sym ("end-of-list" | "eol") ; Str vt ] ->
         E0 (EndOfList (T.Parser.of_string vt))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "rand" ] -> E0 Random

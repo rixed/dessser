@@ -231,7 +231,7 @@ struct
         and n4 = print emit p l e4 in
         emit ?name p l e (fun oc -> pp oc "%s(%s, %s, %s)" n1 n2 n3 n4)
     | E.E1 (Comment c, e1) ->
-        pp p.def "%s/* %s */\n" p.indent c ;
+        ppi p.def "/* %s */" c ;
         print ?name emit p l e1
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "" es
@@ -256,11 +256,11 @@ struct
               Printf.fprintf oc ".%s = %s" name n) oc inits)
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
-        pp p.def "%s(void)%s;\n" p.indent n ;
+        ppi p.def "(void)%s;" n ;
         ""
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
-        pp p.def "%sstd::cout << %s;\n" p.indent n ;
+        ppi p.def "std::cout << %s;" n ;
         ""
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
@@ -434,29 +434,28 @@ struct
         emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
     | E.E1 (FloatOfPtr, e1) ->
         let n = print emit p l e1 in
-        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
-          p.indent n n ;
+        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+          n n ;
         (* Nice but not supported yet on ordinary g++/clang:
-        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
-          p.indent n n ;
-        pp p.def "%sdouble val_ { 0. /* don't warn */ };\n" p.indent ;
-        pp p.def "%sbool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
-                    (*start_ == 'x' || *start_ == 'X') };\n"
-          p.indent ;
-        pp p.def "%sif (is_hex_) start_ += 2;\n" p.indent ;
-        pp p.def "%sstruct std::from_chars_result res_ = \
+        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+          n n ;
+        ppi p.def "double val_ { 0. /* don't warn */ };" ;
+        ppi p.def "bool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
+                    (*start_ == 'x' || *start_ == 'X') };"
+          ;
+        ppi p.def "if (is_hex_) start_ += 2;" ;
+        ppi p.def "struct std::from_chars_result res_ = \
                     std::from_chars(\
                       start_ + (is_hex_ ? 2 : 0), stop_, val_, \
                       is_hex_ ? std::chars_format::hex : \
-                                std::chars_format::general);\n"
-          p.indent ;
+                                std::chars_format::general);" ;
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(res_.ptr - start_)" n)
         *)
-        pp p.def "%schar *end_;\n" p.indent ;
+        ppi p.def "char *end_;" ;
         (* This assumes there will always be a non-digit at the end to prevent
          * strtod to read past the end of the buffer: *)
-        pp p.def "%sdouble const val_ = strtod(start_, &end_);\n" p.indent ;
+        ppi p.def "double const val_ = strtod(start_, &end_);" ;
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(end_ - start_)" n)
     | E.E1 ((U8OfPtr | U16OfPtr | U24OfPtr | U32OfPtr | U40OfPtr |
@@ -465,36 +464,33 @@ struct
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
-        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
-          p.indent n n ;
-        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
-          p.indent n n ;
-        pp p.def "%sstruct std::from_chars_result res_ = \
-                    std::from_chars(start_, stop_, val_);\n" p.indent ;
+        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+          n n ;
+        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+          n n ;
+        ppi p.def "struct std::from_chars_result res_ = \
+                    std::from_chars(start_, stop_, val_);" ;
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(res_.ptr - start_)" n)
     | E.E1 (U128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
-        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
-          p.indent n n ;
-        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
-          p.indent n n ;
-        pp p.def "%ssize_t count_ = u128_from_chars(start_, stop_, &val_);\n"
-          p.indent ;
+        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+          n n ;
+        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };" n n ;
+        ppi p.def "size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (I128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        pp p.def "%s%s val_ { 0 /* don't warn */ };\n" p.indent tn ;
-        pp p.def "%schar const *start_ { (char *)%s.buffer.get() + %s.offset };\n"
-          p.indent n n ;
-        pp p.def "%schar const *stop_ { (char *)%s.buffer.get() + %s.size };\n"
-          p.indent n n ;
-        pp p.def "%ssize_t count_ = i128_from_chars(start_, stop_, &val_);\n"
-          p.indent ;
+        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+          n n ;
+        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+          n n ;
+        ppi p.def "size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
         unary_func "floatOfQword" e1
@@ -796,7 +792,7 @@ struct
         indent_more p (fun () ->
           let n = print emit p l e3 in
           ppi p.def "%s = %s;" res n) ;
-        pp p.def "%s}\n" p.indent ;
+        ppi p.def "}" ;
         res
     | E.E4 (ReadWhile, e1, e2, e3, e4) ->
         let cond = print emit p l e1
@@ -820,7 +816,7 @@ struct
               ppi p.def "%s = %s.skip(1);" ptr ptr) ;
             ppi p.def "} else break;") ;
           ppi p.def "}") ;
-        pp p.def "%s}\n" p.indent ;
+        ppi p.def "}" ;
         emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | E.E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
@@ -828,11 +824,11 @@ struct
         and accum = print emit p l e3 in
         let res = gen_sym ?name "while_res_" in
         let t3 = E.type_of l e3 in
-        ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
+        ppi p.def "%s %s { %s };" (type_identifier p t3) res accum ;
         ppi p.def "while (%s(%s)) {" cond res ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        pp p.def "%s}\n" p.indent ;
+        ppi p.def "}" ;
         res
     | E.E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
@@ -840,11 +836,11 @@ struct
         and accum = print emit p l e3 in
         let res = gen_sym ?name "until_res_" in
         let t3 = E.type_of l e3 in
-        ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
+        ppi p.def "%s %s { %s };" (type_identifier p t3) res accum ;
         ppi p.def "do {" ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(%s);" res body res) ;
-        pp p.def "%s} while (%s(%s));\n" p.indent cond res ;
+        ppi p.def "} while (%s(%s));" cond res ;
         res
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
@@ -853,11 +849,11 @@ struct
         and accum = print emit p l e4 in
         let res = gen_sym ?name "repeat_res_" in
         let t4 = E.type_of l e4 in
-        ppi p.def "%s %s(%s);" (type_identifier p t4) res accum ;
+        ppi p.def "%s %s { %s };" (type_identifier p t4) res accum ;
         ppi p.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
         indent_more p (fun () ->
           ppi p.def "%s = %s(idx_, %s);" res body res) ;
-        pp p.def "%s}\n" p.indent ;
+        ppi p.def "}" ;
         res
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
