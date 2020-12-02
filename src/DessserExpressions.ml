@@ -877,10 +877,10 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
-    | Lst [ Sym "null" ; Str s] ->
-        E0 (Null ((T.maybe_nullable_of_string s).vtyp))
-    | Lst [ Sym ("end-of-list" | "eol") ; Str vt ] ->
-        E0 (EndOfList (T.Parser.of_string vt))
+    | Lst [ Sym "null" ; Str vt ] ->
+        E0 (Null (T.value_type_of_string vt))
+    | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
+        E0 (EndOfList (T.Parser.of_string t))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "rand" ] -> E0 Random
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
@@ -952,17 +952,17 @@ struct
         E1 (GetField s, e x)
     | Lst [ Sym "get-alt" ; Str s ; x ] ->
         E1 (GetAlt s, e x)
-    | Lst [ Sym "construct" ; Str s ; Sym i ; x ] ->
+    | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] ->
         let i = int_of_string i in
-        (match T.maybe_nullable_of_string s with
+        (match T.maybe_nullable_of_string mn with
         | { vtyp = TSum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
             if i > max_lbl then
-              Printf.sprintf "Sum type %S has no label %d" s i |>
+              Printf.sprintf "Sum type %S has no label %d" mn i |>
               failwith ;
             E1 (Construct (mns, i), e x)
         | _ ->
-            Printf.sprintf2 "Not a sum type: %S" s |>
+            Printf.sprintf2 "Not a sum type: %S" mn |>
             failwith)
     | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
     | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
@@ -2221,6 +2221,7 @@ struct
   let size_of_u32 e1 = E1 (SizeOfU32, e1)
   let null vt = E0 (Null vt)
   let eol t = E0 (EndOfList t)
+  let end_of_list t = E0 (EndOfList t)
   let now = E0 Now
   let rand = E0 Random
   let bit n = E0 (Bit n)
@@ -2310,7 +2311,6 @@ struct
   let first e1 = E1 (Fst, e1)
   let secnd e1 = E1 (Snd, e1)
   let cons e1 e2 = E2 (Cons, e1, e2)
-  let end_of_list t = E0 (EndOfList t)
   let head e1 = E1 (Head, e1)
   let tail e1 = E1 (Tail, e1)
   let size_of_u32 e1 = E1 (SizeOfU32, e1)

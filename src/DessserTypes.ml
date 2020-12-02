@@ -98,10 +98,12 @@ let sorted_rec fields =
   Array.sort cmp_nv fields ;
   fields
 
+let mac_type_eq mt1 mt2 = mt1 = mt2
+
 let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
   | Mac mt1, Mac mt2 ->
-      mt1 = mt2
+      mac_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
   | TVec (d1, mn1), TVec (d2, mn2) ->
@@ -542,7 +544,7 @@ struct
     and list_dim m =
       let m = "list type" :: m in
       (
-         char '[' -- opt_blanks -- char ']' -+
+        char '[' -- opt_blanks -- char ']' -+
         opt_question_mark >>: fun n ->
           ListDim, n
       ) m
@@ -643,6 +645,14 @@ struct
         fun (ts, nullable) ->
           (* TODO: check that all constructors are case insensitively distinct *)
           make ~nullable (TSum (Array.of_list ts))
+    ) m
+
+  let value_type m =
+    let m = "value type" :: m in
+    (
+      maybe_nullable >>: fun mn ->
+        if mn.nullable then raise (Reject "must not be nullable") ;
+        mn.vtyp
     ) m
 
   let string_parser ?what ~print p =
@@ -781,6 +791,10 @@ end
 let maybe_nullable_of_string ?what =
   let print = print_maybe_nullable in
   Parser.(string_parser ~print ?what maybe_nullable)
+
+let value_type_of_string ?what =
+  let print = print_value_type in
+  Parser.(string_parser ~print ?what value_type)
 
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =

@@ -162,7 +162,7 @@ let shrink_mac_type mt =
         TI32 ; TU32 ; TI24 ; TU24 ; TI16 ; TU16 ; TI8 ; TU8 ; TChar ; TBool ] in
   let rec loop = function
     | [] -> Iter.empty
-    | mt'::rest when mt' = mt ->
+    | mt'::rest when T.mac_type_eq mt' mt ->
         if rest = [] then Iter.empty else Iter.of_list rest
     | _::rest ->
         loop rest in
