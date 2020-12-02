@@ -75,7 +75,7 @@ type e0s =
   | Seq
   (* Data constructors: *)
   | MakeVec
-  | MakeList
+  | MakeList of T.maybe_nullable
   | MakeTup
   | MakeRec
 
@@ -427,7 +427,7 @@ let string_of_path = IO.to_string T.print_path
 let string_of_e0s =function
   | Seq -> "seq"
   | MakeVec -> "make-vec"
-  | MakeList -> "make-list"
+  | MakeList mn -> "make-list "^ String.quote (T.string_of_maybe_nullable mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
 
@@ -923,7 +923,8 @@ struct
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
-    | Lst (Sym "make-list" :: xs) -> E0S (MakeList, List.map e xs)
+    | Lst (Sym "make-list" :: Str mn :: xs) ->
+        E0S (MakeList (T.maybe_nullable_of_string mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     (* e1 *)
@@ -1236,10 +1237,8 @@ let rec type_of l e0 =
       raise (Struct_error (e0, "vector dimension must be > 1"))
   | E0S (MakeVec, (e0::_ as es)) ->
       TValue (T.make (TVec (List.length es, maybe_nullable_of l e0)))
-  | E0S (MakeList, []) ->
-      raise (Struct_error (e0, "list length must be > 0"))
-  | E0S (MakeList, e0::_) ->
-      TValue (T.make (TList (maybe_nullable_of l e0)))
+  | E0S (MakeList mn, _) ->
+      TValue mn
   | E0S (MakeTup, es) ->
       TValue (T.make (TTup (List.map (maybe_nullable_of l) es |>
                                  Array.of_list)))
@@ -1734,11 +1733,8 @@ let rec type_check l e =
     | E0S (MakeVec, e1 :: e2s) ->
         check_maybe_nullable l e1 ;
         check_all_same_types l e1 e2s
-    | E0S (MakeList, []) ->
-        raise (Struct_error (e0, "list length must be > 0"))
-    | E0S (MakeList, e1 :: e2s) ->
-        check_maybe_nullable l e1 ;
-        check_all_same_types l e1 e2s
+    | E0S (MakeList mn, e1s) ->
+        List.iter (fun e1 -> check_eq l e1 (TValue mn)) e1s
     | E0S (MakeTup, es) ->
         if List.compare_length_with es 2 < 0 then
           raise (Struct_error (e0, "tuple dimension must be ≥ 2")) ;
@@ -2370,7 +2366,7 @@ struct
   let mem_ e1 e2 = E2 (Member, e1, e2)
   let seq es = E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
-  let make_list es = E0S (MakeList, es)
+  let make_list mn es = E0S (MakeList mn, es)
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let make_tup es = E0S (MakeTup, es)

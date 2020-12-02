@@ -235,7 +235,7 @@ struct
         print ?name emit p l e1
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "" es
-    | E.E0S ((MakeVec | MakeList | MakeTup), es) ->
+    | E.E0S ((MakeVec | MakeList _ | MakeTup), es) ->
         let inits = List.map (print emit p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)

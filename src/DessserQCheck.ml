@@ -142,7 +142,7 @@ let maybe_nullable_gen =
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
   | T.Mac _ | T.Usr _ -> 1
-  | T.TVec (_, mn) | T.TList mn -> size_of_maybe_nullable mn
+  | T.TVec (_, mn) | T.TList mn -> 1 + size_of_maybe_nullable mn
   | T.TTup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
   | T.TRec mns ->
@@ -372,7 +372,8 @@ and e0s_gen l depth =
   let lst = [
     1, map E.Ops.seq (tiny_list expr) ;
     1, map E.Ops.make_vec (tiny_list expr) ;
-    1, map E.Ops.make_list (tiny_list expr) ;
+    1, map2 E.Ops.make_list (maybe_nullable_gen_of_depth (depth - 1))
+                            (tiny_list expr) ;
     1, map E.Ops.make_tup (tiny_list expr) ;
     1, map E.Ops.make_rec (tiny_list expr) ;
   ] in
