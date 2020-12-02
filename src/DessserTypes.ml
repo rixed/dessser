@@ -67,9 +67,9 @@ let maken = make ~nullable:true
 
 let rec depth ?(opaque_user_type=false) = function
   | Unknown -> invalid_arg "depth"
-  | Mac _ -> 1
+  | Mac _ -> 0
   | Usr { def ; _ } ->
-      if opaque_user_type then 1 else depth ~opaque_user_type def
+      if opaque_user_type then 0 else depth ~opaque_user_type def
   | TVec (_, mn) | TList mn ->
       1 + depth ~opaque_user_type mn.vtyp
   | TTup mns ->
@@ -84,8 +84,8 @@ let rec depth ?(opaque_user_type=false) = function
       1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
 
 (*$= depth & ~printer:string_of_int
-  1 (depth (Mac TU8))
-  3 (depth (TTup [| make (Mac TU8) ; make (TList (make (Mac TU8))) |]))
+  0 (depth (Mac TU8))
+  2 (depth (TTup [| make (Mac TU8) ; make (TList (make (Mac TU8))) |]))
 *)
 
 (* In many occasions we want the items of a record to be deterministically

@@ -97,8 +97,8 @@ let user_type_gen =
 
 let rec value_type_gen depth =
   let open Gen in
-  assert (depth > 0) ;
-  if depth = 1 then
+  assert (depth >= 0) ;
+  if depth = 0 then
     frequency
       (* User types are always considered opaque: *)
       [ 1, map (fun ut -> T.Usr ut) user_type_gen ;
@@ -120,7 +120,7 @@ and maybe_nullable_gen_of_depth depth =
   ) Gen.bool (value_type_gen depth)
 
 (*$Q maybe_nullable_gen_of_depth
-  (Q.int_range 1 10) (fun d -> \
+  (Q.int_range 0 9) (fun d -> \
     let mn = Q.Gen.generate1 (maybe_nullable_gen_of_depth d) in \
     let dep = T.depth ~opaque_user_type:true mn.T.vtyp in \
     if d <> dep then \
@@ -131,13 +131,13 @@ and maybe_nullable_gen_of_depth depth =
 
 let value_type_gen =
   Gen.(frequency
-    [ 6, value_type_gen 1 ;
+    [ 6, value_type_gen 0 ;
+      2, value_type_gen 1 ;
       2, value_type_gen 2 ;
-      2, value_type_gen 3 ;
-      1, value_type_gen 4 ])
+      1, value_type_gen 3 ])
 
 let maybe_nullable_gen =
-  Gen.(sized_size (int_range 1 4) maybe_nullable_gen_of_depth)
+  Gen.(sized_size (int_range 0 3) maybe_nullable_gen_of_depth)
 
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
@@ -316,6 +316,7 @@ let e4_of_int n =
   e4s.(n mod Array.length e4s)
 
 let rec e0_gen l depth =
+  assert (depth >= 0) ;
   let open Gen in
   let lst = [
     1, map null value_type_gen ;
@@ -367,6 +368,7 @@ let rec e0_gen l depth =
   frequency lst
 
 and e0s_gen l depth =
+  assert (depth > 0) ;
   let open Gen in
   let expr = expression_gen (l, depth - 1) in
   let lst = [
@@ -403,6 +405,7 @@ and pick_from_env l depth f =
     expression_gen (l, depth)
 
 and e1_gen l depth =
+  assert (depth >= 0) ;
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   frequency [
@@ -477,7 +480,7 @@ and expression_gen (l, depth) =
   ) (l, depth)
 
 let expression_gen =
-  Gen.(sized_size (int_bound 4) (fun n -> expression_gen ([], n)))
+  Gen.(sized_size (int_bound 3) (fun n -> expression_gen ([], n)))
 
 let size_of_expression e =
   E.fold 0 [] (fun n _ _ -> succ n) e
