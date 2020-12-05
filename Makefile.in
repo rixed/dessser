@@ -263,14 +263,14 @@ cpp-check: src/cpp_tests
 	src/cpp_tests
 
 testdb-dump: src/dessserc
-	src/dessserc --input-enc ringbuf --output-enc s-expr \
-	             --language=OCaml --target=dump \
-	             --value-schema string --key-schema u32 -o $@
+	src/dessserc lmdb-dump --input-enc ringbuf --output-enc s-expr \
+	                       --language=OCaml \
+	                       --value-schema string --key-schema u32 -o $@
 
 testdb-load: src/dessserc
-	src/dessserc --input-enc s-expr --output-enc ringbuf \
-	             --language=OCaml --target=load \
-	             --value-schema string --key-schema u32 -o $@
+	src/dessserc lmdb-load --input-enc s-expr --output-enc ringbuf \
+	                       --language=OCaml \
+	                       --value-schema string --key-schema u32 -o $@
 
 dump-load-check: testdb-dump testdb-load testdb.dump
 	@ENVNAME=/tmp/testdb ;\
@@ -286,9 +286,9 @@ convert-check: src/dessserc
 	 ok=yes; \
 	 for be in OCaml C++; do \
 	   f="$$(tempfile --prefix=dessser_convert_check_)" &&\
-	   src/dessserc \
+	   src/dessserc converter \
 	     --input-enc s-expr --output-enc s-expr -o "$$f" \
-	     --target=converter --language=$$be --schema="$$schema" \
+	     --language=$$be --schema="$$schema" \
 	     -e '/0:(fun 0 "i32" (add (i32 1) (param 0 0)))' \
 	     -e '/1:(fun 0 "float" (add (float 0.5) (param 0 0)))' \
 	     -e '/2:(fun 0 "string" (upper (param 0 0)))'; \

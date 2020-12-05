@@ -1,11 +1,4 @@
-(* Examples:
- *
- *   dessser --schema (FILE|TYPE) --in ENCODING --out ENCODING \
- *           --target libs|file-converter|dump-lmdb|load-lmdb|query-lmdb \
- *           [--language ocaml|c++]
- *
- * In case only a lib is generated, then also include converters from/to
- * heapvalues. *)
+(* Tool to generate various piece of code to manipulate data *)
 open Batteries
 open Dessser
 open DessserTools
@@ -22,25 +15,36 @@ let debug = true
  * Code generators
  *)
 
-let check_no_key_schema = function
-  | None -> ()
-  | Some _ ->
-      failwith "--key-schema makes no sense here"
+type backends = DIL | Cpp | OCaml
 
-let check_key_schema = function
-  | None ->
-      failwith "--key-schema is required"
-  | Some s -> s
+let module_of_backend = function
+  | DIL -> (module BackEndDIL : BACKEND)
+  | Cpp -> (module BackEndCPP : BACKEND)
+  | OCaml -> (module BackEndOCaml : BACKEND)
+
+(* cmdliner must be given enum values that are comparable, therefore not
+ * functions: *)
+type encodings = Null | RowBinary | SExpr | RingBuff
+
+let des_of_encoding = function
+  | RingBuff -> (module RamenRingBuffer.Des : DES)
+  | RowBinary -> (module RowBinary.Des : DES)
+  | SExpr -> (module SExpr.Des : DES)
+  | _ -> failwith "No desserializer for that encoding"
+
+let ser_of_encoding = function
+  | Null -> (module DevNull.Ser : SER)
+  | RingBuff -> (module RamenRingBuffer.Ser : SER)
+  | RowBinary -> (module RowBinary.Ser : SER)
+  | SExpr -> (module SExpr.Ser : SER)
 
 (* Generate just the code to convert from in to out and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let target_lib
-      key_schema schema backend encoding_in encoding_out _fieldmask
-      _modifier_expr dest_fname =
-  check_no_key_schema key_schema ;
+let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
+  let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
-  let module Des = (val encoding_in : DES) in
-  let module Ser = (val encoding_out : SER) in
+  let module Des = (val (des_of_encoding encoding_in) : DES) in
+  let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
   let module ToValue = HeapValue.Materialize (Des) in
   let module OfValue = HeapValue.Serialize (Ser) in
@@ -81,13 +85,13 @@ let target_lib
   Printf.printf "declarations in %S\n" decl_fname ;
   Printf.printf "definitions in %S\n" def_fname
 
-let target_converter
-      key_schema schema backend encoding_in encoding_out _fieldmask
-      modifier_exprs dest_fname =
-  check_no_key_schema key_schema ;
+let converter
+      schema backend encoding_in encoding_out _fieldmask
+      modifier_exprs dest_fname () =
+  let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
-  let module Des = (val encoding_in : DES) in
-  let module Ser = (val encoding_out : SER) in
+  let module Des = (val (des_of_encoding encoding_in) : DES) in
+  let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
   let transform _mn0 path v =
     match List.find (fun (p, _) -> p = path) modifier_exprs with
@@ -122,15 +126,12 @@ let destruct_pair = function
       Printf.sprintf2 "Not a pair: %a" T.print_maybe_nullable t |>
       failwith
 
-let check_is_pair = ignore % destruct_pair
-
-let target_lmdb main
-      key_schema val_schema backend encoding_in encoding_out _fieldmask
-      _modifier_expr dest_fname =
-  let key_schema = check_key_schema key_schema in
+let lmdb main
+      key_schema val_schema backend encoding_in encoding_out dest_fname () =
+  let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
-  let module Des = (val encoding_in : DES) in
-  let module Ser = (val encoding_out : SER) in
+  let module Des = (val (des_of_encoding encoding_in) : DES) in
+  let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
@@ -157,23 +158,22 @@ let target_lmdb main
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
-let target_lmdb_dump =
+let lmdb_dump =
   let main ext convert_key_id convert_val_id =
     (if ext = "cc" then DessserDSTools_FragmentsCPP.dumper
                    else DessserDSTools_FragmentsOCaml.dumper)
       convert_key_id convert_val_id in
-  target_lmdb main
+  lmdb main
 
-let target_lmdb_load =
+let lmdb_load =
   let main ext convert_key_id convert_val_id =
     (if ext = "cc" then DessserDSTools_FragmentsCPP.loader
                    else DessserDSTools_FragmentsOCaml.loader)
       convert_key_id convert_val_id in
-  target_lmdb main
+  lmdb main
 
-let target_lmdb_query _ _ _ _ _ _ _ _ =
-  todo "target_lmdb_query"
-
+let lmdb_query _ _ _ _ _ _ () =
+  todo "lmdb_query"
 
 (*
  * Command line
@@ -181,32 +181,33 @@ let target_lmdb_query _ _ _ _ _ _ _ _ =
 
 open Cmdliner
 
+let maybe_nullable =
+  let parse s =
+    try (
+      let p = T.maybe_nullable_of_string ~what:"schema" in
+      let parse_as_string s = Stdlib.Ok (p s) in
+      (* First try to parse that file, then to parse that string: *)
+      try (
+        let s = read_whole_file s in
+        parse_as_string s
+      ) with _ ->
+        parse_as_string s
+    ) with e -> Stdlib.Error (`Msg (Printexc.to_string e))
+  and print fmt mn =
+    Format.fprintf fmt "%s" (T.string_of_maybe_nullable mn)
+  in
+  Arg.conv ~docv:"TYPE" (parse, print)
+
 let val_schema =
   let doc = "file or inline schema for values" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options
             [ "schema" ; "value-schema" ] in
-  Arg.(required (opt (some string) None i))
+  Arg.(required (opt (some maybe_nullable) None i))
 
 let key_schema =
   let doc = "file or inline schema for keys" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options [ "key-schema" ] in
-  Arg.(value (opt string "" i))
-
-(* cmdliner must be given enum values that are comparable, therefore not
- * functions: *)
-type encodings = Null | RowBinary | SExpr | RingBuff
-
-let des_of_encoding = function
-  | RingBuff -> (module RamenRingBuffer.Des : DES)
-  | RowBinary -> (module RowBinary.Des : DES)
-  | SExpr -> (module SExpr.Des : DES)
-  | _ -> failwith "No desserializer for that encoding"
-
-let ser_of_encoding = function
-  | Null -> (module DevNull.Ser : SER)
-  | RingBuff -> (module RamenRingBuffer.Ser : SER)
-  | RowBinary -> (module RowBinary.Ser : SER)
-  | SExpr -> (module SExpr.Ser : SER)
+  Arg.(required (opt (some maybe_nullable) None i))
 
 let docv_of_enum l =
   IO.to_string (
@@ -236,42 +237,6 @@ let encoding_out =
   let docv = docv_of_enum known_outputs in
   let i = Arg.info ~doc ~docv [ "output-encoding" ] in
   Arg.(value (opt (enum known_outputs) SExpr i))
-
-let known_inouts =
-  let encoding_cmp (_, e1) (_, e2) = compare e1 e2 in
-  let l1 = List.fast_sort encoding_cmp known_inputs in
-  let l2 = List.fast_sort encoding_cmp known_outputs in
-  let encoding_less a b = encoding_cmp a b <= 0 in
-  Enum.merge encoding_less (List.enum l1) (List.enum l2) |>
-  List.of_enum
-
-type targets = Converter | Lib | LmdbDump | LmdbLoad | LmdbQuery
-
-let function_of_target = function
-  | Converter -> target_converter
-  | Lib -> target_lib
-  | LmdbDump -> target_lmdb_dump
-  | LmdbLoad -> target_lmdb_load
-  | LmdbQuery -> target_lmdb_query
-
-let target =
-  let targets =
-    [ "converter", Converter ;
-      "lib", Lib ;
-      "dump-lmdb", LmdbDump ;
-      "load-lmdb", LmdbLoad ;
-      "query-lmdb", LmdbQuery ] in
-  let doc = "What binary to generate" in
-  let docv = docv_of_enum targets  in
-  let i = Arg.info ~doc ~docv [ "target" ] in
-  Arg.(value (opt (enum targets) Converter i))
-
-type backends = DIL | Cpp | OCaml
-
-let module_of_backend = function
-  | DIL -> (module BackEndDIL : BACKEND)
-  | Cpp -> (module BackEndCPP : BACKEND)
-  | OCaml -> (module BackEndOCaml : BACKEND)
 
 let backend =
   let languages =
@@ -342,35 +307,10 @@ let dest_fname =
   let i = Arg.info ~doc ~docv [ "o" ; "output-file" ] in
   Arg.(required (opt (some string) None i))
 
-let maybe_nullable_of_string str =
-  let p = T.maybe_nullable_of_string ~what:"schema" in
-  let parse_as_string str = p str in
-  (* First try to parse that file, then to parse that string: *)
-  try (
-    let str = read_whole_file str in
-    parse_as_string str
-  ) with _ ->
-    parse_as_string str
-
-let start target key_schema val_schema backend encoding_in encoding_out
-          fieldmask modifier_exprs dest_fname =
-  let target = function_of_target target in
-  let key_schema =
-    if key_schema = "" then None
-    else Some (maybe_nullable_of_string key_schema) in
-  let val_schema = maybe_nullable_of_string val_schema in
-  let backend = module_of_backend backend in
-  let encoding_in = des_of_encoding encoding_in in
-  let encoding_out = ser_of_encoding encoding_out in
-  target key_schema val_schema backend encoding_in encoding_out fieldmask
-         modifier_exprs dest_fname
-
-let () =
-  let doc = "Dessser code generator" in
-  Term.((
-    (const start
-     $ target
-     $ key_schema
+let converter_cmd =
+  let doc = "Generate a converter from in to out encodings" in
+  Term.(
+    (const converter
      $ val_schema
      $ backend
      $ encoding_in
@@ -378,5 +318,70 @@ let () =
      $ comptime_fieldmask
      $ modifier_exprs
      $ dest_fname),
-    info "dessserc" ~version ~doc) |>
-  eval |> exit)
+    info "converter" ~doc)
+
+let lib_cmd =
+  let doc = "Generate a library with various converters from in to out \
+             encodings" in
+  Term.(
+    (const lib
+     $ val_schema
+     $ backend
+     $ encoding_in
+     $ encoding_out
+     $ comptime_fieldmask
+     $ dest_fname),
+    info "lib" ~doc)
+
+let lmdb_dump_cmd =
+  let doc = "Generate a tool to dump an LMDB storing values of the given \
+             types" in
+  Term.(
+    (const lmdb_dump
+     $ key_schema
+     $ val_schema
+     $ backend
+     $ encoding_in
+     $ encoding_out
+     $ dest_fname),
+    info "lmdb-dump" ~doc)
+
+let lmdb_load_cmd =
+  let doc = "Generate a tool to load an LMDB storing values of the given \
+             types" in
+  Term.(
+    (const lmdb_load
+     $ key_schema
+     $ val_schema
+     $ backend
+     $ encoding_in
+     $ encoding_out
+     $ dest_fname),
+    info "lmdb-load" ~doc)
+
+let lmdb_query_cmd =
+  let doc = "Generate a tool to query an LMDB storing values of the given \
+             types" in
+  Term.(
+    (const lmdb_query
+     $ key_schema
+     $ val_schema
+     $ backend
+     $ encoding_in
+     $ encoding_out
+     $ dest_fname),
+    info "lmdb-query" ~doc)
+
+let default_cmd =
+  let sdocs = Manpage.s_common_options in
+  let doc = "Ramen Stream Processor" in
+  Term.((ret (const (`Help (`Pager, None)))),
+        info "ramen" ~version ~doc ~sdocs)
+
+let () =
+  match
+    Term.eval_choice default_cmd [
+      converter_cmd ; lib_cmd ; lmdb_dump_cmd ; lmdb_load_cmd ; lmdb_query_cmd ] with
+  | `Error _ -> exit 1
+  | `Version | `Help -> exit 0
+  | `Ok f -> f ()
