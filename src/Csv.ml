@@ -65,8 +65,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
   is_serializable (T.maybe_nullable_of_string "Ip6?")
 *)
 
-(* Take a maybe-nullable and make it serializable by making some compound
- * types non nullable: *)
+(* Tells if the given type's first item is nullable *)
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.vtyp with
@@ -95,6 +94,8 @@ let rec nullable_at_first mn =
   not (nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL)"))
 *)
 
+(* Take a maybe-nullable and make it serializable by making some compound
+ * types non nullable: *)
 let rec make_serializable mn =
   match mn.T.vtyp with
   | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->

@@ -274,8 +274,8 @@ let parse_expression s =
   match E.Parser.expr s with
   | exception e ->
       Stdlib.Error (`Msg (Printexc.to_string e))
-  | [ s ] ->
-      Stdlib.Ok s
+  | [ e ] ->
+      Stdlib.Ok e
   | _ ->
       Stdlib.Error (`Msg "A single s-expression must be provided")
 

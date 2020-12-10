@@ -1771,7 +1771,8 @@ let rec type_check l e =
          | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
          | Identifier _| Param _
          | CopyField | SkipField | SetFieldNull)
-    | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _ | Hash), _)
+    | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _
+          | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
     | E1 (Apply, f) ->

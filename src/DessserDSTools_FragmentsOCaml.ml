@@ -19,7 +19,7 @@ let main () =
 
   let syntax () =
     String.print stdout
-      "Syntax: [(--delim|-d) DELIM] ((--input|-i) FILE | INPUT)\n" ;
+      "Syntax: [(--delim|-d) DELIM] [(--input|-i) FILE | INPUT]\n" ;
     exit 1 in
 
   let read_whole_file fname =
@@ -54,7 +54,6 @@ let main () =
       !single_input
     else
       read_whole_file !fname in
-  let src = Pointer.of_string input in
 
   let rec loop src =
     if Pointer.remSize src <= 0 then src else (
@@ -69,6 +68,7 @@ let main () =
         failwith ;
       loop src
     ) in
+  let src = Pointer.of_string input in
   loop src |> ignore
 
 %s
