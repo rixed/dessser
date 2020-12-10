@@ -11,6 +11,8 @@
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"
 #include "dessser/List.h"
+#include "dessser/Set.h"
+#include "dessser/SimpleSet.h"
 #include "dessser/SList.h"
 #include "dessser/Pair.h"
 #include "dessser/Mask.h"

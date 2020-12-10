@@ -92,6 +92,8 @@ struct
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
     | T.TValue { vtyp = TList typ ; _ } ->
         Printf.sprintf "List<%s>" (type_identifier p (TValue typ))
+    | T.TValue { vtyp = TSet typ ; _ } ->
+        Printf.sprintf "SimpleSet<%s>" (type_identifier p (TValue typ))
     | T.TValue { vtyp = TMap _ ; _ } ->
         assert false (* No value of map type *)
     | T.TPair (t1, t2) ->
@@ -533,6 +535,8 @@ struct
         method_call e1 "toList" []
     | E.E1 (ListOfSListRev, e1) ->
         method_call e1 "toListRev" []
+    | E.E1 (SetOfSList, e1) ->
+        method_call e1 "toSet" []
     | E.E2 (AppendByte, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -547,7 +551,7 @@ struct
         let op = match op with StartsWith -> "starts_with" | _ -> "ends_with" in
         method_call e1 op [ e2 ]
     | E.E1 (StringLength, e1)
-    | E.E1 (ListLength, e1) ->
+    | E.E1 (Cardinality, e1) ->
         method_call e1 "size" []
     | E.E1 (StringOfBytes, e1) ->
         method_call e1 "toString" []
@@ -705,6 +709,8 @@ struct
         let tn = type_identifier p t in
         ppi p.def "%s %s;" tn res ;
         res
+    | E.E0 (EmptySet _) ->
+        emit ?name p l e ignore
     | E.E0 Now ->
         emit ?name p l e (fun oc ->
           pp oc "std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()")
@@ -913,6 +919,31 @@ struct
         emit ?name p l e (fun oc -> pp oc "MaskAction::SKIP")
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "MaskAction::SET_NULL")
+    | E.E1 (SlidingWindow t, e1) ->
+        let n1 = print emit p l e1 in
+        (* Cannot use emit since we want to select a specific type of set: *)
+        let tn = type_identifier p (TValue t) in
+        let res = gen_sym ?name "sliding_win_" in
+        ppi p.def "SlidingWindow<%s> %s { %s };" tn res n1 ;
+        res
+    | E.E1 (TumblingWindow t, e1) ->
+        let n1 = print emit p l e1 in
+        (* Cannot use emit since we want to select a specific type of set: *)
+        let tn = type_identifier p (TValue t) in
+        let res = gen_sym ?name "tumbling_win_" in
+        ppi p.def "TumblingWindow<%s> %s { %s };" tn res n1 ;
+        res
+    | E.E1 (Sampling t, e1) ->
+        let n1 = print emit p l e1 in
+        (* Cannot use emit since we want to select a specific type of set: *)
+        let tn = type_identifier p (TValue t) in
+        let res = gen_sym ?name "sampling_" in
+        ppi p.def "Sampling<%s> %s { %s };" tn res n1 ;
+        res
+    | E.E2 (Insert, e1, e2) ->
+        let set = print emit p l e1 in
+        let item = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s.insert %s" set item)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we

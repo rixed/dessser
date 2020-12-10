@@ -33,7 +33,17 @@ struct
           loop (v :: ids) (i + 1) src) in
     loop [] 0 src
 
+  (* Lists and sets are serialized the same, so here the list is desserialized
+   * into an slist, and then the final operation converts it into a list or a
+   * set: *)
+
   and dlist mn dstate mn0 path src =
+    dslist list_of_slist_rev mn dstate mn0 path src
+
+  and dset mn dstate mn0 path src =
+    dslist set_of_slist mn dstate mn0 path src
+
+  and dslist of_slist mn dstate mn0 path src =
     let init_t = T.TValue mn in
     let init_list_t = T.TSList init_t in
     let inits_src_t = T.TPair (init_list_t, Des.ptr mn0) in
@@ -57,7 +67,7 @@ struct
                       pair (cons v inits) src))))
               ~init:(pair (end_of_list init_t) src)) in
         E.with_sploded_pair "dlist4" inits_src (fun inits src ->
-          let v = list_of_slist_rev inits
+          let v = of_slist inits
           and src = Des.list_cls dstate mn0 path src in
           pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
@@ -84,7 +94,7 @@ struct
                     pair (bool false) inits_src))))
             ~init:(pair (bool true) (pair (end_of_list init_t) src)) in
         E.with_sploded_pair "dlist9" (secnd fst_inits_src) (fun inits src ->
-          let v = list_of_slist_rev inits
+          let v = of_slist inits
           and src = Des.list_cls dstate mn0 path src in
           pair v src)
 
@@ -179,6 +189,7 @@ struct
       | T.TSum mns -> dsum mns
       | T.TVec (dim, mn) -> dvec dim mn
       | T.TList mn -> dlist mn
+      | T.TSet mn -> dset mn
       | T.TMap _ -> assert false (* No value of map type *)
     in
     let vt = mn.vtyp in
@@ -227,22 +238,27 @@ struct
           loop (i + 1)) in
     loop 0 dst
 
-  and slist mn sstate mn0 path v dst =
-    let len = list_length v in
+  and slist_or_set mn sstate mn0 path v dst =
+    let len = cardinality v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) dst in
-    let dst =
+    let dst_n =
       let subpath = T.path_append 0 path in
-      repeat ~from:(i32 0l) ~to_:(to_i32 len)
+      fold ~lst:v
+        ~init:(pair dst (i32 0l))
         ~body:
-          (E.func2 T.i32 (Ser.ptr mn0) (fun _l n dst ->
-            let_ "dst"
-              (if_ ~cond:(gt n (i32 0l))
-                   ~then_:(Ser.list_sep sstate mn0 subpath dst)
-                   ~else_:dst)
-              ~in_:(ser1 sstate mn0 subpath mn (nth n v) copy_field
-                         (identifier "dst"))))
-        ~init:dst in
-    Ser.list_cls sstate mn0 path dst
+          (E.func2 T.(TPair (Ser.ptr mn0, T.i32)) (T.TValue mn)
+                   (fun _l dst_n x ->
+            E.with_sploded_pair "dst_n" dst_n (fun dst n ->
+              let_ "dst" (
+                if_ ~cond:(gt n (i32 0l))
+                    ~then_:(Ser.list_sep sstate mn0 subpath dst)
+                    ~else_:dst)
+                ~in_:(
+                  pair
+                    (ser1 sstate mn0 subpath mn x copy_field
+                          (identifier "dst"))
+                    (add (i32 1l) n))))) in
+    Ser.list_cls sstate mn0 path (first dst_n)
 
   and stup mns ma sstate mn0 path v dst =
     let dst = Ser.tup_opn sstate mn0 path mns dst in
@@ -334,7 +350,10 @@ struct
       | T.TRec mns -> srec mns ma
       | T.TSum mns -> ssum mns ma
       | T.TVec (dim, mn) -> svec dim mn
-      | T.TList mn -> slist mn
+      (* Thanks to cardinality and fold being generic, lists and sets are
+       * serialized the same: *)
+      | T.TList mn -> slist_or_set mn
+      | T.TSet mn -> slist_or_set mn
       | T.TMap _ -> assert false (* No value of map type *)
     in
     if_ ~cond:(eq ma skip_field)
@@ -409,7 +428,7 @@ struct
   and sslist mn mn0 path v sizes =
     let sizes =
       Ser.ssize_of_list mn0 path v |> add_size sizes in
-    let len = list_length v in
+    let len = cardinality v in
     (* TODO: a way to ask only for the dynsize, and compute the constsize
      * as len * const_size of mn *)
     let subpath = T.path_append 0 path in (* good enough *)
@@ -497,10 +516,12 @@ struct
       | T.Mac TU128 -> to_dyn Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
       | T.TVec (dim, mn) -> ssvec dim mn
-      | T.TList mn -> sslist mn
       | T.TTup mns -> sstup mns ma
       | T.TRec mns -> ssrec mns ma
       | T.TSum mns -> sssum mns
+      | T.TList mn -> sslist mn
+      (* Sets are serialized like lists: *)
+      | T.TSet mn -> sslist mn
       | T.TMap _ -> assert false (* No value of map type *)
     in
     if_ ~cond:(eq ma skip_field)

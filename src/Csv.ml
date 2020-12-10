@@ -49,7 +49,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with vtyp = def }
-  | TVec (_, mn') | TList mn' ->
+  | TVec (_, mn') | TList mn' | TSet mn' ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
   | TTup mns ->
       are_serializable (Array.enum mns)
@@ -76,7 +76,7 @@ let rec nullable_at_first mn =
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with vtyp = def }
-  | TVec (_, mn') | TList mn' ->
+  | TVec (_, mn') | TList mn' | TSet mn' ->
       nullable_at_first mn'
   | TTup mns ->
       nullable_at_first mns.(0)
@@ -109,6 +109,10 @@ let rec make_serializable mn =
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
         vtyp = TVec (d, mn') }
   | TList mn' ->
+      let mn' = make_serializable mn' in
+      { nullable = if nullable_at_first mn' then false else mn.nullable ;
+        vtyp = TList mn' }
+  | TSet mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
         vtyp = TList mn' }

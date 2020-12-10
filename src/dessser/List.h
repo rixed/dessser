@@ -1,8 +1,8 @@
 #ifndef LIST_H_191223
 #define LIST_H_191223
 /* Like Vec, but for when the size is unknown statically */
-#include <vector>
 #include <initializer_list>
+#include <vector>
 
 template<class T>
 struct List : public std::vector<T> {

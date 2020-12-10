@@ -95,7 +95,7 @@ let user_type_gen =
     let k = user_type_keys.(n mod Array.length user_type_keys) in
     (Hashtbl.find T.user_types k).typ))
 
-let rec value_type_gen depth =
+let rec value_type_gen_of_depth depth =
   let open Gen in
   assert (depth >= 0) ;
   if depth = 0 then
@@ -108,6 +108,7 @@ let rec value_type_gen depth =
     oneof
       [ map2 (fun dim mn -> T.TVec (dim, mn)) (int_range 1 10) mn_gen ;
         map (fun mn -> T.TList mn) mn_gen ;
+        map (fun mn -> T.TSet mn) mn_gen ;
         map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
         map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
         map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
@@ -117,7 +118,7 @@ let rec value_type_gen depth =
 and maybe_nullable_gen_of_depth depth =
   Gen.map2 (fun nullable vtyp ->
     T.make ~nullable vtyp
-  ) Gen.bool (value_type_gen depth)
+  ) Gen.bool (value_type_gen_of_depth depth)
 
 (*$Q maybe_nullable_gen_of_depth
   (Q.int_range 0 9) (fun d -> \
@@ -131,10 +132,10 @@ and maybe_nullable_gen_of_depth depth =
 
 let value_type_gen =
   Gen.(frequency
-    [ 6, value_type_gen 0 ;
-      2, value_type_gen 1 ;
-      2, value_type_gen 2 ;
-      1, value_type_gen 3 ])
+    [ 6, value_type_gen_of_depth 0 ;
+      2, value_type_gen_of_depth 1 ;
+      2, value_type_gen_of_depth 2 ;
+      1, value_type_gen_of_depth 3 ])
 
 let maybe_nullable_gen =
   Gen.(sized_size (int_range 0 3) maybe_nullable_gen_of_depth)
@@ -142,7 +143,7 @@ let maybe_nullable_gen =
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
   | T.Mac _ | T.Usr _ -> 1
-  | T.TVec (_, mn) | T.TList mn -> 1 + size_of_maybe_nullable mn
+  | T.TVec (_, mn) | T.TList mn | T.TSet mn -> 1 + size_of_maybe_nullable mn
   | T.TTup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
   | T.TRec mns ->
@@ -196,6 +197,11 @@ let rec shrink_value_type =
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
           f (T.TList mn) ;
+          f mn.vtyp))
+  | T.TSet mn ->
+      (fun f ->
+        shrink_maybe_nullable mn (fun mn ->
+          f (T.TSet mn) ;
           f mn.vtyp))
   | T.TTup mns ->
       (fun f ->
@@ -291,7 +297,7 @@ let e1_of_int n =
          WordOfU16 ; U32OfDWord ; DWordOfU32 ; U64OfQWord ; QWordOfU64 ;
          U128OfOWord ; OWordOfU128 ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
          U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ; BoolOfU8 ; StringLength ;
-         StringOfBytes ; BytesOfString ; ListLength ; ReadByte ; DataPtrPush ;
+         StringOfBytes ; BytesOfString ; Cardinality ; ReadByte ; DataPtrPush ;
          DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; Log10 ; Sqrt ;
          Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ;
          SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd ; Identity |]
@@ -320,6 +326,7 @@ let rec e0_gen l depth =
   let open Gen in
   let lst = [
     1, map null value_type_gen ;
+    1, map E.Ops.empty_set (maybe_nullable_gen_of_depth depth) ;
     1, return E.Ops.now ;
     1, return E.Ops.rand ;
     1, map E.Ops.float float ;
@@ -614,6 +621,8 @@ let rec sexpr_of_vtyp_gen vtyp =
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
+  | T.TSet mn ->
+      sexpr_of_vtyp_gen (TList mn)
   | T.TTup mns ->
       tup_gen mns
   | T.TRec mns ->

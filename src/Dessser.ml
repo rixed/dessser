@@ -497,6 +497,8 @@ struct
     | T.TSum mns -> dssum mns
     | T.TVec (dim, mn) -> dsvec dim mn
     | T.TList mn -> dslist mn
+    (* Sets are serialized like lists (the last update is thus lost). *)
+    | T.TSet mn -> dslist mn
     | T.TMap _ -> assert false (* No value of map type *)
 
   and desser_ transform sstate dstate mn0 path src_dst =

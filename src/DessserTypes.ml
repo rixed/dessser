@@ -43,6 +43,12 @@ and value_type =
   (* Compound types: *)
   | TVec of int * maybe_nullable
   | TList of maybe_nullable
+  (* Special compound type amenable to incremental computation over sets.
+   * We might have different implementations with different APIs, depending on
+   * the use case (ie. the operator it is an operand of), for instance to
+   * optimise FIFO updates, to keep it sorted, to skip nulls, etc... But the
+   * backend will decide this on its own: *)
+  | TSet of maybe_nullable
   | TTup of maybe_nullable array
   (* Exact same as a tuple, but with field names that can be used as
    * accessors (also used to name actual fields in generated code): *)
@@ -70,7 +76,7 @@ let rec depth ?(opaque_user_type=false) = function
   | Mac _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | TVec (_, mn) | TList mn ->
+  | TVec (_, mn) | TList mn | TSet mn ->
       1 + depth ~opaque_user_type mn.vtyp
   | TTup mns ->
       1 + Array.fold_left (fun d mn ->
@@ -108,7 +114,8 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       ut1.name = ut2.name
   | TVec (d1, mn1), TVec (d2, mn2) ->
       d1 = d2 && maybe_nullable_eq mn1 mn2
-  | TList mn1, TList mn2 ->
+  | TList mn1, TList mn2
+  | TSet mn1, TSet mn2 ->
       maybe_nullable_eq mn1 mn2
   | TTup mn1s, TTup mn2s ->
       Array.length mn1s = Array.length mn2s &&
@@ -190,6 +197,8 @@ let rec develop_value_type = function
       TVec (d, develop_maybe_nullable mn)
   | TList mn ->
       TList (develop_maybe_nullable mn)
+  | TSet mn ->
+      TSet (develop_maybe_nullable mn)
   | TTup mns ->
       TTup (Array.map develop_maybe_nullable mns)
   | TRec mns ->
@@ -214,7 +223,7 @@ let rec fold_value_type u f vt =
       u
   | Usr { def ; _ } ->
       fold_value_type u f def
-  | TVec (_, mn) | TList mn ->
+  | TVec (_, mn) | TList mn | TSet mn ->
       fold_maybe_nullable u f mn
   | TTup mns ->
       Array.fold_left (fun u mn -> fold_maybe_nullable u f mn) u mns
@@ -345,15 +354,17 @@ let rec print_value_type ?(sorted=false) oc = function
           default_user_type_printer t oc
       | def ->
           def.print oc)
-  | TVec (dim, vt) ->
-      pp oc "%a[%d]" (print_maybe_nullable ~sorted) vt dim
-  | TList vt ->
-      pp oc "%a[]" (print_maybe_nullable ~sorted) vt
-  | TTup vts ->
+  | TVec (dim, mn) ->
+      pp oc "%a[%d]" (print_maybe_nullable ~sorted) mn dim
+  | TList mn ->
+      pp oc "%a[]" (print_maybe_nullable ~sorted) mn
+  | TSet mn ->
+      pp oc "%a{}" (print_maybe_nullable ~sorted) mn
+  | TTup mns ->
       pp oc "%a"
         (Array.print ~first:"(" ~last:")" ~sep:"; "
-          (print_maybe_nullable ~sorted)) vts
-  | TRec vts ->
+          (print_maybe_nullable ~sorted)) mns
+  | TRec mns ->
       (* When the string repr is used to identify the type (see BackEndCLike)
        * every equivalent record types must then be printed the same, thus the
        * optional sort: *)
@@ -361,7 +372,7 @@ let rec print_value_type ?(sorted=false) oc = function
         (Array.print ~first:"{" ~last:"}" ~sep:"; "
           (fun oc (n, mn) ->
             pp oc "%s: %a" n (print_maybe_nullable ~sorted) mn)
-        ) (if sorted then sorted_rec vts else vts)
+        ) (if sorted then sorted_rec mns else mns)
   | TSum cs ->
       (* Parenthesis are required to distinguish external from internal
        * nullable: *)
@@ -518,7 +529,8 @@ struct
 
   let user_type = ref fail
 
-  type key_type = VecDim of int | ListDim | MapKey of maybe_nullable
+  type key_type =
+    VecDim of int | ListDim | SetDim | MapKey of maybe_nullable
 
   let rec reduce_dims t = function
     | [] -> t
@@ -526,6 +538,8 @@ struct
         reduce_dims (make ~nullable (TVec (d, t))) rest
     | (ListDim, nullable) :: rest ->
         reduce_dims (make ~nullable (TList t)) rest
+    | (SetDim, nullable) :: rest ->
+        reduce_dims (make ~nullable (TSet t)) rest
     | (MapKey k, nullable) :: rest ->
         reduce_dims (make ~nullable (TMap (k, t))) rest
 
@@ -548,6 +562,13 @@ struct
         opt_question_mark >>: fun n ->
           ListDim, n
       ) m
+    and set_dim m =
+      let m = "set type" :: m in
+      (
+        char '{' -- opt_blanks -- char '}' -+
+        opt_question_mark >>: fun n ->
+          SetDim, n
+      ) m
     and map_key m =
       let m = "map key" :: m in
       (
@@ -558,7 +579,7 @@ struct
       ) m
     in
     (
-      vec_dim ||| list_dim ||| map_key
+      vec_dim ||| list_dim ||| set_dim ||| map_key
     ) m
 
   and maybe_nullable m =
@@ -872,17 +893,19 @@ let type_and_name_of_path t path =
               assert false
           | Usr t ->
               type_of t.def
-          | TVec (dim, vt) ->
+          | TVec (dim, mn) ->
               assert (i < dim) ;
-              loop (string_of_int i) vt path
-          | TList vt ->
-              loop (string_of_int i) vt path
-          | TTup vts ->
-              assert (i < Array.length vts) ;
-              loop ("field_"^ string_of_int i) vts.(i) path
-          | TRec vts ->
-              assert (i < Array.length vts) ;
-              loop (fst vts.(i)) (snd vts.(i)) path
+              loop (string_of_int i) mn path
+          | TList mn ->
+              loop (string_of_int i) mn path
+          | TSet mn ->
+              loop (string_of_int i) mn path
+          | TTup mns ->
+              assert (i < Array.length mns) ;
+              loop ("field_"^ string_of_int i) mns.(i) path
+          | TRec mns ->
+              assert (i < Array.length mns) ;
+              loop (fst mns.(i)) (snd mns.(i)) path
           | TSum cs ->
               assert (i < Array.length cs) ;
               loop (fst cs.(i)) (snd cs.(i)) path in
@@ -950,3 +973,4 @@ let mask_action = TMaskAction
 let dataptr = TDataPtr
 let pair t1 t2 = TPair (t1, t2)
 let slist t = TSList t
+let set mn = TValue (make (TSet mn))

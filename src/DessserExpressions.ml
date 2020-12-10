@@ -32,6 +32,7 @@ type e0 =
   | Identifier of string
   | Null of T.value_type
   | EndOfList of T.t (* T.t being the type of list items *)
+  | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
   | Now
   | Random
   | Float of float
@@ -182,13 +183,14 @@ type e1 =
   | BoolOfBit
   | ListOfSList
   | ListOfSListRev
+  | SetOfSList
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
   | StringLength
   | StringOfBytes
   | BytesOfString
-  | ListLength
+  | Cardinality (* of lists, vectors or sets *)
   | ReadByte
   | DataPtrPush
   | DataPtrPop
@@ -235,6 +237,10 @@ type e1 =
   (* Given a value of a sum type, return the integer label associated with its
    * constructor, as an u16: *)
   | LabelOf
+  (* Various set implementations, configured with their max size: *)
+  | SlidingWindow of T.maybe_nullable (* Sliding window of the last N added items *)
+  | TumblingWindow of T.maybe_nullable (* Tumbling window *)
+  | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
 
 type e2 =
   | Apply
@@ -287,6 +293,7 @@ type e2 =
   | WriteDWord of endianness
   | WriteQWord of endianness
   | WriteOWord of endianness
+  | Insert (* args are: set, item *)
 
 type e3 =
   | Apply
@@ -295,7 +302,7 @@ type e3 =
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
-  | Fold (* args are: init, function, list *)
+  | Fold (* args are: init, function, list/vector/set *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
   | DataPtrOfPtr
@@ -322,6 +329,8 @@ let rec e0_eq e1 e2 =
       T.value_type_eq vt1 vt2
   | EndOfList t1, EndOfList t2 ->
       T.eq t1 t2
+  | EmptySet t1, EmptySet t2 ->
+      T.maybe_nullable_eq t1 t2
   | e1, e2 ->
       (* Assuming here and below that when the constructors are different
        * the generic equality does not look t the fields and therefore won't
@@ -368,7 +377,7 @@ and expr_eq e1 e2 =
 let rec can_precompute l i = function
   | E0 (Now | Random) ->
       false
-  | E0 (Null _ | EndOfList _ | Float _ | String _ | Bool _ | Char _
+  | E0 (Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _ | Char _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
@@ -534,12 +543,13 @@ let string_of_e1 = function
   | BoolOfBit -> "bool-of-bit"
   | ListOfSList -> "list-of-slist"
   | ListOfSListRev -> "list-of-slist-rev"
+  | SetOfSList -> "set-of-slist"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
   | StringOfBytes -> "string-of-bytes"
   | BytesOfString -> "bytes-of-string"
-  | ListLength -> "list-length"
+  | Cardinality -> "cardinality"
   | ReadByte -> "read-byte"
   | DataPtrPush -> "data-ptr-push"
   | DataPtrPop -> "data-ptr-pop"
@@ -579,6 +589,12 @@ let string_of_e1 = function
   | MaskGet d -> "mask-get "^ string_of_int d
   | MaskEnter d -> "mask-enter "^ string_of_int d
   | LabelOf -> "label-of"
+  | SlidingWindow mn ->
+      "sliding-window "^ String.quote (T.string_of_maybe_nullable mn)
+  | TumblingWindow mn ->
+      "tumbling-window "^ String.quote (T.string_of_maybe_nullable mn)
+  | Sampling mn ->
+      "sampling "^ String.quote (T.string_of_maybe_nullable mn)
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -629,6 +645,7 @@ let string_of_e2 = function
   | WriteDWord en -> "write-dword "^ string_of_endianness en
   | WriteQWord en -> "write-qword "^ string_of_endianness en
   | WriteOWord en -> "write-oword "^ string_of_endianness en
+  | Insert -> "insert"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -651,6 +668,7 @@ let rec string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
   | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
+  | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
   | Now -> "now"
   | Random -> "rand"
   | Float f -> "float "^ hexstring_of_float f
@@ -883,6 +901,8 @@ struct
         E0 (Null (T.value_type_of_string vt))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
         E0 (EndOfList (T.Parser.of_string t))
+    | Lst [ Sym "empty-set" ; Str mn ] ->
+        E0 (EmptySet (T.maybe_nullable_of_string mn))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "rand" ] -> E0 Random
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
@@ -930,6 +950,7 @@ struct
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     (* e1 *)
+    | Lst [ Sym "apply" ; x ] -> E1 (Apply, e x)
     | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
         (* Syntax for functions is:
          *    (fun id "type arg 1" "type arg 2" ... body)
@@ -1055,12 +1076,13 @@ struct
     | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
     | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
     | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
+    | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
     | Lst [ Sym "string-of-bytes" ; x ] -> E1 (StringOfBytes, e x)
     | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
-    | Lst [ Sym "list-length" ; x ] -> E1 (ListLength, e x)
+    | Lst [ Sym "cardinality" ; x ] -> E1 (Cardinality, e x)
     | Lst [ Sym "read-byte" ; x ] -> E1 (ReadByte, e x)
     | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
     | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
@@ -1106,7 +1128,14 @@ struct
     | Lst [ Sym "mask-enter" ; Sym d ; x1 ] as x ->
         E1 (MaskEnter (int_of_symbol x d), e x1)
     | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
+    | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
+        E1 (SlidingWindow (T.maybe_nullable_of_string mn), e x)
+    | Lst [ Sym "tumbling-window" ; Str mn ; x ] ->
+        E1 (TumblingWindow (T.maybe_nullable_of_string mn), e x)
+    | Lst [ Sym "sampling" ; Str mn ; x ] ->
+        E1 (Sampling (T.maybe_nullable_of_string mn), e x)
     (* e2 *)
+    | Lst [ Sym "apply" ; x1 ; x2 ] -> E2 (Apply, e x1, e x2)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
     | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
@@ -1162,7 +1191,10 @@ struct
         E2 (WriteQWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "write-oword" ; Sym en ; x1 ; x2 ] ->
         E2 (WriteOWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "insert" ; x1 ; x2 ] ->
+        E2 (Insert, e x1, e x2)
     (* e3 *)
+    | Lst [ Sym "apply" ; x1 ; x2 ; x3 ] -> E3 (Apply, e x1, e x2, e x3)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
@@ -1172,6 +1204,8 @@ struct
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
     (* e4 *)
+    | Lst [ Sym "apply" ; x1 ; x2 ; x3 ; x4 ] ->
+        E4 (Apply, e x1, e x2, e x3, e x4)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
     | Lst [ Sym "repeat" ; x1 ; x2 ; x3 ; x4 ] ->
@@ -1314,6 +1348,7 @@ let rec type_of l e0 =
   | E1 (IsNull, _) -> T.bool
   | E0 (Null vt) -> TValue { vtyp = vt ; nullable = true }
   | E0 (EndOfList t) -> TSList t
+  | E0 (EmptySet mn) -> TValue (T.make (T.TSet mn))
   | E0 Now -> T.float
   | E0 Random -> T.float
   | E0 (Float _) -> T.float
@@ -1414,7 +1449,15 @@ let rec type_of l e0 =
   | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e |> T.develop_user_types with
       | TSList (TValue mn) -> TValue (T.make (TList mn))
-      | t -> raise (Type_error (e0, e, t, "be a slist of maybe nullable values")))
+      | TSList _ as t ->
+          raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
+      | t -> raise (Type_error (e0, e, t, "be a slist")))
+  | E1 (SetOfSList, e) ->
+      (match type_of l e |> T.develop_user_types with
+      | TSList (TValue mn) -> TValue (T.make (TSet mn))
+      | TSList _ as t ->
+          raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
+      | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (U8OfBool, _) -> T.u8
   | E1 (BoolOfU8, _) -> T.bool
   | E2 (AppendByte, _, _) -> T.bytes
@@ -1424,7 +1467,7 @@ let rec type_of l e0 =
   | E1 (StringLength, _) -> T.u32
   | E1 (StringOfBytes, _) -> T.string
   | E1 (BytesOfString, _) -> T.bytes
-  | E1 (ListLength, _) -> T.u32
+  | E1 (Cardinality, _) -> T.u32
   | E0 (DataPtrOfString _) -> T.dataptr
   | E0 (DataPtrOfBuffer _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
@@ -1542,6 +1585,20 @@ let rec type_of l e0 =
   | E1 (MaskGet _, _) -> T.mask_action
   | E1 (MaskEnter _, _) -> T.mask
   | E1 (LabelOf, _) -> T.u16
+  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn), _) -> T.set mn
+  | E2 (Insert, _, _) -> T.void
+
+(* Return the element type or fail: *)
+and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
+  match type_of l e |> T.develop_user_types with
+  | TValue { vtyp = TVec (_, t) ; nullable = false } when vec -> t
+  | TValue { vtyp = TList t ; nullable = false } when lst -> t
+  | TValue { vtyp = TSet t ; nullable = false } when set -> t
+  | t ->
+      let acceptable = if vec then [ "vector" ] else [] in
+      let acceptable = if lst then "list" :: acceptable else acceptable in
+      let acceptable = if set then "set" :: acceptable else acceptable in
+      raise (Type_error (e0, e, t, "be a "^ String.join " or " acceptable))
 
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
@@ -1642,17 +1699,10 @@ let rec type_check l e =
       | TValue _ -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a possibly nullable value")) in
-    let check_list l e =
-      match type_of l e |> T.develop_user_types with
-      | TValue { vtyp = TList _ ; nullable = false } -> ()
-      | t -> raise (Type_error (e0, e, t, "be a list")) in
-    (* Return the element type or fail: *)
-    let get_item_type l e =
-      match type_of l e |> T.develop_user_types with
-      | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } -> t
-      | t -> raise (Type_error (e0, e, t, "be a vector or list")) in
     let check_list_or_vector l e =
-      ignore (get_item_type l e) in
+      ignore (get_item_type ~lst:true ~vec:true e0 l e) in
+    let check_list_or_vector_or_set l e =
+      ignore (get_item_type ~lst:true ~vec:true ~set:true e0 l e) in
     let check_slist l e =
       match type_of l e |> T.develop_user_types with
       | TSList _ -> ()
@@ -1706,7 +1756,7 @@ let rec type_check l e =
           done
       | _ -> raise (Apply_error (e0, "argument must be a function")) in
     match e0 with
-    | E0 (Null _ | EndOfList _ | Now | Random
+    | E0 (Null _ | EndOfList _ | EmptySet _ | Now | Random
          | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
@@ -1838,7 +1888,7 @@ let rec type_check l e =
         check_eq l e T.string
     | E1 (BoolOfBit, e) ->
         check_eq l e T.bit
-    | E1 ((ListOfSList | ListOfSListRev), e) ->
+    | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
         check_slist_of_maybe_nullable l e
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 T.bytes ;
@@ -1851,8 +1901,8 @@ let rec type_check l e =
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
         check_eq l e T.bytes
-    | E1 (ListLength, e) ->
-        check_list l e
+    | E1 (Cardinality, e) ->
+        check_list_or_vector_or_set l e
     | E2 (GetBit, e1, e2) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size
@@ -1960,7 +2010,8 @@ let rec type_check l e =
     | E3 (Fold, e1, e2, e3) ->
         (* FOld function first parameter is the result and second is the list
          * item *)
-        let item_t = T.TValue (get_item_type l e3) in
+        let item_t =
+          T.TValue (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
         check_params2 l e2 (fun p1 p2 ret ->
           check_eq l e1 p1 ;
           check_eq l e1 ret ;
@@ -1978,6 +2029,14 @@ let rec type_check l e =
         check_eq l e1 T.TMaskAction
     | E1 (LabelOf, e1) ->
         check_sum l e1
+    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _), e1) ->
+        check_integer l e1
+    | E2 (Insert, e1, e2) ->
+        (match type_of l e1 |> T.develop_user_types with
+        | T.TValue { vtyp = T.TSet mn ; nullable = false } ->
+            check_eq l e2 (TValue mn)
+        | t ->
+            raise (Type_error (e0, e1, t, "be a set")))
   ) e
 
 (*$inject
@@ -2163,6 +2222,7 @@ struct
   let write_dword en e1 e2 = E2 (WriteDWord en, e1, e2)
   let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
+  let insert e1 e2 = E2 (Insert, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int_ e1 = E1 (StringOfInt, e1)
   let float_of_string e1 = E1 (FloatOfString, e1)
@@ -2225,6 +2285,10 @@ struct
   let null vt = E0 (Null vt)
   let eol t = E0 (EndOfList t)
   let end_of_list t = E0 (EndOfList t)
+  let sliding_window t e1 = E1 (SlidingWindow t, e1)
+  let tumbling_window t e1 = E1 (TumblingWindow t, e1)
+  let sampling t e1 = E1 (Sampling t, e1)
+  let empty_set mn = E0 (EmptySet mn)
   let now = E0 Now
   let rand = E0 Random
   let bit n = E0 (Bit n)
@@ -2353,7 +2417,7 @@ struct
   let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)
-  let list_length e1 = E1 (ListLength, e1)
+  let cardinality e1 = E1 (Cardinality, e1)
   let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
@@ -2372,6 +2436,7 @@ struct
   let make_list mn es = E0S (MakeList mn, es)
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
+  let set_of_slist e1 = E1 (SetOfSList, e1)
   let make_tup es = E0S (MakeTup, es)
   let make_rec es = E0S (MakeRec, es)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)

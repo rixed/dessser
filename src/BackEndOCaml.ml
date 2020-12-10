@@ -128,6 +128,8 @@ struct
         value_type_identifier p { vtyp = t.def ; nullable = false }
     | { vtyp = (TVec (_, t) | TList t) ; _ } ->
         value_type_identifier p t ^" array"
+    | { vtyp = TSet t ; _ } ->
+        value_type_identifier p t ^" set"
     | { vtyp = TTup mns ; _ } as mn ->
         let t = T.TValue mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
@@ -629,6 +631,8 @@ struct
         unary_op "Array.of_list" e1
     | E.E1 (ListOfSListRev, e1) ->
         unary_op "array_of_list_rev" e1
+    | E.E1 (SetOfSList, e1) ->
+        unary_op "make_simple_set_of_slist" e1
     | E.E1 (ToU8, e1) ->
         let m = mod_name (E.type_of l e1) in
         unary_op (m ^".to_uint8") e1
@@ -705,8 +709,17 @@ struct
         unary_op "Slice.to_string" e1
     | E.E1 (BytesOfString, e1) ->
         unary_op "Slice.of_string" e1
-    | E.E1 (ListLength, e1) ->
-        unary_op "Uint32.of_int @@ Array.length" e1
+    | E.E1 (Cardinality, e1) ->
+        (match E.type_of l e1 with
+        | TValue { vtyp = TVec (d, _) ; _ } ->
+            string_of_int d
+        | TValue { vtyp = TList _ ; _ } ->
+            unary_op "Uint32.of_int @@ Array.length" e1
+        | TValue { vtyp = TSet _ ; _ } ->
+            let n1 = print emit p l e1 in
+            emit ?name p l e (fun oc -> pp oc "%s.cardinality ()" n1)
+        | _ ->
+            assert false (* Because type checking *))
     | E.E0 (DataPtrOfString s) ->
         emit ?name p l e (fun oc -> pp oc "Pointer.of_string %S" s)
     | E.E0 (DataPtrOfBuffer n) ->
@@ -854,6 +867,8 @@ struct
         binary_infix_op e1 "::" e2
     | E.E0 (EndOfList _) ->
         emit ?name p l e (fun oc -> pp oc "[]")
+    | E.E0 (EmptySet _) ->
+        emit ?name p l e (fun oc -> pp oc "make_simple_set ()")
     | E.E0 Now ->
         emit ?name p l e (fun oc -> pp oc "Unix.gettimeofday ()")
     | E.E0 Random ->
@@ -1043,10 +1058,17 @@ struct
         let init = print emit p l e1
         and body = print emit p l e2
         and lst = print emit p l e3 in
-        (* Both lists and vectors are represented by arrays so Array.fold_left
-         * will do in both cases: *)
-        emit ?name p l e (fun oc ->
-          ppi oc "Array.fold_left %s %s %s" init body lst)
+        (match E.type_of l e3 with
+        | TValue { vtyp = (TVec _ | TList _) ; _ } ->
+            (* Both lists and vectors are represented by arrays so
+             * Array.fold_left will do in both cases: *)
+            emit ?name p l e (fun oc ->
+              pp oc "Array.fold_left %s %s %s" body init lst)
+        | TValue { vtyp = TSet _ ; _ } ->
+            emit ?name p l e (fun oc ->
+              pp oc "%s.fold %s %s" lst init body)
+        | _ ->
+            assert false (* Because type checking *))
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2
@@ -1118,6 +1140,22 @@ struct
         emit ?name p l e (fun oc -> pp oc "Mask.Skip")
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "Mask.SetNull")
+    | E.E1 (SlidingWindow t, e1) ->
+        let n1 = print emit p l e1
+        and def = print emit p l (E.default_value t) in
+        emit ?name p l e (fun oc -> pp oc "make_sliding_window %s %s" def n1)
+    | E.E1 (TumblingWindow t, e1) ->
+        let n1 = print emit p l e1
+        and def = print emit p l (E.default_value t) in
+        emit ?name p l e (fun oc -> pp oc "make_tumbling_window %s %s" def n1)
+    | E.E1 (Sampling t, e1) ->
+        let n1 = print emit p l e1
+        and def = print emit p l (E.default_value t) in
+        emit ?name p l e (fun oc -> pp oc "make_sampling %s %s" def n1)
+    | E.E2 (Insert, e1, e2) ->
+        let set = print emit p l e1
+        and item = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s.insert %s" set item)
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

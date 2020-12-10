@@ -376,6 +376,169 @@ struct
     { p with start ; stack }
 end
 
+(* Once a set is constructed only 2 operations are possible with it:
+ * - insert an item
+ * - iterate over its items
+ *
+ * Backend code generator might want various kind of sets depending on the
+ * use cases:
+ * 1. kind of sizing:
+ * - last added items limited in size;
+ * - last added items limited by "age" (being defined by some expression);
+ * - last added items reset after some size is reached;
+ * - reservoir sampling to keep max number of items.
+ *
+ * Kind of insert API:
+ * - should skip over NULLs or not;
+ * - should keep entry sorted ;
+ * - inserting an item returns nothing;
+ * - inserting an item returns the updates performed (added item, removed item).
+ *)
+
+module SimpleSet =
+struct
+  type 'a t = 'a list ref
+
+  let make () = ref []
+
+  let of_list l = ref l
+
+  let length t =
+    List.length !t |> Uint32.of_int
+
+  let insert t x =
+    t := x :: !t
+
+  let last_update t =
+    List.hd !t, []
+
+  (* Will fold in newest to oldest order unlike the other sets *)
+  let fold t u f =
+    List.fold_left f u !t
+end
+
+(* Sliding window based on number of items: *)
+module SlidingWindow =
+struct
+  type 'a t =
+    { arr : 'a array ;
+      mutable num_inserts : int ;
+      (* Last value that was removed (either 0 or 1, list type used as it
+       * matches last_update's return type) *)
+      mutable last_rem : 'a list }
+
+  let make def max_sz =
+    { arr = Array.make max_sz def ;
+      num_inserts = 0 ;
+      last_rem = [] }
+
+  let length t =
+    min t.num_inserts (Array.length t.arr) |> Uint32.of_int
+
+  let insert t x =
+    let i = t.num_inserts mod Array.length t.arr in
+    if t.num_inserts >= Array.length t.arr then
+      t.last_rem <- [ t.arr.(i) ] ;
+    t.arr.(i) <- x ;
+    t.num_inserts <- succ t.num_inserts
+
+  let last_update t =
+    let i = pred t.num_inserts mod Array.length t.arr in
+    t.arr.(i), t.last_rem
+
+  let fold t u f =
+    let len = min t.num_inserts (Array.length t.arr) in
+    let rec loop u n =
+      if n >= len then u else
+      let i = (t.num_inserts + n) mod Array.length t.arr in
+      loop (f u t.arr.(i)) (n + 1) in
+    loop u 0
+end
+
+(* Reservoir sampling: *)
+module Sampling =
+struct
+  type 'a t =
+    { (* The size of this array gives the reservoir max size.
+       * Uninitialized values are initialized to a random value given by the
+       * user: *)
+      arr : 'a array  ;
+      mutable cur_size : int ;
+      (* Total number of items added: *)
+      mutable count : int ;
+      (* Last value that was removed, if any: *)
+      mutable last_update : 'a * 'a list }
+
+  let make def max_sz =
+    { arr = Array.make max_sz def ;
+      cur_size = 0 ; count = 0 ; last_update = def, [] }
+
+  let length t =
+    t.cur_size |> Uint32.of_int
+
+  let insert t x =
+    let i = t.count in
+    t.count <- i + 1 ;
+    if t.cur_size < Array.length t.arr then (
+      let idx = t.cur_size in
+      t.cur_size <- t.cur_size + 1 ;
+      t.arr.(idx) <- x
+    ) else (
+      let max_size = float_of_int (Array.length t.arr) in
+      let keep = Random.float 1. < max_size /. float_of_int (i + 1) in
+      if keep then (
+        let idx = Random.int (Array.length t.arr) in
+        t.last_update <- x, [ t.arr.(idx) ] ;
+        t.arr.(idx) <- x
+      )
+    )
+
+  let last_update t =
+    t.last_update
+
+  let fold t u f =
+    let rec loop u i =
+      if i >= t.cur_size then u else
+      loop (f u t.arr.(i)) (i + 1) in
+    loop u 0
+end
+
+(* Finally, the generic set type: *)
+
+type 'a set =
+  { insert : 'a -> unit ;
+    last_update : unit -> 'a * 'a list ;
+    cardinality : unit -> Uint32.t ;
+    fold : 'b. 'b -> ('b -> 'a -> 'b) -> 'b }
+
+let make_simple_set () =
+  let s = SimpleSet.make () in
+  { insert = SimpleSet.insert s ;
+    last_update = (fun () -> SimpleSet.last_update s) ;
+    cardinality = (fun () -> SimpleSet.length s) ;
+    fold = (fun u f -> SimpleSet.fold s u f) }
+
+let make_simple_set_of_slist sl =
+  let s = SimpleSet.of_list sl in
+  { insert = SimpleSet.insert s ;
+    last_update = (fun () -> SimpleSet.last_update s) ;
+    cardinality = (fun () -> SimpleSet.length s) ;
+    fold = (fun u f -> SimpleSet.fold s u f) }
+
+let make_sliding_window def max_sz =
+  let s = SlidingWindow.make def max_sz in
+  { insert = SlidingWindow.insert s ;
+    last_update = (fun () -> SlidingWindow.last_update s) ;
+    cardinality = (fun () -> SlidingWindow.length s) ;
+    fold = (fun u f -> SlidingWindow.fold s u f) }
+
+let make_sampling def max_sz =
+  let s = Sampling.make def max_sz in
+  { insert = Sampling.insert s ;
+    last_update = (fun () -> Sampling.last_update s) ;
+    cardinality = (fun () -> Sampling.length s) ;
+    fold = (fun u f -> Sampling.fold s u f) }
+
 (* Runtime Field Masks *)
 
 module Mask =

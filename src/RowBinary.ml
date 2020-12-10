@@ -182,7 +182,7 @@ struct
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
   let ssize_of_list _ _ lst =
-    DynSize (ssize_of_leb128 (list_length lst))
+    DynSize (ssize_of_leb128 (cardinality lst))
 
   let ssize_of_null _ _ = ConstSize 1
 

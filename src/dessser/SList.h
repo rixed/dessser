@@ -4,6 +4,7 @@
 #include <memory>
 #include "dessser/typedefs.h"
 #include "dessser/List.h"
+#include "dessser/SimpleSet.h"
 
 template<class T>
 struct SList {
@@ -65,6 +66,15 @@ struct SList {
       l[--i] = sl->head();
     }
     return l;
+  }
+
+  List<T> toSet() const
+  {
+    Set<T> s;
+    for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
+      s.insert(sl->head());
+    }
+    return s;
   }
 };
 

@@ -485,7 +485,7 @@ struct
     unless_private mn path (fun () ->
       let with_nullmask () =
         DynSize (add (size !ringbuf_word_size)
-                     (round_up_dyn (size_of_u32 (list_length id))))
+                     (round_up_dyn (size_of_u32 (cardinality id))))
       and no_nullmask () =
         ConstSize !ringbuf_word_size in
       (* If its the outermost list and the items are not nullable then there is no
