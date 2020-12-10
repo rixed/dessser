@@ -270,6 +270,7 @@ type e2 =
   | StartsWith
   | EndsWith
   | GetBit
+  | GetVec (* for vectors or lists *)
   | ReadBytes
   | PeekByte
   | WriteByte
@@ -298,6 +299,7 @@ type e2 =
 type e3 =
   | Apply
   | SetBit
+  | SetVec (* args are: vector, index and new value *)
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
@@ -622,6 +624,7 @@ let string_of_e2 = function
   | StartsWith -> "starts-with"
   | EndsWith -> "ends-with"
   | GetBit -> "get-bit"
+  | GetVec -> "get-vec"
   | ReadBytes -> "read-bytes"
   | PeekByte -> "peek-byte"
   | WriteByte -> "write-byte"
@@ -649,6 +652,7 @@ let string_of_e2 = function
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
+  | SetVec -> "set-vec"
   | Apply -> "apply"
   | BlitByte -> "blit-byte"
   | If -> "if"
@@ -1160,6 +1164,7 @@ struct
     | Lst [ Sym "starts-with" ; x1 ; x2 ] -> E2 (StartsWith, e x1, e x2)
     | Lst [ Sym "ends-with" ; x1 ; x2 ] -> E2 (EndsWith, e x1, e x2)
     | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
+    | Lst [ Sym "get-vec" ; x1 ; x2 ] -> E2 (GetVec, e x1, e x2)
     | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
     | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
     | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
@@ -1196,6 +1201,7 @@ struct
     (* e3 *)
     | Lst [ Sym "apply" ; x1 ; x2 ; x3 ] -> E3 (Apply, e x1, e x2, e x3)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
+    | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
     | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
@@ -1472,7 +1478,8 @@ let rec type_of l e0 =
   | E0 (DataPtrOfBuffer _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E2 (GetBit, _, _) -> T.bit
-  | E3 (SetBit, _, _, _) -> T.void
+  | E2 (GetVec, e1, _) -> T.TValue (get_item_type ~lst:true ~vec:true e0 l e1)
+  | E3 ((SetBit | SetVec), _, _, _) -> T.void
   | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
   | E1 (ReadWord _, _) -> T.pair T.word T.dataptr
   | E1 (ReadDWord _, _) -> T.pair T.dword T.dataptr
@@ -1906,10 +1913,20 @@ let rec type_check l e =
     | E2 (GetBit, e1, e2) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size
+    | E2 (GetVec, e1, e2) ->
+        check_list_or_vector l e1 ;
+        check_integer l e2
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
         check_eq l e3 T.bit
+    | E3 (SetVec, e1, e2, e3) ->
+        (match type_of l e1 |> T.develop_user_types with
+        | T.TValue { vtyp = T.TVec (_, mn) ; nullable = false } ->
+            check_eq l e3 (TValue mn)
+        | t ->
+            raise (Type_error (e0, e1, t, "be a vector"))) ;
+        check_integer l e2
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
         check_eq l e T.dataptr
     | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
@@ -2420,7 +2437,9 @@ struct
   let cardinality e1 = E1 (Cardinality, e1)
   let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
+  let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
+  let get_vec e1 e2 = E2 (GetVec, e1, e2)
   let to_nullable e1 = E1 (ToNullable, e1)
   let to_not_nullable e1 = E1 (ToNotNullable, e1)
   let get_item n e1 = E1 (GetItem n, e1)
