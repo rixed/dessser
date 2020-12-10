@@ -254,6 +254,8 @@ struct
           List.print ~first:" " ~last:" " ~sep:", "
             (fun oc (name, n) ->
               Printf.fprintf oc ".%s = %s" name n) oc inits)
+    | E.E1 (Identity, e1) ->
+        print ?name emit p l e1
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
         ppi p.def "(void)%s;" n ;

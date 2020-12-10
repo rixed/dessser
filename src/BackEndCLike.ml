@@ -204,7 +204,7 @@ struct
         U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
         CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
         BoolOfU8 | LogNot | StringLength | RemSize | Not | Abs | Neg |
-        Fst | Snd | Head | Tail), e1) ->
+        Fst | Snd | Head | Tail | Ignore | Identity), e1) ->
         can_inline e1
     | E2 ((
         Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Min | Max |

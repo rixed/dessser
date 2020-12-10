@@ -294,7 +294,7 @@ let e1_of_int n =
          StringOfBytes ; BytesOfString ; ListLength ; ReadByte ; DataPtrPush ;
          DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; Log10 ; Sqrt ;
          Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ;
-         SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd |]
+         SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd ; Identity |]
   in
   e1s.(n mod Array.length e1s)
 

@@ -90,6 +90,7 @@ type e1 =
                * int (* Which alternative is constructed *)
   | Dump
   | Debug
+  | Identity  (* Useful as a default function *)
   | Ignore
   | IsNull
   (* Turn e into a nullable: *)
@@ -446,6 +447,7 @@ let string_of_e1 = function
                   ^" "^ string_of_int i
   | Dump -> "dump"
   | Debug -> "debug"
+  | Identity -> "identity"
   | Ignore -> "ignore"
   | IsNull -> "is-null"
   | ToNullable -> "to-nullable"
@@ -966,6 +968,7 @@ struct
             failwith)
     | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
     | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
+    | Lst [ Sym "identity" ; x ] -> E1 (Identity, e x)
     | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
     | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
     | Lst [ Sym "to-nullable" ; x ] -> E1 (ToNullable, e x)
@@ -1456,8 +1459,7 @@ let rec type_of l e0 =
   | E2 (And, _, _) -> T.bool
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
-  | E1 (Abs, e1) -> type_of l e1
-  | E1 (Neg, e1) -> type_of l e1
+  | E1 ((Identity | Abs | Neg), e1) -> type_of l e1
   | E1 ((Exp | Ceil | Floor | Round |
          Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), _) ->
       T.float
@@ -1712,7 +1714,7 @@ let rec type_check l e =
          | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
          | Identifier _| Param _
          | CopyField | SkipField | SetFieldNull)
-    | E1 ((Comment _ | Dump | Debug | Ignore | Function _ | Hash), _)
+    | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _ | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
     | E1 (Apply, f) ->
@@ -2136,6 +2138,7 @@ let register_user_expr name ?check ?type_ ?printer def =
 
 module Ops =
 struct
+  let identity_ e1 = E1 (Identity, e1)
   let ignore_ e1 = E1 (Ignore, e1)
   let dump e1 = E1 (Dump, e1)
   let debug e1 = E1 (Debug, e1)
