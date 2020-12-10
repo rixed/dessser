@@ -9,7 +9,7 @@ struct Set {
   virtual ~Set() {};
   virtual void insert(T const &) = 0;
   virtual std::pair<T, std::list<T>> lastUpdate() const = 0;
-  virtual size_t size() const = 0;
+  virtual uint32_t size() const = 0;
 };
 
 #endif

@@ -865,10 +865,7 @@ struct
         and lst = print emit p l e3 in
         let res = gen_sym ?name "fold_res_" in
         let t1 = E.type_of l e1 in
-        let item_t =
-          match E.type_of l e3 |> T.develop_user_types with
-          | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } -> t
-          | _ -> assert false (* because of type checking *) in
+        let item_t = E.get_item_type ~lst:true ~vec:true ~set:true e l e3 in
         ppi p.def "%s %s { %s };" (type_identifier p t1) res init ;
         ppi p.def "for (%s x_ : %s) {"
           (type_identifier p (T.TValue item_t)) lst ;

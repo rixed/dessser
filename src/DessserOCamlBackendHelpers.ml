@@ -412,9 +412,9 @@ struct
   let last_update t =
     List.hd !t, []
 
-  (* Will fold in newest to oldest order unlike the other sets *)
   let fold t u f =
-    List.fold_left f u !t
+    List.rev !t |>
+    List.fold_left f u
 end
 
 (* Sliding window based on number of items: *)
@@ -518,6 +518,9 @@ let make_simple_set () =
     cardinality = (fun () -> SimpleSet.length s) ;
     fold = (fun u f -> SimpleSet.fold s u f) }
 
+(* When serializing with fold, the oldest value is written first.
+ * When deserializing into an slist, the first value (the oldest) end up
+ * at the end of the slist. *)
 let make_simple_set_of_slist sl =
   let s = SimpleSet.of_list sl in
   { insert = SimpleSet.insert s ;

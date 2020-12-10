@@ -7,6 +7,7 @@ struct SlidingWindow : public Set<T> {
   std::list<T> l;
 
   SlidingWindow() {}
+  SlidingWindow(SlidingWindow const &other) : l(other.l) {}
   ~SlidingWindow() {}
 
   void insert(T const &x) override {
@@ -18,9 +19,12 @@ struct SlidingWindow : public Set<T> {
       l.back(), std::list<T>());
   }
 
-  size_t size() const override {
+  uint32_t size() const override {
     return l.size();
   }
+
+  typename std::list<T>::iterator begin() { return l.begin(); }
+  typename std::list<T>::iterator end() { return l.end(); }
 };
 
 #endif

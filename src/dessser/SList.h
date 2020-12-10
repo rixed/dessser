@@ -68,9 +68,11 @@ struct SList {
     return l;
   }
 
-  List<T> toSet() const
+  /* The only set that can be serializer, and therefore that require a
+   * convertion from an SList, is the SimpleSet: */
+  SimpleSet<T> toSet() const
   {
-    Set<T> s;
+    SimpleSet<T> s;
     for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
       s.insert(sl->head());
     }
