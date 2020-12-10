@@ -325,7 +325,9 @@ let rec e0_gen l depth =
   assert (depth >= 0) ;
   let open Gen in
   let lst = [
-    1, map null value_type_gen ;
+    (* NULL and empty set can be considered scalars (depth=0) whatever their
+     * item type *)
+    1, map null (value_type_gen_of_depth depth) ;
     1, map E.Ops.empty_set (maybe_nullable_gen_of_depth depth) ;
     1, return E.Ops.now ;
     1, return E.Ops.rand ;
