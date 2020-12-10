@@ -391,7 +391,7 @@ struct
         binary_infix_op e1 ">>" e2
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
-        (match T.develop_user_types (E.type_of l e1) with
+        (match E.type_of l e1 |> T.develop_user_types with
         | TValue { vtyp = Mac TU128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
         | TValue { vtyp = Mac TI128 ; _ } ->
@@ -895,7 +895,7 @@ struct
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 s)
     | E.E1 (GetAlt s, e1) ->
-        (match E.type_of l e1 with
+        (match E.type_of l e1 |> T.develop_user_types with
         | T.TValue { vtyp = TSum mns ; nullable = false } ->
             let n1 = print emit p l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in

@@ -369,7 +369,7 @@ struct
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
         pp p.def ("%s"^^
-          (match E.type_of l e1 with
+          (match E.type_of l e1 |> T.develop_user_types with
           | TValue { vtyp = Mac TString ; nullable = false } ->
               "print_string %s;"
           | TValue { vtyp = Mac TChar ; nullable = false } ->
@@ -467,7 +467,7 @@ struct
     | E.E2 (Rem, e1, e2) ->
         binary_mod_op "rem" e1 e2
     | E.E2 (Pow, e1, e2) ->
-        (match E.type_of l e1 with
+        (match E.type_of l e1 |> T.develop_user_types with
         | TValue { vtyp = Mac TFloat ; _ } ->
             (* TODO: if e2 is constant and > 0 then do away with the
              * Nullable.of_nan: *)
@@ -710,7 +710,7 @@ struct
     | E.E1 (BytesOfString, e1) ->
         unary_op "Slice.of_string" e1
     | E.E1 (Cardinality, e1) ->
-        (match E.type_of l e1 with
+        (match E.type_of l e1 |> T.develop_user_types with
         | TValue { vtyp = TVec (d, _) ; _ } ->
             string_of_int d
         | TValue { vtyp = TList _ ; _ } ->
@@ -1066,7 +1066,7 @@ struct
         let init = print emit p l e1
         and body = print emit p l e2
         and lst = print emit p l e3 in
-        (match E.type_of l e3 with
+        (match E.type_of l e3 |> T.develop_user_types with
         | TValue { vtyp = (TVec _ | TList _) ; _ } ->
             (* Both lists and vectors are represented by arrays so
              * Array.fold_left will do in both cases: *)
@@ -1095,7 +1095,7 @@ struct
 (*      TODO: For when tuples are actual tuples:
         let res = gen_sym ?name "get_item_" in
         let max_n =
-          match E.type_of l e1 with
+          match E.type_of l e1 |> T.develop_user_types with
           | TValue { vtyp = TTup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
         ppi p.def "let %t = %s\n"
