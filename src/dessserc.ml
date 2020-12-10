@@ -24,12 +24,13 @@ let module_of_backend = function
 
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
-type encodings = Null | RowBinary | SExpr | RingBuff
+type encodings = Null | RowBinary | SExpr | RingBuff | CSV
 
 let des_of_encoding = function
   | RingBuff -> (module RamenRingBuffer.Des : DES)
   | RowBinary -> (module RowBinary.Des : DES)
   | SExpr -> (module SExpr.Des : DES)
+  | CSV -> (module Csv.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
@@ -37,6 +38,7 @@ let ser_of_encoding = function
   | RingBuff -> (module RamenRingBuffer.Ser : SER)
   | RowBinary -> (module RowBinary.Ser : SER)
   | SExpr -> (module SExpr.Ser : SER)
+  | CSV -> (module Csv.Ser : SER)
 
 (* Generate just the code to convert from in to out and from
  * in to a heap value and from a heap value to out, then link into a library. *)
@@ -218,7 +220,8 @@ let docv_of_enum l =
 let known_inputs =
   [ "ringbuf", RingBuff ;
     "row-binary", RowBinary ;
-    "s-expression", SExpr ]
+    "s-expression", SExpr ;
+    "csv", CSV ]
 
 let encoding_in =
   let doc = "encoding format for input" in
@@ -230,7 +233,8 @@ let known_outputs =
   [ "null", Null ;
     "ringbuf", RingBuff ;
     "row-binary", RowBinary ;
-    "s-expression", SExpr ]
+    "s-expression", SExpr ;
+    "csv", CSV ]
 
 let encoding_out =
   let doc = "encoding format for output" in
