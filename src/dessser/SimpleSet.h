@@ -4,6 +4,7 @@
 
 template<class T>
 struct SimpleSet : public Set<T> {
+  /* From oldest to youngest: */
   std::list<T> l;
 
   SimpleSet() {}

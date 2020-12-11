@@ -4,6 +4,7 @@
 
 template<class T>
 struct Sampling : public Set<T> {
+  /* From oldest to youngest: */
   std::list<T> l;
 
   Sampling() {}

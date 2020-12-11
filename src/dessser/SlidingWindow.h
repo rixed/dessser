@@ -4,6 +4,7 @@
 
 template<class T>
 struct SlidingWindow : public Set<T> {
+  /* From oldest to youngest: */
   std::list<T> l;
 
   SlidingWindow() {}

@@ -73,8 +73,10 @@ struct SList {
   SimpleSet<T> toSet() const
   {
     SimpleSet<T> s;
+    /* In this SList the deserialized values are stored from youngest to
+     * oldest and so must be reversed here: */
     for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
-      s.insert(sl->head());
+      s.l.push_front(sl->head());
     }
     return s;
   }

@@ -852,6 +852,8 @@ let sexpr mn =
   "3 (1 2 3)" (check_heapvalue ocaml_be "U16[]" "3 (1 2 3)")
   "(1 5)" (check_heapvalue cpp_be "{ejgvx: U16; kngke: U64}" "(1 5)")
   "1 (6)" (check_heapvalue cpp_be "U8[]?" "1 (6)")
+  "2 (214 null)" (check_heapvalue ocaml_be "U8?{}" "2 (214 null)")
+  "2 (214 null)" (check_heapvalue cpp_be "U8?{}" "2 (214 null)")
 *)
 (*$= check_ringbuffer & ~printer:identity
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
