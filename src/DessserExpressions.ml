@@ -25,8 +25,13 @@ let endianness_of_string = function
   | "big-endian" -> BigEndian
   | en -> invalid_arg ("endianness_of_string "^ en)
 
+type param_id = int (* function id *) * int (* param number *)
+
+let param_print oc (f, n) =
+  Printf.fprintf oc "%d:%d" f n
+
 type e0 =
-  | Param of (* function id *) int * (* param no *) int
+  | Param of param_id
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -370,6 +375,18 @@ and expr_eq e1 e2 =
   | E4 (op1, e11, e12, e13, e14), E4 (op2, e21, e22, e23, e24) ->
       e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
   | _ -> false
+
+(* Extract all identifiers from the environment: *)
+let identifiers =
+  List.filter_map (function
+    | E0 (Identifier n), _ -> Some n
+    | _ -> None)
+
+(* Extract all parameters from the environment: *)
+let parameters =
+  List.filter_map (function
+    | E0 (Param p), _ -> Some p
+    | _ -> None)
 
 (* Note re. Apply: even if the function can be precomputed (which it usually
  * can) and its parameters as well, the application can be precomputed only
@@ -1251,6 +1268,8 @@ exception Type_error_param of t * t * int * T.t * string
 exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
 exception Apply_error of t * string
+exception Unbound_identifier of t * string * string list
+exception Unbound_parameter of t * param_id * param_id list
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -1565,9 +1584,7 @@ let rec type_of l e0 =
   | E0 (Identifier n) as e ->
       (try List.assoc e l
       with Not_found ->
-          Printf.eprintf "Cannot find identifier %S in %a\n%!"
-            n (List.print (fun oc (e, _) -> print oc e)) l ;
-          raise Not_found)
+        raise (Unbound_identifier (e0, n, identifiers l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.mask_action
   | E2 (Let n, e1, e2) ->
@@ -1577,12 +1594,10 @@ let rec type_of l e0 =
         (E0 (Param (fid, i)), t) :: l
       ) l ts in
       TFunction (ts, type_of l e)
-  | E0 (Param (fid, n)) as e ->
+  | E0 (Param p) as e ->
       (try List.assoc e l
       with Not_found ->
-          Printf.sprintf2 "Cannot find parameter #%d of function %d in %a\n%!"
-            n fid (List.print (fun oc (e, _) -> print oc e)) l |>
-          failwith)
+        raise (Unbound_parameter (e0, p, parameters l)))
   | E3 (If, _, e, _) -> type_of l e
   | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
   | E3 (LoopWhile, _, _, e)
@@ -2100,6 +2115,19 @@ let () =
           Printf.sprintf2
             "Invalid function application: In expression %a, %s"
             (print ~max_depth) e0 s)
+    | Unbound_identifier (e0, n, ns) ->
+        Some (
+          Printf.sprintf2
+            "Unbound identifier %S: In expression %a, bound identifiers are %a"
+            n (print ~max_depth) e0
+            (pretty_list_print String.print) ns)
+    | Unbound_parameter (e0, p, ps) ->
+        Some (
+          Printf.sprintf2
+            "Unbound parameter %a: In expression %a, bound parameters are %a"
+            param_print p
+            (print ~max_depth) e0
+            (pretty_list_print param_print) ps)
     | _ ->
         None)
 

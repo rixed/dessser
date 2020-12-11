@@ -121,6 +121,29 @@ let hexify_string s =
 *)
 
 (*
+ * Prettier printers
+ *)
+
+let pretty_enum_print ?(uppercase=false) p oc e =
+  let and_ = if uppercase then " AND " else " and " in
+  let rec loop first x =
+    match Enum.get e with
+    | None ->
+        Printf.fprintf oc "%s%a" (if first then "" else and_) p x
+    | Some next ->
+        Printf.fprintf oc "%s%a" (if first then "" else ", ") p x ;
+        loop false next in
+  match Enum.get e with
+  | None -> String.print oc "<empty>"
+  | Some x -> loop true x
+
+let pretty_list_print ?uppercase p oc =
+  pretty_enum_print ?uppercase p oc % List.enum
+
+let pretty_array_print ?uppercase p oc =
+  pretty_enum_print ?uppercase p oc % Array.enum
+
+(*
  * Subprocesses
  *)
 
