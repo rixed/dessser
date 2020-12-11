@@ -280,7 +280,8 @@ struct
             loop true defined left_overs rest
           ) in
     loop false state.external_identifiers [] identifiers ;
-    let print_ios oc =
+    let print_ios oc lst =
+      List.rev lst |>
       List.iter (fun io -> String.print oc (IO.close_out io)) in
     Printf.fprintf oc
       "%s\n\n\
