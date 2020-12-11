@@ -72,13 +72,13 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
     E.type_check [] value_sersize ;
     E.type_check [] of_value) ;
   let state = BE.make_state  () in
-  let state, _, _convert_id =
+  let state, _, _ =
     BE.identifier_of_expression state ~name:"convert" convert in
-  let state, _, _to_value_id =
+  let state, _, _ =
     BE.identifier_of_expression state ~name:"to_value" to_value in
-  let state, _, _value_sersize_id =
+  let state, _, _ =
     BE.identifier_of_expression state ~name:"value_sersize" value_sersize in
-  let state, _, _of_value_id =
+  let state, _, _ =
     BE.identifier_of_expression state ~name:"of_value" of_value in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
@@ -104,19 +104,19 @@ let converter
     E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ~transform) in
   if debug then E.type_check [] convert ;
   let state = BE.make_state  () in
-  let state, _, convert_id =
+  let state, _, convert_name =
     BE.identifier_of_expression state ~name:"convert" convert in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
-  let convert_main_for convert_id = function
-    | "cc" -> DessserDSTools_FragmentsCPP.converter convert_id
-    | "ml" -> DessserDSTools_FragmentsOCaml.converter convert_id
+  let convert_main_for = function
+    | "cc" -> DessserDSTools_FragmentsCPP.converter convert_name
+    | "ml" -> DessserDSTools_FragmentsOCaml.converter convert_name
     | "dil" -> ""
     | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->
     BE.print_definitions state oc ;
-    String.print oc (convert_main_for convert_id BE.preferred_def_extension)
+    String.print oc (convert_main_for BE.preferred_def_extension)
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
@@ -145,16 +145,16 @@ let lmdb main
     E.type_check [] convert_val
   ) ;
   let state = BE.make_state  () in
-  let state, _, convert_key_id =
+  let state, _, convert_key_name =
     BE.identifier_of_expression state ~name:"convert_key" convert_key in
-  let state, _, convert_val_id =
+  let state, _, convert_val_name =
     BE.identifier_of_expression state ~name:"convert_val" convert_val in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
   write_source ~src_fname:def_fname (fun oc ->
     BE.print_definitions state oc ;
-    main BE.preferred_def_extension convert_key_id convert_val_id |>
+    main BE.preferred_def_extension convert_key_name convert_val_name |>
     String.print oc
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;

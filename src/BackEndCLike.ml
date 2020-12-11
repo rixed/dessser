@@ -140,9 +140,11 @@ struct
     E.fold [] l (fun lst l -> function
       | E0 (Identifier s) as e ->
           assert (s <> "") ;
-          if List.mem_assoc e l || List.mem s lst then lst else (
-            pp stdout "Cannot find identifier %S in %a\n%!"
-              s (List.print (fun oc (e, _) -> E.print oc e)) l ;
+          if List.mem_assoc e l || List.mem s lst then (
+            lst
+          ) else (
+            if debug then
+              pp stdout "Expression depends on external identifier %S\n%!" s ;
             s :: lst
           )
       | _ -> lst
@@ -239,7 +241,7 @@ struct
 
   let print_source output_identifier state oc =
     (* state is full of identifiers (list of name * exp). Output them in any order
-     * as long as dependencies are defined before used. *)
+     * as long as dependencies are defined before being used. *)
     let identifiers =
       List.map (fun (name, identifier, _) ->
         let l =
@@ -270,9 +272,15 @@ struct
             List.filter (fun name ->
               not (List.mem_assoc name defined)
             ) depends in
-          if missing_depends <> [] then
+          if missing_depends <> [] then (
+            if debug then
+              pp stdout "Identifier %s has some undefined dependences, \
+                         waiting...\n" name ;
             loop progress defined ((name, missing_depends, e) :: left_overs) rest
-          else (
+          ) else (
+            if debug then
+              pp stdout "Identifier %s depends on %d defined identifiers, \
+                         emitting code...\n" name (List.length depends) ;
             let l =
               List.map (fun (name, t) ->
                 E.E0 (Identifier name), t
