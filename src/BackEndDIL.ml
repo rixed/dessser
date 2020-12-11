@@ -12,7 +12,7 @@ type identifier =
   { public : bool ; expr : E.t }
 
 type state =
-  { identifiers : (string * identifier) list ;
+  { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list }
 
 let make_state () =
@@ -21,7 +21,7 @@ let make_state () =
 let print_definitions state oc =
   (* Print in the order of definition: *)
   List.rev state.identifiers |>
-  List.iter (fun (name, { expr ; _ }) ->
+  List.iter (fun (name, { expr ; _ }, _) ->
     Format.(fprintf str_formatter "@[<hov 2>(define@ %s@ %a)@]"
       name
       E.pretty_print expr) ;
@@ -44,6 +44,19 @@ let gen_sym =
     incr name_seq ;
     "_"^ string_of_int !name_seq
 
+let environment state =
+  (* Start with external identifiers: *)
+  let l =
+    List.map (fun (name, typ) ->
+      E.Ops.identifier name, typ
+    ) state.external_identifiers in
+  (* ...and already defined identifiers in the environment: *)
+  let l =
+    List.fold_left (fun l (name, _, t) ->
+      (E.Ops.identifier name, t) :: l
+    ) l state.identifiers in
+  l
+
 let identifier_of_expression state ?name expr =
   let name, public =
     match name with
@@ -52,21 +65,13 @@ let identifier_of_expression state ?name expr =
     | Some name ->
         name, true in
   let identifier = { public ; expr } in
-  (* Start with external identifiers: *)
-  let l =
-    List.map (fun (name, typ) ->
-      E.Ops.identifier name, typ
-    ) state.external_identifiers in
-  (* ...and already defined identifiers in the environment: *)
-  let l =
-    List.fold_left (fun l (name, id) ->
-      (E.Ops.identifier name, E.type_of l id.expr) :: l
-    ) l state.identifiers in
+  let l = environment state in
   E.type_check l expr ;
-  if E.type_of l expr = TVoid then
+  let t = E.type_of l expr in
+  if t = TVoid then
     invalid_arg "identifier_of_expression of type void" ;
   { state with
-      identifiers = (name, identifier) :: state.identifiers },
+      identifiers = (name, identifier, t) :: state.identifiers },
   E.E0 (Identifier name),
   name
 

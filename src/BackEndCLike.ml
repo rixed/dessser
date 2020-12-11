@@ -129,7 +129,7 @@ struct
     { public : bool ; expr : E.t }
 
   type state =
-    { identifiers : (string * identifier) list ;
+    { identifiers : (string * identifier * T.t) list ;
       external_identifiers : (string * T.t) list }
 
   let make_state () =
@@ -152,6 +152,19 @@ struct
     { state with external_identifiers =
         (name, typ) :: state.external_identifiers }
 
+  let environment state =
+    (* Start with external identifiers: *)
+    let l =
+      List.map (fun (name, typ) ->
+        E.Ops.identifier name, typ
+      ) state.external_identifiers in
+    (* ...and already defined identifiers in the environment: *)
+    let l =
+      List.fold_left (fun l (name, _, t) ->
+        (E.Ops.identifier name, t) :: l
+      ) l state.identifiers in
+    l
+
   let identifier_of_expression state ?name expr =
     let name, public =
       match name with
@@ -160,21 +173,12 @@ struct
       | Some name ->
           name, true in
     let identifier = { public ; expr } in
-    (* Start with external identifiers: *)
-    let l =
-      List.map (fun (name, typ) ->
-        E.Ops.identifier name, typ
-      ) state.external_identifiers in
-    (* ...and already defined identifiers in the environment: *)
-    let l =
-      List.fold_left (fun l (name, id) ->
-        (E.Ops.identifier name, E.type_of l id.expr) :: l
-      ) l state.identifiers in
+    let l = environment state in
     E.type_check l expr ;
-    if E.type_of l expr = TVoid then
-      invalid_arg "identifier_of_expression of type void" ;
+    let t = E.type_of l expr in
+    if t = TVoid then invalid_arg "identifier_of_expression of type void" ;
     { state with
-        identifiers = (name, identifier) :: state.identifiers },
+        identifiers = (name, identifier, t) :: state.identifiers },
     E.E0 (Identifier name),
     valid_identifier name
 
@@ -237,7 +241,7 @@ struct
     (* state is full of identifiers (list of name * exp). Output them in any order
      * as long as dependencies are defined before used. *)
     let identifiers =
-      List.map (fun (name, identifier) ->
+      List.map (fun (name, identifier, _) ->
         let l =
           List.map (fun (name, typ) ->
             E.Ops.identifier name, typ
