@@ -177,6 +177,92 @@ let lmdb_load =
 let lmdb_query _ _ _ _ _ _ () =
   todo "lmdb_query"
 
+(* In dessser IL we have to explicitly describe the initial state, the update
+ * function and the finalizer function. Ramen will have to keep working hard
+ * to convert simple RaQL aggregation functions into DIL programs. *)
+let aggregator
+      schema backend encoding_in encoding_out
+      init_expr update_expr finalize_expr
+      dest_fname () =
+  let backend = module_of_backend backend in
+  let module BE = (val backend : BACKEND) in
+  let module Des = (val (des_of_encoding encoding_in) : DES) in
+  let module ToValue = HeapValue.Materialize (Des) in
+  (* Let's start with a function that's reading input values from a given
+   * source pointer and returns the heap value and the new source pointer: *)
+  let to_value =
+    E.func1 TDataPtr (fun _l -> ToValue.make schema) in
+  (* Check the function that creates the initial state that will be used by
+   * the update function: *)
+  E.type_check [] init_expr ;
+  let state_t = E.type_of [] init_expr in
+  (* Then check the update expression, that must be a function of the state_t
+   * and the input_t: *)
+  E.type_check [] update_expr ;
+  let update_t = E.type_of [] update_expr in
+  if update_t <> T.TFunction ([| state_t ; TValue schema |], T.void) then
+    Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
+                     aggregation state and the input value and returning \
+                     nothing (not %a)"
+                     (E.print ~max_depth:4) update_expr
+                     T.print update_t |>
+    failwith ;
+  (* Then check the finalizer: *)
+  E.type_check [] finalize_expr ;
+  let output_t =
+    match E.type_of [] finalize_expr with
+    | T.TFunction ([| a1 |], t) when a1 = state_t -> t
+    | t ->
+        Printf.sprintf2 "Aggregation finalizer must be a function of the \
+                         aggregation state (not %a)" T.print t |>
+        failwith in
+  (* Finally, a function to convert the output value on the heap into stdout
+   * in the given encoding: *)
+  let module Ser = (val (ser_of_encoding encoding_out) : SER) in
+  let module OfValue = HeapValue.Serialize (Ser) in
+  let ma = copy_field in
+  let of_value =
+    E.func2 output_t TDataPtr (fun _l v dst ->
+      OfValue.serialize schema ma v dst) in
+  (* Let's now assemble all this into just three functions:
+   * - init_expr, that we already have;
+   * - input_expr, that deserialize and then update and return the new source
+   *   pointer;
+   * - output_expr, that finalize the value and serialize it. *)
+  let code = BE.make_state () in
+  let code, state_id, state_name =
+    BE.identifier_of_expression code ~name:"state" init_expr in
+  let input_expr =
+    E.func1 ~l:(BE.environment code) TDataPtr (fun _l src ->
+      let v_src = apply to_value [ src ] in
+      E.with_sploded_pair "input_expr_0" v_src (fun v src ->
+        seq [ apply update_expr [ state_id ; v ] ;
+              src ])) in
+  let code, _, input_name =
+    BE.identifier_of_expression code ~name:"input" input_expr in
+  let output_expr =
+    E.func1 ~l:(BE.environment code) TDataPtr (fun _l dst ->
+      let v = apply finalize_expr [ state_id ] in
+      apply of_value [ v ; dst ]) in
+  let code, _, output_name =
+    BE.identifier_of_expression code ~name:"output" output_expr in
+  let def_fname =
+    change_ext BE.preferred_def_extension dest_fname |>
+    BE.valid_source_name in
+  let main_for = function
+    | "cc" -> DessserDSTools_FragmentsCPP.aggregator state_name input_name
+                                                     output_name
+    | "ml" -> DessserDSTools_FragmentsOCaml.aggregator state_name input_name
+                                                       output_name
+    | "dil" -> ""
+    | _ -> assert false in
+  write_source ~src_fname:def_fname (fun oc ->
+    BE.print_definitions code oc ;
+    String.print oc (main_for BE.preferred_def_extension)
+  ) ;
+  compile ~optim:3 ~link:true backend def_fname dest_fname ;
+  Printf.printf "executable in %S\n" dest_fname
+
 (*
  * Command line
  *)
@@ -305,6 +391,26 @@ let modifier_exprs =
   let i = Arg.info ~doc ~docv [ "e" ; "expression" ] in
   Arg.(value (opt_all path_expression [] i))
 
+let aggr_init =
+  let doc = "Initial valueof the aggregation" in
+  let docv = "EXPRESSION" in
+  let i = Arg.info ~doc ~docv [ "init" ] in
+  Arg.(required (opt (some expression) None i))
+
+let aggr_update =
+  let doc = "Function updating the aggregation value with the current input \
+             value" in
+  let docv = "EXPRESSION" in
+  let i = Arg.info ~doc ~docv [ "update" ] in
+  (* TODO: by default, a function returning the first argument (prev state) *)
+  Arg.(required (opt (some expression) None i))
+
+let aggr_finalize =
+  let doc = "Function building the output value from the aggregation value" in
+  let docv = "EXPRESSION" in
+  let i = Arg.info ~doc ~docv [ "finalize" ] in
+  Arg.(required (opt (some expression) None i))
+
 let dest_fname =
   let doc = "Output file" in
   let docv = "FILE" in
@@ -376,6 +482,20 @@ let lmdb_query_cmd =
      $ dest_fname),
     info "lmdb-query" ~doc)
 
+let aggregator_cmd =
+  let doc = "Generate a tool to compute an aggregated value of its input" in
+  Term.(
+    (const aggregator
+     $ val_schema
+     $ backend
+     $ encoding_in
+     $ encoding_out
+     $ aggr_init
+     $ aggr_update
+     $ aggr_finalize
+     $ dest_fname),
+    info "aggregator" ~doc)
+
 let default_cmd =
   let sdocs = Manpage.s_common_options in
   let doc = "Ramen Stream Processor" in
@@ -385,7 +505,8 @@ let default_cmd =
 let () =
   match
     Term.eval_choice default_cmd [
-      converter_cmd ; lib_cmd ; lmdb_dump_cmd ; lmdb_load_cmd ; lmdb_query_cmd ] with
+      converter_cmd ; lib_cmd ; lmdb_dump_cmd ; lmdb_load_cmd ; lmdb_query_cmd ;
+      aggregator_cmd ] with
   | `Error _ -> exit 1
   | `Version | `Help -> exit 0
   | `Ok f -> f ()

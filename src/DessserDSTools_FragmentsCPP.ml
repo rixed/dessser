@@ -44,7 +44,7 @@ int main(int numArgs, char **args)
     Size outSz(%d);
     Pointer dst(outSz);
 
-    Pair<Pointer, Pointer> ptrs = %s(src, dst);
+    Pair<Pointer, Pointer> ptrs = dessser_gen::%s(src, dst);
 
     // Print serialized:
     assert(ptrs.v2.offset < ptrs.v2.size-1);
@@ -72,3 +72,7 @@ let dumper ?(out_buf_size=50_000) _convert_key_id _convert_val_id =
 let loader ?(out_buf_size=50_000) _convert_key_id _convert_val_id =
   ignore out_buf_size ;
   DessserTools.todo "loader for C++"
+
+let aggregator ?(out_buf_size=50_000) _state_id _input_id _output_id =
+  ignore out_buf_size ;
+  DessserTools.todo "aggregator for C++"

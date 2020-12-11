@@ -8,7 +8,7 @@ let () =
 |}
 
 
-let converter ?(out_buf_size=50_000) convert_id =
+let converter ?(out_buf_size=50_000) convert_name =
   Printf.sprintf {|
 open Batteries
 
@@ -56,9 +56,11 @@ let main () =
       read_whole_file !fname in
 
   let rec loop src =
-    if Pointer.remSize src <= 0 then src else (
+    if Pointer.remSize src <= 0 then (
+      src
+    ) else (
       let dst = Pointer.make %d in
-      let src, dst = %s src dst in
+      let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       Char.print stdout !delim ;
@@ -72,10 +74,10 @@ let main () =
   loop src |> ignore
 
 %s
-|} out_buf_size convert_id run_main
+|} out_buf_size convert_name run_main
 
 
-let dumper ?(out_buf_size=50_000) convert_key_id convert_val_id =
+let dumper ?(out_buf_size=50_000) convert_key_name convert_val_name =
   Printf.sprintf {|
 open Batteries
 
@@ -138,13 +140,13 @@ let main () =
     Cursor.iter ~cursor ~f:(fun k v ->
       let src = Pointer.of_string k in
       let dst = Pointer.make out_buf_sz in
-      let src, dst = %s src dst in
+      let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       String.print stdout !kv_delim ;
       let src = Pointer.of_string v in
       let dst = Pointer.make out_buf_sz in
-      let src, dst = %s src dst in
+      let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       String.print stdout !eov_delim ;
@@ -153,10 +155,10 @@ let main () =
   )
 
 %s
-|} out_buf_size convert_key_id convert_val_id run_main
+|} out_buf_size convert_key_name convert_val_name run_main
 
 
-let loader ?(out_buf_size=50_000) convert_key_id convert_val_id =
+let loader ?(out_buf_size=50_000) convert_key_name convert_val_name =
   Printf.sprintf {|
 open Batteries
 
@@ -251,14 +253,14 @@ let main () =
   List.iter (fun (k, v) ->
     let src = Pointer.of_string k in
     let dst = Pointer.make out_buf_sz in
-    let src, dst = %s src dst in
+    let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
     assert (dst.Pointer.start <= dst.Pointer.stop) ;
     let key = Bytes.sub_string dst.bytes 0 dst.start in
 
     let src = Pointer.of_string v in
     let dst = Pointer.make out_buf_sz in
-    let src, dst = %s src dst in
+    let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
     assert (dst.Pointer.start <= dst.Pointer.stop) ;
     let value = Bytes.sub_string dst.bytes 0 dst.start in
@@ -267,4 +269,63 @@ let main () =
   )
 
 %s
-|} out_buf_size convert_key_id convert_val_id run_main
+|} out_buf_size convert_key_name convert_val_name run_main
+
+let aggregator ?(out_buf_size=50_000) _state_name input_name output_name =
+  Printf.sprintf {|
+open Batteries
+
+let main () =
+  let fname = ref "/dev/stdin"
+  and delim = ref '\n' in
+
+  let syntax () =
+    String.print stdout
+      "Syntax: [(--delim|-d) DELIM] [(--input|-i) FILE]\n" ;
+    exit 1 in
+
+  let read_whole_file fname =
+    File.with_file_in ~mode:[`text] fname IO.read_all in
+
+  let rec loop_args i =
+    if i < Array.length Sys.argv then (
+      let arg = Sys.argv.(i) in
+      if i < Array.length Sys.argv - 1 &&
+         (String.icompare arg "--delim" = 0 ||
+          String.icompare arg "-d" = 0)
+      then (
+        delim := Sys.argv.(i + 1).[0] ;
+        loop_args (i + 2)
+      ) else if i < Array.length Sys.argv - 1 &&
+                (String.icompare arg "--input" = 0 ||
+                 String.icompare arg "-i" = 0)
+      then (
+        fname := Sys.argv.(i + 1) ;
+        loop_args (i + 2)
+      ) else (
+        syntax ()
+      )
+    ) in
+  loop_args 1 ;
+
+  let input =
+    read_whole_file !fname in
+
+  let rec loop src =
+    if Pointer.remSize src <= 0 then
+      src
+    else
+      (* Accumulate that input into the state: *)
+      loop (DessserGen.%s src) in
+  let src = Pointer.of_string input in
+  let src = loop src in
+  (* Output the finalized state: *)
+  let dst = Pointer.make %d in
+  let dst = DessserGen.%s dst in
+  assert (dst.Pointer.start <= dst.Pointer.stop) ;
+  String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+  Char.print stdout !delim ;
+  flush stdout
+
+%s
+|} input_name out_buf_size output_name run_main

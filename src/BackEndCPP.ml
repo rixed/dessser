@@ -987,7 +987,12 @@ struct
      #include \"dessser/runtime.h\"\n\
      \n\
      std::uniform_real_distribution<double> _random_(0, 1);\n\
-     std::default_random_engine _random_engine_;\n"
+     std::default_random_engine _random_engine_;\n\
+     \n\
+     namespace dessser_gen {\n"
+
+  let source_outro =
+    "}\n"
 end
 
 include BackEndCLike.Make (Config)

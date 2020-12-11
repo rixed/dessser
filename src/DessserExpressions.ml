@@ -451,6 +451,90 @@ let is_const_null = function
   | E0 (Null _) -> true
   | _ -> false
 
+(* Given a type, returns the simplest expression of that type - suitable
+ * whenever a default value is required. *)
+let rec default_value ?(allow_null=true) = function
+  | T.{ vtyp ; nullable = true } ->
+      (* In some places we want the whole tree of values to be populated. *)
+      if allow_null then
+        E0 (Null vtyp)
+      else
+        default_value ~allow_null { vtyp ; nullable = false }
+  | { vtyp = T.Unknown ; _ } ->
+      invalid_arg "default_value"
+  | { vtyp = Mac TFloat ; _ } ->
+      E0 (Float 0.)
+  | { vtyp = Mac TString ; _ } ->
+      E0 (String "")
+  | { vtyp = Mac TBool ; _ } ->
+      E0 (Bool false)
+  | { vtyp = Mac TChar ; _ } ->
+      E0 (Char '\000')
+  | { vtyp = Mac TI8 ; _ } ->
+      E0 (I8 Int8.zero)
+  | { vtyp = Mac TI16 ; _ } ->
+      E0 (I16 Int16.zero)
+  | { vtyp = Mac TI24 ; _ } ->
+      E0 (I24 Int24.zero)
+  | { vtyp = Mac TI32 ; _ } ->
+      E0 (I32 Int32.zero)
+  | { vtyp = Mac TI40 ; _ } ->
+      E0 (I40 Int40.zero)
+  | { vtyp = Mac TI48 ; _ } ->
+      E0 (I48 Int48.zero)
+  | { vtyp = Mac TI56 ; _ } ->
+      E0 (I56 Int56.zero)
+  | { vtyp = Mac TI64 ; _ } ->
+      E0 (I64 Int64.zero)
+  | { vtyp = Mac TI128 ; _ } ->
+      E0 (I128 Int128.zero)
+  | { vtyp = Mac TU8 ; _ } ->
+      E0 (U8 Uint8.zero)
+  | { vtyp = Mac TU16 ; _ } ->
+      E0 (U16 Uint16.zero)
+  | { vtyp = Mac TU24 ; _ } ->
+      E0 (U24 Uint24.zero)
+  | { vtyp = Mac TU32 ; _ } ->
+      E0 (U32 Uint32.zero)
+  | { vtyp = Mac TU40 ; _ } ->
+      E0 (U40 Uint40.zero)
+  | { vtyp = Mac TU48 ; _ } ->
+      E0 (U48 Uint48.zero)
+  | { vtyp = Mac TU56 ; _ } ->
+      E0 (U56 Uint56.zero)
+  | { vtyp = Mac TU64 ; _ } ->
+      E0 (U64 Uint64.zero)
+  | { vtyp = Mac TU128 ; _ } ->
+      E0 (U128 Uint128.zero)
+  | { vtyp = Usr nn ; _ } ->
+      default_value ~allow_null { vtyp = nn.def ; nullable = false }
+  | { vtyp = TTup mns ; _ } ->
+      E0S (
+        MakeTup,
+        Array.map (default_value ~allow_null) mns |>
+        Array.to_list)
+  | { vtyp = TRec mns ; _ } ->
+      E0S (
+        MakeRec,
+        Array.fold_left (fun fields (fn, mn) ->
+          E0 (String fn) :: default_value mn :: fields
+        ) [] mns)
+  | { vtyp = TSum mns ; _ } ->
+      assert (Array.length mns > 0) ;
+      E1 (
+        Construct (mns, 0),
+        default_value (snd mns.(0)))
+  | { vtyp = TVec (dim, mn) ; _ } ->
+      E0S (
+        MakeVec,
+        List.init dim (fun _ -> default_value mn))
+  | { vtyp = TList mn ; _ } ->
+      E0S (MakeList mn, [])
+  | { vtyp = TSet mn ; _ } ->
+      E0 (EmptySet mn)
+  | { vtyp = TMap _ ; _ } ->
+      assert false (* no value of map type *)
+
 let string_of_path = IO.to_string T.print_path
 
 let string_of_e0s =function
@@ -1262,6 +1346,13 @@ struct
 
   (*$>*)
 end
+
+let of_string s =
+  match Parser.expr s with
+  | [ e ] -> e
+  | _ ->
+      Printf.sprintf2 "Cannot parse %S as a single expression" s |>
+      failwith
 
 exception Type_error of t * t * T.t * string
 exception Type_error_param of t * t * int * T.t * string

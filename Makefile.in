@@ -303,6 +303,31 @@ convert-check: src/dessserc
 	 done ;\
 	 if test "$$ok" = yes; then echo SUCCESS; else echo FAILURE; exit 1; fi
 
+examples/i32s.csv: Makefile
+	@seq 1 10 > $@
+
+aggregator-check: src/dessserc examples/i32s.csv
+	@schema='i32'; \
+	 ok=yes; \
+	 for be in OCaml; do \
+	   f="$$(tempfile --prefix=dessser_aggregator_check_)" &&\
+	   src/dessserc aggregator \
+	     --input-enc csv --output-enc csv -o "$$f" \
+	     --language=$$be --schema="$$schema" \
+	     --init '(make-vec (i32 0))' \
+	     --update '(fun 0 "i32[1]" "i32" (set-vec (param 0 0) (u8 0) (add (get-vec (param 0 0) (u8 0)) (param 0 1))))' \
+	     --finalize '(fun 0 "i32[1]" (get-vec (param 0 0) (u8 0)))'; \
+	   out=$$($$f -i examples/i32s.csv); \
+	   exp='55'; \
+	   if test "$$out" = "$$exp"; then \
+	     rm -f "$$f"* ;\
+	   else \
+	     echo "$$f failed for backend $$be: Expected $$exp but got $$out!" ;\
+	     ok=no ;\
+	   fi ;\
+	 done ;\
+	 if test "$$ok" = yes; then echo SUCCESS; else echo FAILURE; exit 1; fi
+
 check: unit-check examples-check cpp-check dump-load-check convert-check
 
 # Installation
@@ -323,7 +348,7 @@ clean:
 	@echo 'Cleaning'
 	@$(RM) src/*.s src/*.annot src/*.cmt src/*.cmti src/*.o src/*.opt src/*.byte
 	@$(RM) src/*.cmx src/*.cmo src/*.cmxa src/*.cma src/*.cmxs src/*.cmi src/*.a
-	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte
+	@$(RM) examples/*.s examples/*.annot examples/*.cmt examples/*.cmti examples/*.o examples/*.opt examples/*.byte examples/i32s.csv
 	@$(RM) examples/*.cmx examples/*.cmo examples/*.cmxa examples/*.cma examples/*.cmxs examples/*.cmi examples/*.a
 	@$(RM) all_tests.* src/all_tests.ml
 	@$(RM) *.opt perf.data* gmon.out .depend

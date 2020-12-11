@@ -97,6 +97,7 @@ sig
   val print : ?name:string -> emitter -> print_state -> (E.t * T.t) list -> E.t -> string
 
   val source_intro : string
+  val source_outro : string
 
   (* TODO: find a way to factorize the print function itself *)
 end
@@ -294,18 +295,21 @@ struct
     loop false state.external_identifiers [] identifiers ;
     let print_ios oc lst =
       List.rev lst |>
-      List.iter (fun io -> String.print oc (IO.close_out io)) in
+      List.iter (fun io ->
+        Printf.fprintf oc "%s\n" (IO.close_out io)) in
     Printf.fprintf oc
       "%s\n\n\
        %a\n\
        %a\n\n\
        %a\n\n\
-       %a"
+       %a\n\n\
+       %s\n"
       C.source_intro
       C.print_comment "Declarations"
       print_ios p.decls
       C.print_comment "Definitions"
       print_ios p.defs
+      C.source_outro
 
   let print_definitions state oc =
     print_source define state oc

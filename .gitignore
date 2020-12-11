@@ -46,6 +46,7 @@ ber/IntRepr.ml
 examples/example.cc
 examples/example.ml
 examples/rowbinary2sexpr.*
+examples/i32s.csv
 src/dessserc
 src/DessserCompilConfig.ml
 src/cpp_tests

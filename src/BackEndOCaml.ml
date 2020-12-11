@@ -1182,7 +1182,12 @@ struct
 
   let source_intro =
     "open Stdint\n\
-     open DessserOCamlBackendHelpers\n"
+     open DessserOCamlBackendHelpers\n\
+     \n\
+     module DessserGen = struct\n"
+
+  let source_outro =
+    "end\n"
 end
 
 include BackEndCLike.Make (Config)
