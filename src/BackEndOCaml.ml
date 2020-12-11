@@ -733,8 +733,9 @@ struct
         binary_op "Pointer.getBit" e1 e2
     | E.E2 (GetVec, e1, e2) ->
         let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s.(%s)" n1 n2)
+        and n2 = print emit p l e2
+        and m = mod_name (E.type_of l e2) in
+        emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s)" n1 m n2)
     | E.E3 (SetBit, e1, e2, e3) ->
         let ptr = print emit p l e1
         and n2 = print emit p l e2
@@ -743,8 +744,9 @@ struct
     | E.E3 (SetVec, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
-        emit ?name p l e (fun oc -> pp oc "%s.(%s) <- %s" n1 n2 n3)
+        and n3 = print emit p l e3
+        and m = mod_name (E.type_of l e2) in
+        emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s) <- %s" n1 m n2 n3)
     | E.E1 (ReadByte, e1) ->
         unary_op "Pointer.readByte" e1
     | E.E1 (ReadWord LittleEndian, e1) ->
