@@ -243,6 +243,7 @@ unit-check: all_tests.opt
 	 TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
 
 examples-check: examples/simplest.opt examples/manual_codegen.opt
+	@echo Testing examples
 	@ulimit -n 5000
 	@examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK"
 	@examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK"
@@ -260,19 +261,23 @@ src/cpp_tests: src/cpp_tests.cc src/dessser/runtime.h
 	g++ -std=c++17 -g -O0 -W -Wall -I src $< -o $@
 
 cpp-check: src/cpp_tests
-	src/cpp_tests
+	@echo Testing cpp_tests
+	@src/cpp_tests
 
 testdb-dump: src/dessserc
-	src/dessserc lmdb-dump --input-enc ringbuf --output-enc s-expr \
-	                       --language=OCaml \
-	                       --value-schema string --key-schema u32 -o $@
+	@echo Generating $@
+	@src/dessserc lmdb-dump --input-enc ringbuf --output-enc s-expr \
+	                        --language=OCaml \
+	                        --value-schema string --key-schema u32 -o $@
 
 testdb-load: src/dessserc
-	src/dessserc lmdb-load --input-enc s-expr --output-enc ringbuf \
-	                       --language=OCaml \
-	                       --value-schema string --key-schema u32 -o $@
+	@echo Generating $@
+	@src/dessserc lmdb-load --input-enc s-expr --output-enc ringbuf \
+	                        --language=OCaml \
+	                        --value-schema string --key-schema u32 -o $@
 
 dump-load-check: testdb-dump testdb-load testdb.dump
+	@echo Testing lmdb dump/load
 	@ENVNAME=/tmp/testdb ;\
 	 rm -rf $$ENVNAME ;\
 	 mkdir -p $$ENVNAME ;\
@@ -282,6 +287,7 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 
 # Check we can build a simple program that transform its input, in any backend
 convert-check: src/dessserc
+	@echo Testing converter
 	@schema='(i32;float;string)'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
@@ -307,6 +313,7 @@ examples/i32s.csv: Makefile
 	@seq 1 10 > $@
 
 aggregator-check: src/dessserc examples/i32s.csv
+	@echo Testing aggregator
 	@schema='i32'; \
 	 ok=yes; \
 	 for be in OCaml; do \
