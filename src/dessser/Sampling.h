@@ -1,5 +1,5 @@
-#ifndef SIMPLESET_H_201202
-#define SIMPLESET_H_201202
+#ifndef SAMPLING_H_201202
+#define SAMPLING_H_201202
 #include "dessser/Set.h"
 
 template<class T>
@@ -24,8 +24,11 @@ struct Sampling : public Set<T> {
     return l.size();
   }
 
-  typename std::list<T>::iterator begin() { return l.begin(); }
-  typename std::list<T>::iterator end() { return l.end(); }
+  void iter(std::function<void(T const &)> f) const override {
+    for (T const &x : l) {
+      f(x);
+    }
+  }
 };
 
 #endif

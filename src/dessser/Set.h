@@ -1,5 +1,6 @@
 #ifndef SET_H_201202
 #define SET_H_201202
+#include <functional>
 #include <list>
 #include <utility>
 
@@ -10,6 +11,8 @@ struct Set {
   virtual void insert(T const &) = 0;
   virtual std::pair<T, std::list<T>> lastUpdate() const = 0;
   virtual uint32_t size() const = 0;
+
+  virtual void iter(std::function<void(T const &)>) const = 0;
 };
 
 #endif

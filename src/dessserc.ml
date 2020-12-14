@@ -211,7 +211,7 @@ let aggregator
   E.type_check [] finalize_expr ;
   let output_t =
     match E.type_of [] finalize_expr with
-    | T.TFunction ([| a1 |], t) when a1 = state_t -> t
+    | T.TFunction ([| a1 |], TValue mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
                          aggregation state (not %a)" T.print t |>
@@ -222,8 +222,8 @@ let aggregator
   let module OfValue = HeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
-    E.func2 output_t TDataPtr (fun _l v dst ->
-      OfValue.serialize schema ma v dst) in
+    E.func2 (TValue output_t) TDataPtr (fun _l v dst ->
+      OfValue.serialize output_t ma v dst) in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source

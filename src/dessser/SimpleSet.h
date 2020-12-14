@@ -24,8 +24,8 @@ struct SimpleSet : public Set<T> {
     return l.size();
   }
 
-  typename std::list<T>::iterator begin() { return l.begin(); }
-  typename std::list<T>::iterator end() { return l.end(); }
+  typename std::list<T>::iterator begin() override { return l.begin(); }
+  typename std::list<T>::iterator end() override { return l.end(); }
 };
 
 #endif

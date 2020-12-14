@@ -1152,16 +1152,22 @@ struct
         emit ?name p l e (fun oc -> pp oc "Mask.SetNull")
     | E.E1 (SlidingWindow t, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t) in
-        emit ?name p l e (fun oc -> pp oc "make_sliding_window %s %s" def n1)
+        and def = print emit p l (E.default_value t)
+        and m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc ->
+          pp oc "make_sliding_window %s (%s.to_int %s)" def m n1)
     | E.E1 (TumblingWindow t, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t) in
-        emit ?name p l e (fun oc -> pp oc "make_tumbling_window %s %s" def n1)
+        and def = print emit p l (E.default_value t)
+        and m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc ->
+          pp oc "make_tumbling_window %s (%s.to_int %s)" def m n1)
     | E.E1 (Sampling t, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t) in
-        emit ?name p l e (fun oc -> pp oc "make_sampling %s %s" def n1)
+        and def = print emit p l (E.default_value t)
+        and m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc ->
+          pp oc "make_sampling %s (%s.to_int %s)" def m n1)
     | E.E2 (Insert, e1, e2) ->
         let set = print emit p l e1
         and item = print emit p l e2 in
