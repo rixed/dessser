@@ -135,6 +135,7 @@ struct
 
   let print_binding n tn f oc =
     if tn = "void" then (
+      (* Variables of type void are invalid: *)
       pp oc "%t;" f
     ) else (
       (* Beware that this must not be parsed as a function declaration. Thus
@@ -178,6 +179,17 @@ struct
     | n ->
         if char_is_printable c then String.of_char c
         else Printf.sprintf "\\%03o" n
+
+  (* Print the code for returning the value [n] of expression [e].
+   * This is merely `return n;` unless e has type void: *)
+  let print_return n p l e =
+    match E.type_of l e with
+    | T.TVoid ->
+        (* Then we could not have defined n, let's just return: *)
+        pp p.def "%sreturn;\n" p.indent
+    | _ ->
+        pp p.def "%sreturn %s;\n" p.indent n
+
 
   let rec print ?name emit p l e =
     let gen_sym ?name pref =
@@ -805,7 +817,8 @@ struct
             ) l ts in
           indent_more p (fun () ->
             let n = print emit p l e1 in
-            ppi oc "return %s; }" n) ;
+            print_return n p l e1) ;
+          pp oc "%s}\n" p.indent ;
           pp oc "%s" p.indent)
     | E.E0 (Param (fid, n)) ->
         param fid n
@@ -975,7 +988,7 @@ struct
       (* TODO: add other predefined globals in the environment: *)
       let l = [] in
       let n = print emit p l e in
-      pp p.def "%sreturn %s;\n" p.indent n) ;
+      print_return n p l e) ;
     pp p.def "%s}\n" p.indent ;
     pp p.def "%s%s %s(%s_init());\n" p.indent tn n n
 
