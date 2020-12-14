@@ -25,6 +25,13 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
+  let is_mutable = function
+    | T.TBytes
+    | T.TValue { vtyp = TVec _ ; _ } ->
+        true
+    | _ ->
+        false
+
   let rec print_struct p oc id mns =
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.indent id ;
@@ -101,10 +108,14 @@ struct
     | T.TSList t1 ->
         "SList<"^ type_identifier p t1 ^">"
     | T.TFunction (args, ret) ->
+        (* We want all modifiable types (ir bytes, vectors, ...?) passed by
+         * reference: *)
         "std::function<"^ type_identifier p ret ^
           IO.to_string (
             Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
-              String.print oc (type_identifier p t))
+              Printf.fprintf oc "%s%s"
+                (type_identifier p t)
+                (if is_mutable t then "&" else ""))
           ) args ^">"
     | T.TVoid -> "void"
     | T.TDataPtr -> "Pointer"
@@ -783,8 +794,10 @@ struct
     | E.E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
           array_print_i ~first:"[&](" ~last:") {\n" ~sep:", "
-            (fun i oc t -> Printf.fprintf oc "%s %s"
-              (type_identifier p t) (param fid i))
+            (fun i oc t -> Printf.fprintf oc "%s%s %s"
+              (type_identifier p t)
+              (if is_mutable t then "&" else "")
+              (param fid i))
             oc ts ;
           let l =
             Array.fold_lefti (fun l i t ->
