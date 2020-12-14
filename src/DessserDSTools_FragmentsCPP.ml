@@ -21,14 +21,14 @@ int main(int numArgs, char **args)
         0 == strcasecmp(args[a], "-d")
       )
     ) {
-      delim = args[a+1][0];
+      delim = args[++a][0];
     } else if (
       a < numArgs - 1 && (
-        0 == strcasecmp(args[0], "--input") ||
-        0 == strcasecmp(args[0], "-i")
+        0 == strcasecmp(args[a], "--input") ||
+        0 == strcasecmp(args[a], "-i")
       )
     ) {
-      fname = args[a+1];
+      fname = args[++a];
     } else {
       single_input = args[a];
     }
