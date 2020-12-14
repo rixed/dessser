@@ -1,4 +1,6 @@
-let converter ?(out_buf_size=50_000) entry_point =
+(* All code is printed rather than in a library so that there is no need for
+ * a runtime library to compile/run dessserc generated programs. *)
+
 let readWholeFile =
   Printf.sprintf {|
 static std::string readWholeFile(std::string const fname)
@@ -47,8 +49,7 @@ int main(int numArgs, char **args)
   Pointer src(input);
 
   while (src.rem() > 0) {
-    Size outSz(%d);
-    Pointer dst(outSz);
+    Pointer dst { %d };
 
     Pair<Pointer, Pointer> ptrs = dessser_gen::%s(src, dst);
 

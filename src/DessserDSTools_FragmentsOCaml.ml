@@ -1,3 +1,6 @@
+(* All code is printed rather than in a library so that there is no need for
+ * a runtime library to compile/run dessserc generated programs. *)
+
 let run_main = {|
 let () =
   try
@@ -6,7 +9,6 @@ let () =
     Printf.eprintf "Failure: %s\n" msg ;
     exit 1
 |}
-
 
 let converter ?(out_buf_size=50_000) convert_name =
   Printf.sprintf {|

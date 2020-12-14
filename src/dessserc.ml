@@ -235,7 +235,7 @@ let aggregator
   let input_expr =
     E.func1 ~l:(BE.environment code) TDataPtr (fun _l src ->
       let v_src = apply to_value [ src ] in
-      E.with_sploded_pair "input_expr_0" v_src (fun v src ->
+      E.with_sploded_pair "input_expr" v_src (fun v src ->
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
   let code, _, input_name =
