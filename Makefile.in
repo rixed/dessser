@@ -316,7 +316,7 @@ aggregator-check: src/dessserc examples/i32s.csv
 	@echo Testing aggregator
 	@schema='i32'; \
 	 ok=yes; \
-	 for be in OCaml; do \
+	 for be in OCaml C++; do \
 	   f="$$(tempfile --prefix=dessser_aggregator_check_)" &&\
 	   src/dessserc aggregator \
 	     --input-enc csv --output-enc csv -o "$$f" \
