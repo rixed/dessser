@@ -1936,6 +1936,7 @@ let rec type_check l e =
         check_numeric l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
+        (* FIXME: Also for sets *)
         (match type_of l e2 |> T.develop_user_types with
         | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } ->
             check_eq l e1 (T.TValue t)

@@ -217,7 +217,8 @@ struct
   let print_binding n tn f oc =
     pp oc "let %s : %s = %t in" n tn f
 
-  let print_inline tn f oc =
+  let print_inline p t f oc =
+    let tn = type_identifier p t in
     pp oc "(%t : %s)" f tn
 
   let print_comment oc fmt =

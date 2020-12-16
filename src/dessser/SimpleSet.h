@@ -24,8 +24,11 @@ struct SimpleSet : public Set<T> {
     return l.size();
   }
 
-  typename std::list<T>::iterator begin() override { return l.begin(); }
-  typename std::list<T>::iterator end() override { return l.end(); }
+  void iter(std::function<void(T const &)> f) const override {
+    for (T const &x : l) {
+      f(x);
+    }
+  }
 };
 
 #endif

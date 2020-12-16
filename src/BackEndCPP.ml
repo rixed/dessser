@@ -25,9 +25,19 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let is_mutable = function
+  let is_mutable t =
+    match T.develop_user_types t with
     | T.TBytes
     | T.TValue { vtyp = TVec _ ; _ } ->
+        true
+    | _ ->
+        false
+
+  (* Some types are hidden behind a pointer (for instance because we want
+   * to use inheritance) *)
+  let is_pointy t =
+    match T.develop_user_types t with
+    | T.TValue { vtyp = TSet _ ; _ } ->
         true
     | _ ->
         false
@@ -147,8 +157,15 @@ struct
       pp oc "%s %s { %t };" tn n f
     )
 
-  let print_inline tn f oc =
-    pp oc "%s(%t)" tn f
+  let print_cast p t f oc =
+    let tn = type_identifier p t in
+    if is_pointy t then
+      (* Outer parenth required since a following "->" would apply first *)
+      pp oc "((%s)(%t))" tn f
+    else
+      pp oc "%s(%t)" tn f
+
+  let print_inline = print_cast
 
   let print_comment oc fmt =
     pp oc ("/* "^^ fmt ^^" */\n")
@@ -208,11 +225,12 @@ struct
       emit ?name p l e (fun oc ->
         pp oc "std::isnan(%s) ? std::nullopt_t : %s" tmp tmp) in
     let binary_infix_op e1 op e2 =
-      (* Prevent integer promotion by casting to type_of e: *)
       let n1 = print emit p l e1
-      and n2 = print emit p l e2
-      and tn = E.type_of l e |> type_identifier p in
-      emit ?name p l e (fun oc -> pp oc "%s(%s %s %s)" tn n1 op n2) in
+      and n2 = print emit p l e2 in
+      (* Prevent integer promotion by casting to type_of e: *)
+      let t = E.type_of l e in
+      emit ?name p l e (fun oc ->
+        print_cast p t (fun oc -> pp oc "%s %s %s" n1 op n2) oc) in
     let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
       let n1 = print emit p l e1 in
       let res = gen_sym ?name "shortcut_res_" in
@@ -227,7 +245,10 @@ struct
         ppi p.def "%s = %s;" res n2) ;
       ppi p.def "}" ;
       res in
-    let method_call ?(deref_with=".") e1 m args =
+    let method_call e1 m args =
+      let deref_with =
+        if is_pointy (E.type_of l e1 |> T.develop_user_types) then "->"
+                                                              else "." in
       let n1 = print emit p l e1
       and ns = List.map (print emit p l) args in
       emit ?name p l e (fun oc ->
@@ -397,9 +418,10 @@ struct
     | E.E2 (Pow, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        let tn = E.type_of l e |> type_identifier p in
+        let t = E.type_of l e in
         emit ?name p l e (fun oc ->
-          pp oc "%s(std::pow(%s, %s))" tn n1 n2)
+          print_cast p t (fun oc ->
+            pp oc "std::pow(%s, %s)" n1 n2) oc)
     | E.E2 (LogAnd, e1, e2) ->
         binary_infix_op e1 "&" e2
     | E.E2 (LogOr, e1, e2) ->
@@ -431,29 +453,33 @@ struct
     | E.E1 (U24OfString, e1)
     | E.E1 (U32OfString, e1) ->
         let n = print emit p l e1 in
-        let tn = E.type_of l e |> type_identifier p in
-        emit ?name p l e (fun oc -> pp oc "%s(std::stoul(%s))" tn n)
+        let t = E.type_of l e in
+        emit ?name p l e (fun oc ->
+          print_cast p t (fun oc -> pp oc "std::stoul(%s)" n) oc)
     | E.E1 (U40OfString, e1)
     | E.E1 (U48OfString, e1)
     | E.E1 (U56OfString, e1)
     | E.E1 (U64OfString, e1) ->
         let n = print emit p l e1 in
-        let tn = E.type_of l e |> type_identifier p in
-        emit ?name p l e (fun oc -> pp oc "%s(std::stoull(%s))" tn n)
+        let t = E.type_of l e in
+        emit ?name p l e (fun oc ->
+          print_cast p t (fun oc -> pp oc "std::stoull(%s)" n) oc)
     | E.E1 (I8OfString, e1)
     | E.E1 (I16OfString, e1)
     | E.E1 (I24OfString, e1)
     | E.E1 (I32OfString, e1) ->
         let n = print emit p l e1 in
-        let tn = E.type_of l e |> type_identifier p in
-        emit ?name p l e (fun oc -> pp oc "%s(std::stol(%s))" tn n)
+        let t = E.type_of l e in
+        emit ?name p l e (fun oc ->
+          print_cast p t (fun oc -> pp oc "std::stol(%s)" n) oc)
     | E.E1 (I40OfString, e1)
     | E.E1 (I48OfString, e1)
     | E.E1 (I56OfString, e1)
     | E.E1 (I64OfString, e1) ->
         let n = print emit p l e1 in
-        let tn = E.type_of l e |> type_identifier p in
-        emit ?name p l e (fun oc -> pp oc "%s(std::stoll(%s))" tn n)
+        let t = E.type_of l e in
+        emit ?name p l e (fun oc ->
+          print_cast p t (fun oc -> pp oc "std::stoll(%s)" n) oc)
     | E.E1 ((I128OfString | U128OfString), e1) ->
         unary_func "i128_of_string" e1
     | E.E1 (CharOfPtr, e1) ->
@@ -552,8 +578,9 @@ struct
     | E.E1 (ToU128, e1) | E.E1 (ToI128, e1)
     | E.E1 (U8OfBool, e1) | E.E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
-        let tn = E.type_of l e |> type_identifier p in
-        emit ?name p l e (fun oc -> pp oc "%s(%s)" tn n)
+        let t = E.type_of l e in
+        emit ?name p l e (fun oc ->
+          print_cast p t (fun oc -> String.print oc n) oc)
     | E.E1 (ListOfSList, e1) ->
         method_call e1 "toList" []
     | E.E1 (ListOfSListRev, e1) ->
@@ -576,7 +603,7 @@ struct
     | E.E1 (StringLength, e1) ->
         method_call e1 "size" []
     | E.E1 (Cardinality, e1) ->
-        method_call e1 ~deref_with:"->" "size" []
+        method_call e1 "size" []
     | E.E1 (StringOfBytes, e1) ->
         method_call e1 "toString" []
     | E.E1 (BytesOfString, e1) ->

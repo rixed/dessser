@@ -70,13 +70,13 @@ struct SList {
 
   /* The only set that can be serializer, and therefore that require a
    * convertion from an SList, is the SimpleSet: */
-  SimpleSet<T> toSet() const
+  SimpleSet<T> *toSet() const
   {
-    SimpleSet<T> s;
+    SimpleSet<T> *s = new SimpleSet<T>();
     /* In this SList the deserialized values are stored from youngest to
      * oldest and so must be reversed here: */
     for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
-      s.l.push_front(sl->head());
+      s->l.push_front(sl->head());
     }
     return s;
   }

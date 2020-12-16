@@ -84,7 +84,7 @@ sig
     string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
 
   val print_inline :
-    string -> ('a IO.output -> unit) -> 'a IO.output -> unit
+    print_state -> T.t -> ('a IO.output -> unit) -> 'a IO.output -> unit
 
   val print_binding_toplevel :
     emitter -> string -> print_state -> (E.t * T.t) list -> E.t -> unit
@@ -223,11 +223,11 @@ struct
 
   let emit ?name p l e f =
     let t = E.type_of l e in
-    let tn = C.type_identifier p t in
     if name = None && can_inline e then (
-      Printf.sprintf2 "%t" (C.print_inline tn f)
+      Printf.sprintf2 "%t" (C.print_inline p t f)
     ) else (
       let n = match name with Some n -> n | None -> gen_sym () in
+      let tn = C.type_identifier p t in
       pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
       n
     )
