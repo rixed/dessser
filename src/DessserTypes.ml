@@ -278,6 +278,10 @@ let rec is_integer = function
 let is_numeric vt =
   is_integer vt || vt = Mac TFloat
 
+let is_nullable = function
+  | TValue { nullable = true ; _ } -> true
+  | _ -> false
+
 let width_of_int = function
   | Mac (TU8 | TI8) -> 8
   | Mac (TU16 | TI16) -> 16

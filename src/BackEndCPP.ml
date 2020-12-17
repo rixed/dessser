@@ -326,7 +326,12 @@ struct
           n2
         else
           let n1 = print emit p l e1 in
-          emit ?name p l e (fun oc -> pp oc "%s.has_value () |? %s : %s" n1 n1 n2)
+          let t2 = E.type_of l e2 in
+          emit ?name p l e (fun oc ->
+            if T.is_nullable t2 then
+              pp oc "%s.has_value () ? %s : %s" n1 n1 n2
+            else
+              pp oc "%s.has_value () ? %s.value() : %s" n1 n1 n2)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

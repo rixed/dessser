@@ -1920,7 +1920,6 @@ let rec type_check l e =
         check_nullable l e
     | E2 (Coalesce, e1, e2) ->
         check_nullable l e1 ;
-        check_not_nullable l e2 ;
         check_same_valuetype l e1 e2
     | E2 (Nth, e1, e2) ->
         check_list_or_vector l e2 ;
