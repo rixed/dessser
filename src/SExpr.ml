@@ -42,7 +42,7 @@ struct
     write_byte p (if_ v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
   let si _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_int_ v))
+    write_bytes p (bytes_of_string (string_of_int v))
 
   let si8 = si
   let si16 = si

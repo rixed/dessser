@@ -172,7 +172,7 @@ let rec project mn ma =
         | Insert e ->
             (match E.type_of [] e with
             | T.TValue mn ->
-                ("inserted_"^ string_of_int n, mn) :: mns', n + 1, i
+                ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
             | t -> raise (Invalid_type_for_mask t))
         | ma ->
             let name, mn = mns.(i) in
@@ -247,17 +247,17 @@ let projector mn m =
 let () =
   Printexc.register_printer (function
     | Parser.Missing_end_of_recurse i ->
-        Some ("Missing ')' mark at position "^ string_of_int i)
+        Some ("Missing ')' mark at position "^ Stdlib.string_of_int i)
     | Parser.Missing_end_of_replace i ->
-        Some ("Missing ']' mark at position "^ string_of_int i)
+        Some ("Missing ']' mark at position "^ Stdlib.string_of_int i)
     | Parser.Missing_end_of_insert i ->
-        Some ("Missing '}' mark at position "^ string_of_int i)
+        Some ("Missing '}' mark at position "^ Stdlib.string_of_int i)
     | Parser.Invalid_expression i ->
-        Some ("Invalid expression for mask before "^ string_of_int i)
+        Some ("Invalid expression for mask before "^ Stdlib.string_of_int i)
     | Parser.Invalid_character i ->
-        Some ("Invalid character at position "^ string_of_int i)
+        Some ("Invalid character at position "^ Stdlib.string_of_int i)
     | Parser.Garbage_after i ->
-        Some ("Cannot parse mask after position "^ string_of_int i)
+        Some ("Cannot parse mask after position "^ Stdlib.string_of_int i)
     | Types_do_not_match { mask ; expr } ->
         Some (
           Printf.sprintf2 "Type in mask (%a) does not match masked type (%a)"

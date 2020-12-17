@@ -632,9 +632,9 @@ let rec sexpr_of_vtyp_gen vtyp =
   | T.TSum mns ->
       join (
         map (fun i ->
-          let i = (abs i) mod (Array.length mns) in
+          let i = (Stdlib.abs i) mod (Array.length mns) in
           sexpr_of_mn_gen (snd mns.(i)) |>
-          map (fun se -> "("^ string_of_int i ^" "^ se ^")")
+          map (fun se -> "("^ Stdlib.string_of_int i ^" "^ se ^")")
         ) int
       )
   | T.TMap (k, v) ->
@@ -658,7 +658,7 @@ and sexpr_of_mn_gen mn =
     sexpr_of_vtyp_gen mn.vtyp
 
 let sexpr mn =
-  let print = identity
+  let print = BatPervasives.identity
   and small = String.length in
   make ~print ~small (sexpr_of_mn_gen mn)
 
@@ -706,7 +706,7 @@ let sexpr mn =
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       Printf.eprintf "Testing s-expr %S of type %a -> %S\n%!"
         s T.print_maybe_nullable mn s' ;
-      assert_equal ~printer:identity s s') in
+      assert_equal ~printer:BatPervasives.identity s s') in
   try
     Gen.generate ~n:5 maybe_nullable_gen |>
     List.iter (fun mn ->
@@ -727,7 +727,7 @@ let sexpr mn =
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
         format s T.print_maybe_nullable mn s' ;
-      assert_equal ~printer:identity s s')
+      assert_equal ~printer:BatPervasives.identity s s')
 
   let test_format be mn des ser format =
     let exe = test_data_desser be mn des ser in
@@ -831,11 +831,11 @@ let sexpr mn =
   check_sexpr ocaml_be "float" "-0x1.79c428d047e73p-16"
   check_sexpr cpp_be "float" "-0x1.79c428d047e73p-16"
 *)
-(*$= check_rowbinary & ~printer:identity
+(*$= check_rowbinary & ~printer:BatPervasives.identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
   "15134052" (check_rowbinary cpp_be "u24" "15134052")
 *)
-(*$= check_ringbuffer & ~printer:identity
+(*$= check_ringbuffer & ~printer:BatPervasives.identity
   "\"foo\"" (check_ringbuffer ocaml_be "String" "\"foo\"")
   "(\"foo\" 1)" (check_ringbuffer ocaml_be "(String?; I40?)" "(\"foo\" 1)")
   "1 ((\"foo\" 1))" (check_ringbuffer ocaml_be "(String?; I40?)[]" "1 ((\"foo\" 1))")
@@ -847,7 +847,7 @@ let sexpr mn =
   "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
   "(1 null)" (check_ringbuffer ocaml_be "(a U32 | b String?)" "(1 null)")
 *)
-(*$= check_heapvalue & ~printer:identity
+(*$= check_heapvalue & ~printer:BatPervasives.identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
   "3 (1 2 3)" (check_heapvalue ocaml_be "U16[]" "3 (1 2 3)")
   "(1 5)" (check_heapvalue cpp_be "{ejgvx: U16; kngke: U64}" "(1 5)")
@@ -855,7 +855,7 @@ let sexpr mn =
   "2 (214 null)" (check_heapvalue ocaml_be "U8?{}" "2 (214 null)")
   "2 (214 null)" (check_heapvalue cpp_be "U8?{}" "2 (214 null)")
 *)
-(*$= check_ringbuffer & ~printer:identity
+(*$= check_ringbuffer & ~printer:BatPervasives.identity
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
   "-5424105" (check_ringbuffer cpp_be "I24" "-5424105")
 *)
@@ -894,7 +894,7 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 *)
-(*$= check_ser & ~printer:identity
+(*$= check_ser & ~printer:BatPervasives.identity
   "2a" \
     (check_ser rowbinary_ser  ocaml_be "u8" "42")
   "2a 00 00 00" \
@@ -937,7 +937,7 @@ let sexpr mn =
       true_ = "true" ;
       false_ = "false" }
 *)
-(*$= check_des_csv & ~printer:identity
+(*$= check_des_csv & ~printer:BatPervasives.identity
   "(1 F null)" \
     (check_des_csv ~config:csv_config_0 ocaml_be \
                    "{u:U8; b:BOOL; name:STRING?}" "1|false|\n")
@@ -951,7 +951,7 @@ let sexpr mn =
     (check_des_csv ~config:csv_config_1 ocaml_be \
                    "{u:U8; b:BOOL; name:STRING?}" "3,false,\n")
 *)
-(*$= check_des_csv & ~printer:identity
+(*$= check_des_csv & ~printer:BatPervasives.identity
   "-0x1.79c428d047e73p-16" \
     (check_des_csv ~config:csv_config_0 ocaml_be \
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")

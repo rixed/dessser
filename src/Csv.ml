@@ -202,7 +202,7 @@ struct
                          (bytes (Bytes.of_string conf.false_)))
 
   let si _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_int_ v))
+    write_bytes p (bytes_of_string (string_of_int v))
 
   let si8 = si
   let si16 = si
