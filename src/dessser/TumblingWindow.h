@@ -19,8 +19,8 @@ struct TumblingWindow : public Set<T> {
       l.back(), std::list<T const &>());
   }
 
-  void iter(std::function<void(T const &)> f) const override {
-    for (T const &x : l) {
+  void iter(std::function<void(T &)> f) override {
+    for (T &x : l) {
       f(x);
     }
   }

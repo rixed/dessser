@@ -12,7 +12,9 @@ struct Set {
   virtual std::pair<T, std::list<T>> lastUpdate() const = 0;
   virtual uint32_t size() const = 0;
 
-  virtual void iter(std::function<void(T const &)>) const = 0;
+  /* iter's callback is allowed modify its argument. Therefore iter itself
+   * cannot be const. */
+  virtual void iter(std::function<void(T &)>) = 0;
 };
 
 #endif

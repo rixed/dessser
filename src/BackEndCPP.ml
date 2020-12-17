@@ -929,7 +929,7 @@ struct
           | T.TValue { vtyp = TSet _ ; _ } -> true
           | _ -> false in
         if is_set then
-          ppi p.def "%s->iter([&](%s const &x_) {" lst item_tn
+          ppi p.def "%s->iter([&](%s &x_) {" lst item_tn
         else
           ppi p.def "for (%s x_ : %s) {" item_tn lst ;
         indent_more p (fun () ->
