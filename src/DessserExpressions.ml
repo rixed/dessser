@@ -247,10 +247,12 @@ type e1 =
   | TumblingWindow of T.maybe_nullable (* Tumbling window *)
   | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
 
+type e1s =
+  | Coalesce
+
 type e2 =
   | Apply
   | Let of string
-  | Coalesce
   (* Deconstructor for vectors/lists: *)
   | Nth
   (* Comparators: *)
@@ -324,8 +326,9 @@ type e4 =
 
 type t =
   | E0 of e0
-  | E0S of (e0s * t list)
+  | E0S of e0s * t list
   | E1 of e1 * t
+  | E1S of e1s * t list
   | E2 of e2 * t * t
   | E3 of e3 * t * t * t
   | E4 of e4 * t * t * t * t
@@ -352,6 +355,8 @@ and e1_eq e1 e2 =
       fid1 = fid2 && Array.for_all2 T.eq typ1 typ2
   | e1, e2 -> e1 = e2
 
+and e1s_eq e1 e2 = e1 = e2
+
 and e2_eq e1 e2 = e1 = e2
 
 and e3_eq e1 e2 = e1 = e2
@@ -368,6 +373,10 @@ and expr_eq e1 e2 =
       with Invalid_argument _ -> false)
   | E1 (op1, e11), E1 (op2, e21) ->
       e1_eq op1 op2 && expr_eq e11 e21
+  | E1S (op1, e1s), E1S (op2, e2s) ->
+      e1s_eq op1 op2 &&
+      (try List.for_all2 (expr_eq) e1s e2s
+      with Invalid_argument _ -> false)
   | E2 (op1, e11, e12), E2 (op2, e21, e22) ->
       e2_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22
   | E3 (op1, e11, e12, e13), E3 (op2, e21, e22, e23) ->
@@ -417,6 +426,8 @@ let rec can_precompute l i = function
        | MaskEnter _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
+  | E1S (Coalesce, es) ->
+      List.for_all (can_precompute l i) es
   | E2 (Apply, E1 (Function (fid, _), body), e2) ->
       can_precompute l i e2 &&
       can_precompute (fid :: l) i body
@@ -537,12 +548,15 @@ let rec default_value ?(allow_null=true) = function
 
 let string_of_path = IO.to_string T.print_path
 
-let string_of_e0s =function
+let string_of_e0s = function
   | Seq -> "seq"
   | MakeVec -> "make-vec"
   | MakeList mn -> "make-list "^ String.quote (T.string_of_maybe_nullable mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
+
+let string_of_e1s = function
+  | Coalesce -> "coalesce"
 
 let string_of_e1 = function
   | Function (fid, typs) ->
@@ -702,7 +716,6 @@ let string_of_e1 = function
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
   | Apply -> "apply"
-  | Coalesce -> "coalesce"
   | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
@@ -829,6 +842,10 @@ and print ?max_depth oc e =
           (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E1 (op, e1) ->
         pp oc "(%s %a)" (string_of_e1 op) p e1
+    | E1S (op, es) ->
+        pp oc "(%s %a)"
+          (string_of_e1s op)
+          (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E2 (op, e1, e2) ->
         pp oc "(%s %a %a)" (string_of_e2 op) p e1 p e2
     | E3 (op, e1, e2, e3) ->
@@ -853,6 +870,8 @@ let rec pretty_print fmt =
       p (string_of_e0s op) es
   | E1 (op, e1) ->
       p (string_of_e1 op) [ e1 ]
+  | E1S (op, es) ->
+      p (string_of_e1s op) es
   | E2 (op, e1, e2) ->
       p (string_of_e2 op) [ e1 ; e2 ]
   | E3 (op, e1, e2, e3) ->
@@ -1239,10 +1258,11 @@ struct
         E1 (TumblingWindow (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "sampling" ; Str mn ; x ] ->
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
+    (* e1s *)
+    | Lst (Sym "coalesce" :: xs) -> E1S (Coalesce, List.map e xs)
     (* e2 *)
     | Lst [ Sym "apply" ; x1 ; x2 ] -> E2 (Apply, e x1, e x2)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
-    | Lst [ Sym "coalesce" ; x1 ; x2 ] -> E2 (Coalesce, e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
@@ -1361,6 +1381,7 @@ exception Struct_error of t * string
 exception Apply_error of t * string
 exception Unbound_identifier of t * string * string list
 exception Unbound_parameter of t * param_id * param_id list
+exception Invalid_expression of t * string
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -1409,6 +1430,12 @@ let rec type_of l e0 =
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
       TValue (T.make (TRec (Array.of_list mns)))
+  | E1S (Coalesce, xs) ->
+      (match List.last xs with
+      | exception _ ->
+          raise (Invalid_expression (e0, "must have at least one member"))
+      | e ->
+          type_of l e)
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | TValue { vtyp = TTup mns ; nullable = false } ->
@@ -1442,7 +1469,6 @@ let rec type_of l e0 =
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
-  | E2 (Coalesce, _, e)
   | E2 (Add, e, _)
   | E2 (Sub, e, _)
   | E2 (Mul, e, _)
@@ -1455,7 +1481,7 @@ let rec type_of l e0 =
   | E1 (LogNot, e) ->
       type_of l e
   | E2 (Pow, e, _) ->
-      T.to_nullable  (type_of l e)
+      T.to_nullable (type_of l e)
   | E2 (Div, _, _) -> T.float
   | E1 (ToNullable, e) ->
       T.to_nullable (type_of l e)
@@ -1719,7 +1745,8 @@ let rec fold u l f e =
   match e with
   | E0 _ ->
       u
-  | E0S (_, es) ->
+  | E0S (_, es)
+  | E1S (_, es) ->
       List.fold_left (fun u e1 -> fold u l f e1) u es
   | E1 (Function (id, ts), e1) ->
       let l = Array.fold_lefti (fun l i t ->
@@ -1753,20 +1780,6 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | TValue { nullable = false ; _ } -> ()
       | t -> raise (Type_error (e0, e, t, "not be nullable")) in
-    let check_same_valuetype l e1 e2 =
-      let t1 = type_of l e1
-      and t2 = type_of l e2 in
-      match (T.to_maybe_nullable t1).vtyp with
-      | exception _ ->
-          raise (Type_error (e0, e1, t1, "be a value"))
-      | vt1 ->
-          let fail () =
-            let msg = Printf.sprintf2 "be %a" T.print t1 in
-            raise (Type_error (e0, e2, t2, msg)) in
-          (match (T.to_maybe_nullable (t2)).vtyp with
-          | exception _ -> fail ()
-          | vt2 ->
-              if not (T.value_type_eq vt1 vt2) then fail ()) in
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord | TMaskAction
@@ -1916,11 +1929,22 @@ let rec type_check l e =
           if i mod 2 = 0 then ignore (field_name_of_expr e)
           else check_maybe_nullable l e
         ) es
+    | E1S (Coalesce, es) ->
+        (match List.rev es with
+        | last :: rest ->
+            (match  type_of l last with
+            | TValue { vtyp ; _ } ->
+                let exp = T.TValue { vtyp ; nullable = true } in
+                List.iter (fun e ->
+                  check_nullable l e ;
+                  check_eq l e exp
+                ) rest
+            | t ->
+              raise (Type_error (e0, last, t, "be a value type")))
+        | [] ->
+            raise (Invalid_expression (e, "must have at least one member")))
     | E1 (IsNull, e) ->
         check_nullable l e
-    | E2 (Coalesce, e1, e2) ->
-        check_nullable l e1 ;
-        check_same_valuetype l e1 e2
     | E2 (Nth, e1, e2) ->
         check_list_or_vector l e2 ;
         check_integer l e1
@@ -2219,6 +2243,11 @@ let () =
             param_print p
             (print ~max_depth) e0
             (pretty_list_print param_print) ps)
+    | Invalid_expression (e0, msg) ->
+        Some (
+          Printf.sprintf2
+            "Invalid expression %a: %s"
+              (print ~max_depth) e0 msg)
     | _ ->
         None)
 
@@ -2340,7 +2369,7 @@ struct
   let debug e1 = E1 (Debug, e1)
   let debugs es = E0S (Seq, List.map debug es)
   let is_null e1 = E1 (IsNull, e1)
-  let coalesce e1 e2 = E2 (Coalesce, e1, e2)
+  let coalesce es = E1S (Coalesce, es)
   let nth e1 e2 = E2 (Nth, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
   let read_word en e1 = E1 (ReadWord en, e1)

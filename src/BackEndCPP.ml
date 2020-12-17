@@ -319,19 +319,32 @@ struct
         else
           let n = print emit p l e1 in
           emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
-    | E.E2 (Coalesce, e1, e2) ->
-        let n2 = print emit p l e2 in
-        if E.is_const_null e1 then
-          (* Cannot call has_value on nullopt: *)
-          n2
-        else
-          let n1 = print emit p l e1 in
-          let t2 = E.type_of l e2 in
-          emit ?name p l e (fun oc ->
-            if T.is_nullable t2 then
-              pp oc "%s.has_value () ? %s : %s" n1 n1 n2
-            else
-              pp oc "%s.has_value () ? %s.value() : %s" n1 n1 n2)
+    | E.E1S (Coalesce, es) ->
+        let res = gen_sym ?name "coalesce_" in
+        let t1 = E.type_of l e in
+        ppi p.def "%s %s;" (type_identifier p t1) res ;
+        let rec loop = function
+          | [] ->
+              assert false (* because of type_check *)
+          | [ e ] ->
+              let n1 = print emit p l e in
+              ppi p.def "%s = %s;" res n1
+          | e :: es' ->
+              if E.is_const_null e then (
+                loop es'
+              ) else (
+                let n1 = print emit p l e in
+                let t = E.type_of l e in
+                assert (T.is_nullable t) ; (* because type_checking *)
+                ppi p.def "if (%s.has_value ()) {\n" n1 ;
+                indent_more p (fun () ->
+                  ppi p.def "%s = %s.value();\n" res n1) ;
+                ppi p.def "} else {\n" ;
+                indent_more p (fun () ->
+                  loop es')
+              ) in
+        loop es ;
+        res
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

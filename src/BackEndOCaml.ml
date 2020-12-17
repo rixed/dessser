@@ -385,15 +385,21 @@ struct
     | E.E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s = Null" n)
-    | E.E2 (Coalesce, e1, e2) ->
-        let t2 = E.type_of l e2 in
-        if T.is_nullable t2 then
-          let n1 = print emit p l e1
-          and n2 = print emit p l e2 in
-          emit ?name p l e (fun oc ->
-            pp oc "if %s = Null then %s else %s" n1 n2 n1)
-        else
-          binary_infix_op e1 "|!" e2
+    | E.E1S (Coalesce, es) ->
+        let rec loop oc = function
+          | [] ->
+              assert false (* because of type checking *)
+          | [ e ] ->
+              let n1 = print emit p l e in
+              pp oc "%s" n1
+          | e :: es' ->
+              let t = E.type_of l e in
+              assert (T.is_nullable t) ; (* because type_checking *)
+              let n1 = print emit p l e in
+              pp oc "(match %s with NotNull x_ -> x_ | Null ->" n1 ;
+              indent_more p (fun () -> loop p.def es') ;
+              pp oc ")" in
+        emit ?name p l e (fun oc -> loop oc es)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1 in
         let n2 = print emit p l e2 in

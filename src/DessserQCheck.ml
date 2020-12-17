@@ -306,7 +306,7 @@ let e1_of_int n =
 
 let e2_of_int n =
   let e2s =
-    E.[| Coalesce ; Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
+    E.[| Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
          Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
          AppendString ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekByte ;
          WriteByte ; WriteBytes ; PokeByte ; DataPtrAdd ; DataPtrSub ;
@@ -442,6 +442,12 @@ and e1_gen l depth =
     1, map2 read_oword endianness_gen expr ;
     10, map2 (fun n e -> E.E1 (e1_of_int n, e)) nat expr ]
 
+and e1s_gen l depth =
+  assert (depth > 0) ;
+  let open Gen in
+  let expr = expression_gen (l, depth - 1) in
+  map E.Ops.coalesce (tiny_list expr)
+
 and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
@@ -481,6 +487,7 @@ and expression_gen (l, depth) =
         5, e0_gen l depth ;
         5, e0s_gen l depth ;
         5, e1_gen l depth ;
+        1, e1s_gen l depth ;
         5, e2_gen l depth ;
         5, e3_gen l depth ;
         5, e4_gen l depth ]
