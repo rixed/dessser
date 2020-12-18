@@ -33,7 +33,7 @@ let make_converter ?exe_fname ?mn backend convert =
   E.type_check [] convert ;
   let state = BE.make_state () in
   let state, _, entry_point =
-    BE.identifier_of_expression state convert in
+    BE.add_identifier_of_expression state convert in
   let exe_fname = match exe_fname with
     | Some fname -> fname
     | None -> Filename.temp_file "dessser_converter_" "" in

@@ -168,7 +168,7 @@ struct
       ) l state.identifiers in
     l
 
-  let identifier_of_expression state ?name expr =
+  let add_identifier_of_expression state ?name expr =
     let name, public =
       match name with
       | None ->
@@ -179,7 +179,7 @@ struct
     let l = environment state in
     E.type_check l expr ;
     let t = E.type_of l expr in
-    if t = TVoid then invalid_arg "identifier_of_expression of type void" ;
+    if t = TVoid then invalid_arg "add_identifier_of_expression of type void" ;
     { state with
         identifiers = (name, identifier, t) :: state.identifiers },
     E.E0 (Identifier name),

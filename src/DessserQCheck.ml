@@ -524,7 +524,7 @@ let expression =
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
     let state = BE.make_state () in
-    let state, _, _ = BE.identifier_of_expression state e in
+    let state, _, _ = BE.add_identifier_of_expression state e in
     let src_fname =
       let ext = "."^ BE.preferred_def_extension in
       Filename.temp_file "dessserQCheck_" ext in

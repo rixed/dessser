@@ -73,13 +73,13 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
     E.type_check [] of_value) ;
   let state = BE.make_state  () in
   let state, _, _ =
-    BE.identifier_of_expression state ~name:"convert" convert in
+    BE.add_identifier_of_expression state ~name:"convert" convert in
   let state, _, _ =
-    BE.identifier_of_expression state ~name:"to_value" to_value in
+    BE.add_identifier_of_expression state ~name:"to_value" to_value in
   let state, _, _ =
-    BE.identifier_of_expression state ~name:"value_sersize" value_sersize in
+    BE.add_identifier_of_expression state ~name:"value_sersize" value_sersize in
   let state, _, _ =
-    BE.identifier_of_expression state ~name:"of_value" of_value in
+    BE.add_identifier_of_expression state ~name:"of_value" of_value in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
   write_source ~src_fname:def_fname (BE.print_definitions state) ;
@@ -105,7 +105,7 @@ let converter
   if debug then E.type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_name =
-    BE.identifier_of_expression state ~name:"convert" convert in
+    BE.add_identifier_of_expression state ~name:"convert" convert in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
@@ -146,9 +146,9 @@ let lmdb main
   ) ;
   let state = BE.make_state  () in
   let state, _, convert_key_name =
-    BE.identifier_of_expression state ~name:"convert_key" convert_key in
+    BE.add_identifier_of_expression state ~name:"convert_key" convert_key in
   let state, _, convert_val_name =
-    BE.identifier_of_expression state ~name:"convert_val" convert_val in
+    BE.add_identifier_of_expression state ~name:"convert_val" convert_val in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
@@ -231,7 +231,7 @@ let aggregator
    * - output_expr, that finalize the value and serialize it. *)
   let code = BE.make_state () in
   let code, state_id, state_name =
-    BE.identifier_of_expression code ~name:"state" init_expr in
+    BE.add_identifier_of_expression code ~name:"state" init_expr in
   let input_expr =
     E.func1 ~l:(BE.environment code) TDataPtr (fun _l src ->
       let v_src = apply to_value [ src ] in
@@ -239,13 +239,13 @@ let aggregator
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
   let code, _, input_name =
-    BE.identifier_of_expression code ~name:"input" input_expr in
+    BE.add_identifier_of_expression code ~name:"input" input_expr in
   let output_expr =
     E.func1 ~l:(BE.environment code) TDataPtr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
       apply of_value [ v ; dst ]) in
   let code, _, output_name =
-    BE.identifier_of_expression code ~name:"output" output_expr in
+    BE.add_identifier_of_expression code ~name:"output" output_expr in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in

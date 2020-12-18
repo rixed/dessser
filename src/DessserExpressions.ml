@@ -2271,7 +2271,7 @@ let with_sploded_pair what e f =
       E2 (Let n2, E1 (Snd, E0 (Identifier pair_id)),
         f (E0 (Identifier n1)) (E0 (Identifier n2)))))
 
-(* Create a function expression and return its id: *)
+(* Create a function expression: *)
 let func =
   let next_id = ref 0 in
   fun ?(l=[]) typs f ->

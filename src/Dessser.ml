@@ -565,7 +565,7 @@ sig
   (* TODO: all backends are going to do the same type-checking.
    * Have a functor that perform some of this automatically?
    * Oe let the backends reuse DIL? *)
-  val identifier_of_expression : state -> ?name:string -> E.t -> (state * E.t * string)
+  val add_identifier_of_expression : state -> ?name:string -> E.t -> state * E.t * string
   (* Extract the currently defined environment from the state: *)
   val environment : state -> (E.t * T.t) list
   val valid_source_name : string -> string

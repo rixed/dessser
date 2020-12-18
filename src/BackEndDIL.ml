@@ -57,7 +57,7 @@ let environment state =
     ) l state.identifiers in
   l
 
-let identifier_of_expression state ?name expr =
+let add_identifier_of_expression state ?name expr =
   let name, public =
     match name with
     | None ->
@@ -69,7 +69,7 @@ let identifier_of_expression state ?name expr =
   E.type_check l expr ;
   let t = E.type_of l expr in
   if t = TVoid then
-    invalid_arg "identifier_of_expression of type void" ;
+    invalid_arg "add_identifier_of_expression of type void" ;
   { state with
       identifiers = (name, identifier, t) :: state.identifiers },
   E.E0 (Identifier name),
