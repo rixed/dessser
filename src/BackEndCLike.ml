@@ -190,7 +190,9 @@ struct
 
   (* As inlined expressions may be reordered, those must all be stateless.
    * Include in here all operations that are cheap enough that it's OK to
-   * compute them several times if required *)
+   * compute them several times if required.
+   * Arithmetic operators that fail with null are not inlinable (in C++)
+   * but none of them count as cheap anyway. *)
   let rec can_inline = function
     | E.E0 (
         Param _ | Null _ |

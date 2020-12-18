@@ -227,9 +227,9 @@ struct
     let binary_infix_op e1 op e2 =
       let n1 = print emit p l e1
       and n2 = print emit p l e2 in
-      (* Prevent integer promotion by casting to type_of e: *)
       let t = E.type_of l e in
       emit ?name p l e (fun oc ->
+        (* Prevent integer promotion by casting to type_of e: *)
         print_cast p t (fun oc -> pp oc "%s %s %s" n1 op n2) oc) in
     let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
       let n1 = print emit p l e1 in

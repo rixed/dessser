@@ -260,12 +260,14 @@ type e2 =
   | Ge
   | Eq
   | Ne
+  (* Arithmetic operators returning same type as their inputs, which must
+   * be of the same type (namely, any numeric). *)
   | Add
   | Sub
   | Mul
-  | Div
-  | Rem
-  | Pow
+  | Div (* Fails with Null *)
+  | Rem (* Fails with Null *)
+  | Pow (* Fails with Null *)
   | LogAnd
   | LogOr
   | LogXor
@@ -1469,15 +1471,9 @@ let rec type_of l e0 =
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
-  | E2 (Add, e, _)
-  | E2 (Sub, e, _)
-  | E2 (Mul, e, _)
-  | E2 (Rem, e, _)
-  | E2 (LogAnd, e, _)
-  | E2 (LogOr, e, _)
-  | E2 (LogXor, e, _)
-  | E2 (LeftShift, e, _)
-  | E2 (RightShift, e, _)
+  | E2 ((Add | Sub | Mul | LogAnd | LogOr | LogXor |
+         LeftShift | RightShift), e, _) ->
+      type_of l e
   | E1 (LogNot, e) ->
       type_of l e
   | E2 (Pow, e, _) ->
@@ -1650,6 +1646,8 @@ let rec type_of l e0 =
          Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), _) ->
       T.float
   | E1 ((Log | Log10 | Sqrt), _) ->
+      (* TODO: make it nullable only if it cannot be ascertained from e1
+       * that the result will never be null *)
       T.to_nullable T.float
   | E1 ((Lower | Upper), _) -> T.string
   | E1 (Hash, _) -> T.u64
@@ -1772,14 +1770,11 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | TVoid -> ()
       | t -> raise (Type_error (e0, e, t, "be Void")) in
-    let check_nullable l e =
+    let check_nullable b l e =
       match type_of l e |> T.develop_user_types with
-      | TValue { nullable = true ; _ } -> ()
-      | t -> raise (Type_error (e0, e, t, "be nullable")) in
-    let check_not_nullable l e =
-      match type_of l e |> T.develop_user_types with
-      | TValue { nullable = false ; _ } -> ()
-      | t -> raise (Type_error (e0, e, t, "not be nullable")) in
+      | TValue { nullable ; _ } when nullable = b -> ()
+      | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
+                                          "nullable value")) in
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
       | TSize | TByte | TWord | TDWord | TQWord | TOWord | TMaskAction
@@ -1936,7 +1931,7 @@ let rec type_check l e =
             | TValue { vtyp ; _ } ->
                 let exp = T.TValue { vtyp ; nullable = true } in
                 List.iter (fun e ->
-                  check_nullable l e ;
+                  check_nullable true l e ;
                   check_eq l e exp
                 ) rest
             | t ->
@@ -1944,14 +1939,14 @@ let rec type_check l e =
         | [] ->
             raise (Invalid_expression (e, "must have at least one member")))
     | E1 (IsNull, e) ->
-        check_nullable l e
+        check_nullable true l e
     | E2 (Nth, e1, e2) ->
         check_list_or_vector l e2 ;
         check_integer l e1
     | E1 (ToNullable, e) ->
-        check_not_nullable l e
+        check_nullable false l e
     | E1 (ToNotNullable, e) ->
-        check_nullable l e
+        check_nullable true l e
     | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
         check_comparable l e1 ;
         check_same_types l e1 e2

@@ -493,8 +493,8 @@ struct
               pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
                 (mod_name t) n1 n2)
         | TValue {
-            vtyp = (Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
-                        |TI8|TI16|TI24|TI40|TI48|TI56|TI128)) ; _ } as t ->
+            vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
+                       |TI8|TI16|TI24|TI40|TI48|TI56|TI128) ; _ } as t ->
             (* For through floats *)
             let m = mod_name t in
             let n1 = print emit p l e1
