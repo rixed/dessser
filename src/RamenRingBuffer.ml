@@ -15,7 +15,11 @@ let ringbuf_word_size = ref 4
  * [extra_bytes] must be a size valued expression. *)
 let align_dyn p extra_bytes =
   let wsize = size !ringbuf_word_size in
-  let extra_bytes = rem extra_bytes wsize in
+  let extra_bytes =
+    (* FIXME: Improve type-checking so that rem/div do not have to return
+     * nullable types when used with constants *)
+    size_of_u32 (to_not_nullable (rem (u32_of_size extra_bytes)
+                                      (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
   if_ ~cond:(gt wsize padding_len)
     ~then_:(data_ptr_add p padding_len)

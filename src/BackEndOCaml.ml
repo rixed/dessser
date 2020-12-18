@@ -476,10 +476,22 @@ struct
         binary_mod_op "sub" e1 e2
     | E.E2 (Mul, e1, e2) ->
         binary_mod_op "mul" e1 e2
-    | E.E2 (Div, e1, e2) ->
-        binary_mod_op "div" e1 e2
-    | E.E2 (Rem, e1, e2) ->
-        binary_mod_op "rem" e1 e2
+    | E.E2 ((Div | Rem as op), e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        (match E.type_of l e1 |> T.develop_user_types with
+        | TValue { vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
+                              |TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) ;
+                   _ } as t ->
+            let op_name = match op with Div -> "div" | _ -> "rem" in
+            emit ?name p l e (fun oc ->
+              pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
+                (mod_name t) op_name n1 n2)
+        | TValue { vtyp = Mac TFloat ; _ } ->
+            let op_name = match op with Div -> "(/.)" | _ -> "(mod)" in
+            binary_op ("(Nullable.of_nan % "^ op_name ^")") e1 e2
+        | _ ->
+            assert false)
     | E.E2 (Pow, e1, e2) ->
         (match E.type_of l e1 |> T.develop_user_types with
         | TValue { vtyp = Mac TFloat ; _ } ->

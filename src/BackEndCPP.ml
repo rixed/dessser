@@ -218,12 +218,6 @@ struct
     let unary_func f e1 =
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s(%s)" f n1) in
-    let unary_func_or_nan f e1 =
-      let n1 = print emit p l e1 in
-      let tmp = gen_sym "test_nan_" in
-      ppi p.def "double const %s { %s(%s) };" tmp f n1 ;
-      emit ?name p l e (fun oc ->
-        pp oc "std::isnan(%s) ? std::nullopt_t : %s" tmp tmp) in
     let binary_infix_op e1 op e2 =
       let n1 = print emit p l e1
       and n2 = print emit p l e2 in
@@ -257,6 +251,9 @@ struct
     let member e1 m =
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s.%s" n1 m) in
+    let null_of_nan res =
+      ppi p.def "if (std::isnan(*%s)) %s.reset();" res res ;
+      res in
     match e with
     | E.E1 (Apply, e1) ->
         let n1 = print emit p l e1 in
@@ -429,17 +426,28 @@ struct
         binary_infix_op e1 "-" e2
     | E.E2 (Mul, e1, e2) ->
         binary_infix_op e1 "*" e2
-    | E.E2 (Div, e1, e2) ->
-        binary_infix_op e1 "/" e2
-    | E.E2 (Rem, e1, e2) ->
-        binary_infix_op e1 "%" e2
+    | E.E2 ((Div | Rem as op), e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        let op_name = match op with Div -> "/" | _ -> "%" in
+        (match E.type_of l e1 |> T.develop_user_types with
+        | TValue { vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
+                              |TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) ;
+                   _ } ->
+            emit ?name p l e (fun oc ->
+              pp oc "%s == 0 ? std::nullopt : std::make_optional(%s %s %s)"
+                n2 n1 op_name n2)
+        | TValue { vtyp = Mac TFloat ; _ } ->
+            binary_infix_op e1 op_name e2 |> null_of_nan
+        | _ ->
+            assert false)
     | E.E2 (Pow, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc ->
-            pp oc "std::pow(%s, %s)" n1 n2) oc)
+            pp oc "std::pow(%s, %s)" n1 n2) oc) |> null_of_nan
     | E.E2 (LogAnd, e1, e2) ->
         binary_infix_op e1 "&" e2
     | E.E2 (LogOr, e1, e2) ->
@@ -736,11 +744,11 @@ struct
     | E.E1 (Exp, e1) ->
         unary_func "std::exp" e1
     | E.E1 (Log, e1) ->
-        unary_func_or_nan "std::log" e1
+        unary_func "std::log" e1 |> null_of_nan
     | E.E1 (Log10, e1) ->
-        unary_func_or_nan "std::log10" e1
+        unary_func "std::log10" e1 |> null_of_nan
     | E.E1 (Sqrt, e1) ->
-        unary_func_or_nan "std::sqrt" e1
+        unary_func "std::sqrt" e1 |> null_of_nan
     | E.E1 (Ceil, e1) ->
         unary_func "std::ceil" e1
     | E.E1 (Floor, e1) ->
@@ -752,11 +760,11 @@ struct
     | E.E1 (Sin, e1) ->
         unary_func "std::sin" e1
     | E.E1 (Tan, e1) ->
-        unary_func_or_nan "std::tan" e1
+        unary_func "std::tan" e1 |> null_of_nan
     | E.E1 (ACos, e1) ->
-        unary_func_or_nan "std::acos" e1
+        unary_func "std::acos" e1 |> null_of_nan
     | E.E1 (ASin, e1) ->
-        unary_func_or_nan "std::asin" e1
+        unary_func "std::asin" e1 |> null_of_nan
     | E.E1 (ATan, e1) ->
         unary_func "std::atan" e1
     | E.E1 (CosH, e1) ->

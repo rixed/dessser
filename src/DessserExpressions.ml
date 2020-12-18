@@ -1476,9 +1476,10 @@ let rec type_of l e0 =
       type_of l e
   | E1 (LogNot, e) ->
       type_of l e
-  | E2 (Pow, e, _) ->
+  | E2 ((Div | Rem | Pow), e, _) ->
+      (* TODO: make it nullable only if it cannot be ascertained from e1 and e2
+       * that the result will never be null *)
       T.to_nullable (type_of l e)
-  | E2 (Div, _, _) -> T.float
   | E1 (ToNullable, e) ->
       T.to_nullable (type_of l e)
   | E1 (ToNotNullable, e) ->
@@ -1783,9 +1784,10 @@ let rec type_check l e =
           TU8 | TU16 | TU32 | TU64 | TU128 |
           TI8 | TI16 | TI32 | TI64 | TI128)) ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be comparable")) in
-    let check_numeric l e =
+    let check_numeric ?(only_mac=false) l e =
       match type_of l e |> T.develop_user_types with
-      | TSize | TByte | TWord | TDWord | TQWord | TOWord
+      | TSize | TByte | TWord | TDWord | TQWord | TOWord when not only_mac ->
+          ()
       | TValue {
           vtyp = (Mac (
             TFloat | TChar |
@@ -1950,8 +1952,11 @@ let rec type_check l e =
     | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
         check_comparable l e1 ;
         check_same_types l e1 e2
-    | E2 ((Add | Sub | Mul | Div | Rem | Pow), e1, e2) ->
+    | E2 ((Add | Sub | Mul), e1, e2) ->
         check_numeric l e1 ;
+        check_same_types l e1 e2
+    | E2 ((Div | Rem | Pow), e1, e2) ->
+        check_numeric ~only_mac:true l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
         (* FIXME: Also for sets *)
