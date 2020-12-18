@@ -943,7 +943,7 @@ struct
         let item_tn = type_identifier p (T.TValue item_t) in
         ppi p.def "%s %s { %s };" (type_identifier p t1) res init ;
         let is_set =
-          match E.type_of l e3 with
+          match E.type_of l e3 |> T.develop_user_types with
           | T.TValue { vtyp = TSet _ ; _ } -> true
           | _ -> false in
         if is_set then
