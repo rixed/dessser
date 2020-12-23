@@ -615,28 +615,28 @@ struct
       (strinG n >>: fun () -> make vtyp)
     in
     (
-      (st "float" TFloat) |||
-      (st "string" TString) |||
-      (st "bool" TBool) |||
-      (st "boolean" TBool) |||
-      (st "char" TChar) |||
-      (st "u8" TU8) |||
-      (st "u16" TU16) |||
-      (st "u24" TU24) |||
-      (st "u32" TU32) |||
-      (st "u40" TU40) |||
-      (st "u48" TU48) |||
-      (st "u56" TU56) |||
-      (st "u64" TU64) |||
-      (st "u128" TU128) |||
-      (st "i8" TI8) |||
-      (st "i16" TI16) |||
-      (st "i24" TI24) |||
-      (st "i32" TI32) |||
-      (st "i40" TI40) |||
-      (st "i48" TI48) |||
-      (st "i56" TI56) |||
-      (st "i64" TI64) |||
+      (st "float" TFloat) |<|
+      (st "string" TString) |<|
+      (st "bool" TBool) |<|
+      (st "boolean" TBool) |<|
+      (st "char" TChar) |<|
+      (st "u8" TU8) |<|
+      (st "u16" TU16) |<|
+      (st "u24" TU24) |<|
+      (st "u32" TU32) |<|
+      (st "u40" TU40) |<|
+      (st "u48" TU48) |<|
+      (st "u56" TU56) |<|
+      (st "u64" TU64) |<|
+      (st "u128" TU128) |<|
+      (st "i8" TI8) |<|
+      (st "i16" TI16) |<|
+      (st "i24" TI24) |<|
+      (st "i32" TI32) |<|
+      (st "i40" TI40) |<|
+      (st "i48" TI48) |<|
+      (st "i56" TI56) |<|
+      (st "i64" TI64) |<|
       (st "i128" TI128)
     ) m
 
@@ -785,28 +785,28 @@ struct
   let rec typ m =
     let m = "type" :: m in
     (
-      (maybe_nullable >>: fun mn -> TValue mn) |||
-      (strinG "dataptr" >>: fun () -> TDataPtr) |||
-      (strinG "size" >>: fun () -> TSize) |||
-      (strinG "bit" >>: fun () -> TBit) |||
-      (strinG "byte" >>: fun () -> TByte) |||
-      (strinG "word" >>: fun () -> TWord) |||
-      (strinG "dword" >>: fun () -> TDWord) |||
-      (strinG "qword" >>: fun () -> TQWord) |||
-      (strinG "oword" >>: fun () -> TOWord) |||
-      (strinG "bytes" >>: fun () -> TBytes) |||
-      (strinG "mask" >>: fun () -> TMask) |||
-      (strinG "mask-action" >>: fun () -> TMaskAction) |||
+      (maybe_nullable >>: fun mn -> TValue mn) |<|
       (strinG "void" >>: fun () -> TVoid) |<|
+      (strinG "dataptr" >>: fun () -> TDataPtr) |<|
+      (strinG "size" >>: fun () -> TSize) |<|
+      (strinG "bit" >>: fun () -> TBit) |<|
+      (strinG "byte" >>: fun () -> TByte) |<|
+      (strinG "word" >>: fun () -> TWord) |<|
+      (strinG "dword" >>: fun () -> TDWord) |<|
+      (strinG "qword" >>: fun () -> TQWord) |<|
+      (strinG "oword" >>: fun () -> TOWord) |<|
+      (strinG "bytes" >>: fun () -> TBytes) |<|
+      (strinG "mask-action" >>: fun () -> TMaskAction) |<|
+      (strinG "mask" >>: fun () -> TMask) |<|
       (
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
         char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
           fun (t1, t2) -> TPair (t1, t2)
-      ) |||
+      ) |<|
       (
         char '{' -- opt_blanks -+ typ +- opt_blanks +- char '}' >>:
           fun t -> TSList t
-      ) |||
+      ) |<|
       (
         let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
         char '(' -+
