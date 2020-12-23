@@ -142,7 +142,7 @@ let maybe_nullable_gen =
 
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
-  | T.Mac _ | T.Usr _ -> 1
+  | T.Unit | T.Mac _ | T.Usr _ -> 1
   | T.TVec (_, mn) | T.TList mn | T.TSet mn -> 1 + size_of_maybe_nullable mn
   | T.TTup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
@@ -182,6 +182,8 @@ let rec shrink_value_type =
     shrink_mns f in
   function
   | T.Unknown ->
+      Iter.empty
+  | T.Unit ->
       Iter.empty
   | T.Mac mt ->
       (fun f ->
@@ -567,6 +569,7 @@ let expression =
     "(is-null (null \"Bool\"))"
   compile_check \
     "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
+  compile_check "(make-vec ())"
 *)
 
 (*
@@ -593,6 +596,8 @@ let rec sexpr_of_vtyp_gen vtyp =
   match vtyp with
   | T.Unknown ->
       invalid_arg "sexpr_of_vtyp_gen"
+  | T.Unit ->
+      return "()"
   | T.Mac TFloat ->
       map hexstring_of_float float
   | T.Mac TString ->

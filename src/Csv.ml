@@ -45,7 +45,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
   match mn.T.vtyp with
   | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
       false
-  | Mac _ ->
+  | Unit | Mac _ ->
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with vtyp = def }
@@ -71,7 +71,7 @@ let rec nullable_at_first mn =
   match mn.vtyp with
   | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
       invalid_arg "nullable_at_first"
-  | Mac _ ->
+  | Unit | Mac _ ->
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with vtyp = def }
@@ -100,7 +100,7 @@ let rec make_serializable mn =
   match mn.T.vtyp with
   | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
       invalid_arg "make_serializable"
-  | Mac _ ->
+  | Unit | Mac _ ->
       mn
   | Usr { def ; _ } ->
       let mn' = T.{ mn with vtyp = def } in

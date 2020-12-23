@@ -102,6 +102,7 @@ struct
     | T.{ vtyp ; nullable = true } ->
         value_type_identifier p { vtyp ; nullable = false } ^" nullable"
     | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
+    | { vtyp = Unit ; _ } -> "unit"
     | { vtyp = Mac TChar ; _ } -> "char"
     | { vtyp = Mac TString ; _ } -> "string"
     | { vtyp = Mac TBool ; _ } -> "bool"
@@ -416,6 +417,8 @@ struct
         emit ?name p l e (fun oc -> pp oc "Null")
     | E.E0 (Float f) ->
         emit ?name p l e (print_float_literal f)
+    | E.E0 Unit ->
+        emit ?name p l e (fun oc -> pp oc "()")
     | E.E0 (String s) ->
         emit ?name p l e (fun oc -> String.print_quoted oc s)
     | E.E0 (Bit b) | E.E0 (Bool b) ->

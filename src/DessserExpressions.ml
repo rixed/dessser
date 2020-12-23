@@ -40,6 +40,7 @@ type e0 =
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
   | Now
   | Random
+  | Unit
   | Float of float
   | String of string
   | Bool of bool
@@ -407,10 +408,10 @@ let parameters =
 let rec can_precompute l i = function
   | E0 (Now | Random) ->
       false
-  | E0 (Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _ | Char _
+  | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-       | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Char _ | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
        | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
        | CopyField | SkipField | SetFieldNull) ->
       true
@@ -475,6 +476,8 @@ let rec default_value ?(allow_null=true) = function
         default_value ~allow_null { vtyp ; nullable = false }
   | { vtyp = T.Unknown ; _ } ->
       invalid_arg "default_value"
+  | { vtyp = T.Unit ; _ } ->
+      E0 Unit
   | { vtyp = Mac TFloat ; _ } ->
       E0 (Float 0.)
   | { vtyp = Mac TString ; _ } ->
@@ -792,6 +795,7 @@ let rec string_of_e0 = function
   | Now -> "now"
   | Random -> "rand"
   | Float f -> "float "^ hexstring_of_float f
+  | Unit -> "()"
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
   | Char c -> "char "^ String.quote (String.of_char c)
@@ -1032,6 +1036,7 @@ struct
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "rand" ] -> E0 Random
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
+    | Lst [] -> E0 (Unit)
     | Lst [ Sym "string" ; Str s ] -> E0 (String s)
     | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
     | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
@@ -1491,6 +1496,7 @@ let rec type_of l e0 =
   | E0 Now -> T.float
   | E0 Random -> T.float
   | E0 (Float _) -> T.float
+  | E0 Unit -> T.unit
   | E0 (String _) -> T.string
   | E0 (Bool _) -> T.bool
   | E0 (Char _) -> T.char
@@ -1880,7 +1886,7 @@ let rec type_check l e =
       | _ -> raise (Apply_error (e0, "argument must be a function")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | EmptySet _ | Now | Random
-         | Float _ | String _ | Bool _ | Char _
+         | Unit | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
@@ -2479,6 +2485,7 @@ struct
   let i128 n = E0 (I128 n)
   let u128 n = E0 (U128 n)
   let char n = E0 (Char n)
+  let unit = E0 Unit
   let float n = E0 (Float n)
   let string n = E0 (String n)
   let byte n = E0 (Byte n)

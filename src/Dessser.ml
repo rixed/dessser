@@ -469,6 +469,7 @@ struct
 
   and desser_value_type = function
     | T.Unknown -> invalid_arg "desser_value_type"
+    | T.Unit -> fun _transform _sstate _dstate _mn0 _path src_dst -> src_dst
     | T.Mac TFloat -> dsfloat
     | T.Mac TString -> dsstring
     | T.Mac TBool -> dsbool

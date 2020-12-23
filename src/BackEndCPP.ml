@@ -71,6 +71,7 @@ struct
           type_identifier p (TValue { vtyp ; nullable = false })
         ^">"
     | T.TValue { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
+    | T.TValue { vtyp = Unit ; _ } -> "Unit"
     | T.TValue { vtyp = Mac TFloat ; _ } -> "double"
     | T.TValue { vtyp = Mac TString ; _ } -> "std::string"
     | T.TValue { vtyp = Mac TBool ; _ } -> "bool"
@@ -354,6 +355,8 @@ struct
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "std::nullopt")
+    | E.E0 Unit ->
+        emit ?name p l e ignore
     | E.E0 (Float f) ->
         emit ?name p l e (print_float_literal f)
     | E.E0 (String s) ->

@@ -23,6 +23,11 @@
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)
 
+struct Unit
+{
+  Unit() {}
+};
+
 inline uint64_t qwordOfFloat(double v)
 {
   uint64_t res;

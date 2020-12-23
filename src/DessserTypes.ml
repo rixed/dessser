@@ -37,6 +37,7 @@ and user_type =
 
 and value_type =
   | Unknown
+  | Unit
   | Mac of mac_type
   (* Aliases with custom representations: *)
   | Usr of user_type
@@ -73,7 +74,7 @@ let maken = make ~nullable:true
 
 let rec depth ?(opaque_user_type=false) = function
   | Unknown -> invalid_arg "depth"
-  | Mac _ -> 0
+  | Unit | Mac _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
   | TVec (_, mn) | TList mn | TSet mn ->
@@ -189,7 +190,7 @@ let pair_of_tpair = function
  *)
 
 let rec develop_value_type = function
-  | (Unknown | Mac _) as vt ->
+  | (Unknown | Unit | Mac _) as vt ->
       vt
   | Usr { def ; _ } ->
       develop_value_type def
@@ -219,7 +220,7 @@ and develop_user_types = function
 let rec fold_value_type u f vt =
   let u = f u vt in
   match vt with
-  | Unknown | Mac _ ->
+  | Unknown | Unit | Mac _ ->
       u
   | Usr { def ; _ } ->
       fold_value_type u f def
@@ -350,6 +351,8 @@ let print_mac_type oc =
 let rec print_value_type ?(sorted=false) oc = function
   | Unknown ->
       pp oc "UNKNOWN"
+  | Unit ->
+      pp oc "unit"
   | Mac t ->
       print_mac_type oc t
   | Usr t ->
@@ -590,11 +593,18 @@ struct
     let m = "type" :: m in
     (
       (
-        scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
+        unit_typ ||| scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
         (!user_type ++ opt_question_mark >>: fun (vt, n) -> make ~nullable:n vt)
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
         reduce_dims t dims
+    ) m
+
+  and unit_typ m =
+    let m = "unit type" :: m in
+    (
+      (strinG "unit" >>: fun () -> make Unit) |||
+      (strinG "unit?" >>: fun () -> maken Unit)
     ) m
 
   and scalar_typ m =
@@ -776,7 +786,6 @@ struct
     let m = "type" :: m in
     (
       (maybe_nullable >>: fun mn -> TValue mn) |||
-      (strinG "void" >>: fun () -> TVoid) |||
       (strinG "dataptr" >>: fun () -> TDataPtr) |||
       (strinG "size" >>: fun () -> TSize) |||
       (strinG "bit" >>: fun () -> TBit) |||
@@ -788,6 +797,7 @@ struct
       (strinG "bytes" >>: fun () -> TBytes) |||
       (strinG "mask" >>: fun () -> TMask) |||
       (strinG "mask-action" >>: fun () -> TMaskAction) |||
+      (strinG "void" >>: fun () -> TVoid) |<|
       (
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
         char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
@@ -897,7 +907,7 @@ let type_and_name_of_path t path =
     | [] -> t, field_name
     | i :: path ->
         let rec type_of = function
-          | (Unknown | Mac _ | TMap _) ->
+          | (Unknown | Unit | Mac _ | TMap _) ->
               assert false
           | Usr t ->
               type_of t.def
@@ -968,6 +978,7 @@ let i56 = TValue (make (Mac TI56))
 let i64 = TValue (make (Mac TI64))
 let i128 = TValue (make (Mac TI128))
 let void = TVoid
+let unit = TValue (make Unit)
 let bit = TBit
 let byte = TByte
 let size = TSize

@@ -158,9 +158,13 @@ struct
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
 
+  and dunit _ _ _ src =
+    pair unit src
+
   and make1 dstate mn0 path mn src =
     let rec des_of_vt = function
       | T.Unknown -> invalid_arg "make1"
+      | T.Unit -> dunit
       | T.Mac TFloat -> Des.dfloat
       | T.Mac TString -> Des.dstring
       | T.Mac TBool -> Des.dbool
@@ -320,9 +324,12 @@ struct
               choose_cstr 0)) in
     Ser.sum_cls sstate mn0 path dst
 
+  and sunit _ _ _ _ dst = dst
+
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
       | T.Unknown -> invalid_arg "ser1"
+      | T.Unit -> sunit
       | T.Mac TFloat -> Ser.sfloat
       | T.Mac TString -> Ser.sstring
       | T.Mac TBool -> Ser.sbool
@@ -492,6 +499,7 @@ struct
       add_size sizes sz in
     let rec ssz_of_vt = function
       | T.Unknown -> invalid_arg "sersz1"
+      | T.Unit -> fun _ _ _ sizes -> sizes
       | T.Mac TFloat -> to_dyn Ser.ssize_of_float
       | T.Mac TString -> to_dyn Ser.ssize_of_string
       | T.Mac TBool -> to_dyn Ser.ssize_of_bool
