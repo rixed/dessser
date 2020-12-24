@@ -84,8 +84,12 @@ struct
     | Null -> None
     | NotNull x -> Some x
 
+  (* The following 3 comparison functions are used to *order* values and are
+   * therefore not nullable (in particular, [cmp Null Null] is not [Null]).
+   * Null values are considered smaller than everything else. *)
   let compare cmp a b =
     match a, b with
+    | Null, Null -> 0
     | Null, _ -> -1
     | _, Null -> 1
     | a, b -> cmp a b
