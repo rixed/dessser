@@ -2308,6 +2308,23 @@ let func3 ?l t1 t2 t3 f =
     and p3 = E0 (Param (fid, 2)) in
     f l p1 p2 p3)
 
+let func4 ?l t1 t2 t3 t4 f =
+  func ?l [| t1 ; t2 ; t3 ; t4 |] (fun l fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1))
+    and p3 = E0 (Param (fid, 2))
+    and p4 = E0 (Param (fid, 3)) in
+    f l p1 p2 p3 p4)
+
+let func5 ?l t1 t2 t3 t4 t5 f =
+  func ?l [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun l fid ->
+    let p1 = E0 (Param (fid, 0))
+    and p2 = E0 (Param (fid, 1))
+    and p3 = E0 (Param (fid, 2))
+    and p4 = E0 (Param (fid, 3))
+    and p5 = E0 (Param (fid, 4)) in
+    f l p1 p2 p3 p4 p5)
+
 (* FIXME: letn [name*value] f *)
 let let1 ?name v f =
   let n = match name with Some n -> n | None -> gen_id () in
@@ -2505,8 +2522,8 @@ struct
   let comment n e1 = E1 (Comment n, e1)
   let ge e1 e2 = E2 (Ge, e1, e2)
   let gt e1 e2 = E2 (Gt, e1, e2)
-  let le e1 e2 = E2 (Ge, e2, e1)
-  let lt e1 e2 = E2 (Gt, e2, e1)
+  let le e1 e2 = ge e2 e1
+  let lt e1 e2 = gt e2 e1
   let eq e1 e2 = E2 (Eq, e1, e2)
   let not_ e1 = E1 (Not, e1)
   let abs e1 = E1 (Abs, e1)

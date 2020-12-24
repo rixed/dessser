@@ -550,8 +550,7 @@ let expression =
     match type_check [] e with \
     | exception _ -> true \
     | () -> \
-        if type_of [] e = TVoid then true \
-        else can_be_compiled e)
+        type_of [] e = TVoid || can_be_compiled e)
 *)
 
 (* Non regression tests: *)
