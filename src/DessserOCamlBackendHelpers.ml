@@ -56,6 +56,10 @@ struct
     | NotNull x ->
         (try NotNull (f x) with ImNull -> Null)
 
+  let may f = function
+    | Null -> ()
+    | NotNull x -> f x
+
   let map_no_fail f = function
     | Null -> Null
     | NotNull x ->
