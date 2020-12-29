@@ -30,10 +30,10 @@ let tiny_int =
 
 let tiny_array gen =
   (* Used for tuple/record arguments so must be longer than 2 *)
-  Gen.(array_size (int_range 2 5) gen)
+  Gen.(array_size (int_range 2 4) gen)
 
 let tiny_list gen =
-  Gen.(list_size (int_range 1 5) gen)
+  Gen.(list_size (int_range 1 4) gen)
 
 let field_name_gen =
   let open Gen in
