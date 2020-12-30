@@ -2270,8 +2270,8 @@ let gen_id =
 (* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
 let with_sploded_pair what e f =
   let pair_id = gen_id () ^"_"^ what in
-  let n1 = pair_id ^"_0"
-  and n2 = pair_id ^"_1" in
+  let n1 = pair_id ^"_fst"
+  and n2 = pair_id ^"_snd" in
   E2 (Let pair_id, e,
     E2 (Let n1, E1 (Fst, E0 (Identifier pair_id)),
       E2 (Let n2, E1 (Snd, E0 (Identifier pair_id)),

@@ -9,7 +9,8 @@ module T = DessserTypes
 (*$inject
    open Batteries
    module T = DessserTypes
-   module E = DessserExpressions *)
+   module E = DessserExpressions
+   let dbg = false *)
 
 (*
  * Some misc generators
@@ -697,7 +698,7 @@ let sexpr mn =
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
             let dst = secnd (T2S.desser mn tdst dst) in
             pair src dst))) in
-    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+    if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     make_converter be ~mn e
 
   let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
@@ -715,7 +716,7 @@ let sexpr mn =
     Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
       let s' = String.trim (run_converter ~timeout:2 exe s) in
-      Printf.eprintf "Testing s-expr %S of type %a -> %S\n%!"
+      if dbg then Printf.eprintf "Testing s-expr %S of type %a -> %S\n%!"
         s T.print_maybe_nullable mn s' ;
       assert_equal ~printer:BatPervasives.identity s s') in
   try
@@ -736,7 +737,7 @@ let sexpr mn =
     Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
     List.iter (fun s ->
       let s' = String.trim (run_converter ~timeout:2 exe s) in
-      Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
+      if dbg then Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
         format s T.print_maybe_nullable mn s' ;
       assert_equal ~printer:BatPervasives.identity s s')
 
@@ -757,7 +758,7 @@ let sexpr mn =
 (*$R
   let test_heap be mn =
     let e = heap_convert_expr mn in
-    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+    if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     let exe = make_converter be ~mn e in
     test_exe "heap-value" mn exe in
 
@@ -798,7 +799,7 @@ let sexpr mn =
     let mn = T.maybe_nullable_of_string ts in
     let exe = sexpr_to_sexpr be mn in
     let rs = run_converter ~timeout:2 exe vs in
-    Printf.eprintf "\ncheck_sexpr: %S vs %S\n%!" rs vs ;
+    if dbg then Printf.eprintf "\ncheck_sexpr: %S vs %S\n%!" rs vs ;
     String.trim rs = vs
   let check_rowbinary be ts vs =
     let mn = T.maybe_nullable_of_string ts in
@@ -821,7 +822,7 @@ let sexpr mn =
   let check_heapvalue be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let e = heap_convert_expr mn in
-    Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+    if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     let exe = make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
@@ -887,7 +888,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+      if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -900,7 +901,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser mn src dst) in
-      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+      if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -931,7 +932,7 @@ let sexpr mn =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
           DS.desser ?des_config:config mn src dst) in
-      Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+      if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 
