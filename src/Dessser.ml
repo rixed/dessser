@@ -336,7 +336,7 @@ struct
 
   and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in
-    let pair_ptrs = T.TPair (Des.ptr mn0, Ser.ptr mn0) in
+    let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     let src_dst =
       E.with_sploded_pair "dsvec1" src_dst (fun src dst ->
         pair
@@ -369,7 +369,7 @@ struct
 
   and dslist mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in
-    let pair_ptrs = T.TPair (Des.ptr mn0, Ser.ptr mn0) in
+    let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     let subpath = T.path_append 0 path in
@@ -435,7 +435,7 @@ struct
                           ) in
                       desser_ transform sstate dstate mn0 subpath src_dst))))
           | UnknownSize (list_opn, end_of_list) ->
-              let t_fst_src_dst = T.TPair (T.bool, pair_ptrs) in
+              let t_fst_src_dst = T.Pair (T.bool, pair_ptrs) in
               let src = list_opn mn0 path mn src in
               let dst = Ser.list_opn sstate mn0 path mn None dst in
               let fst_src_dst =
@@ -470,37 +470,37 @@ struct
   and desser_value_type = function
     | T.Unknown -> invalid_arg "desser_value_type"
     | T.Unit -> fun _transform _sstate _dstate _mn0 _path src_dst -> src_dst
-    | T.Mac TFloat -> dsfloat
-    | T.Mac TString -> dsstring
-    | T.Mac TBool -> dsbool
-    | T.Mac TChar -> dschar
-    | T.Mac TI8 -> dsi8
-    | T.Mac TI16 -> dsi16
-    | T.Mac TI24 -> dsi24
-    | T.Mac TI32 -> dsi32
-    | T.Mac TI40 -> dsi40
-    | T.Mac TI48 -> dsi48
-    | T.Mac TI56 -> dsi56
-    | T.Mac TI64 -> dsi64
-    | T.Mac TI128 -> dsi128
-    | T.Mac TU8 -> dsu8
-    | T.Mac TU16 -> dsu16
-    | T.Mac TU24 -> dsu24
-    | T.Mac TU32 -> dsu32
-    | T.Mac TU40 -> dsu40
-    | T.Mac TU48 -> dsu48
-    | T.Mac TU56 -> dsu56
-    | T.Mac TU64 -> dsu64
-    | T.Mac TU128 -> dsu128
+    | T.Mac Float -> dsfloat
+    | T.Mac String -> dsstring
+    | T.Mac Bool -> dsbool
+    | T.Mac Char -> dschar
+    | T.Mac I8 -> dsi8
+    | T.Mac I16 -> dsi16
+    | T.Mac I24 -> dsi24
+    | T.Mac I32 -> dsi32
+    | T.Mac I40 -> dsi40
+    | T.Mac I48 -> dsi48
+    | T.Mac I56 -> dsi56
+    | T.Mac I64 -> dsi64
+    | T.Mac I128 -> dsi128
+    | T.Mac U8 -> dsu8
+    | T.Mac U16 -> dsu16
+    | T.Mac U24 -> dsu24
+    | T.Mac U32 -> dsu32
+    | T.Mac U40 -> dsu40
+    | T.Mac U48 -> dsu48
+    | T.Mac U56 -> dsu56
+    | T.Mac U64 -> dsu64
+    | T.Mac U128 -> dsu128
     | T.Usr vt -> desser_value_type vt.def
-    | T.TTup mns -> dstup mns
-    | T.TRec mns -> dsrec mns
-    | T.TSum mns -> dssum mns
-    | T.TVec (dim, mn) -> dsvec dim mn
-    | T.TList mn -> dslist mn
+    | T.Tup mns -> dstup mns
+    | T.Rec mns -> dsrec mns
+    | T.Sum mns -> dssum mns
+    | T.Vec (dim, mn) -> dsvec dim mn
+    | T.Lst mn -> dslist mn
     (* Sets are serialized like lists (the last update is thus lost). *)
-    | T.TSet mn -> dslist mn
-    | T.TMap _ -> assert false (* No value of map type *)
+    | T.Set mn -> dslist mn
+    | T.Map _ -> assert false (* No value of map type *)
 
   and desser_ transform sstate dstate mn0 path src_dst =
     let open E.Ops in

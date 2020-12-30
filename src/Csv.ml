@@ -43,19 +43,19 @@ let rec is_serializable ?(to_first_concrete=false) mn =
         is_serializable ~to_first_concrete:to_first_concrete' fst &&
         Enum.for_all (is_serializable ~to_first_concrete:false) mns in
   match mn.T.vtyp with
-  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       false
   | Unit | Mac _ ->
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with vtyp = def }
-  | TVec (_, mn') | TList mn' | TSet mn' ->
+  | Vec (_, mn') | Lst mn' | Set mn' ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
-  | TTup mns ->
+  | Tup mns ->
       are_serializable (Array.enum mns)
-  | TRec mns ->
+  | Rec mns ->
       are_serializable (Array.enum mns |> Enum.map snd)
-  | TSum mns ->
+  | Sum mns ->
       (* Each alternative must be serializable independently: *)
       Array.for_all (fun (_, mn') ->
         is_serializable ~to_first_concrete:to_first_concrete' mn'
@@ -69,19 +69,19 @@ let rec is_serializable ?(to_first_concrete=false) mn =
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.vtyp with
-  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "nullable_at_first"
   | Unit | Mac _ ->
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with vtyp = def }
-  | TVec (_, mn') | TList mn' | TSet mn' ->
+  | Vec (_, mn') | Lst mn' | Set mn' ->
       nullable_at_first mn'
-  | TTup mns ->
+  | Tup mns ->
       nullable_at_first mns.(0)
-  | TRec mns ->
+  | Rec mns ->
       nullable_at_first (snd mns.(0))
-  | TSum mns ->
+  | Sum mns ->
       Array.exists (fun (_, mn) ->
         nullable_at_first mn
       ) mns
@@ -98,40 +98,40 @@ let rec nullable_at_first mn =
  * types non nullable: *)
 let rec make_serializable mn =
   match mn.T.vtyp with
-  | Unknown | TMap _ | TTup [||] | TRec [||] | TSum [||] ->
+  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "make_serializable"
   | Unit | Mac _ ->
       mn
   | Usr { def ; _ } ->
       let mn' = T.{ mn with vtyp = def } in
       if is_serializable mn' then mn else make_serializable mn'
-  | TVec (d, mn') ->
+  | Vec (d, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = TVec (d, mn') }
-  | TList mn' ->
+        vtyp = Vec (d, mn') }
+  | Lst mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = TList mn' }
-  | TSet mn' ->
+        vtyp = Lst mn' }
+  | Set mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = TList mn' }
-  | TTup mns ->
+        vtyp = Lst mn' }
+  | Tup mns ->
       let mns = Array.map make_serializable mns in
       { nullable = if nullable_at_first mns.(0) then false else mn.nullable ;
-        vtyp = TTup mns }
-  | TRec mns ->
+        vtyp = Tup mns }
+  | Rec mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if nullable_at_first (snd mns.(0)) then false else mn.nullable ;
-        vtyp = TRec mns }
-  | TSum mns ->
+        vtyp = Rec mns }
+  | Sum mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if Array.exists (fun (_, mn) -> nullable_at_first mn) mns then false
           else mn.nullable ;
-        vtyp = TSum mns }
+        vtyp = Sum mns }
 
 let make_serializable =
   if debug then

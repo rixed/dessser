@@ -18,8 +18,8 @@ let align_dyn p extra_bytes =
   let extra_bytes =
     (* FIXME: Improve type-checking so that rem/div do not have to return
      * nullable types when used with constants *)
-    size_of_u32 (to_not_nullable (rem (u32_of_size extra_bytes)
-                                      (u32_of_size wsize))) in
+    size_of_u32 (force (rem (u32_of_size extra_bytes)
+                       (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
   if_ ~cond:(gt wsize padding_len)
     ~then_:(data_ptr_add p padding_len)
@@ -44,17 +44,17 @@ let rec_field_cmp (n1, _) (n2, _) =
 
 let rec order_rec_fields mn =
   let rec order_value_type = function
-    | T.TRec mns ->
+    | T.Rec mns ->
         Array.fast_sort rec_field_cmp mns ;
-        T.TRec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
-    | T.TTup mns ->
-        T.TTup (Array.map order_rec_fields mns)
-    | T.TVec (dim, mn) ->
-        T.TVec (dim, order_rec_fields mn)
-    | T.TList mn ->
-        T.TList (order_rec_fields mn)
-    | T.TSum mns ->
-        T.TSum (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
+        T.Rec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
+    | T.Tup mns ->
+        T.Tup (Array.map order_rec_fields mns)
+    | T.Vec (dim, mn) ->
+        T.Vec (dim, order_rec_fields mn)
+    | T.Lst mn ->
+        T.Lst (order_rec_fields mn)
+    | T.Sum mns ->
+        T.Sum (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
     | T.Usr ut ->
         order_value_type ut.def
     | mn -> mn in
@@ -62,16 +62,16 @@ let rec order_rec_fields mn =
 
 let rec are_rec_fields_ordered mn =
   let rec aux = function
-    | T.TRec mns ->
+    | T.Rec mns ->
         array_for_alli (fun i (_name, mn) ->
           are_rec_fields_ordered mn &&
           (i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0)
         ) mns
-    | T.TTup mns ->
+    | T.Tup mns ->
         Array.for_all are_rec_fields_ordered mns
-    | T.TVec (_, mn) | T.TList mn ->
+    | T.Vec (_, mn) | T.Lst mn ->
         are_rec_fields_ordered mn
-    | T.TSum mns ->
+    | T.Sum mns ->
         Array.for_all (fun (_, mn) -> are_rec_fields_ordered mn) mns
     | T.Usr ut ->
         aux ut.def
@@ -454,23 +454,23 @@ struct
           k ()
       | idx :: rest ->
         (match mn.T.vtyp with
-        | TRec mns ->
+        | Rec mns ->
             assert (idx < Array.length mns) ;
             let name, mn = mns.(idx) in
             if is_private name then
               ConstSize 0
             else
               loop rest mn
-        | TSum mns ->
+        | Sum mns ->
             assert (idx < Array.length mns) ;
             loop rest (snd mns.(idx))
-        | TTup mns ->
+        | Tup mns ->
             assert (idx < Array.length mns) ;
             loop rest mns.(idx)
-        | TVec (d, mn) ->
+        | Vec (d, mn) ->
             assert (idx < d) ;
             loop rest mn
-        | TList mn ->
+        | Lst mn ->
             loop rest mn
         | _ ->
             assert false)
@@ -496,7 +496,7 @@ struct
        * nullmask. In all other cases there is one nullbit per item. *)
       if path = [] then
         match mn.T.vtyp with
-        | TList vt ->
+        | Lst vt ->
             if vt.nullable then
               with_nullmask ()
             else
@@ -534,7 +534,7 @@ struct
       let is_outermost = path = []
       and typs =
         match (T.type_of_path mn path).vtyp with
-        | TTup typs ->
+        | Tup typs ->
             typs
         | _ -> assert false in
       round_up_const_bits (
@@ -551,7 +551,7 @@ struct
       let is_outermost = path = []
       and typs =
         match (T.type_of_path mn path).vtyp with
-        | TRec typs ->
+        | Rec typs ->
             typs
         | _ -> assert false in
       let typs = Array.filter_map (fun (name, typ) ->
@@ -574,7 +574,7 @@ struct
       let is_outermost = path = []
       and dim, typ =
         match (T.type_of_path mn path).vtyp with
-        | TVec (dim, typ) ->
+        | Vec (dim, typ) ->
             dim, typ
         | _ -> assert false in
       round_up_const_bits (

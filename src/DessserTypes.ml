@@ -14,9 +14,9 @@ type backend_id = ..
 (* Basic scalar types that can be used to define more specialized user types *)
 
 type mac_type =
-  | TFloat | TString | TBool | TChar
-  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
-  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128
+  | Float | String | Bool | Char
+  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
+  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
 
 (* Machine-types are the basic types from which more specialized types can be
  * build. Those constructed types are called user-types.
@@ -42,27 +42,27 @@ and value_type =
   (* Aliases with custom representations: *)
   | Usr of user_type
   (* Compound types: *)
-  | TVec of int * maybe_nullable
-  | TList of maybe_nullable
+  | Vec of int * maybe_nullable
+  | Lst of maybe_nullable
   (* Special compound type amenable to incremental computation over sets.
    * We might have different implementations with different APIs, depending on
    * the use case (ie. the operator it is an operand of), for instance to
    * optimise FIFO updates, to keep it sorted, to skip nulls, etc... But the
    * backend will decide this on its own: *)
-  | TSet of maybe_nullable
-  | TTup of maybe_nullable array
+  | Set of maybe_nullable
+  | Tup of maybe_nullable array
   (* Exact same as a tuple, but with field names that can be used as
    * accessors (also used to name actual fields in generated code): *)
-  | TRec of (string * maybe_nullable) array
+  | Rec of (string * maybe_nullable) array
   (* Sum types, as a list of constructor and type. Constructor names uniqueness
    * will be checked at construction. *)
-  | TSum of (string * maybe_nullable) array
+  | Sum of (string * maybe_nullable) array
   (* The type for maps exist because there will be some operations using
    * that type indirectly (such as fetching from a DB by key, or describing
    * a key->value mapping in a type expression). But there is no value of
    * that type, ever. From a (de)serialized point of view, maps are
    * equivalent to association lists. *)
-  | TMap of maybe_nullable * maybe_nullable
+  | Map of maybe_nullable * maybe_nullable
 
 and maybe_nullable =
   { vtyp : value_type ; nullable : bool }
@@ -70,29 +70,31 @@ and maybe_nullable =
 let make ?(nullable=false) vtyp =
   { vtyp ; nullable }
 
-let maken = make ~nullable:true
+let required = make ~nullable:false
+
+let optional = make ~nullable:true
 
 let rec depth ?(opaque_user_type=false) = function
   | Unknown -> invalid_arg "depth"
   | Unit | Mac _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | TVec (_, mn) | TList mn | TSet mn ->
+  | Vec (_, mn) | Lst mn | Set mn ->
       1 + depth ~opaque_user_type mn.vtyp
-  | TTup mns ->
+  | Tup mns ->
       1 + Array.fold_left (fun d mn ->
         max d (depth ~opaque_user_type mn.vtyp)
       ) 0 mns
-  | TRec mns | TSum mns ->
+  | Rec mns | Sum mns ->
       1 + Array.fold_left (fun d (_, mn) ->
         max d (depth ~opaque_user_type mn.vtyp)
       ) 0 mns
-  | TMap (k, v) ->
+  | Map (k, v) ->
       1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
 
 (*$= depth & ~printer:string_of_int
-  0 (depth (Mac TU8))
-  2 (depth (TTup [| make (Mac TU8) ; make (TList (make (Mac TU8))) |]))
+  0 (depth (Mac U8))
+  2 (depth (Tup [| required (Mac U8) ; required (Lst (required (Mac U8))) |]))
 *)
 
 (* In many occasions we want the items of a record to be deterministically
@@ -113,21 +115,21 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       mac_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
-  | TVec (d1, mn1), TVec (d2, mn2) ->
+  | Vec (d1, mn1), Vec (d2, mn2) ->
       d1 = d2 && maybe_nullable_eq mn1 mn2
-  | TList mn1, TList mn2
-  | TSet mn1, TSet mn2 ->
+  | Lst mn1, Lst mn2
+  | Set mn1, Set mn2 ->
       maybe_nullable_eq mn1 mn2
-  | TTup mn1s, TTup mn2s ->
+  | Tup mn1s, Tup mn2s ->
       Array.length mn1s = Array.length mn2s &&
       Array.for_all2 maybe_nullable_eq mn1s mn2s
-  | (TRec mn1s, TRec mn2s)
-  | (TSum mn1s, TSum mn2s) ->
+  | (Rec mn1s, Rec mn2s)
+  | (Sum mn1s, Sum mn2s) ->
       Array.length mn1s = Array.length mn2s &&
       Array.for_all2 (fun (n1, mn1) (n2, mn2) ->
         n1 = n2 && maybe_nullable_eq mn1 mn2
       ) (sorted_rec mn1s) (sorted_rec mn2s)
-  | TMap (k1, v1), TMap (k2, v2) ->
+  | Map (k1, v1), Map (k2, v2) ->
       maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
   (* User types are lost in des/ser so we have to accept this: *)
   | Usr ut1, vt2 when not opaque_user_type ->
@@ -140,49 +142,49 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
 and maybe_nullable_eq mn1 mn2 =
   mn1.nullable = mn2.nullable && value_type_eq mn1.vtyp mn2.vtyp
 
-let maybe_nullable_to_nullable mn =
+let not_null mn =
   { mn with nullable = true }
 
-let maybe_nullable_to_not_nullable mn =
+let force_maybe_nullable mn =
   { mn with nullable = false }
 
 (* To all the above types we add a few low-level types that can not be used
  * in values but are useful to manipulate them. *)
 type t =
-  | TValue of maybe_nullable
-  | TVoid
+  | Value of maybe_nullable
+  | Void
   (* DataPtr are used to point into the stream of bytes that's being
    * serialized into / deserialized from. The type of the value that's
    * being (de)serialized is kept nonetheless. *)
-  | TDataPtr
+  | DataPtr
   (* A size in byte. *)
-  | TSize
+  | Size
   (* Data access, may be just pointer to the actual serialized object: *)
-  | TBit
-  | TByte
-  | TWord
-  | TDWord
-  | TQWord
-  | TOWord
-  | TBytes
+  | Bit
+  | Byte
+  | Word
+  | DWord
+  | QWord
+  | OWord
+  | Bytes
   (* Types for the runtime representation of a field mask: *)
-  | TMask  (* What to do with a tree of fields *)
-  | TMaskAction (* What to do with an individual field *)
-  | TPair of t * t
+  | Mask  (* What to do with a tree of fields *)
+  | MaskAction (* What to do with an individual field *)
+  | Pair of t * t
   (* We'd like the DES/SERializer to be able to use complex types as their
    * "pointer", part of those types being actual pointers. Therefore, we cannot
    * use the value-types, as we cannot embed a pointer in there. So here we
-   * define another TLIST which is a simple persistent list (as opposed to the
-   * TValue TList, which is just an array in disguise and serve another purpose
+   * define another LIST which is a simple persistent list (as opposed to the
+   * Value Lst, which is just an array in disguise and serve another purpose
    * (namely, to compactly store a bunch of read only values).
-   * Therefore this one is named TSList, as in "single-chaned" list, and is
+   * Therefore this one is named SList, as in "single-chaned" list, and is
    * written using "{}" instead of "[]". *)
-  | TSList of t
-  | TFunction of t array * (* result: *) t
+  | SList of t
+  | Function of t array * (* result: *) t
 
-(* Helper to get the two types constituting a TPair: *)
+(* Helper to get the two types constituting a Pair: *)
 let pair_of_tpair = function
-  | TPair (t1, t2) -> t1, t2
+  | Pair (t1, t2) -> t1, t2
   | _ -> invalid_arg "pair_of_tpair"
 
 (*
@@ -194,26 +196,26 @@ let rec develop_value_type = function
       vt
   | Usr { def ; _ } ->
       develop_value_type def
-  | TVec (d, mn) ->
-      TVec (d, develop_maybe_nullable mn)
-  | TList mn ->
-      TList (develop_maybe_nullable mn)
-  | TSet mn ->
-      TSet (develop_maybe_nullable mn)
-  | TTup mns ->
-      TTup (Array.map develop_maybe_nullable mns)
-  | TRec mns ->
-      TRec (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) mns)
-  | TSum cs ->
-      TSum (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) cs)
-  | TMap (mn1, mn2) ->
-      TMap (develop_maybe_nullable mn1, develop_maybe_nullable mn2)
+  | Vec (d, mn) ->
+      Vec (d, develop_maybe_nullable mn)
+  | Lst mn ->
+      Lst (develop_maybe_nullable mn)
+  | Set mn ->
+      Set (develop_maybe_nullable mn)
+  | Tup mns ->
+      Tup (Array.map develop_maybe_nullable mns)
+  | Rec mns ->
+      Rec (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) mns)
+  | Sum cs ->
+      Sum (Array.map (fun (n, mn) -> n, develop_maybe_nullable mn) cs)
+  | Map (mn1, mn2) ->
+      Map (develop_maybe_nullable mn1, develop_maybe_nullable mn2)
 
 and develop_maybe_nullable mn =
   { mn with vtyp = develop_value_type mn.vtyp }
 
 and develop_user_types = function
-  | TValue mn -> TValue (develop_maybe_nullable mn)
+  | Value mn -> Value (develop_maybe_nullable mn)
   | t -> t
 
 (* Top-down folding of a value_type: *)
@@ -224,13 +226,13 @@ let rec fold_value_type u f vt =
       u
   | Usr { def ; _ } ->
       fold_value_type u f def
-  | TVec (_, mn) | TList mn | TSet mn ->
+  | Vec (_, mn) | Lst mn | Set mn ->
       fold_maybe_nullable u f mn
-  | TTup mns ->
+  | Tup mns ->
       Array.fold_left (fun u mn -> fold_maybe_nullable u f mn) u mns
-  | TRec mns | TSum mns ->
+  | Rec mns | Sum mns ->
       Array.fold_left (fun u (_, mn) -> fold_maybe_nullable u f mn) u mns
-  | TMap (k, v) ->
+  | Map (k, v) ->
       fold_maybe_nullable (fold_maybe_nullable u f k) f v
 
 and fold_maybe_nullable u f mn =
@@ -258,7 +260,7 @@ let is_defined vt =
 
 let check vt =
   iter_value_type (function
-    | TSum mns ->
+    | Sum mns ->
         Array.fold_left (fun s (n, _) ->
           if Set.String.mem n s then
             failwith "Constructor names not unique" ;
@@ -270,29 +272,29 @@ let check vt =
 
 let rec is_integer = function
   | Unknown -> invalid_arg "is_integer"
-  | Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128|
-         TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) -> true
+  | Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128|
+         I8|I16|I24|I32|I40|I48|I56|I64|I128) -> true
   | Usr { def ; _ } ->
       is_integer def
   | _ -> false
 
 let is_numeric vt =
-  is_integer vt || vt = Mac TFloat
+  is_integer vt || vt = Mac Float
 
 let is_nullable = function
-  | TValue { nullable = true ; _ } -> true
+  | Value { nullable = true ; _ } -> true
   | _ -> false
 
 let width_of_int = function
-  | Mac (TU8 | TI8) -> 8
-  | Mac (TU16 | TI16) -> 16
-  | Mac (TU24 | TI24) -> 24
-  | Mac (TU32 | TI32) -> 32
-  | Mac (TU40 | TI40) -> 40
-  | Mac (TU48 | TI48) -> 48
-  | Mac (TU56 | TI56) -> 56
-  | Mac (TU64 | TI64) -> 64
-  | Mac (TU128 | TI128) -> 128
+  | Mac (U8 | I8) -> 8
+  | Mac (U16 | I16) -> 16
+  | Mac (U24 | I24) -> 24
+  | Mac (U32 | I32) -> 32
+  | Mac (U40 | I40) -> 40
+  | Mac (U48 | I48) -> 48
+  | Mac (U56 | I56) -> 56
+  | Mac (U64 | I64) -> 64
+  | Mac (U128 | I128) -> 128
   | _ ->
       invalid_arg "width_of_int"
 
@@ -325,28 +327,28 @@ let get_user_type n =
 let print_mac_type oc =
   let sp = String.print oc in
   function
-  | TFloat -> sp "FLOAT"
-  | TString -> sp "STRING"
-  | TBool -> sp "BOOL"
-  | TChar -> sp "CHAR"
-  | TU8 -> sp "U8"
-  | TU16 -> sp "U16"
-  | TU24 -> sp "U24"
-  | TU32 -> sp "U32"
-  | TU40 -> sp "U40"
-  | TU48 -> sp "U48"
-  | TU56 -> sp "U56"
-  | TU64 -> sp "U64"
-  | TU128 -> sp "U128"
-  | TI8 -> sp "I8"
-  | TI16 -> sp "I16"
-  | TI24 -> sp "I24"
-  | TI32 -> sp "I32"
-  | TI40 -> sp "I40"
-  | TI48 -> sp "I48"
-  | TI56 -> sp "I56"
-  | TI64 -> sp "I64"
-  | TI128 -> sp "I128"
+  | Float -> sp "FLOAT"
+  | String -> sp "STRING"
+  | Bool -> sp "BOOL"
+  | Char -> sp "CHAR"
+  | U8 -> sp "U8"
+  | U16 -> sp "U16"
+  | U24 -> sp "U24"
+  | U32 -> sp "U32"
+  | U40 -> sp "U40"
+  | U48 -> sp "U48"
+  | U56 -> sp "U56"
+  | U64 -> sp "U64"
+  | U128 -> sp "U128"
+  | I8 -> sp "I8"
+  | I16 -> sp "I16"
+  | I24 -> sp "I24"
+  | I32 -> sp "I32"
+  | I40 -> sp "I40"
+  | I48 -> sp "I48"
+  | I56 -> sp "I56"
+  | I64 -> sp "I64"
+  | I128 -> sp "I128"
 
 let rec print_value_type ?(sorted=false) oc = function
   | Unknown ->
@@ -361,17 +363,17 @@ let rec print_value_type ?(sorted=false) oc = function
           default_user_type_printer t oc
       | def ->
           def.print oc)
-  | TVec (dim, mn) ->
+  | Vec (dim, mn) ->
       pp oc "%a[%d]" (print_maybe_nullable ~sorted) mn dim
-  | TList mn ->
+  | Lst mn ->
       pp oc "%a[]" (print_maybe_nullable ~sorted) mn
-  | TSet mn ->
+  | Set mn ->
       pp oc "%a{}" (print_maybe_nullable ~sorted) mn
-  | TTup mns ->
+  | Tup mns ->
       pp oc "%a"
         (Array.print ~first:"(" ~last:")" ~sep:"; "
           (print_maybe_nullable ~sorted)) mns
-  | TRec mns ->
+  | Rec mns ->
       (* When the string repr is used to identify the type (see BackEndCLike)
        * every equivalent record types must then be printed the same, thus the
        * optional sort: *)
@@ -380,7 +382,7 @@ let rec print_value_type ?(sorted=false) oc = function
           (fun oc (n, mn) ->
             pp oc "%s: %a" n (print_maybe_nullable ~sorted) mn)
         ) (if sorted then sorted_rec mns else mns)
-  | TSum cs ->
+  | Sum cs ->
       (* Parenthesis are required to distinguish external from internal
        * nullable: *)
       pp oc "%a"
@@ -388,7 +390,7 @@ let rec print_value_type ?(sorted=false) oc = function
           (fun oc (n, mn) ->
             pp oc "%s %a" n (print_maybe_nullable ~sorted) mn)
         ) (if sorted then sorted_rec cs else cs)
-  | TMap (k, v) ->
+  | Map (k, v) ->
       pp oc "%a[%a]"
         (print_maybe_nullable ~sorted) v
         (print_maybe_nullable ~sorted) k
@@ -399,47 +401,47 @@ and print_maybe_nullable ?sorted oc mn =
     (if mn.nullable then "?" else "")
 
 let to_maybe_nullable = function
-  | TValue mn -> mn
+  | Value mn -> mn
   | _ -> invalid_arg "to_maybe_nullable"
 
 let rec eq t1 t2 =
   match t1, t2 with
-  | TValue mn1, TValue mn2 ->
+  | Value mn1, Value mn2 ->
       maybe_nullable_eq mn1 mn2
-  | TPair (t11, t12), TPair (t21, t22) ->
+  | Pair (t11, t12), Pair (t21, t22) ->
       eq t11 t21 && eq t12 t22
-  | TSList t1, TSList t2 ->
+  | SList t1, SList t2 ->
       eq t1 t2
-  | TFunction (pt1, rt1), TFunction (pt2, rt2) ->
+  | Function (pt1, rt1), Function (pt2, rt2) ->
       Array.for_all2 eq pt1 pt2 && eq rt1 rt2
   | t1, t2 -> t1 = t2
 
 let rec print ?sorted oc =
   let sp = String.print oc in
   function
-  | TValue vt ->
+  | Value vt ->
       print_maybe_nullable oc ?sorted vt
-  | TVoid -> sp "Void"
-  | TDataPtr -> sp "DataPtr"
-  | TSize -> sp "Size"
-  | TBit -> sp "Bit"
-  | TByte -> sp "Byte"
-  | TWord -> sp "Word"
-  | TDWord -> sp "DWord"
-  | TQWord -> sp "QWord"
-  | TOWord -> sp "OWord"
-  | TBytes -> sp "Bytes"
-  | TMask -> sp "Mask"
-  | TMaskAction -> sp "MaskAction"
-  | TPair (t1, t2) ->
+  | Void -> sp "Void"
+  | DataPtr -> sp "DataPtr"
+  | Size -> sp "Size"
+  | Bit -> sp "Bit"
+  | Byte -> sp "Byte"
+  | Word -> sp "Word"
+  | DWord -> sp "DWord"
+  | QWord -> sp "QWord"
+  | OWord -> sp "OWord"
+  | Bytes -> sp "Bytes"
+  | Mask -> sp "Mask"
+  | MaskAction -> sp "MaskAction"
+  | Pair (t1, t2) ->
       pp oc "(%a * %a)"
         (print ?sorted) t1
         (print ?sorted) t2
-  | TSList t1 ->
+  | SList t1 ->
       pp oc "%a{}" (print ?sorted) t1
-  | TFunction ([||], t1) ->
+  | Function ([||], t1) ->
       pp oc "( -> %a)" (print ?sorted) t1
-  | TFunction (ts, t2) ->
+  | Function (ts, t2) ->
       pp oc "(%a -> %a)"
         (Array.print ~first:"" ~last:"" ~sep:" -> " (print ?sorted)) ts
         (print ?sorted) t2
@@ -461,16 +463,16 @@ let uniq_id t =
   Digest.to_hex
 
 let to_nullable = function
-  | TValue { vtyp ; nullable = false } ->
-      TValue { vtyp ; nullable = true }
+  | Value { vtyp ; nullable = false } ->
+      Value { vtyp ; nullable = true }
   | t ->
       Printf.eprintf "Cannot turn type %a into nullable\n%!"
         print t ;
       assert false
 
-let to_not_nullable = function
-  | TValue { vtyp ; nullable = true } ->
-      TValue { vtyp ; nullable = false }
+let force = function
+  | Value { vtyp ; nullable = true } ->
+      Value { vtyp ; nullable = false }
   | t ->
       Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
         print t ;
@@ -542,13 +544,13 @@ struct
   let rec reduce_dims t = function
     | [] -> t
     | (VecDim d, nullable) :: rest ->
-        reduce_dims (make ~nullable (TVec (d, t))) rest
+        reduce_dims (make ~nullable (Vec (d, t))) rest
     | (ListDim, nullable) :: rest ->
-        reduce_dims (make ~nullable (TList t)) rest
+        reduce_dims (make ~nullable (Lst t)) rest
     | (SetDim, nullable) :: rest ->
-        reduce_dims (make ~nullable (TSet t)) rest
+        reduce_dims (make ~nullable (Set t)) rest
     | (MapKey k, nullable) :: rest ->
-        reduce_dims (make ~nullable (TMap (k, t))) rest
+        reduce_dims (make ~nullable (Map (k, t))) rest
 
   let rec key_type m =
     let vec_dim m =
@@ -603,41 +605,41 @@ struct
   and unit_typ m =
     let m = "unit type" :: m in
     (
-      (strinG "unit" >>: fun () -> make Unit) |||
-      (strinG "unit?" >>: fun () -> maken Unit)
+      (strinG "unit" >>: fun () -> required Unit) |||
+      (strinG "unit?" >>: fun () -> make ~nullable:true Unit)
     ) m
 
   and scalar_typ m =
     let m = "scalar type" :: m in
     let st n mtyp =
       let vtyp = Mac mtyp in
-      (strinG (n ^"?") >>: fun () -> maken vtyp) |||
-      (strinG n >>: fun () -> make vtyp)
+      (strinG (n ^"?") >>: fun () -> make ~nullable:true vtyp) |||
+      (strinG n >>: fun () -> required vtyp)
     in
     (
-      (st "float" TFloat) |<|
-      (st "string" TString) |<|
-      (st "bool" TBool) |<|
-      (st "boolean" TBool) |<|
-      (st "char" TChar) |<|
-      (st "u8" TU8) |<|
-      (st "u16" TU16) |<|
-      (st "u24" TU24) |<|
-      (st "u32" TU32) |<|
-      (st "u40" TU40) |<|
-      (st "u48" TU48) |<|
-      (st "u56" TU56) |<|
-      (st "u64" TU64) |<|
-      (st "u128" TU128) |<|
-      (st "i8" TI8) |<|
-      (st "i16" TI16) |<|
-      (st "i24" TI24) |<|
-      (st "i32" TI32) |<|
-      (st "i40" TI40) |<|
-      (st "i48" TI48) |<|
-      (st "i56" TI56) |<|
-      (st "i64" TI64) |<|
-      (st "i128" TI128)
+      (st "float" Float) |<|
+      (st "string" String) |<|
+      (st "bool" Bool) |<|
+      (st "boolean" Bool) |<|
+      (st "char" Char) |<|
+      (st "u8" U8) |<|
+      (st "u16" U16) |<|
+      (st "u24" U24) |<|
+      (st "u32" U32) |<|
+      (st "u40" U40) |<|
+      (st "u48" U48) |<|
+      (st "u56" U56) |<|
+      (st "u64" U64) |<|
+      (st "u128" U128) |<|
+      (st "i8" I8) |<|
+      (st "i16" I16) |<|
+      (st "i24" I24) |<|
+      (st "i32" I32) |<|
+      (st "i40" I40) |<|
+      (st "i48" I48) |<|
+      (st "i56" I56) |<|
+      (st "i64" I64) |<|
+      (st "i128" I128)
     ) m
 
   and tuple_typ m =
@@ -647,7 +649,7 @@ struct
         several ~sep:tup_sep maybe_nullable
       +- opt_blanks +- char ')' ++
       opt_question_mark >>: fun (ts, nullable) ->
-        make ~nullable (TTup (Array.of_list ts))
+        make ~nullable (Tup (Array.of_list ts))
     ) m
 
   and record_typ m =
@@ -661,7 +663,7 @@ struct
       char '}' ++
       opt_question_mark >>: fun (ts, nullable) ->
         (* TODO: check that all field names are distinct *)
-        make ~nullable (TRec (Array.of_list ts))
+        make ~nullable (Rec (Array.of_list ts))
     ) m
 
   and sum_typ m =
@@ -679,7 +681,7 @@ struct
       opt_blanks +- char ')' ++ opt_question_mark >>:
         fun (ts, nullable) ->
           (* TODO: check that all constructors are case insensitively distinct *)
-          make ~nullable (TSum (Array.of_list ts))
+          make ~nullable (Sum (Array.of_list ts))
     ) m
 
   let value_type m =
@@ -756,63 +758,63 @@ struct
   *)
 
   (*$= maybe_nullable & ~printer:(test_printer print_maybe_nullable)
-    (Ok ((make (Mac TU8)), (2,[]))) \
+    (Ok ((required (Mac U8)), (2,[]))) \
        (test_p maybe_nullable "u8")
-    (Ok ((maken (Mac TU8)), (3,[]))) \
+    (Ok ((optional (Mac U8)), (3,[]))) \
        (test_p maybe_nullable "u8?")
-    (Ok ((make (TVec (3, (make (Mac TU8))))), (5,[]))) \
+    (Ok ((required (Vec (3, (required (Mac U8))))), (5,[]))) \
        (test_p maybe_nullable "u8[3]")
-    (Ok ((make (TVec (3, (maken (Mac TU8))))), (6,[]))) \
+    (Ok ((required (Vec (3, (optional (Mac U8))))), (6,[]))) \
        (test_p maybe_nullable "u8?[3]")
-    (Ok ((maken (TVec (3, (make (Mac TU8))))), (6,[]))) \
+    (Ok ((optional (Vec (3, (required (Mac U8))))), (6,[]))) \
        (test_p maybe_nullable "u8[3]?")
-    (Ok ((make (TVec (3, (maken (TList (make (Mac TU8))))))), (8,[]))) \
+    (Ok ((required (Vec (3, (optional (Lst (required (Mac U8))))))), (8,[]))) \
        (test_p maybe_nullable "u8[]?[3]")
-    (Ok ((maken (TList (make (TVec (3, (maken (Mac TU8))))))), (9,[]))) \
+    (Ok ((optional (Lst (required (Vec (3, (optional (Mac U8))))))), (9,[]))) \
        (test_p maybe_nullable "u8?[3][]?")
-    (Ok ((maken (TMap ((make (Mac TString)), (make (Mac TU8))))), (11,[]))) \
+    (Ok ((optional (Map ((required (Mac String)), (required (Mac U8))))), (11,[]))) \
        (test_p maybe_nullable "u8[string]?")
-    (Ok ((make (TMap ((make (TMap ((maken (Mac TU8)), (maken (Mac TString))))), (maken (TList ((make (TTup [| (make (Mac TU8)) ; (make (TMap ((make (Mac TString)), (make (Mac TBool))))) |])))))))), (35,[]))) \
+    (Ok ((required (Map ((required (Map ((optional (Mac U8)), (optional (Mac String))))), (optional (Lst ((required (Tup [| (required (Mac U8)) ; (required (Map ((required (Mac String)), (required (Mac Bool))))) |])))))))), (35,[]))) \
        (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
-    (Ok ((make (TRec [| "f1", make (Mac TBool) ; "f2", maken (Mac TU8) |])), (19,[]))) \
+    (Ok ((required (Rec [| "f1", required (Mac Bool) ; "f2", optional (Mac U8) |])), (19,[]))) \
       (test_p maybe_nullable "{f1: Bool; f2: U8?}")
-    (Ok ((make (TSum [| "c1", make (Mac TBool) ; "c2", maken (Mac TU8) |])), (18,[]))) \
+    (Ok ((required (Sum [| "c1", required (Mac Bool) ; "c2", optional (Mac U8) |])), (18,[]))) \
       (test_p maybe_nullable "(c1 Bool | c2 U8?)")
-    (Ok ((make (TVec (1, make (Mac TBool)))), (7,[]))) \
+    (Ok ((required (Vec (1, required (Mac Bool)))), (7,[]))) \
       (test_p maybe_nullable "Bool[1]")
   *)
 
   let rec typ m =
     let m = "type" :: m in
     (
-      (maybe_nullable >>: fun mn -> TValue mn) |<|
-      (strinG "void" >>: fun () -> TVoid) |<|
-      (strinG "dataptr" >>: fun () -> TDataPtr) |<|
-      (strinG "size" >>: fun () -> TSize) |<|
-      (strinG "bit" >>: fun () -> TBit) |<|
-      (strinG "byte" >>: fun () -> TByte) |<|
-      (strinG "word" >>: fun () -> TWord) |<|
-      (strinG "dword" >>: fun () -> TDWord) |<|
-      (strinG "qword" >>: fun () -> TQWord) |<|
-      (strinG "oword" >>: fun () -> TOWord) |<|
-      (strinG "bytes" >>: fun () -> TBytes) |<|
-      (strinG "mask-action" >>: fun () -> TMaskAction) |<|
-      (strinG "mask" >>: fun () -> TMask) |<|
+      (maybe_nullable >>: fun mn -> Value mn) |<|
+      (strinG "void" >>: fun () -> Void) |<|
+      (strinG "dataptr" >>: fun () -> DataPtr) |<|
+      (strinG "size" >>: fun () -> Size) |<|
+      (strinG "bit" >>: fun () -> Bit) |<|
+      (strinG "byte" >>: fun () -> Byte) |<|
+      (strinG "word" >>: fun () -> Word) |<|
+      (strinG "dword" >>: fun () -> DWord) |<|
+      (strinG "qword" >>: fun () -> QWord) |<|
+      (strinG "oword" >>: fun () -> OWord) |<|
+      (strinG "bytes" >>: fun () -> Bytes) |<|
+      (strinG "mask-action" >>: fun () -> MaskAction) |<|
+      (strinG "mask" >>: fun () -> Mask) |<|
       (
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
         char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
-          fun (t1, t2) -> TPair (t1, t2)
+          fun (t1, t2) -> Pair (t1, t2)
       ) |<|
       (
         char '{' -- opt_blanks -+ typ +- opt_blanks +- char '}' >>:
-          fun t -> TSList t
+          fun t -> SList t
       ) |<|
       (
         let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
         char '(' -+
           repeat ~sep typ +- sep ++ typ +- opt_blanks +-
         char ')' >>: fun (ptyps, rtyp) ->
-          TFunction (Array.of_list ptyps, rtyp)
+          Function (Array.of_list ptyps, rtyp)
       )
     ) m
 
@@ -861,22 +863,22 @@ let is_registered n =
 
 (* Examples: *)
 let () =
-  register_user_type "Date" (Mac TFloat) ;
-  register_user_type "Eth" (Mac TU48) ;
-  register_user_type "Ip4" (Mac TU32) ;
-  register_user_type "Ip6" (Mac TU128) ;
+  register_user_type "Date" (Mac Float) ;
+  register_user_type "Eth" (Mac U48) ;
+  register_user_type "Ip4" (Mac U32) ;
+  register_user_type "Ip6" (Mac U128) ;
   register_user_type "Ip"
     (* Note: for simplicity, make sure all constructor names are unique.
      * Also, start by a lowercase or a "v_" will be prepended needlessly: *)
-    (TSum [| "v4", make (get_user_type "Ip4") ;
-             "v6", make (get_user_type "Ip6") |]) ;
-  register_user_type "Cidr4" (TRec [| "ip", make (get_user_type "Ip4") ;
-                                      "mask", make (Mac TU8) |]) ;
-  register_user_type "Cidr6" (TRec [| "ip", make (get_user_type "Ip6") ;
-                                      "mask", make (Mac TU8) |]) ;
+    (Sum [| "v4", required (get_user_type "Ip4") ;
+            "v6", required (get_user_type "Ip6") |]) ;
+  register_user_type "Cidr4" (Rec [| "ip", required (get_user_type "Ip4") ;
+                                     "mask", required (Mac U8) |]) ;
+  register_user_type "Cidr6" (Rec [| "ip", required (get_user_type "Ip6") ;
+                                     "mask", required (Mac U8) |]) ;
   register_user_type "Cidr"
-    (TSum [| "v4", make (get_user_type "Cidr4") ;
-             "v6", make (get_user_type "Cidr6") |])
+    (Sum [| "v4", required (get_user_type "Cidr4") ;
+            "v6", required (get_user_type "Cidr6") |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
@@ -907,24 +909,24 @@ let type_and_name_of_path t path =
     | [] -> t, field_name
     | i :: path ->
         let rec type_of = function
-          | (Unknown | Unit | Mac _ | TMap _) ->
+          | (Unknown | Unit | Mac _ | Map _) ->
               assert false
           | Usr t ->
               type_of t.def
-          | TVec (dim, mn) ->
+          | Vec (dim, mn) ->
               assert (i < dim) ;
               loop (string_of_int i) mn path
-          | TList mn ->
+          | Lst mn ->
               loop (string_of_int i) mn path
-          | TSet mn ->
+          | Set mn ->
               loop (string_of_int i) mn path
-          | TTup mns ->
+          | Tup mns ->
               assert (i < Array.length mns) ;
               loop ("field_"^ string_of_int i) mns.(i) path
-          | TRec mns ->
+          | Rec mns ->
               assert (i < Array.length mns) ;
               loop (fst mns.(i)) (snd mns.(i)) path
-          | TSum cs ->
+          | Sum cs ->
               assert (i < Array.length cs) ;
               loop (fst cs.(i)) (snd cs.(i)) path in
         type_of t.vtyp in
@@ -938,58 +940,58 @@ let type_of_parent mn path =
   type_of_path mn path
 
 (*$inject
-  let test_t = make (TTup [|
-    make (Mac TU8) ;
-    maken (Mac TString) ;
-    maken (TVec (2, make (Mac TChar))) |])
+  let test_t = required (Tup [|
+    required (Mac U8) ;
+    optional (Mac String) ;
+    optional (Vec (2, required (Mac Char))) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_maybe_nullable)
   test_t (type_of_path test_t [])
-  (make (Mac TU8)) (type_of_path test_t [0])
-  (maken (Mac TString)) (type_of_path test_t [1])
-  (maken (TVec (2, make (Mac TChar)))) (type_of_path test_t [2])
-  (make (Mac TChar)) (type_of_path test_t [2; 0])
+  (required (Mac U8)) (type_of_path test_t [0])
+  (optional (Mac String)) (type_of_path test_t [1])
+  (optional (Vec (2, required (Mac Char)))) (type_of_path test_t [2])
+  (required (Mac Char)) (type_of_path test_t [2; 0])
 *)
 
 (* Some short cuts for often used types: *)
 
-let bool = TValue (make (Mac TBool))
-let char = TValue (make (Mac TChar))
-let nstring = TValue (maken (Mac TString))
-let string = TValue (make (Mac TString))
-let float = TValue (make (Mac TFloat))
-let u8 = TValue (make (Mac TU8))
-let u16 = TValue (make (Mac TU16))
-let u24 = TValue (make (Mac TU24))
-let u32 = TValue (make (Mac TU32))
-let u40 = TValue (make (Mac TU40))
-let u48 = TValue (make (Mac TU48))
-let u56 = TValue (make (Mac TU56))
-let u64 = TValue (make (Mac TU64))
-let u128 = TValue (make (Mac TU128))
-let i8 = TValue (make (Mac TI8))
-let i16 = TValue (make (Mac TI16))
-let i24 = TValue (make (Mac TI24))
-let i32 = TValue (make (Mac TI32))
-let i40 = TValue (make (Mac TI40))
-let i48 = TValue (make (Mac TI48))
-let i56 = TValue (make (Mac TI56))
-let i64 = TValue (make (Mac TI64))
-let i128 = TValue (make (Mac TI128))
-let void = TVoid
-let unit = TValue (make Unit)
-let bit = TBit
-let byte = TByte
-let size = TSize
-let word = TWord
-let dword = TDWord
-let qword = TQWord
-let oword = TOWord
-let bytes = TBytes
-let mask = TMask
-let mask_action = TMaskAction
-let dataptr = TDataPtr
-let pair t1 t2 = TPair (t1, t2)
-let slist t = TSList t
-let set mn = TValue (make (TSet mn))
+let bool = Value (required (Mac Bool))
+let char = Value (required (Mac Char))
+let nstring = Value (optional (Mac String))
+let string = Value (required (Mac String))
+let float = Value (required (Mac Float))
+let u8 = Value (required (Mac U8))
+let u16 = Value (required (Mac U16))
+let u24 = Value (required (Mac U24))
+let u32 = Value (required (Mac U32))
+let u40 = Value (required (Mac U40))
+let u48 = Value (required (Mac U48))
+let u56 = Value (required (Mac U56))
+let u64 = Value (required (Mac U64))
+let u128 = Value (required (Mac U128))
+let i8 = Value (required (Mac I8))
+let i16 = Value (required (Mac I16))
+let i24 = Value (required (Mac I24))
+let i32 = Value (required (Mac I32))
+let i40 = Value (required (Mac I40))
+let i48 = Value (required (Mac I48))
+let i56 = Value (required (Mac I56))
+let i64 = Value (required (Mac I64))
+let i128 = Value (required (Mac I128))
+let void = Void
+let unit = Value (required Unit)
+let bit = Bit
+let byte = Byte
+let size = Size
+let word = Word
+let dword = DWord
+let qword = QWord
+let oword = OWord
+let bytes = Bytes
+let mask = Mask
+let mask_action = MaskAction
+let dataptr = DataPtr
+let pair t1 t2 = Pair (t1, t2)
+let slist t = SList t
+let set mn = Value (required (Set mn))

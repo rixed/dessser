@@ -27,8 +27,8 @@ struct
 
   let is_mutable t =
     match T.develop_user_types t with
-    | T.TBytes
-    | T.TValue { vtyp = TVec _ ; _ } ->
+    | T.Bytes
+    | T.Value { vtyp = Vec _ ; _ } ->
         true
     | _ ->
         false
@@ -37,7 +37,7 @@ struct
    * to use inheritance) *)
   let is_pointy t =
     match T.develop_user_types t with
-    | T.TValue { vtyp = TSet _ ; _ } ->
+    | T.Value { vtyp = Set _ ; _ } ->
         true
     | _ ->
         false
@@ -47,7 +47,7 @@ struct
     pp oc "%sstruct %s {\n" p.indent id ;
     indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier p (T.TValue vt) in
+        let typ_id = type_identifier p (T.Value vt) in
         pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
       ) mns
     ) ;
@@ -58,7 +58,7 @@ struct
     pp oc "%stypedef std::variant<\n" p.indent ;
     indent_more p (fun () ->
       Array.iteri (fun i (_, mn) ->
-        let typ_id = type_identifier p (T.TValue mn) in
+        let typ_id = type_identifier p (T.Value mn) in
         pp oc "%s%s%s\n"
           p.indent typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
@@ -66,59 +66,59 @@ struct
     pp oc "%s> %s;\n\n" p.indent id
 
   and type_identifier p = function
-    | T.TValue { vtyp ; nullable = true } ->
+    | T.Value { vtyp ; nullable = true } ->
         "std::optional<"^
-          type_identifier p (TValue { vtyp ; nullable = false })
+          type_identifier p (Value { vtyp ; nullable = false })
         ^">"
-    | T.TValue { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
-    | T.TValue { vtyp = Unit ; _ } -> "Unit"
-    | T.TValue { vtyp = Mac TFloat ; _ } -> "double"
-    | T.TValue { vtyp = Mac TString ; _ } -> "std::string"
-    | T.TValue { vtyp = Mac TBool ; _ } -> "bool"
-    | T.TValue { vtyp = Mac TChar ; _ } -> "char"
-    | T.TValue { vtyp = Mac TI8 ; _ } -> "int8_t"
-    | T.TValue { vtyp = Mac TU8 ; _ } -> "uint8_t"
-    | T.TValue { vtyp = Mac TI16 ; _ } -> "int16_t"
-    | T.TValue { vtyp = Mac TU16 ; _ } -> "uint16_t"
-    | T.TValue { vtyp = Mac TI24 ; _ } -> "int32_t"
-    | T.TValue { vtyp = Mac TU24 ; _ } -> "uint32_t"
-    | T.TValue { vtyp = Mac TI32 ; _ } -> "int32_t"
-    | T.TValue { vtyp = Mac TU32 ; _ } -> "uint32_t"
-    | T.TValue { vtyp = Mac TI40 ; _ } -> "int64_t"
-    | T.TValue { vtyp = Mac TU40 ; _ } -> "uint64_t"
-    | T.TValue { vtyp = Mac TI48 ; _ } -> "int64_t"
-    | T.TValue { vtyp = Mac TU48 ; _ } -> "uint64_t"
-    | T.TValue { vtyp = Mac TI56 ; _ } -> "int64_t"
-    | T.TValue { vtyp = Mac TU56 ; _ } -> "uint64_t"
-    | T.TValue { vtyp = Mac TI64 ; _ } -> "int64_t"
-    | T.TValue { vtyp = Mac TU64 ; _ } -> "uint64_t"
-    | T.TValue { vtyp = Mac TI128 ; _ } -> "int128_t"
-    | T.TValue { vtyp = Mac TU128 ; _ } -> "uint128_t"
-    | T.TValue { vtyp = Usr t ; _ } ->
-        type_identifier p (TValue { vtyp = t.def ; nullable = false })
-    | T.TValue { vtyp = TTup mns ; _ } as t ->
+    | T.Value { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
+    | T.Value { vtyp = Unit ; _ } -> "Unit"
+    | T.Value { vtyp = Mac Float ; _ } -> "double"
+    | T.Value { vtyp = Mac String ; _ } -> "std::string"
+    | T.Value { vtyp = Mac Bool ; _ } -> "bool"
+    | T.Value { vtyp = Mac Char ; _ } -> "char"
+    | T.Value { vtyp = Mac I8 ; _ } -> "int8_t"
+    | T.Value { vtyp = Mac U8 ; _ } -> "uint8_t"
+    | T.Value { vtyp = Mac I16 ; _ } -> "int16_t"
+    | T.Value { vtyp = Mac U16 ; _ } -> "uint16_t"
+    | T.Value { vtyp = Mac I24 ; _ } -> "int32_t"
+    | T.Value { vtyp = Mac U24 ; _ } -> "uint32_t"
+    | T.Value { vtyp = Mac I32 ; _ } -> "int32_t"
+    | T.Value { vtyp = Mac U32 ; _ } -> "uint32_t"
+    | T.Value { vtyp = Mac I40 ; _ } -> "int64_t"
+    | T.Value { vtyp = Mac U40 ; _ } -> "uint64_t"
+    | T.Value { vtyp = Mac I48 ; _ } -> "int64_t"
+    | T.Value { vtyp = Mac U48 ; _ } -> "uint64_t"
+    | T.Value { vtyp = Mac I56 ; _ } -> "int64_t"
+    | T.Value { vtyp = Mac U56 ; _ } -> "uint64_t"
+    | T.Value { vtyp = Mac I64 ; _ } -> "int64_t"
+    | T.Value { vtyp = Mac U64 ; _ } -> "uint64_t"
+    | T.Value { vtyp = Mac I128 ; _ } -> "int128_t"
+    | T.Value { vtyp = Mac U128 ; _ } -> "uint128_t"
+    | T.Value { vtyp = Usr t ; _ } ->
+        type_identifier p (Value { vtyp = t.def ; nullable = false })
+    | T.Value { vtyp = Tup mns ; _ } as t ->
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
-    | T.TValue { vtyp = TRec mns ; _ } as t ->
+    | T.Value { vtyp = Rec mns ; _ } as t ->
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
-    | T.TValue { vtyp = TSum mns ; _ } as t ->
+    | T.Value { vtyp = Sum mns ; _ } as t ->
         declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
         valid_identifier
-    | T.TValue { vtyp = TVec (dim, typ) ; _ } ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (TValue typ))
-    | T.TValue { vtyp = TList typ ; _ } ->
-        Printf.sprintf "List<%s>" (type_identifier p (TValue typ))
-    | T.TValue { vtyp = TSet typ ; _ } ->
-        Printf.sprintf "Set<%s> *" (type_identifier p (TValue typ))
-    | T.TValue { vtyp = TMap _ ; _ } ->
+    | T.Value { vtyp = Vec (dim, typ) ; _ } ->
+        Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
+    | T.Value { vtyp = Lst typ ; _ } ->
+        Printf.sprintf "List<%s>" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set typ ; _ } ->
+        Printf.sprintf "Set<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
-    | T.TPair (t1, t2) ->
+    | T.Pair (t1, t2) ->
         "Pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
-    | T.TSList t1 ->
+    | T.SList t1 ->
         "SList<"^ type_identifier p t1 ^">"
-    | T.TFunction (args, ret) ->
+    | T.Function (args, ret) ->
         (* We want all modifiable types (ir bytes, vectors, ...?) passed by
          * reference: *)
         "std::function<"^ type_identifier p ret ^
@@ -128,18 +128,18 @@ struct
                 (type_identifier p t)
                 (if is_mutable t then "&" else ""))
           ) args ^">"
-    | T.TVoid -> "void"
-    | T.TDataPtr -> "Pointer"
-    | T.TSize -> "Size"
-    | T.TBit -> "bool"
-    | T.TByte -> "uint8_t"
-    | T.TWord -> "uint16_t"
-    | T.TDWord -> "uint32_t"
-    | T.TQWord -> "uint64_t"
-    | T.TOWord -> "uint128_t"
-    | T.TBytes -> "Bytes"
-    | T.TMask -> "Mask"
-    | T.TMaskAction -> "MaskAction"
+    | T.Void -> "void"
+    | T.DataPtr -> "Pointer"
+    | T.Size -> "Size"
+    | T.Bit -> "bool"
+    | T.Byte -> "uint8_t"
+    | T.Word -> "uint16_t"
+    | T.DWord -> "uint32_t"
+    | T.QWord -> "uint64_t"
+    | T.OWord -> "uint128_t"
+    | T.Bytes -> "Bytes"
+    | T.Mask -> "Mask"
+    | T.MaskAction -> "MaskAction"
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -202,7 +202,7 @@ struct
    * This is merely `return n;` unless e has type void: *)
   let print_return n p l e =
     match E.type_of l e with
-    | T.TVoid ->
+    | T.Void ->
         (* Then we could not have defined n, let's just return: *)
         pp p.def "%sreturn;\n" p.indent
     | _ ->
@@ -347,10 +347,10 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s[%s]" n2 n1)
-    | E.E1 (ToNullable, e1) ->
+    | E.E1 (NotNull, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> String.print oc n1)
-    | E.E1 (ToNotNullable, e1) ->
+    | E.E1 (Force, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | E.E0 (Null _) ->
@@ -434,13 +434,13 @@ struct
         and n2 = print emit p l e2 in
         let op_name = match op with Div -> "/" | _ -> "%" in
         (match E.type_of l e1 |> T.develop_user_types with
-        | TValue { vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
-                              |TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) ;
+        | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                             |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
                    _ } ->
             emit ?name p l e (fun oc ->
               pp oc "%s == 0 ? std::nullopt : std::make_optional(%s %s %s)"
                 n2 n1 op_name n2)
-        | TValue { vtyp = Mac TFloat ; _ } ->
+        | Value { vtyp = Mac Float ; _ } ->
             binary_infix_op e1 op_name e2 |> null_of_nan
         | _ ->
             assert false)
@@ -466,9 +466,9 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
         (match E.type_of l e1 |> T.develop_user_types with
-        | TValue { vtyp = Mac TU128 ; _ } ->
+        | Value { vtyp = Mac U128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
-        | TValue { vtyp = Mac TI128 ; _ } ->
+        | Value { vtyp = Mac I128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
@@ -799,7 +799,7 @@ struct
         ppi p.def "%s %s;" tn res ;
         res
     | E.E0 (EmptySet mn) ->
-        let tn = type_identifier p (TValue mn) in
+        let tn = type_identifier p (Value mn) in
         emit ?name p l e (fun oc ->
           pp oc "new SimpleSet<%s>()" tn)
     | E.E0 Now ->
@@ -951,11 +951,11 @@ struct
         and res = gen_sym ?name "fold_res_"
         and item_t = E.get_item_type ~lst:true ~vec:true ~set:true e l e3
         and t1 = E.type_of l e1 in
-        let item_tn = type_identifier p (T.TValue item_t) in
+        let item_tn = type_identifier p (T.Value item_t) in
         ppi p.def "%s %s { %s };" (type_identifier p t1) res init ;
         let is_set =
           match E.type_of l e3 |> T.develop_user_types with
-          | T.TValue { vtyp = TSet _ ; _ } -> true
+          | T.Value { vtyp = Set _ ; _ } -> true
           | _ -> false in
         if is_set then
           ppi p.def "%s->iter([&](%s &x_) {" lst item_tn
@@ -991,7 +991,7 @@ struct
           Printf.fprintf oc "%s.%s" n1 s)
     | E.E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_user_types with
-        | T.TValue { vtyp = TSum mns ; nullable = false } ->
+        | T.Value { vtyp = Sum mns ; nullable = false } ->
             let n1 = print emit p l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
@@ -1023,7 +1023,7 @@ struct
     | E.E1 (SlidingWindow t, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (TValue t) in
+        let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "sliding_win_" in
         ppi p.def "SlidingWindow<%s> *%s = new SlidingWindow<%s>(%s);"
           tn res tn n1 ;
@@ -1031,7 +1031,7 @@ struct
     | E.E1 (TumblingWindow t, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (TValue t) in
+        let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "tumbling_win_" in
         ppi p.def "TumblingWindow<%s> *%s = new TumblingWindow<%s>(%s);"
           tn res tn n1 ;
@@ -1039,7 +1039,7 @@ struct
     | E.E1 (Sampling t, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (TValue t) in
+        let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "sampling_" in
         ppi p.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
           tn res tn n1 ;

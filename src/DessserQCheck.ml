@@ -63,28 +63,28 @@ let printable_no_escape =
 let mac_type_gen =
   Gen.sized (fun n _st ->
     match n mod 22 with
-    | 0 -> T.TFloat
-    | 1 -> T.TString
-    | 2 -> T.TBool
-    | 3 -> T.TChar
-    | 4 -> T.TU8
-    | 5 -> T.TU16
-    | 6 -> T.TU24
-    | 7 -> T.TU32
-    | 8 -> T.TU40
-    | 9 -> T.TU48
-    | 10 -> T.TU56
-    | 11 -> T.TU64
-    | 12 -> T.TU128
-    | 13 -> T.TI8
-    | 14 -> T.TI16
-    | 15 -> T.TI24
-    | 16 -> T.TI32
-    | 17 -> T.TI40
-    | 18 -> T.TI48
-    | 19 -> T.TI56
-    | 20 -> T.TI64
-    | 21 -> T.TI128
+    | 0 -> T.Float
+    | 1 -> T.String
+    | 2 -> T.Bool
+    | 3 -> T.Char
+    | 4 -> T.U8
+    | 5 -> T.U16
+    | 6 -> T.U24
+    | 7 -> T.U32
+    | 8 -> T.U40
+    | 9 -> T.U48
+    | 10 -> T.U56
+    | 11 -> T.U64
+    | 12 -> T.U128
+    | 13 -> T.I8
+    | 14 -> T.I16
+    | 15 -> T.I24
+    | 16 -> T.I32
+    | 17 -> T.I40
+    | 18 -> T.I48
+    | 19 -> T.I56
+    | 20 -> T.I64
+    | 21 -> T.I128
     | _ -> assert false)
 
 let user_type_gen =
@@ -106,14 +106,14 @@ let rec value_type_gen_of_depth depth =
   else
     let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
     oneof
-      [ map2 (fun dim mn -> T.TVec (dim, mn)) (int_range 1 10) mn_gen ;
-        map (fun mn -> T.TList mn) mn_gen ;
-        map (fun mn -> T.TSet mn) mn_gen ;
-        map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
-        map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
-        map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
+      [ map2 (fun dim mn -> T.Vec (dim, mn)) (int_range 1 10) mn_gen ;
+        map (fun mn -> T.Lst mn) mn_gen ;
+        map (fun mn -> T.Set mn) mn_gen ;
+        map (fun mns -> T.Tup mns) (tiny_array mn_gen) ;
+        map (fun fs -> T.Rec fs) (tiny_array (pair field_name_gen mn_gen)) ;
+        map (fun fs -> T.Sum fs) (tiny_array (pair field_name_gen mn_gen)) ;
         (* Avoid maps for now, as there is no manipulable values of that type:
-        map2 (fun k v -> T.TMap (k, v)) mn_gen mn_gen *) ]
+        map2 (fun k v -> T.Map (k, v)) mn_gen mn_gen *) ]
 
 and maybe_nullable_gen_of_depth depth =
   Gen.map2 (fun nullable vtyp ->
@@ -143,14 +143,14 @@ let maybe_nullable_gen =
 let rec size_of_value_type = function
   | T.Unknown -> invalid_arg "size_of_value_type"
   | T.Unit | T.Mac _ | T.Usr _ -> 1
-  | T.TVec (_, mn) | T.TList mn | T.TSet mn -> 1 + size_of_maybe_nullable mn
-  | T.TTup mns ->
+  | T.Vec (_, mn) | T.Lst mn | T.Set mn -> 1 + size_of_maybe_nullable mn
+  | T.Tup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
-  | T.TRec mns ->
+  | T.Rec mns ->
       Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
-  | T.TSum mns ->
+  | T.Sum mns ->
       Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
-  | T.TMap (k, v) ->
+  | T.Map (k, v) ->
       size_of_maybe_nullable k + size_of_maybe_nullable v
 
 and size_of_maybe_nullable mn =
@@ -158,9 +158,9 @@ and size_of_maybe_nullable mn =
 
 let shrink_mac_type mt =
   let to_simplest =
-    T.[ TString ; TFloat ;
-        TI128 ; TU128 ; TI64 ; TU64 ; TI56 ; TU56 ; TI48 ; TU48 ; TI40 ; TU40 ;
-        TI32 ; TU32 ; TI24 ; TU24 ; TI16 ; TU16 ; TI8 ; TU8 ; TChar ; TBool ] in
+    T.[ String ; Float ;
+        I128 ; U128 ; I64 ; U64 ; I56 ; U56 ; I48 ; U48 ; I40 ; U40 ;
+        I32 ; U32 ; I24 ; U24 ; I16 ; U16 ; I8 ; U8 ; Char ; Bool ] in
   let rec loop = function
     | [] -> Iter.empty
     | mt'::rest when T.mac_type_eq mt' mt ->
@@ -190,40 +190,40 @@ let rec shrink_value_type =
         shrink_mac_type mt (fun mt -> f (T.Mac mt)))
   | T.Usr _ ->
       Iter.empty
-  | T.TVec (dim, mn) ->
+  | T.Vec (dim, mn) ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
           f mn.vtyp ;
-          f (T.TVec (dim, mn))))
-  | T.TList mn ->
+          f (T.Vec (dim, mn))))
+  | T.Lst mn ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
-          f (T.TList mn) ;
+          f (T.Lst mn) ;
           f mn.vtyp))
-  | T.TSet mn ->
+  | T.Set mn ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
-          f (T.TSet mn) ;
+          f (T.Set mn) ;
           f mn.vtyp))
-  | T.TTup mns ->
+  | T.Tup mns ->
       (fun f ->
         Array.iter (fun mn -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
         let shrink_mns =
           Shrink.filter (fun mns -> Array.length mns > 1)
             (Shrink.array ~shrink:shrink_maybe_nullable) mns |>
-          Iter.map (fun mns -> T.TTup mns) in
+          Iter.map (fun mns -> T.Tup mns) in
         shrink_mns f)
-  | T.TRec mns ->
-      shrink_fields mns (fun mns -> T.TRec mns)
-  | T.TSum mns ->
-      shrink_fields mns (fun mns -> T.TSum mns)
-  | T.TMap (k, v) ->
+  | T.Rec mns ->
+      shrink_fields mns (fun mns -> T.Rec mns)
+  | T.Sum mns ->
+      shrink_fields mns (fun mns -> T.Sum mns)
+  | T.Map (k, v) ->
       (fun f ->
         shrink_maybe_nullable k (f % vt_of_mn) ;
         shrink_maybe_nullable v (f % vt_of_mn) ;
         let shrink_kv =
           (Shrink.pair shrink_maybe_nullable shrink_maybe_nullable) (k, v) |>
-          Iter.map (fun (k, v) -> T.TMap (k, v)) in
+          Iter.map (fun (k, v) -> T.Map (k, v)) in
         shrink_kv f)
 
 and shrink_maybe_nullable mn =
@@ -284,7 +284,7 @@ let get_next_fid =
 (* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
-    E.[| Dump ; Ignore ; IsNull ; ToNullable ; ToNotNullable ; StringOfFloat ;
+    E.[| Dump ; Ignore ; IsNull ; NotNull ; Force ; StringOfFloat ;
          StringOfChar ; StringOfInt ; FloatOfString ; CharOfString ; U8OfString ;
          U16OfString ; U24OfString ; U32OfString ; U40OfString ; U48OfString ;
          U56OfString ; U64OfString ; U128OfString ; I8OfString ; I16OfString ;
@@ -423,7 +423,7 @@ and e1_gen l depth =
     1,
       join (
         map (fun ts ->
-          let ts = Array.map (fun mn -> T.TValue mn) ts in
+          let ts = Array.map (fun mn -> T.Value mn) ts in
           let fid = get_next_fid () in
           let l =
             Array.fold_lefti (fun l i t ->
@@ -550,7 +550,7 @@ let expression =
     match type_check [] e with \
     | exception _ -> true \
     | () -> \
-        type_of [] e = TVoid || can_be_compiled e)
+        type_of [] e = Void || can_be_compiled e)
 *)
 
 (* Non regression tests: *)
@@ -597,50 +597,50 @@ let rec sexpr_of_vtyp_gen vtyp =
       invalid_arg "sexpr_of_vtyp_gen"
   | T.Unit ->
       return "()"
-  | T.Mac TFloat ->
+  | T.Mac Float ->
       map hexstring_of_float float
-  | T.Mac TString ->
+  | T.Mac String ->
       (* FIXME: support escaping in quotes: *)
       map String.quote (string_size ~gen:printable_no_escape (int_range 3 15))
-  | T.Mac TChar ->
+  | T.Mac Char ->
       map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
-  | T.Mac TBool ->
+  | T.Mac Bool ->
       map (function true -> "T" | false -> "F") bool
-  | T.Mac TU8 -> int_string_gen 0L 255L
-  | T.Mac TU16 -> int_string_gen 0L 65535L
-  | T.Mac TU24 -> int_string_gen 0L 16777215L
-  | T.Mac TU32 -> int_string_gen 0L 4294967295L
-  | T.Mac TU40 -> int_string_gen 0L 1099511627775L
-  | T.Mac TU48 -> int_string_gen 0L 281474976710655L
-  | T.Mac TU56 -> int_string_gen 0L 72057594037927935L
-  | T.Mac TU64 -> map Uint64.(to_string % of_int64) ui64
-  | T.Mac TU128 -> map Uint128.to_string ui128_gen
-  | T.Mac TI8 -> int_string_gen (-128L) 127L
-  | T.Mac TI16 -> int_string_gen (-32768L) 32767L
-  | T.Mac TI24 -> int_string_gen (-8388608L) 8388607L
-  | T.Mac TI32 -> int_string_gen (-2147483648L) 2147483647L
-  | T.Mac TI40 -> int_string_gen (-549755813888L) 549755813887L
-  | T.Mac TI48 -> int_string_gen (-140737488355328L) 140737488355327L
-  | T.Mac TI56 -> int_string_gen (-36028797018963968L) 36028797018963967L
-  | T.Mac TI64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
-  | T.Mac TI128 -> map Int128.to_string i128_gen
+  | T.Mac U8 -> int_string_gen 0L 255L
+  | T.Mac U16 -> int_string_gen 0L 65535L
+  | T.Mac U24 -> int_string_gen 0L 16777215L
+  | T.Mac U32 -> int_string_gen 0L 4294967295L
+  | T.Mac U40 -> int_string_gen 0L 1099511627775L
+  | T.Mac U48 -> int_string_gen 0L 281474976710655L
+  | T.Mac U56 -> int_string_gen 0L 72057594037927935L
+  | T.Mac U64 -> map Uint64.(to_string % of_int64) ui64
+  | T.Mac U128 -> map Uint128.to_string ui128_gen
+  | T.Mac I8 -> int_string_gen (-128L) 127L
+  | T.Mac I16 -> int_string_gen (-32768L) 32767L
+  | T.Mac I24 -> int_string_gen (-8388608L) 8388607L
+  | T.Mac I32 -> int_string_gen (-2147483648L) 2147483647L
+  | T.Mac I40 -> int_string_gen (-549755813888L) 549755813887L
+  | T.Mac I48 -> int_string_gen (-140737488355328L) 140737488355327L
+  | T.Mac I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
+  | T.Mac I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
+  | T.Mac I128 -> map Int128.to_string i128_gen
   | T.Usr ut -> sexpr_of_vtyp_gen ut.def
-  | T.TVec (dim, mn) ->
+  | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
-  | T.TList mn ->
+  | T.Lst mn ->
       tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
         (* FIXME: make list_prefix_length a parameter of this function *)
         (if SExpr.default_config.list_prefix_length then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
-  | T.TSet mn ->
-      sexpr_of_vtyp_gen (TList mn)
-  | T.TTup mns ->
+  | T.Set mn ->
+      sexpr_of_vtyp_gen (Lst mn)
+  | T.Tup mns ->
       tup_gen mns
-  | T.TRec mns ->
+  | T.Rec mns ->
       tup_gen (Array.map snd mns)
-  | T.TSum mns ->
+  | T.Sum mns ->
       join (
         map (fun i ->
           let i = (Stdlib.abs i) mod (Array.length mns) in
@@ -648,8 +648,8 @@ let rec sexpr_of_vtyp_gen vtyp =
           map (fun se -> "("^ Stdlib.string_of_int i ^" "^ se ^")")
         ) int
       )
-  | T.TMap (k, v) ->
-      sexpr_of_vtyp_gen (TList { vtyp = TTup [| k ; v |] ; nullable = false })
+  | T.Map (k, v) ->
+      sexpr_of_vtyp_gen (Lst { vtyp = Tup [| k ; v |] ; nullable = false })
 
 and tup_gen mns st =
   "("^ (
@@ -764,7 +764,7 @@ let sexpr mn =
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
-    let mn_ringbuf = T.maybe_nullable_to_not_nullable mn in
+    let mn_ringbuf = T.force_maybe_nullable mn in
     (* RamenRingBuffer require record field names to be ordered: *)
     let mn_ringbuf = RamenRingBuffer.order_rec_fields mn_ringbuf in
     (* CSV cannot encode some nullable compound types: *)

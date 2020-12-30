@@ -20,7 +20,7 @@ struct
 
   (* v must be a u32: *)
   let write_leb128 p v =
-    let t_ptr_sz = T.TPair (TDataPtr, T.u32) in
+    let t_ptr_sz = T.Pair (DataPtr, T.u32) in
     first (
       loop_until
         ~body:(comment "Loop body for write_leb128"
@@ -165,7 +165,7 @@ struct
   let ssize_of_vec _ _ _ = ConstSize 0
 
   let ssize_of_leb128 n =
-    let t_u32_u32 = T.TPair (T.u32, T.u32) in
+    let t_u32_u32 = T.Pair (T.u32, T.u32) in
     size_of_u32 (first (
       loop_while
         ~cond:(comment "Condition for ssize_of_leb128"
@@ -212,7 +212,7 @@ struct
 
   (* Returns a size and a dataptr: *)
   let read_leb128 p =
-    let t_u32_u8 = T.TPair (T.u32, T.u8) in
+    let t_u32_u8 = T.Pair (T.u32, T.u8) in
     let_ "leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
@@ -239,7 +239,7 @@ struct
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
    * a size, and deserialize a RowBinary tuple into a non-nullable value of
-   * TTup type: *)
+   * Tup type: *)
   let des typ = ignore typ
 
   let dstring () _ _ p =

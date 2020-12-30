@@ -24,31 +24,31 @@ let () =
   let m x = T.{ vtyp = Mac x ; nullable = false }
   and n x = T.{ vtyp = Mac x ; nullable = true } in
   let udp_typ =
-    T.make (TTup [|
-      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ; n TU32 ;
-      n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ; n TU32 ; n TString ; n TU32 ;
-      n TString ; n TU32 ; n TString ; m TU16 ; m TU16 ; m TU8 ; m TU8 ; n TU32 ;
-      n TU32 ; m TU32 ; m TString ; m TU64 ; m TU64 ; m TU64 ; (* Should be U32 *)
-      m TU64 ; (* Should be U32 *) m TU64 ; m TU64 ; n TString
+    T.make (Tup [|
+      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
+      n U32 ; m U64 ; m U64 ; m U32 ; m U32 ; n U32 ; n String ; n U32 ;
+      n String ; n U32 ; n String ; m U16 ; m U16 ; m U8 ; m U8 ; n U32 ;
+      n U32 ; m U32 ; m String ; m U64 ; m U64 ; m U64 ; (* Should be U32 *)
+      m U64 ; (* Should be U32 *) m U64 ; m U64 ; n String
     |])
   and _http_typ =
-    T.make (TTup [|
-      m TString ; m TU64 ; m TU64 ; m TU8 ; m TString ; m TU8 ; m TString ;
-      n TU32 ; n TU32 ; m TU64 ; m TU64 ; m TU32 ; m TU32 ;
-      n TU32 ; T.maken (TVec (16, m TChar)) ;
-      n TU32 ; T.maken (TVec (16, m TChar)) ;
-      m TU16 ; m TU16 ; m TU128 ; m TU128 ; m TU128 ; n TU128 ;
-      m TU8 ; m TU8 ; m TU8 ; n TString ; n TString ;
-      n TString (* url *) ; n TString ; m TU8 ; m TU8 ; m TU8 ;
-      n TU32 ; T.maken (TVec (16, m TChar)) ;
-      m TU8 ; m TU8 ; m TU64 ; m TU64 ; m TU8 ; m TU32 ; m TU32 ; m TU32 ;
-      n TString ; m TU32 ; m TU8 ; n TString ;
-      n TU64 ; n TU64 ; n TU32 ;
-      m TU32 ; m TU32 ; m TU32 ;
-      n TString ; m TU32 ; m TU8 ; n TString ;
-      m TU32 ; m TU32 ; m TU16 ; m TU16 ; m TU16 ;
-      m TU64 ; m TU64 ; m TU64 ; m TFloat ; m TU8 ; m TI64 ; m TFloat ;
-      m TI64 ; m TFloat ; m TI64 ; m TFloat ; m TU32 |]) in
+    T.make (Tup [|
+      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ;
+      n U32 ; n U32 ; m U64 ; m U64 ; m U32 ; m U32 ;
+      n U32 ; T.optional (Vec (16, m Char)) ;
+      n U32 ; T.optional (Vec (16, m Char)) ;
+      m U16 ; m U16 ; m U128 ; m U128 ; m U128 ; n U128 ;
+      m U8 ; m U8 ; m U8 ; n String ; n String ;
+      n String (* url *) ; n String ; m U8 ; m U8 ; m U8 ;
+      n U32 ; T.optional (Vec (16, m Char)) ;
+      m U8 ; m U8 ; m U64 ; m U64 ; m U8 ; m U32 ; m U32 ; m U32 ;
+      n String ; m U32 ; m U8 ; n String ;
+      n U64 ; n U64 ; n U32 ;
+      m U32 ; m U32 ; m U32 ;
+      n String ; m U32 ; m U8 ; n String ;
+      m U32 ; m U32 ; m U16 ; m U16 ; m U16 ;
+      m U64 ; m U64 ; m U64 ; m Float ; m U8 ; m I64 ; m Float ;
+      m I64 ; m Float ; m I64 ; m Float ; m U32 |]) in
   let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
@@ -65,7 +65,7 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
-      E.func2 TDataPtr TDataPtr (fun _l src dst ->
+      E.func2 DataPtr DataPtr (fun _l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser typ src dst))
     ) else (
@@ -78,7 +78,7 @@ let () =
       let module OfValue2 = HeapValue.Serialize (SExpr.Ser) in
 
       let ma = copy_field in
-      E.func2 TDataPtr TDataPtr (fun _l src dst ->
+      E.func2 DataPtr DataPtr (fun _l src dst ->
         comment "Convert from RowBinary into a heap value:" (
           let v_src = ToValue.make typ src in
           E.with_sploded_pair "v_src" v_src (fun v src ->

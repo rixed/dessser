@@ -52,19 +52,19 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
   let module OfValue = HeapValue.Serialize (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ?transform:None) in
+    E.func2 DataPtr DataPtr (fun _l -> DS.desser schema ?transform:None) in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    E.func1 TDataPtr (fun _l src ->
+    E.func1 DataPtr (fun _l src ->
       first (ToValue.make schema src)) in
   let ma = copy_field in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 (TValue schema) (fun _l v ->
+    E.func1 (Value schema) (fun _l v ->
       OfValue.sersize schema ma v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    E.func2 (TValue schema) TDataPtr (fun _l v dst ->
+    E.func2 (Value schema) DataPtr (fun _l v dst ->
       OfValue.serialize schema ma v dst) in
   if debug then (
     E.type_check [] convert ;
@@ -101,7 +101,7 @@ let converter
     | _p, e -> apply e [v] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser schema ~transform) in
+    E.func2 DataPtr DataPtr (fun _l -> DS.desser schema ~transform) in
   if debug then E.type_check [] convert ;
   let state = BE.make_state  () in
   let state, _, convert_name =
@@ -122,7 +122,7 @@ let converter
   Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
-  | T.{ vtyp = TTup [| k ; v |] ; _ } ->
+  | T.{ vtyp = Tup [| k ; v |] ; _ } ->
       k, v
   | t ->
       Printf.sprintf2 "Not a pair: %a" T.print_maybe_nullable t |>
@@ -137,9 +137,9 @@ let lmdb main
   let module DS = DesSer (Des) (Ser) in
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser key_schema ?transform:None) in
+    E.func2 DataPtr DataPtr (fun _l -> DS.desser key_schema ?transform:None) in
   let convert_val =
-    E.func2 TDataPtr TDataPtr (fun _l -> DS.desser val_schema ?transform:None) in
+    E.func2 DataPtr DataPtr (fun _l -> DS.desser val_schema ?transform:None) in
   if debug then (
     E.type_check [] convert_key ;
     E.type_check [] convert_val
@@ -191,7 +191,7 @@ let aggregator
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
-    E.func1 TDataPtr (fun _l -> ToValue.make schema) in
+    E.func1 DataPtr (fun _l -> ToValue.make schema) in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
   E.type_check [] init_expr ;
@@ -200,7 +200,7 @@ let aggregator
    * and the input_t: *)
   E.type_check [] update_expr ;
   let update_t = E.type_of [] update_expr in
-  if update_t <> T.TFunction ([| state_t ; TValue schema |], T.void) then
+  if update_t <> T.Function ([| state_t ; Value schema |], T.void) then
     Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
                      aggregation state and the input value and returning \
                      nothing (not %a)"
@@ -211,7 +211,7 @@ let aggregator
   E.type_check [] finalize_expr ;
   let output_t =
     match E.type_of [] finalize_expr with
-    | T.TFunction ([| a1 |], TValue mn) when a1 = state_t -> mn
+    | T.Function ([| a1 |], Value mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
                          aggregation state (not %a)" T.print t |>
@@ -222,7 +222,7 @@ let aggregator
   let module OfValue = HeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
-    E.func2 (TValue output_t) TDataPtr (fun _l v dst ->
+    E.func2 (Value output_t) DataPtr (fun _l v dst ->
       OfValue.serialize output_t ma v dst) in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
@@ -233,7 +233,7 @@ let aggregator
   let code, state_id, state_name =
     BE.add_identifier_of_expression code ~name:"state" init_expr in
   let input_expr =
-    E.func1 ~l:(BE.environment code) TDataPtr (fun _l src ->
+    E.func1 ~l:(BE.environment code) DataPtr (fun _l src ->
       let v_src = apply to_value [ src ] in
       E.with_sploded_pair "input_expr" v_src (fun v src ->
         seq [ apply update_expr [ state_id ; v ] ;
@@ -241,7 +241,7 @@ let aggregator
   let code, _, input_name =
     BE.add_identifier_of_expression code ~name:"input" input_expr in
   let output_expr =
-    E.func1 ~l:(BE.environment code) TDataPtr (fun _l dst ->
+    E.func1 ~l:(BE.environment code) DataPtr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
       apply of_value [ v ; dst ]) in
   let code, _, output_name =

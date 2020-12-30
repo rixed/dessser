@@ -62,7 +62,7 @@ struct
       pp oc "%stype t = {\n" p.indent ;
       indent_more p (fun () ->
         Array.iter (fun (field_name, mn) ->
-          let typ_id = type_identifier p (T.TValue mn) in
+          let typ_id = type_identifier p (T.Value mn) in
           pp oc "%smutable %s : %s;\n"
             p.indent (valid_identifier field_name) typ_id
         ) mns
@@ -81,7 +81,7 @@ struct
       pp oc "%stype t = \n" p.indent ;
       indent_more p (fun () ->
         Array.iter (fun (n, mn) ->
-          let typ_id = type_identifier p (T.TValue mn) in
+          let typ_id = type_identifier p (T.Value mn) in
           pp oc "%s| %s of %s\n" p.indent (cstr_name n) typ_id
         ) mns
       ) ;
@@ -103,110 +103,110 @@ struct
         value_type_identifier p { vtyp ; nullable = false } ^" nullable"
     | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
     | { vtyp = Unit ; _ } -> "unit"
-    | { vtyp = Mac TChar ; _ } -> "char"
-    | { vtyp = Mac TString ; _ } -> "string"
-    | { vtyp = Mac TBool ; _ } -> "bool"
-    | { vtyp = Mac TFloat ; _ } -> "float"
-    | { vtyp = Mac TU8 ; _ } -> "Uint8.t"
-    | { vtyp = Mac TI8 ; _ } -> "Int8.t"
-    | { vtyp = Mac TU16 ; _ } -> "Uint16.t"
-    | { vtyp = Mac TI16 ; _ } -> "Int16.t"
-    | { vtyp = Mac TU24 ; _ } -> "Uint24.t"
-    | { vtyp = Mac TI24 ; _ } -> "Int24.t"
-    | { vtyp = Mac TU32 ; _ } -> "Uint32.t"
-    | { vtyp = Mac TI32 ; _ } -> "Int32.t"
-    | { vtyp = Mac TU40 ; _ } -> "Uint40.t"
-    | { vtyp = Mac TI40 ; _ } -> "Int40.t"
-    | { vtyp = Mac TU48 ; _ } -> "Uint48.t"
-    | { vtyp = Mac TI48 ; _ } -> "Int48.t"
-    | { vtyp = Mac TU56 ; _ } -> "Uint56.t"
-    | { vtyp = Mac TI56 ; _ } -> "Int56.t"
-    | { vtyp = Mac TU64 ; _ } -> "Uint64.t"
-    | { vtyp = Mac TI64 ; _ } -> "Int64.t"
-    | { vtyp = Mac TU128 ; _ } -> "Uint128.t"
-    | { vtyp = Mac TI128 ; _ } -> "Int128.t"
+    | { vtyp = Mac Char ; _ } -> "char"
+    | { vtyp = Mac String ; _ } -> "string"
+    | { vtyp = Mac Bool ; _ } -> "bool"
+    | { vtyp = Mac Float ; _ } -> "float"
+    | { vtyp = Mac U8 ; _ } -> "Uint8.t"
+    | { vtyp = Mac I8 ; _ } -> "Int8.t"
+    | { vtyp = Mac U16 ; _ } -> "Uint16.t"
+    | { vtyp = Mac I16 ; _ } -> "Int16.t"
+    | { vtyp = Mac U24 ; _ } -> "Uint24.t"
+    | { vtyp = Mac I24 ; _ } -> "Int24.t"
+    | { vtyp = Mac U32 ; _ } -> "Uint32.t"
+    | { vtyp = Mac I32 ; _ } -> "Int32.t"
+    | { vtyp = Mac U40 ; _ } -> "Uint40.t"
+    | { vtyp = Mac I40 ; _ } -> "Int40.t"
+    | { vtyp = Mac U48 ; _ } -> "Uint48.t"
+    | { vtyp = Mac I48 ; _ } -> "Int48.t"
+    | { vtyp = Mac U56 ; _ } -> "Uint56.t"
+    | { vtyp = Mac I56 ; _ } -> "Int56.t"
+    | { vtyp = Mac U64 ; _ } -> "Uint64.t"
+    | { vtyp = Mac I64 ; _ } -> "Int64.t"
+    | { vtyp = Mac U128 ; _ } -> "Uint128.t"
+    | { vtyp = Mac I128 ; _ } -> "Int128.t"
     | { vtyp = Usr t ; _ } ->
         value_type_identifier p { vtyp = t.def ; nullable = false }
-    | { vtyp = (TVec (_, t) | TList t) ; _ } ->
+    | { vtyp = (Vec (_, t) | Lst t) ; _ } ->
         value_type_identifier p t ^" array"
-    | { vtyp = TSet t ; _ } ->
+    | { vtyp = Set t ; _ } ->
         value_type_identifier p t ^" set"
-    | { vtyp = TTup mns ; _ } as mn ->
-        let t = T.TValue mn in
+    | { vtyp = Tup mns ; _ } as mn ->
+        let t = T.Value mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
         declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
-    | { vtyp = TRec mns ; _ } as mn ->
-        let t = T.TValue mn in
+    | { vtyp = Rec mns ; _ } as mn ->
+        let t = T.Value mn in
         declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
-    | { vtyp = TSum mns ; _ } as mn ->
-        let t = T.TValue mn in
+    | { vtyp = Sum mns ; _ } as mn ->
+        let t = T.Value mn in
         declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
         valid_identifier
-    | { vtyp = TMap _ ; _ } ->
+    | { vtyp = Map _ ; _ } ->
         assert false (* no value of map type *)
 
   and type_identifier p = function
-    | T.TValue mn -> value_type_identifier p mn
-    | T.TVoid -> "unit"
-    | T.TDataPtr -> "Pointer.t"
-    | T.TSize -> "Size.t"
-    | T.TBit -> "bool"
-    | T.TByte -> "Uint8.t"
-    | T.TWord -> "Uint16.t"
-    | T.TDWord -> "Uint32.t"
-    | T.TQWord -> "Uint64.t"
-    | T.TOWord -> "Uint128.t"
-    | T.TBytes -> "Slice.t"
-    | T.TPair (t1, t2) ->
+    | T.Value mn -> value_type_identifier p mn
+    | T.Void -> "unit"
+    | T.DataPtr -> "Pointer.t"
+    | T.Size -> "Size.t"
+    | T.Bit -> "bool"
+    | T.Byte -> "Uint8.t"
+    | T.Word -> "Uint16.t"
+    | T.DWord -> "Uint32.t"
+    | T.QWord -> "Uint64.t"
+    | T.OWord -> "Uint128.t"
+    | T.Bytes -> "Slice.t"
+    | T.Pair (t1, t2) ->
         "("^ type_identifier p t1 ^" * "^ type_identifier p t2 ^")"
-    | T.TSList t1 ->
+    | T.SList t1 ->
         type_identifier p t1 ^" list"
-    | T.TFunction ([||], t) ->
+    | T.Function ([||], t) ->
         "(() -> "^ type_identifier p t ^")"
-    | T.TFunction (args, ret) ->
+    | T.Function (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
             String.print oc (type_identifier p t))
         ) args ^" -> "^ type_identifier p ret ^")"
-    | T.TMask -> "Mask.t"
-    | T.TMaskAction -> "Mask.action"
+    | T.Mask -> "Mask.t"
+    | T.MaskAction -> "Mask.action"
 
   let rec mod_name = function
-    | T.TValue { vtyp = Mac TChar ; nullable = false } -> "Char"
-    | T.TValue { vtyp = Mac TString ; nullable = false } -> "String"
-    | T.TValue { vtyp = Mac TBool ; nullable = false } -> "Bool"
-    | T.TValue { vtyp = Mac TFloat ; nullable = false } -> "Float"
-    | T.TValue { vtyp = Mac TU8 ; nullable = false } -> "Uint8"
-    | T.TValue { vtyp = Mac TI8 ; nullable = false } -> "Int8"
-    | T.TValue { vtyp = Mac TU16 ; nullable = false } -> "Uint16"
-    | T.TValue { vtyp = Mac TI16 ; nullable = false } -> "Int16"
-    | T.TValue { vtyp = Mac TU24 ; nullable = false } -> "Uint24"
-    | T.TValue { vtyp = Mac TI24 ; nullable = false } -> "Int24"
-    | T.TValue { vtyp = Mac TU32 ; nullable = false } -> "Uint32"
-    | T.TValue { vtyp = Mac TI32 ; nullable = false } -> "Int32"
-    | T.TValue { vtyp = Mac TU40 ; nullable = false } -> "Uint40"
-    | T.TValue { vtyp = Mac TI40 ; nullable = false } -> "Int40"
-    | T.TValue { vtyp = Mac TU48 ; nullable = false } -> "Uint48"
-    | T.TValue { vtyp = Mac TI48 ; nullable = false } -> "Int48"
-    | T.TValue { vtyp = Mac TU56 ; nullable = false } -> "Uint56"
-    | T.TValue { vtyp = Mac TI56 ; nullable = false } -> "Int56"
-    | T.TValue { vtyp = Mac TU64 ; nullable = false } -> "Uint64"
-    | T.TValue { vtyp = Mac TI64 ; nullable = false } -> "Int64"
-    | T.TValue { vtyp = Mac TU128 ; nullable = false } -> "Uint128"
-    | T.TValue { vtyp = Mac TI128 ; nullable = false } -> "Int128"
-    | T.TValue { vtyp = Usr t ; nullable = false } ->
-        mod_name (TValue { vtyp = t.def ; nullable = false })
-    | T.TDataPtr -> "Pointer"
-    | T.TSize -> "Size"
-    | T.TBit -> "Bool"
-    | T.TByte -> "Uint8"
-    | T.TWord -> "Uint16"
-    | T.TDWord -> "Uint32"
-    | T.TQWord -> "Uint64"
-    | T.TOWord -> "Uint128"
-    | T.TBytes -> "Slice"
+    | T.Value { vtyp = Mac Char ; nullable = false } -> "Char"
+    | T.Value { vtyp = Mac String ; nullable = false } -> "String"
+    | T.Value { vtyp = Mac Bool ; nullable = false } -> "Bool"
+    | T.Value { vtyp = Mac Float ; nullable = false } -> "Float"
+    | T.Value { vtyp = Mac U8 ; nullable = false } -> "Uint8"
+    | T.Value { vtyp = Mac I8 ; nullable = false } -> "Int8"
+    | T.Value { vtyp = Mac U16 ; nullable = false } -> "Uint16"
+    | T.Value { vtyp = Mac I16 ; nullable = false } -> "Int16"
+    | T.Value { vtyp = Mac U24 ; nullable = false } -> "Uint24"
+    | T.Value { vtyp = Mac I24 ; nullable = false } -> "Int24"
+    | T.Value { vtyp = Mac U32 ; nullable = false } -> "Uint32"
+    | T.Value { vtyp = Mac I32 ; nullable = false } -> "Int32"
+    | T.Value { vtyp = Mac U40 ; nullable = false } -> "Uint40"
+    | T.Value { vtyp = Mac I40 ; nullable = false } -> "Int40"
+    | T.Value { vtyp = Mac U48 ; nullable = false } -> "Uint48"
+    | T.Value { vtyp = Mac I48 ; nullable = false } -> "Int48"
+    | T.Value { vtyp = Mac U56 ; nullable = false } -> "Uint56"
+    | T.Value { vtyp = Mac I56 ; nullable = false } -> "Int56"
+    | T.Value { vtyp = Mac U64 ; nullable = false } -> "Uint64"
+    | T.Value { vtyp = Mac I64 ; nullable = false } -> "Int64"
+    | T.Value { vtyp = Mac U128 ; nullable = false } -> "Uint128"
+    | T.Value { vtyp = Mac I128 ; nullable = false } -> "Int128"
+    | T.Value { vtyp = Usr t ; nullable = false } ->
+        mod_name (Value { vtyp = t.def ; nullable = false })
+    | T.DataPtr -> "Pointer"
+    | T.Size -> "Size"
+    | T.Bit -> "Bool"
+    | T.Byte -> "Uint8"
+    | T.Word -> "Uint16"
+    | T.DWord -> "Uint32"
+    | T.QWord -> "Uint64"
+    | T.OWord -> "Uint128"
+    | T.Bytes -> "Slice"
     | t ->
         Printf.sprintf2 "No module implementing %a"
           T.print t |>
@@ -372,9 +372,9 @@ struct
         let n = print emit p l e1 in
         pp p.def ("%s"^^
           (match E.type_of l e1 |> T.develop_user_types with
-          | TValue { vtyp = Mac TString ; nullable = false } ->
+          | Value { vtyp = Mac String ; nullable = false } ->
               "print_string %s;"
-          | TValue { vtyp = Mac TChar ; nullable = false } ->
+          | Value { vtyp = Mac Char ; nullable = false } ->
               "print_char %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
@@ -407,10 +407,10 @@ struct
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
-    | E.E1 (ToNullable, e1) ->
+    | E.E1 (NotNull, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "NotNull %s" n1)
-    | E.E1 (ToNotNullable, e1) ->
+    | E.E1 (Force, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> Printf.fprintf oc "Nullable.get %s" n1)
     | E.E0 (Null _) ->
@@ -483,33 +483,33 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         (match E.type_of l e1 |> T.develop_user_types with
-        | TValue { vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
-                              |TI8|TI16|TI24|TI32|TI40|TI48|TI56|TI64|TI128) ;
+        | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                             |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
                    _ } as t ->
             let op_name = match op with Div -> "div" | _ -> "rem" in
             emit ?name p l e (fun oc ->
               pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
                 (mod_name t) op_name n1 n2)
-        | TValue { vtyp = Mac TFloat ; _ } ->
+        | Value { vtyp = Mac Float ; _ } ->
             let op_name = match op with Div -> "(/.)" | _ -> "(mod)" in
             binary_op ("(Nullable.of_nan % "^ op_name ^")") e1 e2
         | _ ->
             assert false)
     | E.E2 (Pow, e1, e2) ->
         (match E.type_of l e1 |> T.develop_user_types with
-        | TValue { vtyp = Mac TFloat ; _ } ->
+        | Value { vtyp = Mac Float ; _ } ->
             (* TODO: if e2 is constant and > 0 then do away with the
              * Nullable.of_nan: *)
             binary_op "(Nullable.of_nan % ( ** ))" e1 e2
-        | TValue { vtyp = Mac (TI32 | TI64) ; _ } as t ->
+        | Value { vtyp = Mac (I32 | I64) ; _ } as t ->
             let n1 = print emit p l e1
             and n2 = print emit p l e2 in
             emit ?name p l e (fun oc ->
               pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
                 (mod_name t) n1 n2)
-        | TValue {
-            vtyp = Mac (TU8|TU16|TU24|TU32|TU40|TU48|TU56|TU64|TU128
-                       |TI8|TI16|TI24|TI40|TI48|TI56|TI128) ; _ } as t ->
+        | Value {
+            vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                       |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
             (* For through floats *)
             let m = mod_name t in
             let n1 = print emit p l e1
@@ -740,11 +740,11 @@ struct
         unary_op "Slice.of_string" e1
     | E.E1 (Cardinality, e1) ->
         (match E.type_of l e1 |> T.develop_user_types with
-        | TValue { vtyp = TVec (d, _) ; _ } ->
+        | Value { vtyp = Vec (d, _) ; _ } ->
             string_of_int d
-        | TValue { vtyp = TList _ ; _ } ->
+        | Value { vtyp = Lst _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
-        | TValue { vtyp = TSet _ ; _ } ->
+        | Value { vtyp = Set _ ; _ } ->
             let n1 = print emit p l e1 in
             emit ?name p l e (fun oc -> pp oc "%s.cardinality ()" n1)
         | _ ->
@@ -1098,12 +1098,12 @@ struct
         and body = print emit p l e2
         and lst = print emit p l e3 in
         (match E.type_of l e3 |> T.develop_user_types with
-        | TValue { vtyp = (TVec _ | TList _) ; _ } ->
+        | Value { vtyp = (Vec _ | Lst _) ; _ } ->
             (* Both lists and vectors are represented by arrays so
              * Array.fold_left will do in both cases: *)
             emit ?name p l e (fun oc ->
               pp oc "Array.fold_left %s %s %s" body init lst)
-        | TValue { vtyp = TSet _ ; _ } ->
+        | Value { vtyp = Set _ ; _ } ->
             emit ?name p l e (fun oc ->
               pp oc "%s.fold %s %s" lst init body)
         | _ ->
@@ -1127,7 +1127,7 @@ struct
         let res = gen_sym ?name "get_item_" in
         let max_n =
           match E.type_of l e1 |> T.develop_user_types with
-          | TValue { vtyp = TTup mns ; nullable = false } -> Array.length mns
+          | Value { vtyp = Tup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
         ppi p.def "let %t = %s\n"
           (fun oc ->

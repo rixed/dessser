@@ -82,8 +82,8 @@ struct
   let rec_sep _conf _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let sum_opn st mn0 path mns lbl p =
-    let p = tup_opn st mn0 path mns p in
+  let sum_opn st mn0 path mos lbl p =
+    let p = tup_opn st mn0 path mos p in
     let p = su16 st mn0 path lbl p in
     tup_sep st mn0 path p
 
@@ -237,8 +237,8 @@ struct
   let rec_sep _conf _ _ p = skip1 p
 
   (* Sums are encoded as a pair of numeric label and value: *)
-  let sum_opn st mn0 path mns p =
-    let p = tup_opn st mn0 path mns p in
+  let sum_opn st mn0 path mos p =
+    let p = tup_opn st mn0 path mos p in
     let c_p = du16 st mn0 path p in
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
       let p = tup_sep st mn0 path p in

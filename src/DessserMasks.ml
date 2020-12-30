@@ -143,7 +143,7 @@ struct
 
   (*$= mask_of_string & ~printer:string_of_mask
     [ Copy ; Copy ; Copy ] (mask_of_string "xxx")
-    [ Copy ; Recurse [ Skip ; Insert (E.(E0 (Null T.(Mac TU8)))) ; Copy ] ] \
+    [ Copy ; Recurse [ Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy ] ] \
         (mask_of_string "X(_{(null \"u8\")}X)")
     [ Copy ; Recurse [ Skip ; SetNull ; Copy ] ] (mask_of_string "X(_NX)")
   *)
@@ -171,7 +171,7 @@ let rec project mn ma =
         | Skip -> mns', n, i + 1
         | Insert e ->
             (match E.type_of [] e with
-            | T.TValue mn ->
+            | T.Value mn ->
                 ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
             | t -> raise (Invalid_type_for_mask t))
         | ma ->
@@ -198,21 +198,21 @@ let rec project mn ma =
         raise (Cannot_set_null mn)
   | Recurse m ->
       (match mn.T.vtyp with
-      | T.TTup mns ->
+      | T.Tup mns ->
           let mns = recurse_tuple mn mns m in
           (* No tuples of 1 items: *)
           if Array.length mns = 1 then mns.(0) else
-            { mn with vtyp = T.TTup mns }
-      | T.TRec mns ->
+            { mn with vtyp = T.Tup mns }
+      | T.Rec mns ->
           let mns = recurse_record mn mns m in
           (* A record of onw field is OK: *)
-          { mn with vtyp = T.TRec mns }
+          { mn with vtyp = T.Rec mns }
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->
       let te = E.type_of [] e in
-      if te = TValue mn then mn (* Does not change the type *)
-      else raise (Types_do_not_match { expr = te ; mask = T.TValue mn })
+      if te = Value mn then mn (* Does not change the type *)
+      else raise (Types_do_not_match { expr = te ; mask = T.Value mn })
   | Insert _ ->
       raise Cannot_insert_into_that
 
@@ -222,8 +222,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
-  (T.maken (Mac TU8)) (* Do nothing case *) \
-    (project (T.maken (Mac TU8)) Copy)
+  (T.optional (Mac U8)) (* Do nothing case *) \
+    (project (T.optional (Mac U8)) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \
@@ -233,7 +233,7 @@ let rec project mn ma =
   (s2t "(string; char)") (* Inserting an item: *) \
     (project (s2t "(string; string)") (s2a "(X{(char \"c\")}_)"))
   (s2t "{ foo: u8; bar: char? }") (* Changing a value does not change the type: *) \
-    (project (s2t "{ foo: u8; bar: char? }") (s2a "(X[(to-nullable (char \"c\"))])"))
+    (project (s2t "{ foo: u8; bar: char? }") (s2a "(X[(not-null (char \"c\"))])"))
 *)
 
 

@@ -179,7 +179,7 @@ struct
     let l = environment state in
     E.type_check l expr ;
     let t = E.type_of l expr in
-    if t = TVoid then invalid_arg "add_identifier_of_expression of type void" ;
+    if t = Void then invalid_arg "add_identifier_of_expression of type void" ;
     { state with
         identifiers = (name, identifier, t) :: state.identifiers },
     E.E0 (Identifier name),
@@ -202,7 +202,7 @@ struct
         I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _) ->
         true
     | E1 ((
-        GetItem _ | GetField _ | GetAlt _ | IsNull | ToNullable | ToNotNullable |
+        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
         ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
         CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |

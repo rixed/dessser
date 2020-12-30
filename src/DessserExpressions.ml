@@ -101,9 +101,9 @@ type e1 =
   | Ignore
   | IsNull
   (* Turn e into a nullable: *)
-  | ToNullable
+  | NotNull
   (* Turn e into a not-nullable (or fail): *)
-  | ToNotNullable
+  | Force
   (* Convert from/to string for all base value types: *)
   | StringOfFloat
   | StringOfChar
@@ -478,77 +478,77 @@ let rec default_value ?(allow_null=true) = function
       invalid_arg "default_value"
   | { vtyp = T.Unit ; _ } ->
       E0 Unit
-  | { vtyp = Mac TFloat ; _ } ->
+  | { vtyp = Mac Float ; _ } ->
       E0 (Float 0.)
-  | { vtyp = Mac TString ; _ } ->
+  | { vtyp = Mac String ; _ } ->
       E0 (String "")
-  | { vtyp = Mac TBool ; _ } ->
+  | { vtyp = Mac Bool ; _ } ->
       E0 (Bool false)
-  | { vtyp = Mac TChar ; _ } ->
+  | { vtyp = Mac Char ; _ } ->
       E0 (Char '\000')
-  | { vtyp = Mac TI8 ; _ } ->
+  | { vtyp = Mac I8 ; _ } ->
       E0 (I8 Int8.zero)
-  | { vtyp = Mac TI16 ; _ } ->
+  | { vtyp = Mac I16 ; _ } ->
       E0 (I16 Int16.zero)
-  | { vtyp = Mac TI24 ; _ } ->
+  | { vtyp = Mac I24 ; _ } ->
       E0 (I24 Int24.zero)
-  | { vtyp = Mac TI32 ; _ } ->
+  | { vtyp = Mac I32 ; _ } ->
       E0 (I32 Int32.zero)
-  | { vtyp = Mac TI40 ; _ } ->
+  | { vtyp = Mac I40 ; _ } ->
       E0 (I40 Int40.zero)
-  | { vtyp = Mac TI48 ; _ } ->
+  | { vtyp = Mac I48 ; _ } ->
       E0 (I48 Int48.zero)
-  | { vtyp = Mac TI56 ; _ } ->
+  | { vtyp = Mac I56 ; _ } ->
       E0 (I56 Int56.zero)
-  | { vtyp = Mac TI64 ; _ } ->
+  | { vtyp = Mac I64 ; _ } ->
       E0 (I64 Int64.zero)
-  | { vtyp = Mac TI128 ; _ } ->
+  | { vtyp = Mac I128 ; _ } ->
       E0 (I128 Int128.zero)
-  | { vtyp = Mac TU8 ; _ } ->
+  | { vtyp = Mac U8 ; _ } ->
       E0 (U8 Uint8.zero)
-  | { vtyp = Mac TU16 ; _ } ->
+  | { vtyp = Mac U16 ; _ } ->
       E0 (U16 Uint16.zero)
-  | { vtyp = Mac TU24 ; _ } ->
+  | { vtyp = Mac U24 ; _ } ->
       E0 (U24 Uint24.zero)
-  | { vtyp = Mac TU32 ; _ } ->
+  | { vtyp = Mac U32 ; _ } ->
       E0 (U32 Uint32.zero)
-  | { vtyp = Mac TU40 ; _ } ->
+  | { vtyp = Mac U40 ; _ } ->
       E0 (U40 Uint40.zero)
-  | { vtyp = Mac TU48 ; _ } ->
+  | { vtyp = Mac U48 ; _ } ->
       E0 (U48 Uint48.zero)
-  | { vtyp = Mac TU56 ; _ } ->
+  | { vtyp = Mac U56 ; _ } ->
       E0 (U56 Uint56.zero)
-  | { vtyp = Mac TU64 ; _ } ->
+  | { vtyp = Mac U64 ; _ } ->
       E0 (U64 Uint64.zero)
-  | { vtyp = Mac TU128 ; _ } ->
+  | { vtyp = Mac U128 ; _ } ->
       E0 (U128 Uint128.zero)
   | { vtyp = Usr nn ; _ } ->
       default_value ~allow_null { vtyp = nn.def ; nullable = false }
-  | { vtyp = TTup mns ; _ } ->
+  | { vtyp = Tup mns ; _ } ->
       E0S (
         MakeTup,
         Array.map (default_value ~allow_null) mns |>
         Array.to_list)
-  | { vtyp = TRec mns ; _ } ->
+  | { vtyp = Rec mns ; _ } ->
       E0S (
         MakeRec,
         Array.fold_left (fun fields (fn, mn) ->
           E0 (String fn) :: default_value mn :: fields
         ) [] mns)
-  | { vtyp = TSum mns ; _ } ->
+  | { vtyp = Sum mns ; _ } ->
       assert (Array.length mns > 0) ;
       E1 (
         Construct (mns, 0),
         default_value (snd mns.(0)))
-  | { vtyp = TVec (dim, mn) ; _ } ->
+  | { vtyp = Vec (dim, mn) ; _ } ->
       E0S (
         MakeVec,
         List.init dim (fun _ -> default_value mn))
-  | { vtyp = TList mn ; _ } ->
+  | { vtyp = Lst mn ; _ } ->
       E0S (MakeList mn, [])
-  | { vtyp = TSet mn ; _ } ->
+  | { vtyp = Set mn ; _ } ->
       E0 (EmptySet mn)
-  | { vtyp = TMap _ ; _ } ->
+  | { vtyp = Map _ ; _ } ->
       assert false (* no value of map type *)
 
 let string_of_path = IO.to_string T.print_path
@@ -574,15 +574,15 @@ let string_of_e1 = function
   | GetField s -> "get-field "^ String.quote s
   | GetAlt s -> "get-alt "^ String.quote s
   | Construct (mns, i) ->
-      "construct "^ String.quote (IO.to_string T.print_value_type (TSum mns))
+      "construct "^ String.quote (IO.to_string T.print_value_type (Sum mns))
                   ^" "^ string_of_int i
   | Dump -> "dump"
   | Debug -> "debug"
   | Identity -> "identity"
   | Ignore -> "ignore"
   | IsNull -> "is-null"
-  | ToNullable -> "to-nullable"
-  | ToNotNullable -> "to-not-nullable"
+  | NotNull -> "not-null"
+  | Force -> "force"
   | StringOfFloat -> "string-of-float"
   | StringOfChar -> "string-of-char"
   | StringOfInt -> "string-of-int"
@@ -1109,7 +1109,7 @@ struct
     | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] ->
         let i = int_of_string i in
         (match T.maybe_nullable_of_string mn with
-        | { vtyp = TSum mns ; nullable = false } ->
+        | { vtyp = Sum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
             if i > max_lbl then
               Printf.sprintf "Sum type %S has no label %d" mn i |>
@@ -1123,8 +1123,8 @@ struct
     | Lst [ Sym "identity" ; x ] -> E1 (Identity, e x)
     | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
     | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
-    | Lst [ Sym "to-nullable" ; x ] -> E1 (ToNullable, e x)
-    | Lst [ Sym "to-not-nullable" ; x ] -> E1 (ToNotNullable, e x)
+    | Lst [ Sym "not-null" ; x ] -> E1 (NotNull, e x)
+    | Lst [ Sym "force" ; x ] -> E1 (Force, e x)
     | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
     | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
@@ -1357,7 +1357,7 @@ struct
     [ Ops.u8 (Uint8.of_int 42) ] (expr "(u8 42)")
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
-    [ Ops.null T.(Mac TString) ] (expr "(null \"string\")")
+    [ Ops.null T.(Mac String) ] (expr "(null \"string\")")
     [ Ops.i56 (Int56.of_string "-36028797018963967") ] (expr "(i56 -36028797018963967)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
@@ -1410,19 +1410,19 @@ let rec type_of l e0 =
   | E3 (Apply, f, _, _)
   | E4 (Apply, f, _, _, _) ->
       (match type_of l f with
-      | TFunction (_, t) -> t
+      | Function (_, t) -> t
       | _ -> raise (Apply_error (e0, "argument must be a function")))
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
       raise (Struct_error (e0, "vector dimension must be > 1"))
   | E0S (MakeVec, (e0::_ as es)) ->
-      TValue (T.make (TVec (List.length es, maybe_nullable_of l e0)))
+      Value (T.make (Vec (List.length es, maybe_nullable_of l e0)))
   | E0S (MakeList mn, _) ->
-      TValue mn
+      Value mn
   | E0S (MakeTup, es) ->
-      TValue (T.make (TTup (List.map (maybe_nullable_of l) es |>
-                                 Array.of_list)))
+      Value (T.make (Tup (List.map (maybe_nullable_of l) es |>
+                            Array.of_list)))
   | E0S (MakeRec, es) ->
       let prev_name, mns =
         List.fold_left (fun (prev_name, mns) e ->
@@ -1436,7 +1436,7 @@ let rec type_of l e0 =
         raise (Struct_error (e0,
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
-      TValue (T.make (TRec (Array.of_list mns)))
+      Value (T.make (Rec (Array.of_list mns)))
   | E1S (Coalesce, xs) ->
       (match List.last xs with
       | exception _ ->
@@ -1445,34 +1445,34 @@ let rec type_of l e0 =
           type_of l e)
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | TValue { vtyp = TTup mns ; nullable = false } ->
+      | Value { vtyp = Tup mns ; nullable = false } ->
           let num_n = Array.length mns in
           if n < 0 || n >= num_n then
             raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
                                      string_of_int num_n ^" items)")) ;
-          TValue mns.(n)
+          Value mns.(n)
       | t -> raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | TValue { vtyp = TRec mns ; nullable = false } ->
+      | Value { vtyp = Rec mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
               raise (Struct_error (e0, "no field named "^ name))
-          | mn -> TValue mn)
+          | mn -> Value mn)
       | t -> raise (Type_error (e0, e1, t, "be a record")))
   | E1 ((GetAlt name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | TValue { vtyp = TSum mns ; nullable = false } ->
+      | Value { vtyp = Sum mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
               raise (Struct_error (e0, "no alternative named "^ name))
-          | mn -> TValue mn)
+          | mn -> Value mn)
       | t -> raise (Type_error (e0, e1, t, "be a union")))
-  | E1 ((Construct (mns, _)), _) -> TValue (T.make (TSum mns))
+  | E1 ((Construct (mns, _)), _) -> Value (T.make (Sum mns))
   | E2 (Nth, _, e2) ->
       (match type_of l e2 |> T.develop_user_types with
-      | TValue { vtyp = (TVec (_, mn) | TList mn) ; nullable = false } ->
-          TValue mn
+      | Value { vtyp = (Vec (_, mn) | Lst mn) ; nullable = false } ->
+          Value mn
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
@@ -1485,14 +1485,14 @@ let rec type_of l e0 =
       (* TODO: make it nullable only if it cannot be ascertained from e1 and e2
        * that the result will never be null *)
       T.to_nullable (type_of l e)
-  | E1 (ToNullable, e) ->
+  | E1 (NotNull, e) ->
       T.to_nullable (type_of l e)
-  | E1 (ToNotNullable, e) ->
-      T.to_not_nullable (type_of l e)
+  | E1 (Force, e) ->
+      T.force (type_of l e)
   | E1 (IsNull, _) -> T.bool
-  | E0 (Null vt) -> TValue { vtyp = vt ; nullable = true }
-  | E0 (EndOfList t) -> TSList t
-  | E0 (EmptySet mn) -> TValue (T.make (T.TSet mn))
+  | E0 (Null vt) -> Value { vtyp = vt ; nullable = true }
+  | E0 (EndOfList t) -> SList t
+  | E0 (EmptySet mn) -> Value (T.make (T.Set mn))
   | E0 Now -> T.float
   | E0 Random -> T.float
   | E0 (Float _) -> T.float
@@ -1593,14 +1593,14 @@ let rec type_of l e0 =
   | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e |> T.develop_user_types with
-      | TSList (TValue mn) -> TValue (T.make (TList mn))
-      | TSList _ as t ->
+      | SList (Value mn) -> Value (T.make (Lst mn))
+      | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (SetOfSList, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TSList (TValue mn) -> TValue (T.make (TSet mn))
-      | TSList _ as t ->
+      | SList (Value mn) -> Value (T.make (Set mn))
+      | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (U8OfBool, _) -> T.u8
@@ -1617,7 +1617,7 @@ let rec type_of l e0 =
   | E0 (DataPtrOfBuffer _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E2 (GetBit, _, _) -> T.bit
-  | E2 (GetVec, e1, _) -> T.TValue (get_item_type ~lst:true ~vec:true e0 l e1)
+  | E2 (GetVec, e1, _) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
   | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
   | E1 (ReadWord _, _) -> T.pair T.word T.dataptr
@@ -1682,23 +1682,23 @@ let rec type_of l e0 =
       T.pair (type_of l e1) (type_of l e2)
   | E1 (Fst, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TPair (t, _) -> t
+      | Pair (t, _) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Snd, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TPair (_, t) -> t
+      | Pair (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Head, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TSList t -> t
+      | SList t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (Tail, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TSList _ as t -> t
+      | SList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E2 (MapPair, _, e) ->
       (match type_of l e |> T.develop_user_types with
-      | TFunction (_, t) -> t
+      | Function (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a function")))
   | E2 ((Min | Max), e, _) ->
       type_of l e
@@ -1715,7 +1715,7 @@ let rec type_of l e0 =
       let l = Array.fold_lefti (fun l i t ->
         (E0 (Param (fid, i)), t) :: l
       ) l ts in
-      TFunction (ts, type_of l e)
+      Function (ts, type_of l e)
   | E0 (Param p) as e ->
       (try List.assoc e l
       with Not_found ->
@@ -1735,9 +1735,9 @@ let rec type_of l e0 =
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
   match type_of l e |> T.develop_user_types with
-  | TValue { vtyp = TVec (_, t) ; nullable = false } when vec -> t
-  | TValue { vtyp = TList t ; nullable = false } when lst -> t
-  | TValue { vtyp = TSet t ; nullable = false } when set -> t
+  | Value { vtyp = Vec (_, t) ; nullable = false } when vec -> t
+  | Value { vtyp = Lst t ; nullable = false } when lst -> t
+  | Value { vtyp = Set t ; nullable = false } when set -> t
   | t ->
       let acceptable = if vec then [ "vector" ] else [] in
       let acceptable = if lst then "list" :: acceptable else acceptable in
@@ -1775,38 +1775,38 @@ let rec type_check l e =
   fold () l (fun () l e0 ->
     let check_void l e =
       match type_of l e |> T.develop_user_types with
-      | TVoid -> ()
+      | Void -> ()
       | t -> raise (Type_error (e0, e, t, "be Void")) in
     let check_nullable b l e =
       match type_of l e |> T.develop_user_types with
-      | TValue { nullable ; _ } when nullable = b -> ()
+      | Value { nullable ; _ } when nullable = b -> ()
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
-      | TSize | TByte | TWord | TDWord | TQWord | TOWord | TMaskAction
-      | TValue { vtyp = (Mac (
-          TFloat | TString | TChar |
-          TU8 | TU16 | TU32 | TU64 | TU128 |
-          TI8 | TI16 | TI32 | TI64 | TI128)) ; nullable = false } -> ()
+      | Size | Byte | Word | DWord | QWord | OWord | MaskAction
+      | Value { vtyp = (Mac (
+          Float | String | Char |
+          U8 | U16 | U32 | U64 | U128 |
+          I8 | I16 | I32 | I64 | I128)) ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_mac=false) l e =
       match type_of l e |> T.develop_user_types with
-      | TSize | TByte | TWord | TDWord | TQWord | TOWord when not only_mac ->
+      | Size | Byte | Word | DWord | QWord | OWord when not only_mac ->
           ()
-      | TValue {
+      | Value {
           vtyp = (Mac (
-            TFloat | TChar |
-            TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
-            TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128)) ;
+            Float | Char |
+            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
-      | TSize | TByte | TWord | TDWord | TQWord | TOWord
-      | TValue { vtyp = (Mac (
-          TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
-          TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128)) ;
+      | Size | Byte | Word | DWord | QWord | OWord
+      | Value { vtyp = (Mac (
+          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+          I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let check_param fe n act exp =
@@ -1825,7 +1825,7 @@ let rec type_check l e =
       List.iter (check_same_types l e1) e2s in
     let check_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
-      | TValue _ -> ()
+      | Value _ -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a possibly nullable value")) in
     let check_list_or_vector l e =
@@ -1834,44 +1834,44 @@ let rec type_check l e =
       ignore (get_item_type ~lst:true ~vec:true ~set:true e0 l e) in
     let check_slist l e =
       match type_of l e |> T.develop_user_types with
-      | TSList _ -> ()
+      | SList _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_slist_same_type e1 l e =
       match type_of l e |> T.develop_user_types with
-      | TSList t -> check_eq l e1 t
+      | SList t -> check_eq l e1 t
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_pair l e =
       match type_of l e |> T.develop_user_types with
-      | TPair _ -> ()
+      | Pair _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a pair")) in
     let bad_arity expected e t =
       let s = Printf.sprintf "be a function of %d parameters" expected in
       raise (Type_error (e0, e, t, s)) in
     let check_function arity l e =
       match type_of l e |> T.develop_user_types with
-      | TFunction (ts, _) as t ->
+      | Function (ts, _) as t ->
           if Array.length ts <> arity then bad_arity arity e t
       | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params1 l e f =
       match type_of l e |> T.develop_user_types with
-      | TFunction ([|t1|], t2) -> f t1 t2
+      | Function ([|t1|], t2) -> f t1 t2
       | t -> bad_arity 1 e t in
     let check_params2 l e f =
       match type_of l e |> T.develop_user_types with
-      | TFunction ([|t1; t2|], t3) -> f t1 t2 t3
+      | Function ([|t1; t2|], t3) -> f t1 t2 t3
       | t -> bad_arity 2 e t in
     let check_slist_of_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
-      | TSList (TValue _) -> ()
+      | SList (Value _) -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a slist of maybe nullable values")) in
     let check_sum l e =
       match type_of l e |> T.develop_user_types with
-      | TValue { vtyp = TSum _ ; nullable = false } -> ()
+      | Value { vtyp = Sum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
     let check_fun_sign l f ps =
       match type_of l f with
-      | TFunction (ts, _) ->
+      | Function (ts, _) ->
           let lf = Array.length ts and lp = Array.length ps in
           if lf <> lp then (
             let err = string_of_int lp ^" parameters but function expect "^
@@ -1916,7 +1916,7 @@ let rec type_check l e =
         check_maybe_nullable l e1 ;
         check_all_same_types l e1 e2s
     | E0S (MakeList mn, e1s) ->
-        List.iter (fun e1 -> check_eq l e1 (TValue mn)) e1s
+        List.iter (fun e1 -> check_eq l e1 (Value mn)) e1s
     | E0S (MakeTup, es) ->
         if List.compare_length_with es 2 < 0 then
           raise (Struct_error (e0, "tuple dimension must be ≥ 2")) ;
@@ -1936,8 +1936,8 @@ let rec type_check l e =
         (match List.rev es with
         | last :: rest ->
             (match  type_of l last with
-            | TValue { vtyp ; _ } ->
-                let exp = T.TValue { vtyp ; nullable = true } in
+            | Value { vtyp ; _ } ->
+                let exp = T.Value { vtyp ; nullable = true } in
                 List.iter (fun e ->
                   check_nullable true l e ;
                   check_eq l e exp
@@ -1951,9 +1951,9 @@ let rec type_check l e =
     | E2 (Nth, e1, e2) ->
         check_list_or_vector l e2 ;
         check_integer l e1
-    | E1 (ToNullable, e) ->
+    | E1 (NotNull, e) ->
         check_nullable false l e
-    | E1 (ToNotNullable, e) ->
+    | E1 (Force, e) ->
         check_nullable true l e
     | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
         check_comparable l e1 ;
@@ -1967,8 +1967,8 @@ let rec type_check l e =
     | E2 (Member, e1, e2) ->
         (* FIXME: Also for sets *)
         (match type_of l e2 |> T.develop_user_types with
-        | TValue { vtyp = (TVec (_, t) | TList t) ; nullable = false } ->
-            check_eq l e1 (T.TValue t)
+        | Value { vtyp = (Vec (_, t) | Lst t) ; nullable = false } ->
+            check_eq l e1 (T.Value t)
         | t -> raise (Type_error (e0, e, t, "be a vector or list")))
     | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
         check_integer l e1 ;
@@ -2059,8 +2059,8 @@ let rec type_check l e =
         check_eq l e3 T.bit
     | E3 (SetVec, e1, e2, e3) ->
         (match type_of l e1 |> T.develop_user_types with
-        | T.TValue { vtyp = T.TVec (_, mn) ; nullable = false } ->
-            check_eq l e3 (TValue mn)
+        | T.Value { vtyp = T.Vec (_, mn) ; nullable = false } ->
+            check_eq l e3 (Value mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a vector"))) ;
         check_integer l e2
@@ -2121,7 +2121,7 @@ let rec type_check l e =
                 i max_lbl in
             raise (Struct_error (e0, msg))
           ) ;
-          check_eq l e (TValue (snd mns.(i)))
+          check_eq l e (Value (snd mns.(i)))
     | E1 (Fst, e) ->
         check_pair l e
     | E1 (Snd, e) ->
@@ -2165,7 +2165,7 @@ let rec type_check l e =
         (* FOld function first parameter is the result and second is the list
          * item *)
         let item_t =
-          T.TValue (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
+          T.Value (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
         check_params2 l e2 (fun p1 p2 ret ->
           check_eq l e1 p1 ;
           check_eq l e1 ret ;
@@ -2178,17 +2178,17 @@ let rec type_check l e =
           check_eq l e4 t2 ;
           check_eq l e4 t3)
     | E1 (MaskGet _, e1) ->
-        check_eq l e1 T.TMask
+        check_eq l e1 T.Mask
     | E1 (MaskEnter _, e1) ->
-        check_eq l e1 T.TMaskAction
+        check_eq l e1 T.MaskAction
     | E1 (LabelOf, e1) ->
         check_sum l e1
     | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _), e1) ->
         check_integer l e1
     | E2 (Insert, e1, e2) ->
         (match type_of l e1 |> T.develop_user_types with
-        | T.TValue { vtyp = T.TSet mn ; nullable = false } ->
-            check_eq l e2 (TValue mn)
+        | T.Value { vtyp = T.Set mn ; nullable = false } ->
+            check_eq l e2 (Value mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a set")))
   ) e
@@ -2347,7 +2347,7 @@ let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
 
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(BatIO.to_string T.print)
-  (TPair (u24, TDataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
+  (Pair (u24, DataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
 *)
 
 (* Users can define additional expressions, defined in terms of the above
@@ -2614,8 +2614,8 @@ struct
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
-  let to_nullable e1 = E1 (ToNullable, e1)
-  let to_not_nullable e1 = E1 (ToNotNullable, e1)
+  let not_null e1 = E1 (NotNull, e1)
+  let force e1 = E1 (Force, e1)
   let get_item n e1 = E1 (GetItem n, e1)
   let get_field s e1 = E1 (GetField s, e1)
   let get_alt s e1 = E1 (GetAlt s, e1)

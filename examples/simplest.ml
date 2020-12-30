@@ -163,8 +163,8 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let vtyp = T.{ vtyp = TTup [| { vtyp = Mac TU8 ; nullable = false } ;
-                                { vtyp = Mac TChar ; nullable = false } |] ;
+  let vtyp = T.{ vtyp = Tup [| { vtyp = Mac U8 ; nullable = false } ;
+                               { vtyp = Mac Char ; nullable = false } |] ;
                  nullable = false } in
   let src = data_ptr_of_string "\001X"
   and dst = data_ptr_of_string "_____" in
