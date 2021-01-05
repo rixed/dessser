@@ -9,6 +9,25 @@ open E.Ops
 (* Size of the word stored in the ringbuffer, in bytes. *)
 let ringbuf_word_size = ref 4
 
+let rec log2 n =
+  assert (n >= 1) ;
+  if n = 1 then 0 else
+  1 + log2 (n lsr 1)
+
+(*$= log2 & ~printer:string_of_int
+  2 (log2 4)
+*)
+
+(* Return the minimum number of words to store [n] bytes: *)
+let words_of_bytes_const n =
+  (n + !ringbuf_word_size - 1) asr (log2 !ringbuf_word_size)
+
+(* Same as above, but [n] is now an u32 valued expression. *)
+let words_of_bytes_dyn n =
+  (right_shift
+    (add n (u32_of_int (!ringbuf_word_size - 1)))
+    (u8_of_int (log2 !ringbuf_word_size)))
+
 (* Realign the pointer on a multiple of [ringbuf_word_size].
  * [extra_bytes] modulo [ringbuf_word_size] gives the number of bytes
  * that's been written after the last word boundary.
@@ -84,6 +103,8 @@ let check_rec_fields_ordered mn =
     failwith "RingBuffer can only serialize/deserialize records which \
               fields are sorted."
 
+(* Fields which name start with underscore are considered private and are never
+ * serialized. *)
 let is_private name =
   String.length name > 0 && name.[0] = '_'
 
@@ -144,26 +165,28 @@ let may_set_nullbit bit mn0 path stk =
        * Therefore if it's nullable we have a problem: *)
       assert (not mn0.T.nullable) ;
       stk
-  | [_] ->
-      (* This is an item of the outermost value. It has a nullbit only
-       * if nullable, and its nullbit position in the nullmask is in the
-       * stack: *)
+  | _ ->
+      (* This is an item of some compiund (top level or inner), which have a
+       * nullbit if it is nullable: *)
       if (T.type_of_path mn0 path).nullable then
         set_nullbit_to bit stk
       else
         stk
-  | _ ->
-      (* This is an item from an inner compound value. It always has a
-       * nullbit for historical reasons (FIXME). *)
-      set_nullbit_to bit stk
 
 (* TODO: check a nullbit is present for this type before sploding *)
 let may_skip_nullbit mn0 path p_stk =
-  E.with_sploded_pair "may_skip_nullbit" p_stk (fun p stk ->
-    (* Notice: Setting a bit to false actually skip it, thus the name
-     * of this function! *)
-    let stk = may_set_nullbit false mn0 path stk in
-    pair p stk)
+  match path with
+  | [] ->
+      (* Cf above *)
+      assert (not mn0.T.nullable) ;
+      p_stk
+  | _ ->
+      if (T.type_of_path mn0 path).nullable then
+        E.with_sploded_pair "may_skip_nullbit" p_stk (fun p stk ->
+          let stk = skip_nullbit stk in
+          pair p stk)
+      else
+        p_stk
 
 module Ser : SER with type config = unit =
 struct
@@ -174,41 +197,49 @@ struct
 
   (* Few helper functions: *)
 
-  (* Zero a nullmask known at compile time and advance the pointer *)
+  (* Zero a nullmask which max width (ie. assuming all fields will be selected
+   * by the fieldmask) is known at compile time, and advance the pointer.
+   * Nullmasks occupy a given number of words, which count is given by the
+   * first byte of the first nullmask word. Therefore, even for non nullable
+   * compound types, there is a full word header which first byte is 1. *)
   let zero_nullmask_const bits p =
     let sz = (bits + 7) / 8 in
+    let words = words_of_bytes_const (sz + 1) in
+    let p = write_byte p (byte (Uint8.of_int words)) in
     let p = blit_byte p (byte Uint8.zero) (size sz) in
-    align_const p sz
+    align_const p (1 + sz)
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
-    let sz = right_shift (add (u32_of_int 7) bits) (u8 (Uint8.of_int 3)) in
-    let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
-    align_dyn p (size_of_u32 sz)
+    let_ "sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
+      ~in_:(
+        let sz = identifier "sz_" in
+        let words = words_of_bytes_dyn (add sz (u32_of_int 1)) in
+        let p = write_byte p (byte_of_u8 (to_u8 words)) in
+        let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
+        align_dyn p (add (size 1) (size_of_u32 sz)))
 
-  (* Enter a new compound type by zeroing a nullmask and setting up a new
-   * frame for it, all this after having set its own nullbit if needed: *)
-  let enter_frame to_expr zero_nullmask nullmask_bits mn0 path p_stk =
+  (* Enter a new compound type by zeroing a nullmask of the given max width
+   * [nullmask_bits] and setting up a new frame for it, all this after having
+   * set its own nullbit if needed. *)
+  let enter_frame to_expr zero_nullmask
+                  ~has_nullmask nullmask_bits mn0 path p_stk =
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
       let stk = may_set_nullbit true mn0 path stk in
-      let new_frame = pair p (size 0) in
+      let new_frame = pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int (data_ptr_offset p)) ;
             debug (string " with ") ;
             debug (string_of_int (to_expr nullmask_bits)) ;
             debug (string " nullbits\n") ;
             pair
-              (zero_nullmask nullmask_bits p)
+              (if has_nullmask then zero_nullmask nullmask_bits p else p)
               (cons new_frame stk) ])
 
   (* Enter a new compound type by zeroing a nullmask and setting up a new
    * frame for it, all this after having set its own nullbit if needed: *)
   let enter_frame_dyn = enter_frame identity zero_nullmask_dyn
-  let enter_frame_const = enter_frame (u8 % Uint8.of_int) zero_nullmask_const
-
-  let with_data_ptr p_stk f =
-    E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
-      pair (f p) stk)
+  let enter_frame_const = enter_frame u8_of_int zero_nullmask_const
 
   let with_nullbit_done mn0 path p_stk f =
     E.with_sploded_pair "with_nullbit_done1" p_stk (fun p stk ->
@@ -323,27 +354,24 @@ struct
       let p = write_oword LittleEndian p (oword_of_u128 v) in
       align_const p 16)
 
-  (* outermost = when opening a compound type, the path is
-   * currently empty: *)
-  let is_outermost = function
-    | [] -> true
-    | _ -> false
-
   (* The given mns has all the types of the input structure, regardless of the
    * fieldmask. When runtime fieldmasks are added then we must also be given
    * either the fieldmask and quickly compute the number of fields that are
    * set, or we have that number ready part of the runtime fieldmask structure,
-   * as the nullmask width must be recomputed for every serialized value. *)
+   * as the nullmask width must be recomputed for every serialized value.
+   * Notice that if [nullmask_bits] is zero then an empty nullmask, occupying
+   * a full word, will still be prepended. That's because the deserializer,
+   * not knowing where any given tuple is coming from, might not be able to
+   * ascertain that the original compound type had some null fields or not.
+   * Remember, the children are feed a subset of the output of the parent,
+   * selected with a fieldmask, not some arbitrary value construction. This is
+   * different for vectors/lists. *)
   let tup_rec_opn mn0 path mns p_stk =
-    (* TODO: this must be revisited once runtime fieldmasks are in place: *)
-    let nullmask_bits =
-      if is_outermost path then
-        Array.fold_left (fun c mn ->
-          if mn.T.nullable then c + 1 else c
-        ) 0 mns
-      else
-        Array.length mns in
-    enter_frame_const nullmask_bits mn0 path p_stk
+    (* Allocate one bit per nullable item. At most, the deserializer will look
+     * for as many bits as there are nullable items, if all items are selected
+     * by the field mask. *)
+    let nullmask_bits = Array.count_matching (fun mn -> mn.T.nullable) mns in
+    enter_frame_const ~has_nullmask:true nullmask_bits mn0 path p_stk
 
   let tup_opn () mn0 path mns p_stk =
     tup_rec_opn mn0 path mns p_stk
@@ -385,14 +413,13 @@ struct
   let sum_cls () _ _ p_stk =
     leave_frame p_stk
 
+  (* For vectors/lists, children know that if the item is not nullable then
+   * there can possibly be no nullmask, so in that case, unlike that of
+   * tuple/record, [nullmask_bits = 0] means no nullmask. *)
   let vec_opn () mn0 path dim mn p_stk =
-    (* TODO: this must be revisited once runtime fieldmasks are in place: *)
-    let nullmask_bits =
-      if is_outermost path then
-        if mn.T.nullable then dim else 0
-      else
-        dim in
-    enter_frame_const nullmask_bits mn0 path p_stk
+    let nullmask_bits = if mn.T.nullable then dim else 0 in
+    let has_nullmask = nullmask_bits > 0 in
+    enter_frame_const ~has_nullmask nullmask_bits mn0 path p_stk
 
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
@@ -404,15 +431,14 @@ struct
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
-    let nullmask_bits =
-      if is_outermost path then
-        if mn.T.nullable then n else u32_of_int 0
-      else
-        n in
+    let nullmask_bits = if mn.T.nullable then n else u32_of_int 0 in
     let p_stk =
-      with_data_ptr p_stk (fun p ->
-        write_dword LittleEndian p (dword_of_u32 n)) in
-    enter_frame_dyn nullmask_bits mn0 path p_stk
+      E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
+        let p = write_dword LittleEndian p (dword_of_u32 n) in
+        pair p stk) in
+    (* Nullmask must still be present for an empty list of nullable items: *)
+    let has_nullmask = mn.T.nullable in
+    enter_frame_dyn ~has_nullmask nullmask_bits mn0 path p_stk
 
   let list_cls () _ _ p_stk =
     leave_frame p_stk
@@ -430,19 +456,26 @@ struct
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
+  (* Round up [n] bytes to fill ringbuf words: *)
   let round_up_const n =
-    ConstSize (
-      ((n + !ringbuf_word_size - 1) / !ringbuf_word_size) * !ringbuf_word_size)
+    ((n + !ringbuf_word_size - 1) / !ringbuf_word_size) * !ringbuf_word_size
 
+  (* Same as above but [n] is given in bits: *)
   let round_up_const_bits b =
-    let n = (b + 7) / 8 in
+    let n = (b + 7) asr 3 in
     round_up_const n
 
-  let round_up_dyn sz =
+  (* Round up [sz] bytes to fill ringbuf words: *)
+  let round_up_dyn n =
     let mask = size (!ringbuf_word_size - 1) in
     log_and
-      (add sz mask)
+      (add n mask)
       (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
+
+  (* Same as above but [n] is given in bits: *)
+  let round_up_dyn_bits n =
+    let n = right_shift (add (size 7) n) (u8_of_int 8) in
+    round_up_dyn n
 
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
@@ -488,82 +521,113 @@ struct
   let ssize_of_list mn path id =
     unless_private mn path (fun () ->
       let with_nullmask () =
-        DynSize (add (size !ringbuf_word_size)
-                     (round_up_dyn (size_of_u32 (cardinality id))))
+        let nullmask_bits_dyn = cardinality id in
+        (* Add the nullmask length prefix: *)
+        let nullmask_sz_bits = add nullmask_bits_dyn (u32_of_int 8) in
+        (* Round up to ringbuf words: *)
+        let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
+        DynSize (add (size !ringbuf_word_size) (* list length *)
+                     nullmask_bytes)
       and no_nullmask () =
         ConstSize !ringbuf_word_size in
-      (* If its the outermost list and the items are not nullable then there is no
-       * nullmask. In all other cases there is one nullbit per item. *)
-      if path = [] then
-        match mn.T.vtyp with
-        | Lst vt ->
-            if vt.nullable then
-              with_nullmask ()
-            else
-              no_nullmask ()
-        | _ ->
-            assert false
-      else
-        with_nullmask ())
+      (* If the items are not nullable then there is no nullmask. *)
+      match mn.T.vtyp with
+      | Lst vt ->
+          if vt.nullable then
+            with_nullmask ()
+          else
+            no_nullmask ()
+      | _ ->
+          assert false)
 
-  let ssize_of_float mn path _ = unless_private mn path (fun () -> round_up_const 8)
-  let ssize_of_bool mn path _ = unless_private mn path (fun () -> round_up_const 1)
-  let ssize_of_i8 mn path _ = unless_private mn path (fun () -> round_up_const 1)
-  let ssize_of_i16 mn path _ = unless_private mn path (fun () -> round_up_const 2)
-  let ssize_of_i24 mn path _ = unless_private mn path (fun () -> round_up_const 3)
-  let ssize_of_i32 mn path _ = unless_private mn path (fun () -> round_up_const 4)
-  let ssize_of_i40 mn path _ = unless_private mn path (fun () -> round_up_const 5)
-  let ssize_of_i48 mn path _ = unless_private mn path (fun () -> round_up_const 6)
-  let ssize_of_i56 mn path _ = unless_private mn path (fun () -> round_up_const 7)
-  let ssize_of_i64 mn path _ = unless_private mn path (fun () -> round_up_const 8)
-  let ssize_of_i128 mn path _ = unless_private mn path (fun () -> round_up_const 16)
-  let ssize_of_u8 mn path _ = unless_private mn path (fun () -> round_up_const 1)
-  let ssize_of_u16 mn path _ = unless_private mn path (fun () -> round_up_const 2)
-  let ssize_of_u24 mn path _ = unless_private mn path (fun () -> round_up_const 3)
-  let ssize_of_u32 mn path _ = unless_private mn path (fun () -> round_up_const 4)
-  let ssize_of_u40 mn path _ = unless_private mn path (fun () -> round_up_const 5)
-  let ssize_of_u48 mn path _ = unless_private mn path (fun () -> round_up_const 6)
-  let ssize_of_u56 mn path _ = unless_private mn path (fun () -> round_up_const 7)
-  let ssize_of_u64 mn path _ = unless_private mn path (fun () -> round_up_const 8)
-  let ssize_of_u128 mn path _ = unless_private mn path (fun () -> round_up_const 16)
-  let ssize_of_char mn path _ = unless_private mn path (fun () -> round_up_const_bits 1)
+  let ssize_of_float mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+
+  let ssize_of_bool mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+
+  let ssize_of_i8 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+
+  let ssize_of_i16 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 2))
+
+  let ssize_of_i24 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 3))
+
+  let ssize_of_i32 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 4))
+
+  let ssize_of_i40 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 5))
+
+  let ssize_of_i48 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 6))
+
+  let ssize_of_i56 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 7))
+
+  let ssize_of_i64 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+
+  let ssize_of_i128 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 16))
+
+  let ssize_of_u8 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+
+  let ssize_of_u16 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 2))
+
+  let ssize_of_u24 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 3))
+
+  let ssize_of_u32 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 4))
+
+  let ssize_of_u40 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 5))
+
+  let ssize_of_u48 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 6))
+
+  let ssize_of_u56 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 7))
+
+  let ssize_of_u64 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+
+  let ssize_of_u128 mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const 16))
+
+  let ssize_of_char mn path _ =
+    unless_private mn path (fun () -> ConstSize (round_up_const_bits 1))
 
   let ssize_of_tup mn path _ =
     unless_private mn path (fun () ->
       (* Just the additional bitmask: *)
-      let is_outermost = path = []
-      and typs =
+      let typs =
         match (T.type_of_path mn path).vtyp with
         | Tup typs ->
             typs
         | _ -> assert false in
-      round_up_const_bits (
-        if is_outermost then
-          Array.length typs
-        else
-          Array.fold_left (fun c typ ->
-            if typ.T.nullable then c + 1 else c
-          ) 0 typs))
+      ConstSize (round_up_const_bits (
+        8 (* nullmask width *) +
+        Array.length typs (* one bit per possibly selected item *))))
 
   let ssize_of_rec mn path _ =
     unless_private mn path (fun () ->
       (* Just the additional bitmask: *)
-      let is_outermost = path = []
-      and typs =
+      let typs =
         match (T.type_of_path mn path).vtyp with
         | Rec typs ->
             typs
         | _ -> assert false in
-      let typs = Array.filter_map (fun (name, typ) ->
-        if is_private name then None else Some typ
-      ) typs in
-      round_up_const_bits (
-        if is_outermost then
-          Array.length typs
-        else
-          Array.fold_left (fun c typ ->
-            if typ.T.nullable then c + 1 else c
-          ) 0 typs))
+      let selectable_fields =
+        Array.count_matching (fun (name, _) -> not (is_private name)) typs in
+      ConstSize (round_up_const_bits (
+        8 (* nullmask width *) +
+        selectable_fields (* one bit per possibly selected field *))))
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ =
@@ -571,14 +635,13 @@ struct
 
   let ssize_of_vec mn path _ =
     unless_private mn path (fun () ->
-      let is_outermost = path = []
-      and dim, typ =
+      let dim, typ =
         match (T.type_of_path mn path).vtyp with
         | Vec (dim, typ) ->
             dim, typ
         | _ -> assert false in
-      round_up_const_bits (
-        if is_outermost || typ.nullable then dim else 0))
+      ConstSize (round_up_const_bits (
+        if typ.nullable then (8 + dim) else 0)))
 
   let ssize_of_null _mn _path = ConstSize 0
 end
@@ -591,34 +654,28 @@ struct
   (* To deserialize we need the same kind of pointer than to serialize: *)
   let ptr = Ser.ptr
 
-  let skip_nullmask_const bits p =
-    let sz = (bits + 7) / 8 in
-    let p = data_ptr_add p (size sz) in
-    align_const p sz
-
-  let skip_nullmask_dyn bits p =
-    let sz = right_shift (add (u32_of_int 7) bits) (u8 (Uint8.of_int 3)) in
-    let p = data_ptr_add p (size_of_u32 sz) in
-    align_dyn p (size_of_u32 sz)
-
   (* Enter a new compound type by recording its location in the stack
    * and jumping over it, after having incremented the current nullbit
-   * index: *)
-  let enter_frame to_expr skip_nullmask nullmask_bits mn0 path p_stk =
-    E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
-      let stk = may_set_nullbit false mn0 path stk in
-      let new_frame = pair p (size 0) in
-      seq [ debug (string "des: enter a new frame at ") ;
-            debug (string_of_int (data_ptr_offset p)) ;
-            debug (string " with ") ;
-            debug (string_of_int (to_expr nullmask_bits)) ;
-            debug (string " nullbits\n") ;
-            pair
-              (skip_nullmask nullmask_bits p)
-              (cons new_frame stk) ])
-
-  let enter_frame_dyn = enter_frame identity skip_nullmask_dyn
-  let enter_frame_const = enter_frame (u8 % Uint8.of_int) skip_nullmask_const
+   * index.
+   * The nullbit index of the new stack is set to 8 after the nullmask
+   * length prefix (so sum deserializer cannot use this function) *)
+  let enter_frame ~has_nullmask mn0 path p stk =
+    let stk = may_set_nullbit false mn0 path stk in
+    (* The following [8] is the size of the length prefix. Notice we could
+     * always use 8 since bit offset should not be used when not nullable. *)
+    let new_frame = pair p (size (if has_nullmask then 8 else 0)) in
+    seq [ debug (string "des: enter a new frame at ") ;
+          debug (string_of_int (data_ptr_offset p)) ;
+          debug (string "\n") ;
+          let p =
+            if has_nullmask then
+              let words = read_byte p |> first in
+              let bytes = left_shift (to_u32 words)
+                                     (u8_of_int (log2 !ringbuf_word_size)) in
+              data_ptr_add p (size_of_u32 bytes)
+            else p
+          and stk = cons new_frame stk in
+          pair p stk ]
 
   let start ?(config=()) mn p =
     check_rec_fields_ordered mn ;
@@ -757,19 +814,9 @@ struct
       E.with_sploded_pair "di128" (read_oword LittleEndian p) (fun w p ->
         pair (to_i128 (u128_of_oword w)) (align_const p 8)))
 
-  let is_outermost = function
-    | [] -> true
-    | _ -> false
-
-  let tup_rec_opn mn0 path mns p_stk =
-    let nullmask_bits =
-      if is_outermost path then
-        Array.fold_left (fun c mn ->
-          if mn.T.nullable then c + 1 else c
-        ) 0 mns
-      else
-        Array.length mns in
-    enter_frame_const nullmask_bits mn0 path p_stk
+  let tup_rec_opn mn0 path _mns p_stk =
+    E.with_sploded_pair
+      "tup_rec_opn" p_stk (enter_frame ~has_nullmask:true mn0 path)
 
   let tup_opn () mn0 path mns p_stk =
     tup_rec_opn mn0 path mns p_stk
@@ -788,13 +835,10 @@ struct
 
   let rec_sep () _ _ p_stk = p_stk
 
-  let vec_opn () mn0 path dim mn p_stk =
-    let nullmask_bits =
-      if is_outermost path then
-        if mn.T.nullable then dim else 0
-      else
-        dim in
-    enter_frame_const nullmask_bits mn0 path p_stk
+  let vec_opn () mn0 path _dim mn p_stk =
+    let has_nullmask = mn.T.nullable in
+    E.with_sploded_pair
+      "vec_opn" p_stk (enter_frame ~has_nullmask mn0 path)
 
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
@@ -827,14 +871,8 @@ struct
       E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
         E.with_sploded_pair "list_opn2" (read_dword LittleEndian p) (fun n p ->
           let n = u32_of_dword n in
-          let nullmask_bits =
-            if is_outermost path then
-              if mn.nullable then n else u32_of_int 0
-            else
-              n in
-          (* TODO: change enter_frame_dyn signature to take p and stk *)
-          let p_stk = pair p stk in
-          let p_stk = enter_frame_dyn nullmask_bits mn0 path p_stk in
+          let has_nullmask = mn.T.nullable in
+          let p_stk = enter_frame ~has_nullmask mn0 path p stk in
           pair n p_stk)))
 
   let list_cls () _ _ p_stk =

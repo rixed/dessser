@@ -16,7 +16,7 @@ install: [make "bindir=%{bin}%" "install"]
 remove: [make "bindir=%{bin}%" "uninstall"]
 depends: [
   "ocamlfind"
-  "batteries" {>= "3.0.0"}
+  "batteries" {>= "3.2.0"}
   "stdint" {>= "0.7.0"}
   "parsercombinator" {>= "1.1.0"}
   "qcheck" {>= "0.15"}

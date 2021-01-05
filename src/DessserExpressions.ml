@@ -2642,6 +2642,7 @@ struct
   let byte_of_bool = byte_of_u8 % u8_of_bool
   let char_of_byte = char_of_u8 % u8_of_byte
   let byte_of_char = byte_of_u8 % u8_of_char
+  let u8_of_int n = u8 (Uint8.of_int n)
   let u32_of_int n = u32 (Uint32.of_int n)
   let assert_ e = E1 (Assert, e)
   let mask_get i m = E1 (MaskGet i, m)

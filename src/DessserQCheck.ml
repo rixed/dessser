@@ -570,6 +570,7 @@ let expression =
   compile_check \
     "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
   compile_check "(make-vec ())"
+  compile_check "(make-list \"U8\" (u8 63))"
 *)
 
 (*
@@ -855,6 +856,7 @@ let sexpr mn =
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
   "((\"a\") 1)" (check_ringbuffer ocaml_be "(String[1]; u8)" "((\"a\") 1)")
   "2 (null 1)" (check_ringbuffer ocaml_be "u8?[]" "2 (null 1)")
+  "4 (null 1 2 3)" (check_ringbuffer ocaml_be "u8?[]" "4 (null 1 2 3)")
   "0 ()" (check_ringbuffer cpp_be "Bool[]" "0 ()")
   "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
   "(1 null)" (check_ringbuffer ocaml_be "(a U32 | b String?)" "(1 null)")
@@ -911,8 +913,12 @@ let sexpr mn =
     (check_ser rowbinary_ser  ocaml_be "u8" "42")
   "2a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "u8" "42")
-  "01 00 00 00 2a 00 00 00" \
-    (check_ser ringbuf_ser  ocaml_be "(u8?)" "(42)")
+  "01 00 00 00 2a 00 00 00 3a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "(u8; i8)" "(42 58)")
+  "01 01 00 00 2a 00 00 00 3a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "(u8?; i8)" "(42 58)")
+  "01 03 00 00 2a 00 00 00 3a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)" "(42 58)")
   "00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "(small u8 | big u16)" "(0 42)")
   "00 00 00 00 2a 00 00 00" \
