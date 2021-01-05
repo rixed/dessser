@@ -44,7 +44,7 @@ type t = action list
 
 and action =
   | Copy (* Copy this item (and any subitems) *)
-  | Skip (* Copy this item (and any subitems) *)
+  | Skip (* Skip this item (and any subitems) *)
   | SetNull (* Same as Replace with a null value, with no need to specify the type *)
   | Recurse of t (* Apply the given mask to the subitems *)
   | Replace of E.t (* Replace this item by a constant value of the same type *)
