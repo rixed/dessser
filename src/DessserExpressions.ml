@@ -1419,7 +1419,7 @@ let rec type_of l e0 =
   | E0S (MakeVec, (e0::_ as es)) ->
       Value (T.make (Vec (List.length es, maybe_nullable_of l e0)))
   | E0S (MakeList mn, _) ->
-      Value mn
+      Value (T.make (Lst mn))
   | E0S (MakeTup, es) ->
       Value (T.make (Tup (List.map (maybe_nullable_of l) es |>
                             Array.of_list)))
