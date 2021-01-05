@@ -366,26 +366,26 @@ and e3_eq e1 e2 = e1 = e2
 
 and e4_eq e1 e2 = e1 = e2
 
-and expr_eq e1 e2 =
+and eq e1 e2 =
   match e1, e2 with
   | E0 op1, E0 op2 ->
       e0_eq op1 op2
   | E0S (op1, e1s), E0S (op2, e2s) ->
       e0s_eq op1 op2 &&
-      (try List.for_all2 (expr_eq) e1s e2s
+      (try List.for_all2 (eq) e1s e2s
       with Invalid_argument _ -> false)
   | E1 (op1, e11), E1 (op2, e21) ->
-      e1_eq op1 op2 && expr_eq e11 e21
+      e1_eq op1 op2 && eq e11 e21
   | E1S (op1, e1s), E1S (op2, e2s) ->
       e1s_eq op1 op2 &&
-      (try List.for_all2 (expr_eq) e1s e2s
+      (try List.for_all2 (eq) e1s e2s
       with Invalid_argument _ -> false)
   | E2 (op1, e11, e12), E2 (op2, e21, e22) ->
-      e2_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22
+      e2_eq op1 op2 && eq e11 e21 && eq e12 e22
   | E3 (op1, e11, e12, e13), E3 (op2, e21, e22, e23) ->
-      e3_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23
+      e3_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23
   | E4 (op1, e11, e12, e13, e14), E4 (op2, e21, e22, e23, e24) ->
-      e4_eq op1 op2 && expr_eq e11 e21 && expr_eq e12 e22 && expr_eq e13 e23 && expr_eq e14 e24
+      e4_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23 && eq e14 e24
   | _ -> false
 
 (* Extract all identifiers from the environment: *)

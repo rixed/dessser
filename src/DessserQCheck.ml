@@ -515,7 +515,7 @@ let expression =
   expression (fun e -> \
     let str = IO.to_string E.print e in \
     match E.Parser.expr str with \
-    | [ e' ] -> expr_eq e' e \
+    | [ e' ] -> E.eq e' e \
     | _ -> false)
 *)
 

@@ -50,6 +50,26 @@ and action =
   | Replace of E.t (* Replace this item by a constant value of the same type *)
   | Insert of E.t (* Insert this constant value at this location *)
 
+let rec action_eq a1 a2 =
+  match a1, a2 with
+  | Copy, Copy
+  | Skip, Skip
+  | SetNull, SetNull ->
+      true
+  | Recurse t1, Recurse t2 ->
+      eq t1 t2
+  | Replace e1, Replace e2
+  | Insert e1, Insert e2 ->
+      E.eq e1 e2
+  | _ ->
+      false
+
+and eq t1 t2 =
+  try
+    List.for_all2 (fun a1 a2 -> action_eq a1 a2) t1 t2
+  with Invalid_argument _ ->
+    false
+
 let all_skips m =
   List.for_all (fun ma -> ma = Skip) m
 
