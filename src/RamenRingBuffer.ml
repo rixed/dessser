@@ -18,9 +18,15 @@ let rec log2 n =
   2 (log2 4)
 *)
 
+let bytes_of_bits_const n =
+  (n + 7) asr 3
+
 (* Return the minimum number of words to store [n] bytes: *)
 let words_of_bytes_const n =
   (n + !ringbuf_word_size - 1) asr (log2 !ringbuf_word_size)
+
+let words_of_bits_const =
+  words_of_bytes_const % bytes_of_bits_const
 
 (* Same as above, but [n] is now an u32 valued expression. *)
 let words_of_bytes_dyn n =
@@ -187,6 +193,49 @@ let may_skip_nullbit mn0 path p_stk =
           pair p stk)
       else
         p_stk
+
+module NullMaskWidth =
+struct
+  let tup_bits mns =
+    (* Even when there are no nullable fields in the tuple/record the reader
+     * will expect a nullmask, as it could select also from another parent
+     * with more fields, including nullable ones, and cannot tell in the
+     * ringbuffer which parent a tuple is originating from. *)
+    true,
+    Array.count_matching (fun mn -> mn.T.nullable) mns
+
+  let rec_bits mns =
+    let mns = tuple_typs_of_record mns in
+    tup_bits mns
+
+  let vec_bits dim mn =
+    mn.T.nullable,
+    if mn.T.nullable then dim else 0
+
+  let lst_bits mn n =
+    mn.T.nullable,
+    if mn.T.nullable then n else u32_of_int 0
+
+  let of_type = function
+    | T.Vec (dim, mn) ->
+        vec_bits dim mn
+    | Lst _ ->
+        invalid_arg "NullMaskWidth.of_type for lists"
+    | Tup mns ->
+        tup_bits mns
+    | Rec mns ->
+        rec_bits mns
+    | Sum _ ->
+        true, 1 (* Although encoding also includes the label *)
+    | _ ->
+        false, 0
+
+  (* Return the number of words required to encode the nullmask, including
+   * its prefix length. 0 means: no nullmask necessary. *)
+  let words_of_type typ =
+    let has_nullmask, nullmask_bits = of_type typ in
+    if not has_nullmask then 0 else words_of_bits_const (nullmask_bits + 8)
+end
 
 module Ser : SER with type config = unit =
 struct
@@ -370,8 +419,8 @@ struct
     (* Allocate one bit per nullable item. At most, the deserializer will look
      * for as many bits as there are nullable items, if all items are selected
      * by the field mask. *)
-    let nullmask_bits = Array.count_matching (fun mn -> mn.T.nullable) mns in
-    enter_frame_const ~has_nullmask:true nullmask_bits mn0 path p_stk
+    let has_nullmask, nullmask_bits = NullMaskWidth.tup_bits mns in
+    enter_frame_const ~has_nullmask nullmask_bits mn0 path p_stk
 
   let tup_opn () mn0 path mns p_stk =
     tup_rec_opn mn0 path mns p_stk
@@ -417,8 +466,7 @@ struct
    * there can possibly be no nullmask, so in that case, unlike that of
    * tuple/record, [nullmask_bits = 0] means no nullmask. *)
   let vec_opn () mn0 path dim mn p_stk =
-    let nullmask_bits = if mn.T.nullable then dim else 0 in
-    let has_nullmask = nullmask_bits > 0 in
+    let has_nullmask, nullmask_bits = NullMaskWidth.vec_bits dim mn in
     enter_frame_const ~has_nullmask nullmask_bits mn0 path p_stk
 
   let vec_cls () _ _ p_stk =
@@ -431,13 +479,12 @@ struct
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
-    let nullmask_bits = if mn.T.nullable then n else u32_of_int 0 in
+    let has_nullmask, nullmask_bits = NullMaskWidth.lst_bits mn n in
     let p_stk =
       E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
         let p = write_dword LittleEndian p (dword_of_u32 n) in
         pair p stk) in
     (* Nullmask must still be present for an empty list of nullable items: *)
-    let has_nullmask = mn.T.nullable in
     enter_frame_dyn ~has_nullmask nullmask_bits mn0 path p_stk
 
   let list_cls () _ _ p_stk =
@@ -462,7 +509,7 @@ struct
 
   (* Same as above but [n] is given in bits: *)
   let round_up_const_bits b =
-    let n = (b + 7) asr 3 in
+    let n = bytes_of_bits_const b in
     round_up_const n
 
   (* Round up [sz] bytes to fill ringbuf words: *)
