@@ -40,7 +40,7 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-type t = action list
+type t = action array
 
 and action =
   | Copy (* Copy this item (and any subitems) *)
@@ -66,12 +66,12 @@ let rec action_eq a1 a2 =
 
 and eq t1 t2 =
   try
-    List.for_all2 (fun a1 a2 -> action_eq a1 a2) t1 t2
+    Array.for_all2 (fun a1 a2 -> action_eq a1 a2) t1 t2
   with Invalid_argument _ ->
     false
 
 let all_skips m =
-  List.for_all (fun ma -> ma = Skip) m
+  Array.for_all (fun ma -> ma = Skip) m
 
 let rec string_of_action = function
   | Copy -> "X"
@@ -82,7 +82,7 @@ let rec string_of_action = function
   | Insert e -> "{"^ E.to_string e ^"}"
 
 and string_of_mask m =
-  List.map string_of_action m |>
+  (Array.enum m /@ string_of_action) |> List.of_enum |>
   String.join ""
 
 let print_action oc ma =
@@ -137,11 +137,12 @@ struct
       raise (Invalid_character i)
 
   and mask str i =
+    let to_array = Array.of_list % List.rev in
     let rec loop prev i =
-      if i >= String.length str then List.rev prev, i else
+      if i >= String.length str then to_array prev, i else
       match action str i with
       | exception Invalid_character i ->
-          List.rev prev, i
+          to_array prev, i
       | a, i ->
           loop (a :: prev) i
     in
@@ -162,10 +163,10 @@ struct
       m
 
   (*$= mask_of_string & ~printer:string_of_mask
-    [ Copy ; Copy ; Copy ] (mask_of_string "xxx")
-    [ Copy ; Recurse [ Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy ] ] \
+    [| Copy ; Copy ; Copy |] (mask_of_string "xxx")
+    [| Copy ; Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy |] |] \
         (mask_of_string "X(_{(null \"u8\")}X)")
-    [ Copy ; Recurse [ Skip ; SetNull ; Copy ] ] (mask_of_string "X(_NX)")
+    [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |] (mask_of_string "X(_NX)")
   *)
 
   (*$>*)
@@ -184,7 +185,7 @@ let rec project mn ma =
   let recurse_record mn mns m =
     let mns, _, _ =
       (* [n] count the inserted fields while [i] is the index in [mns] *)
-      List.fold_left (fun (mns', n, i) ma ->
+      Array.fold_left (fun (mns', n, i) ma ->
         if i >= Array.length mns then
           raise (Mask_too_long_for_type (mn, m)) ;
         match ma with
