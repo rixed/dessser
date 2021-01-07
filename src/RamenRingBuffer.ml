@@ -7,7 +7,7 @@ module E = DessserExpressions
 open E.Ops
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
-let ringbuf_word_size = ref 4
+let word_size = 4
 
 let rec log2 n =
   assert (n >= 1) ;
@@ -23,7 +23,7 @@ let bytes_of_bits_const n =
 
 (* Return the minimum number of words to store [n] bytes: *)
 let words_of_bytes_const n =
-  (n + !ringbuf_word_size - 1) asr (log2 !ringbuf_word_size)
+  (n + word_size - 1) asr (log2 word_size)
 
 let words_of_bits_const =
   words_of_bytes_const % bytes_of_bits_const
@@ -31,15 +31,15 @@ let words_of_bits_const =
 (* Same as above, but [n] is now an u32 valued expression. *)
 let words_of_bytes_dyn n =
   (right_shift
-    (add n (u32_of_int (!ringbuf_word_size - 1)))
-    (u8_of_int (log2 !ringbuf_word_size)))
+    (add n (u32_of_int (word_size - 1)))
+    (u8_of_int (log2 word_size)))
 
-(* Realign the pointer on a multiple of [ringbuf_word_size].
- * [extra_bytes] modulo [ringbuf_word_size] gives the number of bytes
+(* Realign the pointer on a multiple of [word_size].
+ * [extra_bytes] modulo [word_size] gives the number of bytes
  * that's been written after the last word boundary.
  * [extra_bytes] must be a size valued expression. *)
 let align_dyn p extra_bytes =
-  let wsize = size !ringbuf_word_size in
+  let wsize = size word_size in
   let extra_bytes =
     (* FIXME: Improve type-checking so that rem/div do not have to return
      * nullable types when used with constants *)
@@ -52,9 +52,9 @@ let align_dyn p extra_bytes =
 
 let align_const p extra_bytes =
   assert (extra_bytes >= 0) ;
-  let extra_bytes = extra_bytes mod !ringbuf_word_size in
+  let extra_bytes = extra_bytes mod word_size in
   if extra_bytes = 0 then p else
-    let padding_len = !ringbuf_word_size - extra_bytes in
+    let padding_len = word_size - extra_bytes in
     data_ptr_add p (size padding_len)
 
 (*
@@ -505,7 +505,7 @@ struct
 
   (* Round up [n] bytes to fill ringbuf words: *)
   let round_up_const n =
-    ((n + !ringbuf_word_size - 1) / !ringbuf_word_size) * !ringbuf_word_size
+    ((n + word_size - 1) / word_size) * word_size
 
   (* Same as above but [n] is given in bits: *)
   let round_up_const_bits b =
@@ -514,7 +514,7 @@ struct
 
   (* Round up [sz] bytes to fill ringbuf words: *)
   let round_up_dyn n =
-    let mask = size (!ringbuf_word_size - 1) in
+    let mask = size (word_size - 1) in
     log_and
       (add n mask)
       (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
@@ -561,7 +561,7 @@ struct
   let ssize_of_string mn path id =
     unless_private mn path (fun () ->
       let sz = size_of_u32 (string_length id) in
-      let headsz = size !ringbuf_word_size in
+      let headsz = size word_size in
       DynSize (add headsz (round_up_dyn sz)))
 
   (* SerSize of the list header: *)
@@ -573,10 +573,10 @@ struct
         let nullmask_sz_bits = add nullmask_bits_dyn (u32_of_int 8) in
         (* Round up to ringbuf words: *)
         let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
-        DynSize (add (size !ringbuf_word_size) (* list length *)
+        DynSize (add (size word_size) (* list length *)
                      nullmask_bytes)
       and no_nullmask () =
-        ConstSize !ringbuf_word_size in
+        ConstSize word_size in
       (* If the items are not nullable then there is no nullmask. *)
       match mn.T.vtyp with
       | Lst vt ->
@@ -678,7 +678,7 @@ struct
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ =
-    ConstSize !ringbuf_word_size
+    ConstSize word_size
 
   let ssize_of_vec mn path _ =
     unless_private mn path (fun () ->
@@ -718,7 +718,7 @@ struct
             if has_nullmask then
               let words = read_byte p |> first in
               let bytes = left_shift (to_u32 words)
-                                     (u8_of_int (log2 !ringbuf_word_size)) in
+                                     (u8_of_int (log2 word_size)) in
               data_ptr_add p (size_of_u32 bytes)
             else p
           and stk = cons new_frame stk in
