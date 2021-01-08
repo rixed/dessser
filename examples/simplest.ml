@@ -27,7 +27,7 @@ struct
 
   let dfloat () = from_byte (float 1.) (float 0.)
   let dstring () = from_byte (string "x") (string "")
-  let dbool () = from_byte (bool true) (bool false)
+  let dbool () = from_byte true_ false_
   let dchar () _ _ src =
     E.with_sploded_pair "dchar" (read_byte src) (fun b src ->
       pair (char_of_u8 (u8_of_byte b)) src)

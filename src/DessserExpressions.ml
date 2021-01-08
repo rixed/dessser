@@ -1361,7 +1361,7 @@ struct
     [ Ops.i56 (Int56.of_string "-36028797018963967") ] (expr "(i56 -36028797018963967)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
-    [ Ops.bool false ] (expr "(bool false)")
+    [ Ops.false_ ] (expr "(bool false)")
     [ Ops.u64 (Uint64.of_int 8) ] (expr "(u64 8)")
     [ Ops.seq [ Ops.u16 (Uint16.of_int 45134) ; Ops.u64 (Uint64.of_int 6)] ] \
       (expr "(seq (u16 45134) (u64 6))")
@@ -2483,6 +2483,8 @@ struct
   let rand = E0 Random
   let bit n = E0 (Bit n)
   let bool n = E0 (Bool n)
+  let false_ = bool false
+  let true_ = bool true
   let i8 n = E0 (I8 n)
   let u8 n = E0 (U8 n)
   let i16 n = E0 (I16 n)

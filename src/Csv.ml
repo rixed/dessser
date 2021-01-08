@@ -365,8 +365,8 @@ struct
     assert (String.length conf.true_ > 0) ;
     if_
       ~cond:(eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
-      ~then_:(pair (bool true) (skip (String.length conf.true_) p))
-      ~else_:(pair (bool false) (skip (String.length conf.false_) p))
+      ~then_:(pair true_ (skip (String.length conf.true_) p))
+      ~else_:(pair false_ (skip (String.length conf.false_) p))
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes_quoted conf op p =

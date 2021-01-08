@@ -91,8 +91,8 @@ struct
                     let inits_src =
                       E.with_sploded_pair "dlist7" v_src (fun v src ->
                         pair (cons v inits) src) in
-                    pair (bool false) inits_src))))
-            ~init:(pair (bool true) (pair (end_of_list init_t) src)) in
+                    pair false_ inits_src))))
+            ~init:(pair true_ (pair (end_of_list init_t) src)) in
         E.with_sploded_pair "dlist9" (secnd fst_inits_src) (fun inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path src in
@@ -371,7 +371,7 @@ struct
             if mn.nullable then
               Ser.snull mn.vtyp sstate mn0 path dst
             else
-              seq [ assert_ (bool false) ; (* Mask has been type checked *)
+              seq [ assert_ false_ ; (* Mask has been type checked *)
                     dst ])
           ~else_:(
             (* Copy or Recurse are handled the same: *)
@@ -540,7 +540,7 @@ struct
             if mn.nullable then
               add_size sizes (Ser.ssize_of_null mn0 path)
             else
-              seq [ assert_ (bool false) ;
+              seq [ assert_ false_ ;
                     sizes ])
           ~else_:(
             let vt = mn.vtyp in

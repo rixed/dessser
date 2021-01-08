@@ -457,9 +457,9 @@ struct
                                   (Des.list_sep dstate mn0 path psrc)
                                   (Ser.list_sep sstate mn0 path pdst))) in
                         pair
-                          (bool false)
+                          false_
                           (desser_ transform sstate dstate mn0 subpath src_dst)))))
-                  ~init:(pair (bool true) (pair src dst)) in
+                  ~init:(pair true_ (pair src dst)) in
               secnd fst_src_dst
         in
         E.with_sploded_pair "dslist6" src_dst (fun src dst ->
