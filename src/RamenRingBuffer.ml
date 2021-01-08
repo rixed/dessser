@@ -18,21 +18,42 @@ let rec log2 n =
   2 (log2 4)
 *)
 
-let bytes_of_bits_const n =
+let bytes_of_const_bits n =
   (n + 7) asr 3
 
 (* Return the minimum number of words to store [n] bytes: *)
-let words_of_bytes_const n =
+let words_of_const_bytes n =
   (n + word_size - 1) asr (log2 word_size)
 
-let words_of_bits_const =
-  words_of_bytes_const % bytes_of_bits_const
+let words_of_const_bits =
+  words_of_const_bytes % bytes_of_const_bits
 
 (* Same as above, but [n] is now an u32 valued expression. *)
-let words_of_bytes_dyn n =
+let words_of_dyn_bytes n =
   (right_shift
     (add n (u32_of_int (word_size - 1)))
     (u8_of_int (log2 word_size)))
+
+(* Round up [n] bytes to fill ringbuf words: *)
+let round_up_const_bytes n =
+  ((n + word_size - 1) / word_size) * word_size
+
+(* Same as above but [n] is given in bits: *)
+let round_up_const_bits b =
+  let n = bytes_of_const_bits b in
+  round_up_const_bytes n
+
+(* Round up [sz] bytes to fill ringbuf words: *)
+let round_up_dyn_bytes n =
+  let mask = size (word_size - 1) in
+  log_and
+    (add n mask)
+    (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
+
+(* Same as above but [n] is given in bits: *)
+let round_up_dyn_bits n =
+  let n = right_shift (add (size 7) n) (u8_of_int 8) in
+  round_up_dyn_bytes n
 
 (* Realign the pointer on a multiple of [word_size].
  * [extra_bytes] modulo [word_size] gives the number of bytes
@@ -234,7 +255,7 @@ struct
    * its prefix length. 0 means: no nullmask necessary. *)
   let words_of_type typ =
     let has_nullmask, nullmask_bits = of_type typ in
-    if not has_nullmask then 0 else words_of_bits_const (nullmask_bits + 8)
+    if not has_nullmask then 0 else words_of_const_bits (nullmask_bits + 8)
 end
 
 module Ser : SER with type config = unit =
@@ -253,7 +274,7 @@ struct
    * compound types, there is a full word header which first byte is 1. *)
   let zero_nullmask_const bits p =
     let sz = (bits + 7) / 8 in
-    let words = words_of_bytes_const (sz + 1) in
+    let words = words_of_const_bytes (sz + 1) in
     let p = write_byte p (byte (Uint8.of_int words)) in
     let p = blit_byte p (byte Uint8.zero) (size sz) in
     align_const p (1 + sz)
@@ -263,7 +284,7 @@ struct
     let_ "sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
       ~in_:(
         let sz = identifier "sz_" in
-        let words = words_of_bytes_dyn (add sz (u32_of_int 1)) in
+        let words = words_of_dyn_bytes (add sz (u32_of_int 1)) in
         let p = write_byte p (byte_of_u8 (to_u8 words)) in
         let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
         align_dyn p (add (size 1) (size_of_u32 sz)))
@@ -503,27 +524,6 @@ struct
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
-  (* Round up [n] bytes to fill ringbuf words: *)
-  let round_up_const n =
-    ((n + word_size - 1) / word_size) * word_size
-
-  (* Same as above but [n] is given in bits: *)
-  let round_up_const_bits b =
-    let n = bytes_of_bits_const b in
-    round_up_const n
-
-  (* Round up [sz] bytes to fill ringbuf words: *)
-  let round_up_dyn n =
-    let mask = size (word_size - 1) in
-    log_and
-      (add n mask)
-      (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
-
-  (* Same as above but [n] is given in bits: *)
-  let round_up_dyn_bits n =
-    let n = right_shift (add (size 7) n) (u8_of_int 8) in
-    round_up_dyn n
-
   (* HeapValue will iterate over the whole tree of values but we want to
    * hide anything that's below a private field: *)
   let unless_private mn path k =
@@ -562,7 +562,7 @@ struct
     unless_private mn path (fun () ->
       let sz = size_of_u32 (string_length id) in
       let headsz = size word_size in
-      DynSize (add headsz (round_up_dyn sz)))
+      DynSize (add headsz (round_up_dyn_bytes sz)))
 
   (* SerSize of the list header: *)
   let ssize_of_list mn path id =
@@ -588,64 +588,64 @@ struct
           assert false)
 
   let ssize_of_float mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
 
   let ssize_of_bool mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
 
   let ssize_of_i8 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
 
   let ssize_of_i16 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 2))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 2))
 
   let ssize_of_i24 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 3))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 3))
 
   let ssize_of_i32 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 4))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 4))
 
   let ssize_of_i40 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 5))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 5))
 
   let ssize_of_i48 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 6))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 6))
 
   let ssize_of_i56 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 7))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 7))
 
   let ssize_of_i64 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
 
   let ssize_of_i128 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 16))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 16))
 
   let ssize_of_u8 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 1))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
 
   let ssize_of_u16 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 2))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 2))
 
   let ssize_of_u24 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 3))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 3))
 
   let ssize_of_u32 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 4))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 4))
 
   let ssize_of_u40 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 5))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 5))
 
   let ssize_of_u48 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 6))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 6))
 
   let ssize_of_u56 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 7))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 7))
 
   let ssize_of_u64 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 8))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
 
   let ssize_of_u128 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const 16))
+    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 16))
 
   let ssize_of_char mn path _ =
     unless_private mn path (fun () -> ConstSize (round_up_const_bits 1))
