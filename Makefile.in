@@ -41,7 +41,7 @@ INSTALLED_HEADERS = \
 	src/dessser/Mask.h \
 	src/dessser/Pair.h \
 	src/dessser/Pointer.h \
-	src/dessser/List.h \
+	src/dessser/Lst.h \
 	src/dessser/runtime.h \
 	src/dessser/SList.h \
 	src/dessser/typedefs.h \

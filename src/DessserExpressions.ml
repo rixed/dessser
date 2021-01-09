@@ -2148,19 +2148,19 @@ let rec type_check l e =
           check_eq l e3 t3) ;
         check_eq l e4 T.dataptr
     | E3 (LoopWhile, e1 (*'a->bool*), e2 (*'a->'a*), e3 (*'a*)) ->
-        check_params1 l e1 (fun t1 t2 ->
+        check_params1 l e1 (fun t1 t2 (* return type *)->
           check_eq l e3 t1 ;
-          check_param e1 1 t2 T.bool) ;
-        check_params1 l e2 (fun t1 t2 ->
+          check_param e1 ~-1 t2 T.bool) ;
+        check_params1 l e2 (fun t1 t2 (* return type *)->
           check_eq l e3 t1 ;
           check_eq l e3 t2)
     | E3 (LoopUntil, e1, e2, e3) ->
-        check_params1 l e1 (fun t1 t2 ->
+        check_params1 l e1 (fun t1 t2 (* return type *)->
           check_eq l e3 t1 ;
           check_eq l e3 t2) ;
-        check_params1 l e2 (fun t1 t2 ->
+        check_params1 l e2 (fun t1 t2 (* return type *)->
           check_eq l e3 t1 ;
-          check_param e2 1 t2 T.bool) ;
+          check_param e2 ~-1 t2 T.bool) ;
     | E3 (Fold, e1, e2, e3) ->
         (* FOld function first parameter is the result and second is the list
          * item *)
@@ -2218,9 +2218,11 @@ let () =
     | Type_error_param (e0, e, n, t, s) ->
         Some (
           Printf.sprintf2
-            "Type Error: In expression %a, parameter %d of expression %a \
+            "Type Error: In expression %a, %s of function %a \
              should %s but is a %a"
-            (print ~max_depth) e0 n (print ~max_depth) e s T.print t)
+            (print ~max_depth) e0
+            (if n >= 0 then "parameter "^ string_of_int n else "return type")
+            (print ~max_depth) e s T.print t)
     | Type_error_path (e0, e, path, s) ->
         Some (
           Printf.sprintf2

@@ -221,7 +221,7 @@ end
 (* The other way around: given a heap value of some type and a serializer,
  * serialize that value: *)
 
-module Serialize (Ser :SER) : sig
+module Serialize (Ser : SER) : sig
     val serialize : ?config:Ser.config -> T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*dst*) E.t -> (*dst*) E.t
     val sersize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*size*size*) E.t
   end =

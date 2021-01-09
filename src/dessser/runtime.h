@@ -10,7 +10,7 @@
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"
-#include "dessser/List.h"
+#include "dessser/Lst.h"
 #include "dessser/Set.h"
 #include "dessser/SimpleSet.h"
 #include "dessser/SlidingWindow.h"

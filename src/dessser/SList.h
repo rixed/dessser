@@ -1,9 +1,9 @@
-#ifndef SLIST_H_200208
-#define SLIST_H_200208
+#ifndef SLST_H_200208
+#define SLST_H_200208
 #include <cassert>
 #include <memory>
 #include "dessser/typedefs.h"
-#include "dessser/List.h"
+#include "dessser/Lst.h"
 #include "dessser/SimpleSet.h"
 
 template<class T>
