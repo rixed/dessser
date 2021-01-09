@@ -309,7 +309,7 @@ type e2 =
 type e3 =
   | Apply
   | SetBit
-  | SetVec (* args are: vector, index and new value *)
+  | SetVec (* for vectors or lists. Args are: vector, index and new value *)
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
@@ -2059,7 +2059,7 @@ let rec type_check l e =
         check_eq l e3 T.bit
     | E3 (SetVec, e1, e2, e3) ->
         (match type_of l e1 |> T.develop_user_types with
-        | T.Value { vtyp = T.Vec (_, mn) ; nullable = false } ->
+        | T.Value { vtyp = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
             check_eq l e3 (Value mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a vector"))) ;
