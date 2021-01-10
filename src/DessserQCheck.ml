@@ -386,8 +386,8 @@ and e0s_gen l depth =
   let lst = [
     1, map E.Ops.seq (tiny_list expr) ;
     1, map E.Ops.make_vec (tiny_list expr) ;
-    1, map2 E.Ops.make_list (maybe_nullable_gen_of_depth (depth - 1))
-                            (tiny_list expr) ;
+    1, map2 E.Ops.make_lst (maybe_nullable_gen_of_depth (depth - 1))
+                           (tiny_list expr) ;
     1, map E.Ops.make_tup (tiny_list expr) ;
     1, map E.Ops.make_rec (tiny_list expr) ;
   ] in
