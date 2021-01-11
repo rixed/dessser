@@ -239,7 +239,6 @@ type e1 =
   (* For tuples, int is the index of the item in the tuple.
    * For records, the index of the field in definition order: *)
   | MaskGet of int
-  | MaskEnter of int
   (* Given a value of a sum type, return the integer label associated with its
    * constructor, as an u16: *)
   | LabelOf
@@ -425,8 +424,7 @@ let rec can_precompute l i = function
       can_precompute l i e
   | E1 (Function _, body) ->
       can_precompute l i body
-  | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _
-       | MaskEnter _), _) ->
+  | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
   | E1S (Coalesce, es) ->
@@ -709,7 +707,6 @@ let string_of_e1 = function
   | ReadOWord en -> "read-oword "^ string_of_endianness en
   | Assert -> "assert"
   | MaskGet d -> "mask-get "^ string_of_int d
-  | MaskEnter d -> "mask-enter "^ string_of_int d
   | LabelOf -> "label-of"
   | SlidingWindow mn ->
       "sliding-window "^ String.quote (T.string_of_maybe_nullable mn)
@@ -1256,8 +1253,6 @@ struct
     | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
     | Lst [ Sym "mask-get" ; Sym d ; x1 ] as x ->
         E1 (MaskGet (int_of_symbol x d), e x1)
-    | Lst [ Sym "mask-enter" ; Sym d ; x1 ] as x ->
-        E1 (MaskEnter (int_of_symbol x d), e x1)
     | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
     | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
         E1 (SlidingWindow (T.maybe_nullable_of_string mn), e x)
@@ -1708,7 +1703,7 @@ let rec type_of l e0 =
       with Not_found ->
         raise (Unbound_identifier (e0, n, identifiers l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
-      T.mask_action
+      T.mask
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
   | E1 (Function (fid, ts), e) ->
@@ -1726,8 +1721,7 @@ let rec type_of l e0 =
   | E3 (LoopUntil, _, _, e)
   | E3 (Fold, e, _, _)
   | E4 (Repeat, _, _, _, e) -> type_of l e
-  | E1 (MaskGet _, _) -> T.mask_action
-  | E1 (MaskEnter _, _) -> T.mask
+  | E1 (MaskGet _, _) -> T.mask
   | E1 (LabelOf, _) -> T.u16
   | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn), _) -> T.set mn
   | E2 (Insert, _, _) -> T.void
@@ -1784,7 +1778,7 @@ let rec type_check l e =
                                           "nullable value")) in
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
-      | Size | Byte | Word | DWord | QWord | OWord | MaskAction
+      | Size | Byte | Word | DWord | QWord | OWord | Mask
       | Value { vtyp = (Mac (
           Float | String | Char |
           U8 | U16 | U32 | U64 | U128 |
@@ -2179,8 +2173,6 @@ let rec type_check l e =
           check_eq l e4 t3)
     | E1 (MaskGet _, e1) ->
         check_eq l e1 T.Mask
-    | E1 (MaskEnter _, e1) ->
-        check_eq l e1 T.MaskAction
     | E1 (LabelOf, e1) ->
         check_sum l e1
     | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _), e1) ->
@@ -2655,7 +2647,6 @@ struct
   let u32_of_int n = u32 (Uint32.of_int n)
   let assert_ e = E1 (Assert, e)
   let mask_get i m = E1 (MaskGet i, m)
-  let mask_enter l m = E1 (MaskEnter l, m)
   let label_of e = E1 (LabelOf, e)
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField

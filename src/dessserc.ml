@@ -343,7 +343,7 @@ let fieldmask =
     try Stdlib.Ok (M.Parser.action_of_string s)
     with e -> Stdlib.Error (`Msg (Printexc.to_string e))
   and print fmt ma =
-    Format.fprintf fmt "%s" (M.string_of_action ma)
+    Format.fprintf fmt "%s" (M.string_of_mask ma)
   in
   Arg.conv ~docv:"MASK" (parse, print)
 

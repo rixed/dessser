@@ -170,8 +170,7 @@ struct
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
             String.print oc (type_identifier p t))
         ) args ^" -> "^ type_identifier p ret ^")"
-    | T.Mask -> "Mask.t"
-    | T.MaskAction -> "Mask.action"
+    | T.Mask -> "DessserMasks.t"
 
   let rec mod_name = function
     | T.Value { vtyp = Mac Char ; nullable = false } -> "Char"
@@ -1163,10 +1162,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
     | E.E1 (MaskGet i, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Mask.get %s %d" n1 i)
-    | E.E1 (MaskEnter d, e1) ->
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Mask.enter %s %d" n1 d)
+        emit ?name p l e (fun oc -> pp oc "mask_get %s %d" n1 i)
     | E.E1 (LabelOf, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -1174,11 +1170,11 @@ struct
           let m = T.uniq_id t1 |> valid_module_name in
           pp oc "%s.label_of_cstr %s" m n1)
     | E.E0 CopyField ->
-        emit ?name p l e (fun oc -> pp oc "Mask.Copy")
+        emit ?name p l e (fun oc -> pp oc "DessserMasks.Copy")
     | E.E0 SkipField ->
-        emit ?name p l e (fun oc -> pp oc "Mask.Skip")
+        emit ?name p l e (fun oc -> pp oc "DessserMasks.Skip")
     | E.E0 SetFieldNull ->
-        emit ?name p l e (fun oc -> pp oc "Mask.SetNull")
+        emit ?name p l e (fun oc -> pp oc "DessserMasks.SetNull")
     | E.E1 (SlidingWindow t, e1) ->
         let n1 = print emit p l e1
         and def = print emit p l (E.default_value t)

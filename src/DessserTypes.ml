@@ -169,7 +169,6 @@ type t =
   | Bytes
   (* Types for the runtime representation of a field mask: *)
   | Mask  (* What to do with a tree of fields *)
-  | MaskAction (* What to do with an individual field *)
   | Pair of t * t
   (* We'd like the DES/SERializer to be able to use complex types as their
    * "pointer", part of those types being actual pointers. Therefore, we cannot
@@ -432,7 +431,6 @@ let rec print ?sorted oc =
   | OWord -> sp "OWord"
   | Bytes -> sp "Bytes"
   | Mask -> sp "Mask"
-  | MaskAction -> sp "MaskAction"
   | Pair (t1, t2) ->
       pp oc "(%a * %a)"
         (print ?sorted) t1
@@ -798,7 +796,6 @@ struct
       (strinG "qword" >>: fun () -> QWord) |<|
       (strinG "oword" >>: fun () -> OWord) |<|
       (strinG "bytes" >>: fun () -> Bytes) |<|
-      (strinG "mask-action" >>: fun () -> MaskAction) |<|
       (strinG "mask" >>: fun () -> Mask) |<|
       (
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
@@ -990,7 +987,6 @@ let qword = QWord
 let oword = OWord
 let bytes = Bytes
 let mask = Mask
-let mask_action = MaskAction
 let dataptr = DataPtr
 let pair t1 t2 = Pair (t1, t2)
 let slist t = SList t

@@ -266,22 +266,19 @@ struct
 
   and stup mns ma sstate mn0 path v dst =
     let dst = Ser.tup_opn sstate mn0 path mns dst in
-    (* this returns a new mask that is going to be read entirely *)
-    let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i mn ->
         let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath dst)
-          ~in_:(ser1 sstate mn0 subpath mn (get_item i v) (mask_get i m)
+          ~in_:(ser1 sstate mn0 subpath mn (get_item i v) (mask_get i ma)
                      (identifier "dst"))
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
 
   and srec mns ma sstate mn0 path v dst =
     let dst = Ser.rec_opn sstate mn0 path mns dst in
-    let m = mask_enter (Array.length mns) ma in
     let dst =
       Array.fold_lefti (fun dst i (field, mn) ->
         let subpath = T.path_append i path in
@@ -289,8 +286,8 @@ struct
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath dst)
           ~in_:(comment ("serialize field "^ field)
-                  (ser1 sstate mn0 subpath mn (get_field field v) (mask_get i m)
-                        (identifier "dst")))
+                  (ser1 sstate mn0 subpath mn (get_field field v)
+                        (mask_get i ma) (identifier "dst")))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
 
@@ -449,10 +446,9 @@ struct
   and sstup mns ma mn0 path v sizes =
     let sizes =
       Ser.ssize_of_tup mn0 path v |> add_size sizes in
-    let m = mask_enter (Array.length mns) ma in
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
-      let ma = mask_get i m in
+      let ma = mask_get i ma in
       let subpath = T.path_append i path in
       let_ "sizes" sizes
         ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
@@ -461,10 +457,9 @@ struct
   and ssrec mns ma mn0 path v sizes =
     let sizes =
       Ser.ssize_of_rec mn0 path v |> add_size sizes in
-    let m = mask_enter (Array.length mns) ma in
     Array.fold_lefti (fun sizes i (n, mn) ->
       let v' = get_field n v in
-      let ma = mask_get i m in
+      let ma = mask_get i ma in
       let subpath = T.path_append i path in
       let_ "sizes" sizes
         ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))

@@ -40,53 +40,46 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-type t = action array
-
-and action =
+type t =
   | Copy (* Copy this item (and any subitems) *)
   | Skip (* Skip this item (and any subitems) *)
   | SetNull (* Same as Replace with a null value, with no need to specify the type *)
-  | Recurse of t (* Apply the given mask to the subitems *)
+  | Recurse of t array (* Apply the given mask to the subitems *)
   | Replace of E.t (* Replace this item by a constant value of the same type *)
   | Insert of E.t (* Insert this constant value at this location *)
 
-let rec action_eq a1 a2 =
-  match a1, a2 with
+let rec eq t1 t2 =
+  match t1, t2 with
   | Copy, Copy
   | Skip, Skip
   | SetNull, SetNull ->
       true
-  | Recurse t1, Recurse t2 ->
-      eq t1 t2
+  | Recurse a1, Recurse a2 ->
+      (try Array.for_all2 eq a1 a2
+      with Invalid_argument _ -> false)
   | Replace e1, Replace e2
   | Insert e1, Insert e2 ->
       E.eq e1 e2
   | _ ->
       false
 
-and eq t1 t2 =
-  try
-    Array.for_all2 (fun a1 a2 -> action_eq a1 a2) t1 t2
-  with Invalid_argument _ ->
-    false
+let all_skip = Array.for_all ((=) Skip)
+let all_copy = Array.for_all ((=) Copy)
 
-let all_skips m =
-  Array.for_all (fun ma -> ma = Skip) m
-
-let rec string_of_action = function
-  | Copy -> "X"
-  | Skip -> "_"
-  | SetNull -> "N"
-  | Recurse m -> "("^ string_of_mask m ^")"
-  | Replace e -> "["^ E.to_string e ^"]"
-  | Insert e -> "{"^ E.to_string e ^"}"
-
-and string_of_mask m =
-  (Array.enum m /@ string_of_action) |> List.of_enum |>
-  String.join ""
-
-let print_action oc ma =
-  String.print oc (string_of_action ma)
+let string_of_mask ma =
+  let rec loop top_level = function
+    | Copy -> "X"
+    | Skip -> "_"
+    | SetNull -> "N"
+    | Recurse m ->
+        let s =
+          (Array.enum m /@ loop false) |>
+          List.of_enum |>
+          String.join "" in
+        if top_level then s else "("^ s ^")"
+    | Replace e -> "["^ E.to_string e ^"]"
+    | Insert e -> "{"^ E.to_string e ^"}" in
+  loop true ma
 
 let print_mask oc m =
   String.print oc (string_of_mask m)
@@ -118,9 +111,10 @@ struct
       let m, i = mask str (i + 1) in
       if i >= String.length str || str.[i] <> ')' then
         raise (Missing_end_of_recurse i)
-      else if all_skips m then Skip, i + 1
-      else
-        Recurse m, i + 1
+      else match m with
+      | Recurse ms when all_skip ms -> Skip, i + 1
+      | Recurse ms when all_copy ms -> Copy, i + 1
+      | m -> m, i + 1
     else if c = '[' then
       let toks, i = E.Parser.tok str [] (i + 1) in
       if i >= String.length str || str.[i] <> ']' then
@@ -136,6 +130,7 @@ struct
     else
       raise (Invalid_character i)
 
+  (* The outer mask is allowed not to be written within parentheses *)
   and mask str i =
     let to_array = Array.of_list % List.rev in
     let rec loop prev i =
@@ -146,7 +141,11 @@ struct
       | a, i ->
           loop (a :: prev) i
     in
-    loop [] i
+    let r, i = loop [] i in
+    (match r with
+    | [||] -> Copy
+    | [| m |] -> m
+    | ms -> Recurse ms), i
 
   let action_of_string str =
     let ma, i = action str 0 in
@@ -163,10 +162,14 @@ struct
       m
 
   (*$= mask_of_string & ~printer:string_of_mask
-    [| Copy ; Copy ; Copy |] (mask_of_string "xxx")
-    [| Copy ; Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy |] |] \
-        (mask_of_string "X(_{(null \"u8\")}X)")
-    [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |] (mask_of_string "X(_NX)")
+    (Recurse [| Copy ; Copy ; Copy |]) \
+      (mask_of_string "xxx")
+    (Recurse \
+      [| Copy ; \
+         Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy |] |]) \
+      (mask_of_string "X(_{(null \"u8\")}X)")
+    (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
+      (mask_of_string "X(_NX)")
   *)
 
   (*$>*)
@@ -180,14 +183,14 @@ exception Cannot_skip_that
 exception Cannot_insert_into_that
 exception Cannot_set_null of T.maybe_nullable
 
-(* Project type [mn] according to mask action [ma]: *)
+(* Project type [mn] according to mask [ma]: *)
 let rec project mn ma =
-  let recurse_record mn mns m =
+  let recurse_record mn mns mas =
     let mns, _, _ =
       (* [n] count the inserted fields while [i] is the index in [mns] *)
       Array.fold_left (fun (mns', n, i) ma ->
         if i >= Array.length mns then
-          raise (Mask_too_long_for_type (mn, m)) ;
+          raise (Mask_too_long_for_type (mn, Recurse mas)) ;
         match ma with
         | Skip -> mns', n, i + 1
         | Insert e ->
@@ -198,14 +201,14 @@ let rec project mn ma =
         | ma ->
             let name, mn = mns.(i) in
             (name, project mn ma) :: mns', n, i + 1
-      ) ([], 0, 0) m in
+      ) ([], 0, 0) mas in
     (* In theory recursing into all skips should have been replaced by skip
      * already when parsing: *)
     if mns = [] then raise Cannot_skip_that ;
     Array.of_list (List.rev mns) in
-  let recurse_tuple mn mns m =
+  let recurse_tuple mn mns mas =
     let mns = Array.map (fun mn -> "", mn) mns in
-    let mns = recurse_record mn mns m in
+    let mns = recurse_record mn mns mas in
     Array.map snd mns in
   match ma with
   | Copy ->
@@ -217,17 +220,20 @@ let rec project mn ma =
         mn (* Does not change the type *)
       else
         raise (Cannot_set_null mn)
-  | Recurse m ->
+  | Recurse mas ->
       (match mn.T.vtyp with
       | T.Tup mns ->
-          let mns = recurse_tuple mn mns m in
+          (match recurse_tuple mn mns mas with
+          | [||] -> raise Cannot_skip_that
           (* No tuples of 1 items: *)
-          if Array.length mns = 1 then mns.(0) else
-            { mn with vtyp = T.Tup mns }
+          | [| mn |] -> mn
+          | mns -> { mn with vtyp = T.Tup mns })
       | T.Rec mns ->
-          let mns = recurse_record mn mns m in
-          (* A record of onw field is OK: *)
-          { mn with vtyp = T.Rec mns }
+          (match recurse_record mn mns mas with
+          | [||] -> raise Cannot_skip_that
+          | mns ->
+              (* A record of one field is OK: *)
+              { mn with vtyp = T.Rec mns })
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->

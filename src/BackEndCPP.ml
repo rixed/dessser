@@ -139,7 +139,6 @@ struct
     | T.OWord -> "uint128_t"
     | T.Bytes -> "Bytes"
     | T.Mask -> "Mask"
-    | T.MaskAction -> "MaskAction"
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -1008,18 +1007,15 @@ struct
     | E.E1 (MaskGet i, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.get(%d)" n1 i)
-    | E.E1 (MaskEnter d, e1) ->
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Mask::enter_action(%s, %d)" n1 d)
     | E.E1 (LabelOf, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())" n1)
     | E.E0 CopyField ->
-        emit ?name p l e (fun oc -> pp oc "MaskAction::COPY")
+        emit ?name p l e (fun oc -> pp oc "Mask::COPY")
     | E.E0 SkipField ->
-        emit ?name p l e (fun oc -> pp oc "MaskAction::SKIP")
+        emit ?name p l e (fun oc -> pp oc "Mask::SKIP")
     | E.E0 SetFieldNull ->
-        emit ?name p l e (fun oc -> pp oc "MaskAction::SET_NULL")
+        emit ?name p l e (fun oc -> pp oc "Mask::SET_NULL")
     | E.E1 (SlidingWindow t, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
