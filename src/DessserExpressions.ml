@@ -2634,7 +2634,12 @@ struct
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
-  let make_tup es = E0S (MakeTup, es)
+  (* It might be easier for users to accept also 0 or 1 expressions and turn
+   * them into what's expected: *)
+  let make_tup = function
+    | [] -> unit
+    | [ x ] -> x
+    | es -> E0S (MakeTup, es)
   let make_rec es = E0S (MakeRec, es)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
