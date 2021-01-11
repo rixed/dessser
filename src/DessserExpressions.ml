@@ -2620,7 +2620,10 @@ struct
   let min e1 e2 = E2 (Min, e1, e2)
   let max e1 e2 = E2 (Max, e1, e2)
   let mem e1 e2 = E2 (Member, e1, e2)
-  let seq es = E0S (Seq, es)
+  (* Avoid useless sequences: *)
+  let seq = function
+    | [ e ] -> e
+    | es -> E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_lst mn es = E0S (MakeLst mn, es)
   let list_of_slist e1 = E1 (ListOfSList, e1)
