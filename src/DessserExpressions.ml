@@ -2666,4 +2666,5 @@ struct
     | [ p1 ; p2 ] -> E3 (Apply, f, p1, p2)
     | [ p1 ; p2 ; p3 ] -> E4 (Apply, f, p1, p2, p3)
     | _ -> assert false
+  let nop = seq []
 end
