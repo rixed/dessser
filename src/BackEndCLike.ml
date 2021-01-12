@@ -16,20 +16,21 @@ type print_state =
     mutable indent : string ;
     mutable declared : Set.String.t }
 
-let make_print_state () =
+let make_print_state ?(declared=Set.String.empty) () =
   { decl = IO.output_string () ;
     def = IO.output_string () ;
     decls = [] ;
     defs = [] ;
     indent = "" ;
-    declared = Set.String.empty }
+    declared }
 
 let new_top_level p f =
-  let p' = make_print_state () in
+  let p' = make_print_state ~declared:p.declared () in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
   p.defs <- p'.def :: p.defs ;
   p.decls <- p'.decl :: p.decls ;
+  p.declared <- Set.String.union p.declared p'.declared ;
   res
 
 let indent_more p f =
