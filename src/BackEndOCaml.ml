@@ -706,6 +706,9 @@ struct
     | E.E1 (ToI128, e1) ->
         let m = mod_name (E.type_of l e1) in
         unary_op (m ^".to_int128") e1
+    | E.E1 (ToFloat, e1) ->
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".to_float") e1
     | E.E1 (U8OfBool, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n)

@@ -152,7 +152,8 @@ type e1 =
   | I56OfPtr
   | I64OfPtr
   | I128OfPtr
-  (* Integers can be cast upon others regardless of sign and width: *)
+  (* Integers and floats can be cast upon others regardless of sign or
+   * width: *)
   | ToU8
   | ToU16
   | ToU24
@@ -171,6 +172,7 @@ type e1 =
   | ToI56
   | ToI64
   | ToI128
+  | ToFloat
   | LogNot
   | FloatOfQWord
   | QWordOfFloat
@@ -634,6 +636,7 @@ let string_of_e1 = function
   | ToI56 -> "to-i56"
   | ToI64 -> "to-i64"
   | ToI128 -> "to-i128"
+  | ToFloat -> "to-float"
   | LogNot -> "log-not"
   | FloatOfQWord -> "float-of-qword"
   | QWordOfFloat -> "qword-of-float"
@@ -1174,6 +1177,7 @@ struct
     | Lst [ Sym "to-i56" ; x ] -> E1 (ToI56, e x)
     | Lst [ Sym "to-i64" ; x ] -> E1 (ToI64, e x)
     | Lst [ Sym "to-i128" ; x ] -> E1 (ToI128, e x)
+    | Lst [ Sym "to-float" ; x ] -> E1 (ToFloat, e x)
     | Lst [ Sym "log-not" ; x ] -> E1 (LogNot, e x)
     | Lst [ Sym "float-of-qword" ; x ] -> E1 (FloatOfQWord, e x)
     | Lst [ Sym "qword-of-float" ; x ] -> E1 (QWordOfFloat, e x)
@@ -1652,6 +1656,7 @@ let rec type_of l e0 =
   | E1 (ToI64, _) -> T.i64
   | E1 (ToU128, _) -> T.u128
   | E1 (ToI128, _) -> T.i128
+  | E1 (ToFloat, _) -> T.float
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
@@ -1974,8 +1979,8 @@ let rec type_check l e =
         check_eq l e T.u8
     | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
          | ToI40 | ToU40 | ToI48 | ToU48 | ToI56 | ToU56 | ToI64 | ToU64
-         | ToI128 | ToU128), e) ->
-        check_integer l e
+         | ToI128 | ToU128 | ToFloat), e) ->
+        check_numeric l e
     | E1 (U16OfWord, e) ->
         check_eq l e T.word
     | E1 (WordOfU16, e) ->
@@ -2537,6 +2542,7 @@ struct
   let to_u64 e1 = E1 (ToU64, e1)
   let to_i128 e1 = E1 (ToI128, e1)
   let to_u128 e1 = E1 (ToU128, e1)
+  let to_float e1 = E1 (ToFloat, e1)
   let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
   let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
   let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)

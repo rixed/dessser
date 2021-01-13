@@ -206,7 +206,7 @@ struct
         I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _) ->
         true
     | E1 ((
-        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force |
+        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force | ToFloat |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
         ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
         CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |

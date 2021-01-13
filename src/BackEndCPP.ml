@@ -595,6 +595,7 @@ struct
     | E.E1 (ToU56, e1) | E.E1 (ToI56, e1)
     | E.E1 (ToU64, e1) | E.E1 (ToI64, e1)
     | E.E1 (ToU128, e1) | E.E1 (ToI128, e1)
+    | E.E1 (ToFloat, e1)
     | E.E1 (U8OfBool, e1) | E.E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
         let t = E.type_of l e in
