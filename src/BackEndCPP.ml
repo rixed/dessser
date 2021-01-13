@@ -846,6 +846,13 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             valid_identifier s)
+    | E.E0 (ExtIdentifier s) ->
+        (match name with
+        | Some _ ->
+            (* If we want another name for that identifier, emit a binding: *)
+            emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
+        | None ->
+            s)
     | E.E2 (Let n, e1, e2) ->
         let n1 = print emit p l e1 in
         let t = E.type_of l e1 in

@@ -1007,6 +1007,13 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             valid_identifier s)
+    | E.E0 (ExtIdentifier s) ->
+        (match name with
+        | Some _ ->
+            (* If we want another name for that identifier, emit a binding: *)
+            emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
+        | None ->
+            s)
     | E.E2 (Let n, e1, e2) ->
         (* Most of definitions we can actually choose the name (with ?name),
          * so we save a let. But for a few [e1] we will have no such choice,

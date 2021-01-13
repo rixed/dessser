@@ -35,6 +35,10 @@ type e0 =
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
+  (* Contrary to identifiers which name can be arbitrary, an external identifier
+   * name is used verbatim by the backend and must therefore correspond to a
+   * valid object. *)
+  | ExtIdentifier of string
   | Null of T.value_type
   | EndOfList of T.t (* T.t being the type of list items *)
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
@@ -390,7 +394,7 @@ and eq e1 e2 =
 (* Extract all identifiers from the environment: *)
 let identifiers =
   List.filter_map (function
-    | E0 (Identifier n), _ -> Some n
+    | E0 (Identifier n | ExtIdentifier n), _ -> Some n
     | _ -> None)
 
 (* Extract all parameters from the environment: *)
@@ -416,7 +420,7 @@ let rec can_precompute l i = function
       true
   | E0 (Param (fid, _)) ->
       List.mem fid l
-  | E0 (Identifier n) ->
+  | E0 (Identifier n | ExtIdentifier n) ->
       List.mem n i
   | E0S (_, es) ->
       List.for_all (can_precompute l i) es
@@ -825,6 +829,7 @@ let rec string_of_e0 = function
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
   | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
   | Identifier s -> "identifier "^ String.quote s
+  | ExtIdentifier s -> "ext-identifier "^ String.quote s
   | CopyField -> "copy-field"
   | SkipField -> "skip-field"
   | SetFieldNull -> "set-field-null"
@@ -1067,6 +1072,7 @@ struct
     | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
         E0 (DataPtrOfBuffer (int_of_string n))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
+    | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier s)
     | Lst [ Sym "copy-field" ] -> E0 CopyField
     | Lst [ Sym "skip-field" ] -> E0 SkipField
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
@@ -1698,7 +1704,7 @@ let rec type_of l e0 =
   | E2 ((Min | Max), e, _) ->
       type_of l e
   | E2 (Member, _, _) -> T.bool
-  | E0 (Identifier n) as e ->
+  | E0 (Identifier n | ExtIdentifier n) as e ->
       (try List.assoc e l
       with Not_found ->
         raise (Unbound_identifier (e0, n, identifiers l)))
@@ -1885,7 +1891,7 @@ let rec type_check l e =
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
-         | Identifier _| Param _
+         | Identifier _ | ExtIdentifier _ | Param _
          | CopyField | SkipField | SetFieldNull)
     | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _
           | Hash), _)
@@ -2539,6 +2545,7 @@ struct
   let and_ e1 e2 = E2 (And, e1, e2)
   let or_ e1 e2 = E2 (Or, e1, e2)
   let identifier n = E0 (Identifier n)
+  let ext_identifier n = E0 (ExtIdentifier n)
   let to_i8 e1 = E1 (ToI8, e1)
   let to_u8 e1 = E1 (ToU8, e1)
   let to_i16 e1 = E1 (ToI16, e1)

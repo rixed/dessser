@@ -137,7 +137,9 @@ struct
   let make_state () =
     { identifiers = [] ; external_identifiers = [] }
 
-  (* Find references to external identifiers: *)
+  (* Find references to identifiers. Used to order definitions. So does not
+   * need to take into account external identifiers, as they are defined
+   * outside of dessser's scope. *)
   let get_depends l e =
     E.fold [] l (fun lst l -> function
       | E0 (Identifier s) as e ->
@@ -160,7 +162,7 @@ struct
     (* Start with external identifiers: *)
     let l =
       List.map (fun (name, typ) ->
-        E.Ops.identifier name, typ
+        E.Ops.ext_identifier name, typ
       ) state.external_identifiers in
     (* ...and already defined identifiers in the environment: *)
     let l =
@@ -197,7 +199,8 @@ struct
   let rec can_inline = function
     | E.E0 (
         Param _ | Null _ |
-        EndOfList _ | Float _ | String _ | Bool _ | Bytes _ | Identifier _ |
+        EndOfList _ | Float _ | String _ | Bool _ | Bytes _ |
+        Identifier _ | ExtIdentifier _ |
         Bit _ | Char _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _ |
         U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _ |
         I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _) ->
