@@ -308,24 +308,15 @@ struct
         pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2)
     in
     match e with
-    | E.E1 (Apply, e1) ->
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s ()" n1)
-    | E.E2 (Apply, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s %s" n1 n2)
-    | E.E3 (Apply, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
-        emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 n2 n3)
-    | E.E4 (Apply, e1, e2, e3, e4) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3
-        and n4 = print emit p l e4 in
-        emit ?name p l e (fun oc -> pp oc "%s %s %s %s" n1 n2 n3 n4)
+    | E.E1S (Apply, f, es) ->
+        let nf = print emit p l f in
+        let ns =
+          List.fold_left (fun ns e -> print emit p l e :: ns) [] es |>
+          List.rev in
+        emit ?name p l e (fun oc ->
+          pp oc "%s%a"
+            nf
+            (List.print ~first:" " ~last:"" ~sep:" " String.print) ns)
     | E.E1 (Comment c, e1) ->
         ppi p.def "(* %s *)" c ;
         print ?name emit p l e1
@@ -385,7 +376,7 @@ struct
     | E.E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s = Null" n)
-    | E.E1S (Coalesce, es) ->
+    | E.E1S (Coalesce, e1, es) ->
         let rec loop oc = function
           | [] ->
               assert false (* because of type checking *)
@@ -399,7 +390,7 @@ struct
               pp oc "(match %s with NotNull x_ -> x_ | Null ->" n1 ;
               indent_more p (fun () -> loop p.def es') ;
               pp oc ")" in
-        emit ?name p l e (fun oc -> loop oc es)
+        emit ?name p l e (fun oc -> loop oc (e1 :: es))
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1 in
         let n2 = print emit p l e2 in

@@ -91,7 +91,6 @@ type e0s =
   | MakeRec
 
 type e1 =
-  | Apply
   | Function of (*function id*) int * (*args*) T.t array
   | Comment of string
   | GetItem of int (* for tuples *)
@@ -253,9 +252,9 @@ type e1 =
 
 type e1s =
   | Coalesce
+  | Apply
 
 type e2 =
-  | Apply
   | Let of string
   (* Deconstructor for vectors/lists: *)
   | Nth
@@ -310,7 +309,6 @@ type e2 =
   | Insert (* args are: set, item *)
 
 type e3 =
-  | Apply
   | SetBit
   | SetVec (* for vectors or lists. Args are: vector, index and new value *)
   | BlitByte
@@ -323,7 +321,6 @@ type e3 =
   | DataPtrOfPtr
 
 type e4 =
-  | Apply
   | ReadWhile
       (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
            Result ('a*ptr)
@@ -334,7 +331,7 @@ type t =
   | E0 of e0
   | E0S of e0s * t list
   | E1 of e1 * t
-  | E1S of e1s * t list
+  | E1S of e1s * t * t list
   | E2 of e2 * t * t
   | E3 of e3 * t * t * t
   | E4 of e4 * t * t * t * t
@@ -370,6 +367,9 @@ and e3_eq e1 e2 = e1 = e2
 and e4_eq e1 e2 = e1 = e2
 
 and eq e1 e2 =
+  let eq_lst e1s e2s =
+    try List.for_all2 eq e1s e2s
+    with Invalid_argument _ -> false in
   match e1, e2 with
   | E0 op1, E0 op2 ->
       e0_eq op1 op2
@@ -379,10 +379,8 @@ and eq e1 e2 =
       with Invalid_argument _ -> false)
   | E1 (op1, e11), E1 (op2, e21) ->
       e1_eq op1 op2 && eq e11 e21
-  | E1S (op1, e1s), E1S (op2, e2s) ->
-      e1s_eq op1 op2 &&
-      (try List.for_all2 (eq) e1s e2s
-      with Invalid_argument _ -> false)
+  | E1S (op1, e11, e1s), E1S (op2, e21, e2s) ->
+      e1s_eq op1 op2 && eq e11 e21 && eq_lst e1s e2s
   | E2 (op1, e11, e12), E2 (op2, e21, e22) ->
       e2_eq op1 op2 && eq e11 e21 && eq e12 e22
   | E3 (op1, e11, e12, e13), E3 (op2, e21, e22, e23) ->
@@ -424,19 +422,18 @@ let rec can_precompute l i = function
       List.mem n i
   | E0S (_, es) ->
       List.for_all (can_precompute l i) es
-  | E1 (Apply, e) ->
-      can_precompute l i e
   | E1 (Function _, body) ->
       can_precompute l i body
   | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
-  | E1S (Coalesce, es) ->
-      List.for_all (can_precompute l i) es
-  | E2 (Apply, E1 (Function (fid, _), body), e2) ->
-      can_precompute l i e2 &&
+  | E1S (Coalesce, e1, es) ->
+      can_precompute l i e1 && List.for_all (can_precompute l i) es
+  | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
+      List.for_all (can_precompute l i) e2s &&
       can_precompute (fid :: l) i body
-  | E2 (Apply, _, _) -> false
+  | E1S (Apply, _, _) ->
+      false
   | E2 (Let n, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l (n :: i) e2
@@ -445,23 +442,14 @@ let rec can_precompute l i = function
   | E2 (_, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l i e2
-  | E3 (Apply, E1 (Function (fid, _), body), e2, e3) ->
-      can_precompute l i e2 &&
-      can_precompute l i e3 &&
-      can_precompute (fid :: l) i body
-  | E3 (Apply, _, _, _) -> false
   | E3 ((LoopWhile | LoopUntil | Fold), _, _, _) ->
       false (* TODO *)
   | E3 (_, e1, e2, e3) ->
       can_precompute l i e1 &&
       can_precompute l i e2 &&
       can_precompute l i e3
-  | E4 (Apply, E1 (Function (fid, _), body), e2, e3, e4) ->
-      can_precompute l i e2 &&
-      can_precompute l i e3 &&
-      can_precompute l i e4 &&
-      can_precompute (fid :: l) i body
-  | E4 ((Apply | ReadWhile | Repeat), _, _, _, _) -> false
+  | E4 ((ReadWhile | Repeat), _, _, _, _) ->
+      false
 
 let is_const_null = function
   | E0 (Null _) -> true
@@ -564,13 +552,13 @@ let string_of_e0s = function
 
 let string_of_e1s = function
   | Coalesce -> "coalesce"
+  | Apply -> "apply"
 
 let string_of_e1 = function
   | Function (fid, typs) ->
       "fun "^ string_of_int fid ^
       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
         Printf.fprintf oc "%S" (IO.to_string T.print t))) typs
-  | Apply -> "apply"
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
@@ -721,7 +709,6 @@ let string_of_e1 = function
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
-  | Apply -> "apply"
   | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
@@ -773,7 +760,6 @@ let string_of_e2 = function
 let string_of_e3 = function
   | SetBit -> "set-bit"
   | SetVec -> "set-vec"
-  | Apply -> "apply"
   | BlitByte -> "blit-byte"
   | If -> "if"
   | LoopWhile -> "loop-while"
@@ -783,7 +769,6 @@ let string_of_e3 = function
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
-  | Apply -> "apply"
   | Repeat -> "repeat"
 
 let pp = Printf.fprintf
@@ -850,9 +835,10 @@ and print ?max_depth oc e =
           (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E1 (op, e1) ->
         pp oc "(%s %a)" (string_of_e1 op) p e1
-    | E1S (op, es) ->
-        pp oc "(%s %a)"
+    | E1S (op, e1, es) ->
+        pp oc "(%s %a %a)"
           (string_of_e1s op)
+          p e1
           (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E2 (op, e1, e2) ->
         pp oc "(%s %a %a)" (string_of_e2 op) p e1 p e2
@@ -878,8 +864,8 @@ let rec pretty_print fmt =
       p (string_of_e0s op) es
   | E1 (op, e1) ->
       p (string_of_e1 op) [ e1 ]
-  | E1S (op, es) ->
-      p (string_of_e1s op) es
+  | E1S (op, e1, es) ->
+      p (string_of_e1s op) (e1 :: es)
   | E2 (op, e1, e2) ->
       p (string_of_e2 op) [ e1 ; e2 ]
   | E3 (op, e1, e2, e3) ->
@@ -1084,7 +1070,6 @@ struct
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     (* e1 *)
-    | Lst [ Sym "apply" ; x ] -> E1 (Apply, e x)
     | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
         (* Syntax for functions is:
          *    (fun id "type arg 1" "type arg 2" ... body)
@@ -1267,9 +1252,9 @@ struct
     | Lst [ Sym "sampling" ; Str mn ; x ] ->
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
     (* e1s *)
-    | Lst (Sym "coalesce" :: xs) -> E1S (Coalesce, List.map e xs)
+    | Lst (Sym "coalesce" :: x1 :: xs) -> E1S (Coalesce, e x1, List.map e xs)
+    | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
-    | Lst [ Sym "apply" ; x1 ; x2 ] -> E2 (Apply, e x1, e x2)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
@@ -1328,7 +1313,6 @@ struct
     | Lst [ Sym "insert" ; x1 ; x2 ] ->
         E2 (Insert, e x1, e x2)
     (* e3 *)
-    | Lst [ Sym "apply" ; x1 ; x2 ; x3 ] -> E3 (Apply, e x1, e x2, e x3)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
@@ -1339,8 +1323,6 @@ struct
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
     (* e4 *)
-    | Lst [ Sym "apply" ; x1 ; x2 ; x3 ; x4 ] ->
-        E4 (Apply, e x1, e x2, e x3, e x4)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
     | Lst [ Sym "repeat" ; x1 ; x2 ; x3 ; x4 ] ->
@@ -1406,13 +1388,6 @@ let rec type_of l e0 =
   | E0S (Seq, [])
   | E1 ((Dump | Debug | Ignore), _) ->
       T.void
-  | E1 (Apply, f)
-  | E2 (Apply, f, _)
-  | E3 (Apply, f, _, _)
-  | E4 (Apply, f, _, _, _) ->
-      (match type_of l f with
-      | Function (_, t) -> t
-      | _ -> raise (Apply_error (e0, "argument must be a function")))
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
@@ -1438,12 +1413,12 @@ let rec type_of l e0 =
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
       Value (T.make (Rec (Array.of_list mns)))
-  | E1S (Coalesce, xs) ->
-      (match List.last xs with
-      | exception _ ->
-          raise (Invalid_expression (e0, "must have at least one member"))
-      | e ->
-          type_of l e)
+  | E1S (Coalesce, e1, xs) ->
+      type_of l (if xs = [] then e1 else List.last xs)
+  | E1S (Apply, f, _) ->
+      (match type_of l f with
+      | Function (_, t) -> t
+      | _ -> raise (Apply_error (e0, "argument must be a function")))
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Value { vtyp = Tup mns ; nullable = false } ->
@@ -1750,8 +1725,7 @@ let rec fold u l f e =
   match e with
   | E0 _ ->
       u
-  | E0S (_, es)
-  | E1S (_, es) ->
+  | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold u l f e1) u es
   | E1 (Function (id, ts), e1) ->
       let l = Array.fold_lefti (fun l i t ->
@@ -1760,6 +1734,9 @@ let rec fold u l f e =
       fold u l f e1
   | E1 (_, e1) ->
       fold u l f e1
+  | E1S (_, e1, es) ->
+      let u = fold u l f e1 in
+      List.fold_left (fun u e1 -> fold u l f e1) u es
   | E2 (Let s, e1, e2) ->
       let l' = (E0 (Identifier s), type_of l e1) :: l in
       fold (fold u l f e1) l' f e2
@@ -1897,14 +1874,6 @@ let rec type_check l e =
           | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
         ()
-    | E1 (Apply, f) ->
-        check_fun_sign l f [||]
-    | E2 (Apply, f, p1) ->
-        check_fun_sign l f [| p1 |]
-    | E3 (Apply, f, p1, p2) ->
-        check_fun_sign l f [| p1 ; p2 |]
-    | E4 (Apply, f, p1, p2, p3) ->
-        check_fun_sign l f [| p1 ; p2 ; p3 |]
     | E0S (Seq, es) ->
         let rec loop = function
           | [] | [_] -> ()
@@ -1932,8 +1901,8 @@ let rec type_check l e =
           if i mod 2 = 0 then ignore (field_name_of_expr e)
           else check_maybe_nullable l e
         ) es
-    | E1S (Coalesce, es) ->
-        (match List.rev es with
+    | E1S (Coalesce, e1, es) ->
+        (match List.rev (e1 :: es) with
         | last :: rest ->
             (match  type_of l last with
             | Value { vtyp ; _ } ->
@@ -1945,7 +1914,9 @@ let rec type_check l e =
             | t ->
               raise (Type_error (e0, last, t, "be a value type")))
         | [] ->
-            raise (Invalid_expression (e, "must have at least one member")))
+            assert false (* by construction *))
+    | E1S (Apply, f, es) ->
+        check_fun_sign l f (Array.of_list es)
     | E1 (IsNull, e) ->
         check_nullable true l e
     | E2 (Nth, e1, e2) ->
@@ -2392,7 +2363,9 @@ struct
   let debug e1 = E1 (Debug, e1)
   let debugs es = E0S (Seq, List.map debug es)
   let is_null e1 = E1 (IsNull, e1)
-  let coalesce es = E1S (Coalesce, es)
+  let coalesce = function
+    | [] -> invalid_arg "coalesce: must have at least one argument"
+    | e1 :: es -> E1S (Coalesce, e1, es)
   let nth e1 e2 = E2 (Nth, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
   let read_word en e1 = E1 (ReadWord en, e1)
@@ -2661,11 +2634,6 @@ struct
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField
   let set_field_null = E0 SetFieldNull
-  let apply f = function
-    | [] -> E1 (Apply, f)
-    | [ p1 ] -> E2 (Apply, f, p1)
-    | [ p1 ; p2 ] -> E3 (Apply, f, p1, p2)
-    | [ p1 ; p2 ; p3 ] -> E4 (Apply, f, p1, p2, p3)
-    | _ -> assert false
+  let apply f es = E1S (Apply, f, es)
   let nop = seq []
 end
