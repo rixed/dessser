@@ -41,6 +41,8 @@ and value_type =
   | Mac of mac_type
   (* Aliases with custom representations: *)
   | Usr of user_type
+  (* External types: *)
+  | Ext of string
   (* Compound types: *)
   | Vec of int * maybe_nullable
   | Lst of maybe_nullable
@@ -76,7 +78,7 @@ let optional = make ~nullable:true
 
 let rec depth ?(opaque_user_type=false) = function
   | Unknown -> invalid_arg "depth"
-  | Unit | Mac _ -> 0
+  | Unit | Mac _ | Ext _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
   | Vec (_, mn) | Lst mn | Set mn ->
@@ -117,6 +119,8 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       mac_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
+  | Ext n1, Ext n2 ->
+      n1 = n2
   | Vec (d1, mn1), Vec (d2, mn2) ->
       d1 = d2 && maybe_nullable_eq mn1 mn2
   | Lst mn1, Lst mn2
@@ -197,7 +201,7 @@ let pair_of_tpair = function
  *)
 
 let rec develop_value_type = function
-  | (Unknown | Unit | Mac _) as vt ->
+  | (Unknown | Unit | Mac _ | Ext _) as vt ->
       vt
   | Usr { def ; _ } ->
       develop_value_type def
@@ -227,7 +231,7 @@ and develop_user_types = function
 let rec fold_value_type u f vt =
   let u = f u vt in
   match vt with
-  | Unknown | Unit | Mac _ ->
+  | Unknown | Unit | Mac _ | Ext _ ->
       u
   | Usr { def ; _ } ->
       fold_value_type u f def
@@ -362,6 +366,8 @@ let rec print_value_type ?(sorted=false) oc = function
       pp oc "unit"
   | Mac t ->
       print_mac_type oc t
+  | Ext n ->
+      pp oc "%s" n
   | Usr t ->
       (match Hashtbl.find user_types t.name with
       | exception Not_found ->
@@ -550,6 +556,8 @@ struct
     opt_blanks -- char ';' -- opt_blanks
 
   let user_type = ref fail
+
+  let external_type = ref fail
 
   type key_type =
     VecDim of int | ListDim | SetDim | MapKey of maybe_nullable
@@ -869,7 +877,7 @@ let register_user_type
         invalid_arg "register_user_type"
   ) user_types
 
-let is_registered n =
+let is_user_type_registered n =
   try ignore (get_user_type n) ; true
   with Not_found -> false
 
@@ -891,6 +899,31 @@ let () =
   register_user_type "Cidr"
     (Sum [| "v4", required (get_user_type "Cidr4") ;
             "v6", required (get_user_type "Cidr6") |])
+
+(*
+ * External types
+ * They can be manipulated only by external identifiers.
+ *)
+
+let external_types : (string, (backend_id, string) Map.t) Hashtbl.t =
+  Hashtbl.create 50
+
+let register_external_type name lst =
+  Hashtbl.modify_opt name (function
+    | None ->
+        Parser.external_type := Parser.(oneof !external_type (string name)) ;
+        let map = Map.of_enum (List.enum lst) in
+        Some map
+    | Some _ ->
+        invalid_arg "register_external_type"
+  ) external_types
+
+let get_external_type name backend_id =
+  let map = Hashtbl.find external_types name in
+  Map.find backend_id map
+
+let is_external_type_registered name =
+  Hashtbl.mem external_types name
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then
@@ -921,7 +954,7 @@ let type_and_name_of_path t path =
     | [] -> t, field_name
     | i :: path ->
         let rec type_of = function
-          | (Unknown | Unit | Mac _ | Map _) ->
+          | (Unknown | Unit | Mac _ | Ext _ | Map _) ->
               assert false
           | Usr t ->
               type_of t.def

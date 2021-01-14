@@ -127,6 +127,8 @@ struct
     | { vtyp = Mac I128 ; _ } -> "Int128.t"
     | { vtyp = Usr t ; _ } ->
         value_type_identifier p { vtyp = t.def ; nullable = false }
+    | { vtyp = Ext n ; _ } ->
+        T.get_external_type n OCaml
     | { vtyp = (Vec (_, t) | Lst t) ; _ } ->
         value_type_identifier p t ^" array"
     | { vtyp = Set t ; _ } ->

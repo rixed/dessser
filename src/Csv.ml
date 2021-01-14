@@ -43,7 +43,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
         is_serializable ~to_first_concrete:to_first_concrete' fst &&
         Enum.for_all (is_serializable ~to_first_concrete:false) mns in
   match mn.T.vtyp with
-  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
+  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       false
   | Unit | Mac _ ->
       true
@@ -69,7 +69,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.vtyp with
-  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
+  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "nullable_at_first"
   | Unit | Mac _ ->
       false
@@ -98,7 +98,7 @@ let rec nullable_at_first mn =
  * types non nullable: *)
 let rec make_serializable mn =
   match mn.T.vtyp with
-  | Unknown | Map _ | Tup [||] | Rec [||] | Sum [||] ->
+  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "make_serializable"
   | Unit | Mac _ ->
       mn

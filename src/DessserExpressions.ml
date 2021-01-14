@@ -454,7 +454,8 @@ let rec default_value ?(allow_null=true) = function
         E0 (Null vtyp)
       else
         default_value ~allow_null { vtyp ; nullable = false }
-  | { vtyp = T.Unknown ; _ } ->
+  | { vtyp = T.Unknown ; _ }
+  | { vtyp = T.Ext _ ; _ } ->
       invalid_arg "default_value"
   | { vtyp = T.Unit ; _ } ->
       E0 Unit

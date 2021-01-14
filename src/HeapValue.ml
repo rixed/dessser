@@ -163,7 +163,7 @@ struct
 
   and make1 dstate mn0 path mn src =
     let rec des_of_vt = function
-      | T.Unknown -> invalid_arg "make1"
+      | T.Unknown | T.Ext _ -> invalid_arg "make1"
       | T.Unit -> dunit
       | T.Mac Float -> Des.dfloat
       | T.Mac String -> Des.dstring
@@ -325,7 +325,7 @@ struct
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
-      | T.Unknown -> invalid_arg "ser1"
+      | T.Unknown | T.Ext _ -> invalid_arg "ser1"
       | T.Unit -> sunit
       | T.Mac Float -> Ser.sfloat
       | T.Mac String -> Ser.sstring
@@ -493,7 +493,7 @@ struct
       let sz = ssizer mn0 path v in
       add_size sizes sz in
     let rec ssz_of_vt = function
-      | T.Unknown -> invalid_arg "sersz1"
+      | T.Unknown | T.Ext _ -> invalid_arg "sersz1"
       | T.Unit -> fun _ _ _ sizes -> sizes
       | T.Mac Float -> to_dyn Ser.ssize_of_float
       | T.Mac String -> to_dyn Ser.ssize_of_string

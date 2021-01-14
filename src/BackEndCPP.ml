@@ -96,6 +96,8 @@ struct
     | T.Value { vtyp = Mac U128 ; _ } -> "uint128_t"
     | T.Value { vtyp = Usr t ; _ } ->
         type_identifier p (Value { vtyp = t.def ; nullable = false })
+    | T.Value { vtyp = Ext n ; _ } ->
+        T.get_external_type n Cpp
     | T.Value { vtyp = Tup mns ; _ } as t ->
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
