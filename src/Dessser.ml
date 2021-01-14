@@ -560,9 +560,7 @@ sig
   val add_external_identifier : state -> string -> T.t -> state
 
   (* Returns the new state, the Identifier expression to use in new expressions,
-   * and the identifier name in the source code.
-   * Expression is not allowed to have the null type (which would make little
-   * sense anyway): *)
+   * and the identifier name in the source code: *)
   (* TODO: all backends are going to do the same type-checking.
    * Have a functor that perform some of this automatically?
    * Oe let the backends reuse DIL? *)
