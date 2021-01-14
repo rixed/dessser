@@ -122,11 +122,11 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       maybe_nullable_eq mn1 mn2
   | Tup mn1s, Tup mn2s ->
       Array.length mn1s = Array.length mn2s &&
-      Array.for_all2 maybe_nullable_eq mn1s mn2s
+      array_for_all2_no_exc maybe_nullable_eq mn1s mn2s
   | (Rec mn1s, Rec mn2s)
   | (Sum mn1s, Sum mn2s) ->
       Array.length mn1s = Array.length mn2s &&
-      Array.for_all2 (fun (n1, mn1) (n2, mn2) ->
+      array_for_all2_no_exc (fun (n1, mn1) (n2, mn2) ->
         n1 = n2 && maybe_nullable_eq mn1 mn2
       ) (sorted_rec mn1s) (sorted_rec mn2s)
   | Map (k1, v1), Map (k2, v2) ->
@@ -412,7 +412,7 @@ let rec eq t1 t2 =
   | SList t1, SList t2 ->
       eq t1 t2
   | Function (pt1, rt1), Function (pt2, rt2) ->
-      Array.for_all2 eq pt1 pt2 && eq rt1 rt2
+      array_for_all2_no_exc eq pt1 pt2 && eq rt1 rt2
   | t1, t2 -> t1 = t2
 
 let rec print ?sorted oc =
