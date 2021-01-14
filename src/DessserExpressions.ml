@@ -391,18 +391,6 @@ and eq e1 e2 =
       e4_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23 && eq e14 e24
   | _ -> false
 
-(* Extract all identifiers from the environment: *)
-let identifiers =
-  List.filter_map (function
-    | E0 (Identifier n | ExtIdentifier n), _ -> Some n
-    | _ -> None)
-
-(* Extract all parameters from the environment: *)
-let parameters =
-  List.filter_map (function
-    | E0 (Param p), _ -> Some p
-    | _ -> None)
-
 (* Note re. Apply: even if the function can be precomputed (which it usually
  * can) and its parameters as well, the application can be precomputed only
  * if the function body can in a context where the parameters can.
@@ -1373,8 +1361,8 @@ exception Type_error_param of t * t * int * T.t * string
 exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
 exception Apply_error of t * string
-exception Unbound_identifier of t * string * string list
-exception Unbound_parameter of t * param_id * param_id list
+exception Unbound_identifier of t * bool * string * (t * T.t) list
+exception Unbound_parameter of t * param_id * (t * T.t) list
 exception Invalid_expression of t * string
 
 (* expr must be a plain string: *)
@@ -1684,10 +1672,14 @@ let rec type_of l e0 =
   | E2 ((Min | Max), e, _) ->
       type_of l e
   | E2 (Member, _, _) -> T.bool
-  | E0 (Identifier n | ExtIdentifier n) as e ->
+  | E0 (Identifier n) as e ->
       (try List.assoc e l
       with Not_found ->
-        raise (Unbound_identifier (e0, n, identifiers l)))
+        raise (Unbound_identifier (e0, false, n, l)))
+  | E0 (ExtIdentifier n) as e ->
+      (try List.assoc e l
+      with Not_found ->
+        raise (Unbound_identifier (e0, true, n, l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.mask
   | E2 (Let n, e1, e2) ->
@@ -1700,7 +1692,7 @@ let rec type_of l e0 =
   | E0 (Param p) as e ->
       (try List.assoc e l
       with Not_found ->
-        raise (Unbound_parameter (e0, p, parameters l)))
+        raise (Unbound_parameter (e0, p, l)))
   | E3 (If, _, e, _) -> type_of l e
   | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
   | E3 (LoopWhile, _, _, e)
@@ -2181,6 +2173,13 @@ let rec type_check l e =
 let size_of_expr l e =
   fold 0 l (fun n _l _e0 -> n + 1) e
 
+let environment_print oc l =
+  let p oc (e, t) =
+    Printf.fprintf oc "%a:%a"
+      (print ~max_depth:2) e
+      T.print t in
+  pretty_list_print p oc l
+
 let () =
   let max_depth = 3 in
   Printexc.register_printer (function
@@ -2212,19 +2211,20 @@ let () =
           Printf.sprintf2
             "Invalid function application: In expression %a, %s"
             (print ~max_depth) e0 s)
-    | Unbound_identifier (e0, n, ns) ->
+    | Unbound_identifier (e0, ext, n, l) ->
+        Some (
+          let ext = if ext then "external " else "" in
+          Printf.sprintf2
+            "Unbound %sidentifier %S: In expression %a, environment is %a"
+            ext n (print ~max_depth) e0
+            environment_print l)
+    | Unbound_parameter (e0, p, l) ->
         Some (
           Printf.sprintf2
-            "Unbound identifier %S: In expression %a, bound identifiers are %a"
-            n (print ~max_depth) e0
-            (pretty_list_print String.print) ns)
-    | Unbound_parameter (e0, p, ps) ->
-        Some (
-          Printf.sprintf2
-            "Unbound parameter %a: In expression %a, bound parameters are %a"
+            "Unbound parameter %a: In expression %a, environment is %a"
             param_print p
             (print ~max_depth) e0
-            (pretty_list_print param_print) ps)
+            environment_print l)
     | Invalid_expression (e0, msg) ->
         Some (
           Printf.sprintf2
