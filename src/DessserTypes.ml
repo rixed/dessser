@@ -111,6 +111,8 @@ let mac_type_eq mt1 mt2 = mt1 = mt2
 
 let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
+  | Unit, Unit ->
+      true
   | Mac mt1, Mac mt2 ->
       mac_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
@@ -138,6 +140,10 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       value_type_eq vt1 ut2.def
   | _ ->
       false
+
+(*$T value_type_eq
+  value_type_eq (get_user_type "Eth") (get_user_type "Eth")
+*)
 
 and maybe_nullable_eq mn1 mn2 =
   mn1.nullable = mn2.nullable && value_type_eq mn1.vtyp mn2.vtyp
@@ -413,7 +419,16 @@ let rec eq t1 t2 =
       eq t1 t2
   | Function (pt1, rt1), Function (pt2, rt2) ->
       array_for_all2_no_exc eq pt1 pt2 && eq rt1 rt2
-  | t1, t2 -> t1 = t2
+  | t1, t2 ->
+      t1 = t2
+
+(*$T eq
+  eq unit unit
+  eq (Value (required (get_user_type "Eth"))) \
+     (Value (required (get_user_type "Eth"))) ;
+  eq (Function ([| Value (required (get_user_type "Eth")) ; Size |], unit)) \
+     (Function ([| Value (required (get_user_type "Eth")) ; Size |], unit))
+*)
 
 let rec print ?sorted oc =
   let sp = String.print oc in
