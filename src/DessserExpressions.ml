@@ -2363,7 +2363,7 @@ let register_user_expr name ?check ?type_ ?printer def =
 module Ops =
 struct
   let identity e1 = E1 (Identity, e1)
-  let ignore e1 = E1 (Ignore, e1)
+  let ignore_ e1 = E1 (Ignore, e1)
   let dump e1 = E1 (Dump, e1)
   let debug e1 = E1 (Debug, e1)
   let debugs es = E0S (Seq, List.map debug es)
