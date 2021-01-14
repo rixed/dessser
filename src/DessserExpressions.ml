@@ -2621,7 +2621,9 @@ struct
     | [] -> unit
     | [ x ] -> x
     | es -> E0S (MakeTup, es)
-  let make_rec es = E0S (MakeRec, es)
+  let make_rec = function
+    | [] -> unit
+    | es -> E0S (MakeRec, es)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)
