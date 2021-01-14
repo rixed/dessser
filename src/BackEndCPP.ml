@@ -178,8 +178,6 @@ struct
     else
       Legacy.Printf.sprintf "%h" v |> String.print oc
 
-  let gen_sym pref = valid_identifier (gen_sym pref)
-
   let c_char_of c =
     match Char.code c with
     | 0x07 -> "\\a"
@@ -210,7 +208,9 @@ struct
 
   let rec print ?name emit p l e =
     let gen_sym ?name pref =
-      match name with Some n -> n | None -> gen_sym pref in
+      match name with
+      | Some n -> n
+      | None -> U.gen_sym pref |> valid_identifier in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
     let unary_op op e1 =
       let n1 = print emit p l e1 in

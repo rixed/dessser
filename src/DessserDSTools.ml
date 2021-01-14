@@ -3,6 +3,7 @@ open Batteries
 open DessserTools
 open Dessser
 module E = DessserExpressions
+module U = DessserCompilationUnit
 
 let timeout_cmd = ref "/usr/bin/timeout"
 
@@ -31,9 +32,9 @@ let compile ?(optim=0) ~link backend src_fname dest_fname =
 let make_converter ?exe_fname ?mn backend convert =
   let module BE = (val backend : BACKEND) in
   E.type_check [] convert ;
-  let state = BE.make_state () in
-  let state, _, entry_point =
-    BE.add_identifier_of_expression state convert in
+  let compunit = U.make () in
+  let compunit, _, entry_point =
+    U.add_identifier_of_expression compunit convert in
   let exe_fname = match exe_fname with
     | Some fname -> fname
     | None -> Filename.temp_file "dessser_converter_" "" in
@@ -45,7 +46,7 @@ let make_converter ?exe_fname ?mn backend convert =
     ) mn ;
     BE.print_comment oc "Compile with:\n  %s\n"
       (BE.compile_cmd ~optim:0 ~link:true src_fname exe_fname) ;
-    BE.print_definitions state oc ;
+    BE.print_definitions compunit oc ;
     if BE.preferred_def_extension = "cc" then
       String.print oc (FragmentsCPP.converter entry_point)
     else

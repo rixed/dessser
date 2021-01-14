@@ -267,6 +267,10 @@ struct
         (Bytes.to_string bytes))
 
   let rec print ?name emit p l e =
+    let gen_sym ?name pref =
+      match name with
+      | Some n -> n
+      | None -> U.gen_sym pref |> valid_identifier in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
     let unary_op op e1 =
       let n1 = print emit p l e1 in

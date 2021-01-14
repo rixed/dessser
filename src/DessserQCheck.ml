@@ -8,8 +8,9 @@ module T = DessserTypes
 
 (*$inject
    open Batteries
-   module T = DessserTypes
    module E = DessserExpressions
+   module T = DessserTypes
+   module U = DessserCompilationUnit
    let dbg = false *)
 
 (*
@@ -527,13 +528,13 @@ let expression =
 
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
-    let state = BE.make_state () in
-    let state, _, _ = BE.add_identifier_of_expression state e in
+    let compunit = U.make () in
+    let compunit, _, _ = U.add_identifier_of_expression compunit e in
     let src_fname =
       let ext = "."^ BE.preferred_def_extension in
       Filename.temp_file "dessserQCheck_" ext in
     let obj_fname = Filename.remove_extension src_fname in
-    write_source ~src_fname (BE.print_definitions state) ;
+    write_source ~src_fname (BE.print_definitions compunit) ;
     try compile ~optim:0 ~link:false be src_fname obj_fname ;
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;

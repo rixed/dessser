@@ -1,8 +1,9 @@
 open Batteries
 open Stdint
 open Dessser
-module T = DessserTypes
 module E = DessserExpressions
+module T = DessserTypes
+module U = DessserCompilationUnit
 
 let debug = false
 
@@ -103,12 +104,6 @@ sig
   (* TODO: find a way to factorize the print function itself *)
 end
 
-let gen_sym =
-  let name_seq = ref (-1) in
-  fun pref ->
-    incr name_seq ;
-    pref ^ string_of_int !name_seq
-
 module Make (C : CONFIG) : BACKEND =
 struct
   let id = C.id
@@ -124,18 +119,6 @@ struct
     dirname ^"/"^ C.valid_source_name basename_no_ext ^ ext
 
   let compile_cmd = C.compile_cmd
-
-  let gen_sym () = valid_identifier (gen_sym "id_")
-
-  type identifier =
-    { public : bool ; expr : E.t }
-
-  type state =
-    { identifiers : (string * identifier * T.t) list ;
-      external_identifiers : (string * T.t) list }
-
-  let make_state () =
-    { identifiers = [] ; external_identifiers = [] }
 
   (* Find references to identifiers. Used to order definitions. So does not
    * need to take into account external identifiers, as they are defined
@@ -153,42 +136,6 @@ struct
           )
       | _ -> lst
     ) e
-
-  let add_external_identifier state name typ =
-    { state with external_identifiers =
-        (name, typ) :: state.external_identifiers }
-
-  let environment state =
-    (* Start with external identifiers: *)
-    let l =
-      List.map (fun (name, typ) ->
-        E.Ops.ext_identifier name, typ
-      ) state.external_identifiers in
-    (* ...and already defined identifiers in the environment: *)
-    let l =
-      List.fold_left (fun l (name, _, t) ->
-        (E.Ops.identifier name, t) :: l
-      ) l state.identifiers in
-    l
-
-  let add_identifier_of_expression state ?name expr =
-    let name, public =
-      match name with
-      | None ->
-          gen_sym (), false
-      | Some name ->
-          name, true in
-    let identifier = { public ; expr } in
-    let l = environment state in
-    E.type_check l expr ;
-    let t = E.type_of l expr in
-    { state with
-        identifiers = (name, identifier, t) :: state.identifiers },
-    E.E0 (Identifier name),
-    valid_identifier name
-
-  let find_or_declare_type _p _t =
-    assert false
 
   (* As inlined expressions may be reordered, those must all be stateless.
    * Include in here all operations that are cheap enough that it's OK to
@@ -231,7 +178,10 @@ struct
     if name = None && can_inline e then (
       Printf.sprintf2 "%t" (C.print_inline p t f)
     ) else (
-      let n = match name with Some n -> n | None -> gen_sym () in
+      let n =
+        match name with
+        | Some n -> n
+        | None -> U.gen_sym "id_" |> valid_identifier in
       let tn = C.type_identifier p t in
       pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
       n
@@ -245,18 +195,19 @@ struct
     let name = valid_identifier name in
     C.print_identifier_declaration name p l e
 
-  let print_source output_identifier state oc =
-    (* state is full of identifiers (list of name * exp). Output them in any order
-     * as long as dependencies are defined before being used. *)
+  let print_source output_identifier compunit oc =
+    (* [compunit] is full of identifiers (list of name * exp).
+     * Output them in any order as long as dependencies are defined before
+     * being used. *)
     let identifiers =
       List.map (fun (name, identifier, _) ->
         let l =
           List.map (fun (name, typ) ->
             E.Ops.identifier name, typ
-          ) state.external_identifiers in
-        let deps = get_depends l identifier.expr in
+          ) compunit.U.external_identifiers in
+        let deps = get_depends l identifier.U.expr in
         name, deps, identifier.expr
-      ) state.identifiers in
+      ) compunit.U.identifiers in
     if debug then
       pp stdout "Identifiers:\n%a\n%!"
         (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, depends, e) ->
@@ -297,7 +248,7 @@ struct
             let defined = (name, t) :: defined in
             loop true defined left_overs rest
           ) in
-    loop false state.external_identifiers [] identifiers ;
+    loop false compunit.U.external_identifiers [] identifiers ;
     let print_ios oc lst =
       List.rev lst |>
       List.iter (fun io ->
@@ -316,9 +267,9 @@ struct
       print_ios p.defs
       C.source_outro
 
-  let print_definitions state oc =
-    print_source define state oc
+  let print_definitions compunit oc =
+    print_source define compunit oc
 
-  let print_declarations state oc =
-    print_source declare state oc
+  let print_declarations compunit oc =
+    print_source declare compunit oc
 end

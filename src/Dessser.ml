@@ -537,36 +537,26 @@ struct
 end
 
 (*
+ * Compilation units are sets of definitions and declarations of external
+ * values.
+ *)
+
+module U = DessserCompilationUnit
+
+(*
  * Now let's move on to code generators.
  *
- * The idea is that a code generator receives its state, an expression and an
- * optional name for it, and returns an identifier alongside a new state.
- *
- * This state has all defined identifiers.
- *
- * Eventually, the state can be turned into a source file. Unused identifiers
- * may not be included unless they are non-anonymous functions.
+ * Eventually, a compilation unit is turned into an actual source file.
+ * Unused identifiers may not be included unless they are non-anonymous
+ * functions.
  *)
 
 module type BACKEND =
 sig
   val id : T.backend_id
-  type state
-  val make_state : unit -> state
-  val print_definitions : state -> unit IO.output -> unit
-  val print_declarations : state -> unit IO.output -> unit
+  val print_definitions : U.t -> unit IO.output -> unit
+  val print_declarations : U.t -> unit IO.output -> unit
   val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
-
-  val add_external_identifier : state -> string -> T.t -> state
-
-  (* Returns the new state, the Identifier expression to use in new expressions,
-   * and the identifier name in the source code: *)
-  (* TODO: all backends are going to do the same type-checking.
-   * Have a functor that perform some of this automatically?
-   * Oe let the backends reuse DIL? *)
-  val add_identifier_of_expression : state -> ?name:string -> E.t -> state * E.t * string
-  (* Extract the currently defined environment from the state: *)
-  val environment : state -> (E.t * T.t) list
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
