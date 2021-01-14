@@ -200,55 +200,56 @@ struct
      * Output them in any order as long as dependencies are defined before
      * being used. *)
     let identifiers =
-      List.map (fun (name, identifier, _) ->
+      List.map (fun (_, identifier, _ as id) ->
         let l =
           List.map (fun (name, typ) ->
             E.Ops.identifier name, typ
           ) compunit.U.external_identifiers in
         let deps = get_depends l identifier.U.expr in
-        name, deps, identifier.expr
+        id, deps
       ) compunit.U.identifiers in
     if debug then
       pp stdout "Identifiers:\n%a\n%!"
-        (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, depends, e) ->
+        (List.print ~first:"" ~last:"" ~sep:"" (fun oc ((name, id, _), depends) ->
           pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
             name
             (List.print String.print) depends
-            (E.print ?max_depth:None) e)) identifiers ;
+            (E.print ?max_depth:None) id.U.expr)) identifiers ;
     let p = make_print_state () in
     let rec loop progress defined left_overs = function
       | [] ->
           if left_overs <> [] then (
             if not progress then (
-              let missings = List.map (fun (n, _, _) -> n) left_overs in
+              let missings =
+                List.fold_left (fun l (_, deps) ->
+                  List.rev_append deps l
+                ) [] left_overs in
               raise (Missing_dependencies missings)
             ) else loop false defined [] left_overs
           )
-      | (name, depends, e) :: rest ->
+      | ((name, U.{ expr ; _ }, _ as id), depends) :: rest ->
           let missing_depends =
             List.filter (fun name ->
-              not (List.mem_assoc name defined)
+              not (List.mem_assoc name compunit.U.external_identifiers) &&
+              not (List.exists (fun (n, _, _) -> n = name) defined)
             ) depends in
           if missing_depends <> [] then (
             if debug then
               pp stdout "Identifier %s has some undefined dependences, \
                          waiting...\n" name ;
-            loop progress defined ((name, missing_depends, e) :: left_overs) rest
+            let left_overs' = (id, missing_depends) :: left_overs in
+            loop progress defined left_overs' rest
           ) else (
             if debug then
               pp stdout "Identifier %s depends on %d defined identifiers, \
                          emitting code...\n" name (List.length depends) ;
-            let l =
-              List.map (fun (name, t) ->
-                E.E0 (Identifier name), t
-              ) defined in
+            let l = U.environment U.{ compunit with identifiers = defined } in
             new_top_level p (fun p ->
-              output_identifier name p l e) ;
-            let t = E.type_of l e in
-            let defined = (name, t) :: defined in
+              output_identifier name p l expr) ;
+            let defined = id :: defined in
             loop true defined left_overs rest
           ) in
-    loop false compunit.U.external_identifiers [] identifiers ;
+    loop false [] [] identifiers ;
     let print_ios oc lst =
       List.rev lst |>
       List.iter (fun io ->
