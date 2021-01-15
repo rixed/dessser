@@ -195,6 +195,9 @@ struct
     let name = valid_identifier name in
     C.print_identifier_declaration name p l e
 
+  let print_intro oc =
+    Printf.fprintf oc "%s\n\n" C.source_intro
+
   let print_source output_identifier compunit oc =
     (* [compunit] is full of identifiers (list of name * exp).
      * Output them in any order as long as dependencies are defined before
@@ -255,22 +258,29 @@ struct
       List.iter (fun io ->
         Printf.fprintf oc "%s\n" (IO.close_out io)) in
     Printf.fprintf oc
-      "%s\n\n\
-       %a\n\
+      "%a\n\
        %a\n\n\
        %a\n\n\
        %a\n\n\
        %s\n"
-      C.source_intro
       C.print_comment "Declarations"
       print_ios p.decls
       C.print_comment "Definitions"
       print_ios p.defs
       C.source_outro
 
+  let print_verbatim location defs oc =
+    List.rev defs |>
+    List.iter (fun (backend, loc, s) ->
+      if loc = location && backend = id then String.print oc s)
+
   let print_definitions compunit oc =
-    print_source define compunit oc
+    print_intro oc ;
+    print_verbatim U.Top compunit.U.verbatim_definitions oc ;
+    print_source define compunit oc ;
+    print_verbatim U.Bottom compunit.U.verbatim_definitions oc
 
   let print_declarations compunit oc =
+    print_intro oc ;
     print_source declare compunit oc
 end

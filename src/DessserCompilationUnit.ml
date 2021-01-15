@@ -2,32 +2,36 @@ module E = DessserExpressions
 module T = DessserTypes
 
 type t =
+  (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
-    external_identifiers : (string * T.t) list }
+    external_identifiers : (string * T.t) list ;
+    verbatim_definitions : (T.backend_id * verbatim_location * string) list }
 
 and identifier =
   { public : bool ; expr : E.t }
 
-let make () =
-  { identifiers = [] ; external_identifiers = [] }
+and verbatim_location = Top | Bottom
 
-(* Extract the currently defined environment from the state: *)
-let environment state =
+let make () =
+  { identifiers = [] ; external_identifiers = [] ; verbatim_definitions = [] }
+
+(* Extract the currently defined environment from the compunit: *)
+let environment compunit =
   (* Start with external identifiers: *)
   let l =
     List.map (fun (name, typ) ->
       E.Ops.ext_identifier name, typ
-    ) state.external_identifiers in
+    ) compunit.external_identifiers in
   (* ...and already defined identifiers in the environment: *)
   let l =
     List.fold_left (fun l (name, _, t) ->
       (E.Ops.identifier name, t) :: l
-    ) l state.identifiers in
+    ) l compunit.identifiers in
   l
 
-let add_external_identifier state name typ =
-  { state with external_identifiers =
-      (name, typ) :: state.external_identifiers }
+let add_external_identifier compunit name typ =
+  { compunit with external_identifiers =
+      (name, typ) :: compunit.external_identifiers }
 
 let gen_sym =
   let name_seq = ref (-1) in
@@ -37,7 +41,7 @@ let gen_sym =
 
 (* Returns the new compilation unit, the Identifier expression to use in new
  * expressions, and the identifier name in the source code. *)
-let add_identifier_of_expression state ?name expr =
+let add_identifier_of_expression compunit ?name expr =
   let name, public =
     match name with
     | None ->
@@ -45,10 +49,15 @@ let add_identifier_of_expression state ?name expr =
     | Some name ->
         name, true in
   let identifier = { public ; expr } in
-  let l = environment state in
+  let l = environment compunit in
   E.type_check l expr ;
   let t = E.type_of l expr in
-  { state with
-      identifiers = (name, identifier, t) :: state.identifiers },
+  { compunit with
+      identifiers = (name, identifier, t) :: compunit.identifiers },
   E.E0 (Identifier name),
   name
+
+let add_verbatim_definition compunit ?(location=Top) backend s =
+  { compunit with
+    verbatim_definitions =
+      (backend, location, s) :: compunit.verbatim_definitions }
