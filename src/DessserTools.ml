@@ -22,7 +22,10 @@ let run_cmd cmd =
 
 let write_source ~src_fname f =
   let mode = [ `create ; `text ; `trunc ] in
-  File.with_file_out ~mode src_fname f
+  File.with_file_out ~mode src_fname (fun oc ->
+    (* Note: "convert" the string IO.output into a unit IO.output... *)
+    let s = Printf.sprintf2 "%t" f in
+    String.print oc s)
 
 let array_print_i ?first ?last ?sep p oc a =
   let i = ref 0 in

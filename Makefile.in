@@ -109,6 +109,7 @@ LIBDESSSER_SOURCES = \
 	src/RowBinary.ml \
 	src/RamenRingBuffer.ml \
 	src/DevNull.ml \
+	src/DessserPrinter.ml \
 	src/BackEndDIL.ml \
 	src/BackEndCLike.ml \
 	src/BackEndCPP.ml \
@@ -221,6 +222,7 @@ LINKED_FOR_TESTS = \
 	src/DessserDSTools_FragmentsOCaml.ml \
 	src/DessserDSTools.ml \
 	src/DessserOCamlBackendHelpers.ml \
+	src/DessserPrinter.ml \
 	src/BackEndCLike.ml \
 	src/BackEndCPP.ml \
 	src/BackEndOCaml.ml \

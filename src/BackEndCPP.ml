@@ -5,6 +5,7 @@ open BackEndCLike
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
+module P = DessserPrinter
 
 type T.backend_id += Cpp
 
@@ -44,26 +45,26 @@ struct
 
   let rec print_struct p oc id mns =
     let id = valid_identifier id in
-    pp oc "%sstruct %s {\n" p.indent id ;
-    indent_more p (fun () ->
+    pp oc "%sstruct %s {\n" p.P.indent id ;
+    P.indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier p (T.Value vt) in
-        pp oc "%s%s %s;\n" p.indent typ_id (valid_identifier field_name)
+        pp oc "%s%s %s;\n" p.P.indent typ_id (valid_identifier field_name)
       ) mns
     ) ;
-    pp oc "%s};\n\n" p.indent
+    pp oc "%s};\n\n" p.P.indent
 
   and print_variant p oc id mns =
     let id = valid_identifier id in
-    pp oc "%stypedef std::variant<\n" p.indent ;
-    indent_more p (fun () ->
+    pp oc "%stypedef std::variant<\n" p.P.indent ;
+    P.indent_more p (fun () ->
       Array.iteri (fun i (_, mn) ->
         let typ_id = type_identifier p (T.Value mn) in
         pp oc "%s%s%s\n"
-          p.indent typ_id (if i < Array.length mns - 1 then "," else "")
+          p.P.indent typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
     ) ;
-    pp oc "%s> %s;\n\n" p.indent id
+    pp oc "%s> %s;\n\n" p.P.indent id
 
   and type_identifier p = function
     | T.Value { vtyp ; nullable = true } ->
@@ -100,13 +101,13 @@ struct
         T.get_external_type n Cpp
     | T.Value { vtyp = Tup mns ; _ } as t ->
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
-        declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
     | T.Value { vtyp = Rec mns ; _ } as t ->
-        declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
         valid_identifier
     | T.Value { vtyp = Sum mns ; _ } as t ->
-        declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
         valid_identifier
     | T.Value { vtyp = Vec (dim, typ) ; _ } ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
@@ -203,9 +204,9 @@ struct
     match E.type_of l e with
     | T.Void ->
         (* Then we could not have defined n, let's just return: *)
-        pp p.def "%sreturn;\n" p.indent
+        pp p.P.def "%sreturn;\n" p.P.indent
     | _ ->
-        pp p.def "%sreturn %s;\n" p.indent n
+        pp p.P.def "%sreturn %s;\n" p.P.indent n
 
 
   let rec print ?name emit p l e =
@@ -213,7 +214,7 @@ struct
       match name with
       | Some n -> n
       | None -> U.gen_sym pref |> valid_identifier in
-    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let unary_op op e1 =
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
@@ -231,15 +232,15 @@ struct
       let n1 = print emit p l e1 in
       let res = gen_sym ?name "shortcut_res_" in
       let t1 = E.type_of l e1 in
-      ppi p.def "%s %s;" (type_identifier p t1) res ;
-      ppi p.def "if (%s == %b) {" n1 short_cond_on_e1 ;
-      indent_more p (fun () ->
-        ppi p.def "%s = %s;" res n1) ;
-      ppi p.def "} else {" ;
-      indent_more p (fun () ->
+      ppi p.P.def "%s %s;" (type_identifier p t1) res ;
+      ppi p.P.def "if (%s == %b) {" n1 short_cond_on_e1 ;
+      P.indent_more p (fun () ->
+        ppi p.P.def "%s = %s;" res n1) ;
+      ppi p.P.def "} else {" ;
+      P.indent_more p (fun () ->
         let n2 = print emit p l e2 in
-        ppi p.def "%s = %s;" res n2) ;
-      ppi p.def "}" ;
+        ppi p.P.def "%s = %s;" res n2) ;
+      ppi p.P.def "}" ;
       res in
     let method_call e1 m args =
       let deref_with =
@@ -254,7 +255,7 @@ struct
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s.%s" n1 m) in
     let null_of_nan res =
-      ppi p.def "if (std::isnan(*%s)) %s.reset();" res res ;
+      ppi p.P.def "if (std::isnan(*%s)) %s.reset();" res res ;
       res in
     match e with
     | E.E1S (Apply, f, es) ->
@@ -267,7 +268,7 @@ struct
             nf
             (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns)
     | E.E1 (Comment c, e1) ->
-        ppi p.def "/* %s */" c ;
+        ppi p.P.def "/* %s */" c ;
         print ?name emit p l e1
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "" es
@@ -294,11 +295,11 @@ struct
         print ?name emit p l e1
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
-        ppi p.def "(void)%s;" n ;
+        ppi p.P.def "(void)%s;" n ;
         ""
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
-        ppi p.def "std::cout << %s;" n ;
+        ppi p.P.def "std::cout << %s;" n ;
         ""
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
@@ -312,13 +313,13 @@ struct
     | E.E1S (Coalesce, e1, es) ->
         let res = gen_sym ?name "coalesce_" in
         let t1 = E.type_of l e in
-        ppi p.def "%s %s;" (type_identifier p t1) res ;
+        ppi p.P.def "%s %s;" (type_identifier p t1) res ;
         let rec loop = function
           | [] ->
               assert false (* because of type_check *)
           | [ e ] ->
               let n1 = print emit p l e in
-              ppi p.def "%s = %s;" res n1
+              ppi p.P.def "%s = %s;" res n1
           | e :: es' ->
               if E.is_const_null e then (
                 loop es'
@@ -326,11 +327,11 @@ struct
                 let n1 = print emit p l e in
                 let t = E.type_of l e in
                 assert (T.is_nullable t) ; (* because type_checking *)
-                ppi p.def "if (%s.has_value ()) {\n" n1 ;
-                indent_more p (fun () ->
-                  ppi p.def "%s = %s.value();\n" res n1) ;
-                ppi p.def "} else {\n" ;
-                indent_more p (fun () ->
+                ppi p.P.def "if (%s.has_value ()) {\n" n1 ;
+                P.indent_more p (fun () ->
+                  ppi p.P.def "%s = %s.value();\n" res n1) ;
+                ppi p.P.def "} else {\n" ;
+                P.indent_more p (fun () ->
                   loop es')
               ) in
         loop (e1 :: es) ;
@@ -508,17 +509,17 @@ struct
         emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
     | E.E1 (FloatOfPtr, e1) ->
         let n = print emit p l e1 in
-        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
           n n ;
         (* Nice but not supported yet on ordinary g++/clang:
-        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
           n n ;
-        ppi p.def "double val_ { 0. /* don't warn */ };" ;
-        ppi p.def "bool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
+        ppi p.P.def "double val_ { 0. /* don't warn */ };" ;
+        ppi p.P.def "bool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
                     (*start_ == 'x' || *start_ == 'X') };"
           ;
-        ppi p.def "if (is_hex_) start_ += 2;" ;
-        ppi p.def "struct std::from_chars_result res_ = \
+        ppi p.P.def "if (is_hex_) start_ += 2;" ;
+        ppi p.P.def "struct std::from_chars_result res_ = \
                     std::from_chars(\
                       start_ + (is_hex_ ? 2 : 0), stop_, val_, \
                       is_hex_ ? std::chars_format::hex : \
@@ -526,10 +527,10 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(res_.ptr - start_)" n)
         *)
-        ppi p.def "char *end_;" ;
+        ppi p.P.def "char *end_;" ;
         (* This assumes there will always be a non-digit at the end to prevent
          * strtod to read past the end of the buffer: *)
-        ppi p.def "double const val_ = strtod(start_, &end_);" ;
+        ppi p.P.def "double const val_ = strtod(start_, &end_);" ;
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(end_ - start_)" n)
     | E.E1 ((U8OfPtr | U16OfPtr | U24OfPtr | U32OfPtr | U40OfPtr |
@@ -538,33 +539,33 @@ struct
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
           n n ;
-        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
           n n ;
-        ppi p.def "struct std::from_chars_result res_ = \
+        ppi p.P.def "struct std::from_chars_result res_ = \
                     std::from_chars(start_, stop_, val_);" ;
         emit ?name p l e (fun oc ->
           pp oc "val_, %s.skip(res_.ptr - start_)" n)
     | E.E1 (U128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
           n n ;
-        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };" n n ;
-        ppi p.def "size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
+        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };" n n ;
+        ppi p.P.def "size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (I128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
+        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
+        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
           n n ;
-        ppi p.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
+        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
           n n ;
-        ppi p.def "size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
+        ppi p.P.def "size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
         unary_func "floatOfQword" e1
@@ -773,9 +774,9 @@ struct
         (* FIXME: proper UTF-8 + use a lib for proper lower/upper casing *)
         let n1 = print emit p l e1 in
         let res = gen_sym ?name "case_str_" in
-        ppi p.def "std::string %s(%s.length(), ' ');" res n1 ;
+        ppi p.P.def "std::string %s(%s.length(), ' ');" res n1 ;
         let op = match op with Lower -> "tolower" | _ -> "toupper" in
-        ppi p.def "transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
+        ppi p.P.def "transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
           n1 n1 res op ;
         res
     | E.E1 (Hash, e1) ->
@@ -789,7 +790,7 @@ struct
         let res = gen_sym ?name "endoflist_" in
         let t = E.type_of l e in
         let tn = type_identifier p t in
-        ppi p.def "%s %s;" tn res ;
+        ppi p.P.def "%s %s;" tn res ;
         res
     | E.E0 (EmptySet mn) ->
         let tn = type_identifier p (Value mn) in
@@ -854,13 +855,13 @@ struct
         let res = gen_sym ?name "let_res_" in
         let l = (E.E0 (Identifier n), t) :: l in
         let t2 = E.type_of l e2 in
-        ppi p.def "%s %s;" (type_identifier p t2) res ;
-        ppi p.def "{" ;
-        indent_more p (fun () ->
-          ppi p.def "%s %s(%s);" tn (valid_identifier n) n1 ;
+        ppi p.P.def "%s %s;" (type_identifier p t2) res ;
+        ppi p.P.def "{" ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "%s %s(%s);" tn (valid_identifier n) n1 ;
           let tmp = print emit p l e2 in
-          ppi p.def "%s = %s;" res tmp) ;
-        ppi p.def "}" ;
+          ppi p.P.def "%s = %s;" res tmp) ;
+        ppi p.P.def "}" ;
         res
     | E.E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
@@ -874,27 +875,27 @@ struct
             Array.fold_lefti (fun l i t ->
               (E.E0 (Param (fid, i)), t) :: l
             ) l ts in
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             let n = print emit p l e1 in
             print_return n p l e1) ;
-          pp oc "%s}\n" p.indent ;
-          pp oc "%s" p.indent)
+          pp oc "%s}\n" p.P.indent ;
+          pp oc "%s" p.P.indent)
     | E.E0 (Param (fid, n)) ->
         param fid n
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         let res = gen_sym ?name "choose_res_" in
         let t2 = E.type_of l e2 in
-        ppi p.def "%s %s;" (type_identifier p t2) res ;
-        ppi p.def "if (%s) {" cond ;
-        indent_more p (fun () ->
+        ppi p.P.def "%s %s;" (type_identifier p t2) res ;
+        ppi p.P.def "if (%s) {" cond ;
+        P.indent_more p (fun () ->
           let n = print emit p l e2 in
-          ppi p.def "%s = %s;" res n) ;
-        ppi p.def "} else {" ;
-        indent_more p (fun () ->
+          ppi p.P.def "%s = %s;" res n) ;
+        ppi p.P.def "} else {" ;
+        P.indent_more p (fun () ->
           let n = print emit p l e3 in
-          ppi p.def "%s = %s;" res n) ;
-        ppi p.def "}" ;
+          ppi p.P.def "%s = %s;" res n) ;
+        ppi p.P.def "}" ;
         res
     | E.E4 (ReadWhile, e1, e2, e3, e4) ->
         let cond = print emit p l e1
@@ -903,22 +904,22 @@ struct
         and ptr0 = print emit p l e4 in
         let res = gen_sym ?name "read_while_res_" in
         let t3 = E.type_of l e3 in
-        ppi p.def "%s %s(%s);" (type_identifier p t3) res accum ;
+        ppi p.P.def "%s %s(%s);" (type_identifier p t3) res accum ;
         let ptr = gen_sym "read_while_ptr_" in
         let t4 = E.type_of l e4 in
-        ppi p.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
-        ppi p.def "while (true) {" ;
-        indent_more p (fun () ->
-          ppi p.def "if (%s.rem() <= 0) { break; } else {" ptr ;
-          indent_more p (fun () ->
-            ppi p.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
-            ppi p.def "if (%s(next_byte_)) {" cond ;
-            indent_more p (fun () ->
-              ppi p.def "%s = %s(%s, next_byte_);" res reduce res ;
-              ppi p.def "%s = %s.skip(1);" ptr ptr) ;
-            ppi p.def "} else break;") ;
-          ppi p.def "}") ;
-        ppi p.def "}" ;
+        ppi p.P.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
+        ppi p.P.def "while (true) {" ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "if (%s.rem() <= 0) { break; } else {" ptr ;
+          P.indent_more p (fun () ->
+            ppi p.P.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
+            ppi p.P.def "if (%s(next_byte_)) {" cond ;
+            P.indent_more p (fun () ->
+              ppi p.P.def "%s = %s(%s, next_byte_);" res reduce res ;
+              ppi p.P.def "%s = %s.skip(1);" ptr ptr) ;
+            ppi p.P.def "} else break;") ;
+          ppi p.P.def "}") ;
+        ppi p.P.def "}" ;
         emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
     | E.E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
@@ -926,11 +927,11 @@ struct
         and accum = print emit p l e3 in
         let res = gen_sym ?name "while_res_" in
         let t3 = E.type_of l e3 in
-        ppi p.def "%s %s { %s };" (type_identifier p t3) res accum ;
-        ppi p.def "while (%s(%s)) {" cond res ;
-        indent_more p (fun () ->
-          ppi p.def "%s = %s(%s);" res body res) ;
-        ppi p.def "}" ;
+        ppi p.P.def "%s %s { %s };" (type_identifier p t3) res accum ;
+        ppi p.P.def "while (%s(%s)) {" cond res ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "%s = %s(%s);" res body res) ;
+        ppi p.P.def "}" ;
         res
     | E.E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
@@ -938,11 +939,11 @@ struct
         and accum = print emit p l e3 in
         let res = gen_sym ?name "until_res_" in
         let t3 = E.type_of l e3 in
-        ppi p.def "%s %s { %s };" (type_identifier p t3) res accum ;
-        ppi p.def "do {" ;
-        indent_more p (fun () ->
-          ppi p.def "%s = %s(%s);" res body res) ;
-        ppi p.def "} while (%s(%s));" cond res ;
+        ppi p.P.def "%s %s { %s };" (type_identifier p t3) res accum ;
+        ppi p.P.def "do {" ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "%s = %s(%s);" res body res) ;
+        ppi p.P.def "} while (%s(%s));" cond res ;
         res
     | E.E3 (Fold, e1, e2, e3) ->
         let init = print emit p l e1
@@ -952,21 +953,21 @@ struct
         and item_t = E.get_item_type ~lst:true ~vec:true ~set:true e l e3
         and t1 = E.type_of l e1 in
         let item_tn = type_identifier p (T.Value item_t) in
-        ppi p.def "%s %s { %s };" (type_identifier p t1) res init ;
+        ppi p.P.def "%s %s { %s };" (type_identifier p t1) res init ;
         let is_set =
           match E.type_of l e3 |> T.develop_user_types with
           | T.Value { vtyp = Set _ ; _ } -> true
           | _ -> false in
         if is_set then
-          ppi p.def "%s->iter([&](%s &x_) {" lst item_tn
+          ppi p.P.def "%s->iter([&](%s &x_) {" lst item_tn
         else
-          ppi p.def "for (%s x_ : %s) {" item_tn lst ;
-        indent_more p (fun () ->
-          ppi p.def "%s = %s(%s, x_);" res body res) ;
+          ppi p.P.def "for (%s x_ : %s) {" item_tn lst ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "%s = %s(%s, x_);" res body res) ;
         if is_set then
-          ppi p.def "});"
+          ppi p.P.def "});"
         else
-          ppi p.def "}" ;
+          ppi p.P.def "}" ;
         res
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
@@ -975,11 +976,11 @@ struct
         and accum = print emit p l e4 in
         let res = gen_sym ?name "repeat_res_" in
         let t4 = E.type_of l e4 in
-        ppi p.def "%s %s { %s };" (type_identifier p t4) res accum ;
-        ppi p.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
-        indent_more p (fun () ->
-          ppi p.def "%s = %s(idx_, %s);" res body res) ;
-        ppi p.def "}" ;
+        ppi p.P.def "%s %s { %s };" (type_identifier p t4) res accum ;
+        ppi p.P.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "%s = %s(idx_, %s);" res body res) ;
+        ppi p.P.def "}" ;
         res
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
@@ -1022,7 +1023,7 @@ struct
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "sliding_win_" in
-        ppi p.def "SlidingWindow<%s> *%s = new SlidingWindow<%s>(%s);"
+        ppi p.P.def "SlidingWindow<%s> *%s = new SlidingWindow<%s>(%s);"
           tn res tn n1 ;
         res
     | E.E1 (TumblingWindow t, e1) ->
@@ -1030,7 +1031,7 @@ struct
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "tumbling_win_" in
-        ppi p.def "TumblingWindow<%s> *%s = new TumblingWindow<%s>(%s);"
+        ppi p.P.def "TumblingWindow<%s> *%s = new TumblingWindow<%s>(%s);"
           tn res tn n1 ;
         res
     | E.E1 (Sampling t, e1) ->
@@ -1038,7 +1039,7 @@ struct
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier p (Value t) in
         let res = gen_sym ?name "sampling_" in
-        ppi p.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
+        ppi p.P.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
           tn res tn n1 ;
         res
     | E.E2 (Insert, e1, e2) ->
@@ -1051,20 +1052,20 @@ struct
      * must rely on a static function to produce the value: *)
     let t = E.type_of l e in
     let tn = type_identifier p t in
-    pp p.def "%sstatic %s %s_init()\n" p.indent tn n ;
-    pp p.def "%s{\n" p.indent ;
-    indent_more p (fun () ->
+    pp p.P.def "%sstatic %s %s_init()\n" p.P.indent tn n ;
+    pp p.P.def "%s{\n" p.P.indent ;
+    P.indent_more p (fun () ->
       (* TODO: add other predefined globals in the environment: *)
       let l = [] in
       let n = print emit p l e in
       print_return n p l e) ;
-    pp p.def "%s}\n" p.indent ;
-    pp p.def "%s%s %s(%s_init());\n" p.indent tn n n
+    pp p.P.def "%s}\n" p.P.indent ;
+    pp p.P.def "%s%s %s(%s_init());\n" p.P.indent tn n n
 
   let print_identifier_declaration n p l e =
     let t = E.type_of l e in
     let tn = type_identifier p t in
-    pp p.def "%s%s %s;\n" p.indent tn n
+    pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
   let source_intro =
     "#include <algorithm>\n\

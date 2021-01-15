@@ -5,7 +5,9 @@ type t =
   (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
-    verbatim_definitions : (T.backend_id * verbatim_location * string) list }
+    verbatim_definitions :
+      (T.backend_id * verbatim_location *
+       (DessserPrinter.t -> string BatIO.output -> unit)) list }
 
 and identifier =
   { public : bool ; expr : E.t }
@@ -57,7 +59,7 @@ let add_identifier_of_expression compunit ?name expr =
   E.E0 (Identifier name),
   name
 
-let add_verbatim_definition compunit ?(location=Top) backend s =
+let add_verbatim_definition compunit ?(location=Top) backend f =
   { compunit with
     verbatim_definitions =
-      (backend, location, s) :: compunit.verbatim_definitions }
+      (backend, location, f) :: compunit.verbatim_definitions }

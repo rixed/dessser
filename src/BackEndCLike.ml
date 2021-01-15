@@ -2,67 +2,18 @@ open Batteries
 open Stdint
 open Dessser
 module E = DessserExpressions
+module P = DessserPrinter
 module T = DessserTypes
 module U = DessserCompilationUnit
 
 let debug = false
 
-exception Missing_dependencies of string list
-
-type print_state =
-  { mutable decl : string IO.output ;
-    def : string IO.output ;
-    mutable decls : string IO.output list ;
-    mutable defs : string IO.output list ;
-    mutable indent : string ;
-    mutable declared : Set.String.t }
-
-let make_print_state ?(declared=Set.String.empty) () =
-  { decl = IO.output_string () ;
-    def = IO.output_string () ;
-    decls = [] ;
-    defs = [] ;
-    indent = "" ;
-    declared }
-
-let new_top_level p f =
-  let p' = make_print_state ~declared:p.declared () in
-  let res = f p' in
-  (* Merge the new defs and decls into old decls and defs: *)
-  p.defs <- p'.def :: p.defs ;
-  p.decls <- p'.decl :: p.decls ;
-  p.declared <- Set.String.union p.declared p'.declared ;
-  res
-
-let indent_more p f =
-  let indent = p.indent in
-  p.indent <- p.indent ^"  " ;
-  finally (fun () -> p.indent <- indent)
-    f ()
-
 let pp = Printf.fprintf
 
-let declared_type p t f =
-  let id = T.uniq_id t in
-  if Set.String.mem id p.declared then id
-  else (
-    p.declared <- Set.String.add id p.declared ;
-    (* Write in a temp string to avoid being interrupted by another
-     * declaration: *)
-    let oc = IO.output_string ()
-    and indent = p.indent in
-    p.indent <- "" ;
-    f oc id ;
-    p.indent <- indent ;
-    String.print p.decl (IO.close_out oc) ;
-    id
-  )
+exception Missing_dependencies of string list
 
 type emitter =
-  ?name:string ->
-  print_state ->
-  (E.t * T.t) list ->
-  E.t -> (string IO.output -> unit) ->
+  ?name:string -> P.t -> (E.t * T.t) list -> E.t -> (string IO.output -> unit) ->
     string
 
 (* Avoid modifying the name when it's valid: *)
@@ -80,23 +31,23 @@ sig
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
 
-  val type_identifier : print_state -> T.t -> string
+  val type_identifier : P.t -> T.t -> string
 
   val print_binding :
-    string -> string -> ('a IO.output -> unit) -> 'a IO.output -> unit
+    string -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_inline :
-    print_state -> T.t -> ('a IO.output -> unit) -> 'a IO.output -> unit
+    P.t -> T.t -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_binding_toplevel :
-    emitter -> string -> print_state -> (E.t * T.t) list -> E.t -> unit
+    emitter -> string -> P.t -> (E.t * T.t) list -> E.t -> unit
 
   val print_identifier_declaration :
-    string -> print_state -> (E.t * T.t) list -> E.t -> unit
+    string -> P.t -> (E.t * T.t) list -> E.t -> unit
 
-  val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
+  val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
 
-  val print : ?name:string -> emitter -> print_state -> (E.t * T.t) list -> E.t -> string
+  val print : ?name:string -> emitter -> P.t -> (E.t * T.t) list -> E.t -> string
 
   val source_intro : string
   val source_outro : string
@@ -131,7 +82,8 @@ struct
             lst
           ) else (
             if debug then
-              pp stdout "Expression depends on external identifier %S\n%!" s ;
+              Printf.fprintf stdout
+                "Expression depends on external identifier %S\n%!" s ;
             s :: lst
           )
       | _ -> lst
@@ -183,7 +135,7 @@ struct
         | Some n -> n
         | None -> U.gen_sym "id_" |> valid_identifier in
       let tn = C.type_identifier p t in
-      pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
+      Printf.fprintf p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
       n
     )
 
@@ -198,7 +150,7 @@ struct
   let print_intro oc =
     Printf.fprintf oc "%s\n\n" C.source_intro
 
-  let print_source output_identifier compunit oc =
+  let print_source output_identifier compunit p oc =
     (* [compunit] is full of identifiers (list of name * exp).
      * Output them in any order as long as dependencies are defined before
      * being used. *)
@@ -212,13 +164,12 @@ struct
         id, deps
       ) compunit.U.identifiers in
     if debug then
-      pp stdout "Identifiers:\n%a\n%!"
+      Printf.fprintf stdout "Identifiers:\n%a\n%!"
         (List.print ~first:"" ~last:"" ~sep:"" (fun oc ((name, id, _), depends) ->
           pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
             name
             (List.print String.print) depends
             (E.print ?max_depth:None) id.U.expr)) identifiers ;
-    let p = make_print_state () in
     let rec loop progress defined left_overs = function
       | [] ->
           if left_overs <> [] then (
@@ -238,16 +189,17 @@ struct
             ) depends in
           if missing_depends <> [] then (
             if debug then
-              pp stdout "Identifier %s has some undefined dependences, \
-                         waiting...\n" name ;
+              Printf.fprintf stdout "Identifier %s has some undefined \
+                                     dependences, waiting...\n" name ;
             let left_overs' = (id, missing_depends) :: left_overs in
             loop progress defined left_overs' rest
           ) else (
             if debug then
-              pp stdout "Identifier %s depends on %d defined identifiers, \
-                         emitting code...\n" name (List.length depends) ;
+              Printf.fprintf stdout "Identifier %s depends on %d defined \
+                                     identifiers, emitting code...\n"
+                name (List.length depends) ;
             let l = U.environment U.{ compunit with identifiers = defined } in
-            new_top_level p (fun p ->
+            P.new_top_level p (fun p ->
               output_identifier name p l expr) ;
             let defined = id :: defined in
             loop true defined left_overs rest
@@ -269,18 +221,21 @@ struct
       print_ios p.defs
       C.source_outro
 
-  let print_verbatim location defs oc =
+  let print_verbatim location defs p oc =
     List.rev defs |>
-    List.iter (fun (backend, loc, s) ->
-      if loc = location && backend = id then String.print oc s)
+    List.iter (fun (backend, loc, f) ->
+      if loc = location && backend = id then
+        Printf.fprintf oc "%t" (f p))
 
   let print_definitions compunit oc =
     print_intro oc ;
-    print_verbatim U.Top compunit.U.verbatim_definitions oc ;
-    print_source define compunit oc ;
-    print_verbatim U.Bottom compunit.U.verbatim_definitions oc
+    let p = P.make () in
+    print_verbatim U.Top compunit.U.verbatim_definitions p oc ;
+    print_source define compunit p oc ;
+    print_verbatim U.Bottom compunit.U.verbatim_definitions p oc
 
   let print_declarations compunit oc =
     print_intro oc ;
-    print_source declare compunit oc
+    let p = P.make () in
+    print_source declare compunit p oc
 end

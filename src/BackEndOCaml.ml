@@ -5,6 +5,7 @@ open BackEndCLike
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
+module P = DessserPrinter
 
 let debug = false
 
@@ -57,46 +58,46 @@ struct
   let rec print_record p oc id mns =
     let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%smodule %s = struct\n" p.indent m ;
-    indent_more p (fun () ->
-      pp oc "%stype t = {\n" p.indent ;
-      indent_more p (fun () ->
+    pp oc "%smodule %s = struct\n" p.P.indent m ;
+    P.indent_more p (fun () ->
+      pp oc "%stype t = {\n" p.P.indent ;
+      P.indent_more p (fun () ->
         Array.iter (fun (field_name, mn) ->
           let typ_id = type_identifier p (T.Value mn) in
           pp oc "%smutable %s : %s;\n"
-            p.indent (valid_identifier field_name) typ_id
+            p.P.indent (valid_identifier field_name) typ_id
         ) mns
       ) ;
-      pp oc "%s}\n" p.indent
+      pp oc "%s}\n" p.P.indent
     ) ;
     pp oc "%send\n" p .indent ;
     (* Also define the type alias: *)
-    pp oc "%stype %s = %s.t\n\n" p.indent id m
+    pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 
   and print_sum p oc id mns =
     let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%smodule %s = struct\n" p.indent m ;
-    indent_more p (fun () ->
-      pp oc "%stype t = \n" p.indent ;
-      indent_more p (fun () ->
+    pp oc "%smodule %s = struct\n" p.P.indent m ;
+    P.indent_more p (fun () ->
+      pp oc "%stype t = \n" p.P.indent ;
+      P.indent_more p (fun () ->
         Array.iter (fun (n, mn) ->
           let typ_id = type_identifier p (T.Value mn) in
-          pp oc "%s| %s of %s\n" p.indent (cstr_name n) typ_id
+          pp oc "%s| %s of %s\n" p.P.indent (cstr_name n) typ_id
         ) mns
       ) ;
       pp oc "\n" ;
       (* Associated "label_of_cstr": *)
-      pp oc "%slet label_of_cstr = function\n" p.indent ;
-      indent_more p (fun () ->
+      pp oc "%slet label_of_cstr = function\n" p.P.indent ;
+      P.indent_more p (fun () ->
         Array.iteri (fun i (n, _) ->
-          pp oc "%s| %s _ -> Uint16.of_int %d" p.indent (cstr_name n) i
+          pp oc "%s| %s _ -> Uint16.of_int %d" p.P.indent (cstr_name n) i
         ) mns
       ) ;
     ) ;
-    pp oc "\n%send\n" p.indent ;
+    pp oc "\n%send\n" p.P.indent ;
     (* Also define the type alias: *)
-    pp oc "%stype %s = %s.t\n\n" p.indent id m
+    pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 
   and value_type_identifier p = function
     | T.{ vtyp ; nullable = true } ->
@@ -136,15 +137,15 @@ struct
     | { vtyp = Tup mns ; _ } as mn ->
         let t = T.Value mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
-        declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
     | { vtyp = Rec mns ; _ } as mn ->
         let t = T.Value mn in
-        declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
         valid_identifier
     | { vtyp = Sum mns ; _ } as mn ->
         let t = T.Value mn in
-        declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
         valid_identifier
     | { vtyp = Map _ ; _ } ->
         assert false (* no value of map type *)
@@ -273,7 +274,7 @@ struct
       match name with
       | Some n -> n
       | None -> U.gen_sym pref |> valid_identifier in
-    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.indent in
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let unary_op op e1 =
       let n1 = print emit p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
@@ -293,16 +294,16 @@ struct
     let shortcutting_binary_infix_op e1 op e2 =
       emit ?name p l e (fun oc ->
         pp oc "(\n" ;
-        indent_more p (fun () ->
+        P.indent_more p (fun () ->
           let n1 = print emit p l e1 in
           ppi oc "%s" n1
         ) ;
         ppi oc ") %s (" op ;
-        indent_more p (fun () ->
+        P.indent_more p (fun () ->
           let n2 = print emit p l e2 in
           ppi oc "%s" n2
         ) ;
-        pp oc "%s)" p.indent) in
+        pp oc "%s)" p.P.indent) in
     let binary_mod_op op e1 e2 =
       let op = mod_name (E.type_of l e) ^"."^ op in
       binary_op op e1 e2 in
@@ -324,7 +325,7 @@ struct
             nf
             (List.print ~first:" " ~last:"" ~sep:" " String.print) ns)
     | E.E1 (Comment c, e1) ->
-        ppi p.def "(* %s *)" c ;
+        ppi p.P.def "(* %s *)" c ;
         print ?name emit p l e1
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "()" es
@@ -362,11 +363,11 @@ struct
         print ?name emit p l e1
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
-        pp p.def "%signore %s;\n" p.indent n ;
+        pp p.P.def "%signore %s;\n" p.P.indent n ;
         "()"
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
-        pp p.def ("%s"^^
+        pp p.P.def ("%s"^^
           (match E.type_of l e1 |> T.develop_user_types with
           | Value { vtyp = Mac String ; nullable = false } ->
               "print_string %s;"
@@ -374,8 +375,8 @@ struct
               "print_char %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
-          p.indent n ;
-        pp p.def "%sflush stdout ;" p.indent ;
+          p.P.indent n ;
+        pp p.P.def "%sflush stdout ;" p.P.indent ;
         "()"
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
@@ -394,7 +395,7 @@ struct
               assert (T.is_nullable t) ; (* because type_checking *)
               let n1 = print emit p l e in
               pp oc "(match %s with NotNull x_ -> x_ | Null ->" n1 ;
-              indent_more p (fun () -> loop p.def es') ;
+              P.indent_more p (fun () -> loop p.P.def es') ;
               pp oc ")" in
         emit ?name p l e (fun oc -> loop oc (e1 :: es))
     | E.E2 (Nth, e1, e2) ->
@@ -570,30 +571,30 @@ struct
         let n1 = print emit p l e1 in
         (* Note: Scanf uses two distinct format specifiers for "normal"
          * and hex notations so detect it and pick the proper one: *)
-        pp p.def "%slet len_ = %s.Pointer.stop - %s.start in\n" p.indent n1 n1 ;
-        pp p.def "%slet is_hex_ = len_ > 2 && (\n" p.indent ;
-        indent_more p (fun () ->
-          pp p.def "%slet o_ =\n" p.indent ;
-          indent_more p (fun () ->
-            pp p.def "%slet c_ = Bytes.get %s.bytes %s.start in\n"
-              p.indent n1 n1 ;
-            pp p.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.indent) ;
-          pp p.def "%slen_ > 2 + o_ && \
+        pp p.P.def "%slet len_ = %s.Pointer.stop - %s.start in\n" p.P.indent n1 n1 ;
+        pp p.P.def "%slet is_hex_ = len_ > 2 && (\n" p.P.indent ;
+        P.indent_more p (fun () ->
+          pp p.P.def "%slet o_ =\n" p.P.indent ;
+          P.indent_more p (fun () ->
+            pp p.P.def "%slet c_ = Bytes.get %s.bytes %s.start in\n"
+              p.P.indent n1 n1 ;
+            pp p.P.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.P.indent) ;
+          pp p.P.def "%slen_ > 2 + o_ && \
                       Bytes.get %s.bytes (%s.start + o_) = '0' && \
                       (let c2_ = Bytes.get %s.bytes (%s.start + o_ + 1) in \
                        c2_ = 'x' || c2_ = 'X')) in\n"
-            p.indent n1 n1 n1 n1) ;
-        pp p.def "%slet s_ =\n" p.indent ;
-        indent_more p (fun () ->
-          pp p.def "%slet off_ = ref %s.Pointer.start in\n" p.indent n1 ;
-          pp p.def "%sScanf.Scanning.from_function (fun () ->\n" p.indent ;
-          indent_more p (fun () ->
-            pp p.def "%sif !off_ >= %s.Pointer.stop then raise End_of_file ;\n"
-              p.indent n1 ;
-            pp p.def "%slet c_ = Bytes.get %s.Pointer.bytes !off_ in\n"
-              p.indent n1 ;
-            pp p.def "%sincr off_ ;\n" p.indent ;
-            pp p.def "%sc_) in\n" p.indent)) ;
+            p.P.indent n1 n1 n1 n1) ;
+        pp p.P.def "%slet s_ =\n" p.P.indent ;
+        P.indent_more p (fun () ->
+          pp p.P.def "%slet off_ = ref %s.Pointer.start in\n" p.P.indent n1 ;
+          pp p.P.def "%sScanf.Scanning.from_function (fun () ->\n" p.P.indent ;
+          P.indent_more p (fun () ->
+            pp p.P.def "%sif !off_ >= %s.Pointer.stop then raise End_of_file ;\n"
+              p.P.indent n1 ;
+            pp p.P.def "%slet c_ = Bytes.get %s.Pointer.bytes !off_ in\n"
+              p.P.indent n1 ;
+            pp p.P.def "%sincr off_ ;\n" p.P.indent ;
+            pp p.P.def "%sc_) in\n" p.P.indent)) ;
         emit ?name p l e (fun oc ->
           pp oc "Scanf.bscanf s_ (if is_hex_ then \" %%h%%n\" else \
                                                   \" %%f%%n\") \
@@ -619,12 +620,12 @@ struct
         let n1 = print emit p l e1 in
         let m = mod_name (E.type_of l e |> T.pair_of_tpair |> fst) in
         emit ?name p l e (fun oc ->
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             pp oc "\n%slet s_ = Bytes.unsafe_to_string %s.Pointer.bytes in\n"
-              p.indent n1 ;
+              p.P.indent n1 ;
             pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.Pointer.start) s_ in\n"
-              p.indent m n1 ;
-            pp oc "%sn_, Pointer.skip %s (o_ - %s.start)" p.indent n1 n1))
+              p.P.indent m n1 ;
+            pp oc "%sn_, Pointer.skip %s (o_ - %s.start)" p.P.indent n1 n1))
     | E.E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -836,7 +837,7 @@ struct
     | E.E2 (PokeByte, e1, e2) ->
         let ptr = print ?name emit p l e1
         and v = print emit p l e2 in
-        ppi p.def "Pointer.pokeByte %s %s;" ptr v ;
+        ppi p.P.def "Pointer.pokeByte %s %s;" ptr v ;
         ptr
     | E.E3 (BlitByte, e1, e2, e3) ->
         any_op "Pointer.blitBytes" [ e1 ; e2 ; e3 ]
@@ -964,27 +965,27 @@ struct
              * membership in this set: *)
             let check_csts_n =
               (* Temporarily, enter new definitions at the top-level: *)
-              new_top_level p (fun p ->
+              P.new_top_level p (fun p ->
                 let check_csts_n = gen_sym "check_csts_" in
-                pp p.def "let %s =" check_csts_n ;
-                indent_more p (fun () ->
+                pp p.P.def "let %s =" check_csts_n ;
+                P.indent_more p (fun () ->
                   let ns =
                     List.map (fun e ->
                       print emit p [] e
                     ) csts in
-                  ppi p.def "fun x_ ->" ;
-                  indent_more p (fun () ->
+                  ppi p.P.def "fun x_ ->" ;
+                  P.indent_more p (fun () ->
                     if csts = [] then (
-                      String.print p.def "false"
+                      String.print p.P.def "false"
                     ) else if List.length csts < 6 (* guessed *) then (
                       List.print ~first:"" ~last:"" ~sep:" || "
-                        (fun oc n -> Printf.fprintf oc "x_ = %s" n) p.def ns
+                        (fun oc n -> Printf.fprintf oc "x_ = %s" n) p.P.def ns
                     ) else (
                       (* TODO: if the csts are nullable filter out the Null and
                        * make this a list of non nullable values: *)
-                      ppi p.def "let h_ = Hashtbl.of_list %a in"
+                      ppi p.P.def "let h_ = Hashtbl.of_list %a in"
                         (List.print String.print) ns ;
-                      ppi p.def "Hashtbl.mem h_ x_"
+                      ppi p.P.def "Hashtbl.mem h_ x_"
                     )) ;
                   check_csts_n)) in
             emit ?name p l e (fun oc ->
@@ -1027,9 +1028,9 @@ struct
     | E.E1 (Function (_fid, [||]), e1) ->
         emit ?name p l e (fun oc ->
           pp oc "(fun () ->\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             let n = print emit p l e1 in
-            pp oc "%s%s)" p.indent n))
+            pp oc "%s%s)" p.P.indent n))
     | E.E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
           array_print_i ~first:"(fun " ~last:" ->\n" ~sep:" "
@@ -1039,25 +1040,25 @@ struct
             Array.fold_lefti (fun l i t ->
               (E.E0 (Param (fid, i)), t) :: l
             ) l ts in
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             let n = print emit p l e1 in
-            pp oc "%s%s)" p.indent n))
+            pp oc "%s%s)" p.P.indent n))
     | E.E0 (Param (fid, n)) ->
         param fid n
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             ppi oc "if %s then (" cond ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               let n = print emit p l e2 in
               ppi oc "%s" n) ;
             ppi oc ") else (" ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               let n = print emit p l e3 in
               ppi oc "%s" n) ;
-            pp oc "%s)" p.indent))
+            pp oc "%s)" p.P.indent))
     | E.E4 (ReadWhile, e1, e2, e3, e4) ->
         let cond = print emit p l e1
         and reduce = print emit p l e2
@@ -1065,40 +1066,40 @@ struct
         and ptr = print emit p l e4 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             ppi oc "let rec read_while_loop accum ptr =" ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               ppi oc "if Pointer.remSize ptr <= 0 then (accum, ptr) else" ;
               ppi oc "let next_byte = Pointer.peekByte ptr 0 in" ;
               ppi oc "if not (%s next_byte) then (accum, ptr) else" cond ;
               ppi oc "let accum = %s accum next_byte in" reduce ;
               ppi oc "let ptr = Pointer.skip ptr 1 in" ;
               ppi oc "read_while_loop accum ptr in") ;
-            pp oc "%sread_while_loop %s %s" p.indent accum ptr))
+            pp oc "%sread_while_loop %s %s" p.P.indent accum ptr))
     | E.E3 (LoopWhile, e1, e2, e3) ->
         let cond = print emit p l e1
         and body = print emit p l e2
         and accum = print emit p l e3 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             ppi oc "let rec loop_while accum =" ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               ppi oc "if not (%s accum) then accum else" cond ;
               ppi oc "loop_while (%s accum) in" body) ;
-            pp oc "%sloop_while %s" p.indent accum))
+            pp oc "%sloop_while %s" p.P.indent accum))
     | E.E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
         and cond = print emit p l e2
         and accum = print emit p l e3 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             ppi oc "let rec loop_until accum =" ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               ppi oc "let accum = %s accum in" body ;
               ppi oc "if %s accum then loop_until accum else accum in" cond) ;
-            pp oc "%sloop_until %s" p.indent accum))
+            pp oc "%sloop_until %s" p.P.indent accum))
     | E.E3 (Fold, e1, e2, e3) ->
         let init = print emit p l e1
         and body = print emit p l e2
@@ -1121,12 +1122,12 @@ struct
         and accum = print emit p l e4 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
-          indent_more p (fun () ->
+          P.indent_more p (fun () ->
             ppi oc "let rec loop_repeat n accum =" ;
-            indent_more p (fun () ->
+            P.indent_more p (fun () ->
               ppi oc "if n >= %s then accum else" to_ ;
               ppi oc "loop_repeat (Int32.succ n) (%s n accum) in" body) ;
-            pp oc "%sloop_repeat %s %s" p.indent from accum))
+            pp oc "%sloop_repeat %s %s" p.P.indent from accum))
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
 (*      TODO: For when tuples are actual tuples:
@@ -1135,7 +1136,7 @@ struct
           match E.type_of l e1 |> T.develop_user_types with
           | Value { vtyp = Tup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
-        ppi p.def "let %t = %s\n"
+        ppi p.P.def "let %t = %s\n"
           (fun oc ->
             for i = 0 to max_n - 1 do
               if i > 0 then String.print oc ", " ;
@@ -1208,15 +1209,15 @@ struct
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in
     let tn = type_identifier p t in
-    pp p.def "%slet %s : %s =\n" p.indent n tn ;
-    indent_more p (fun () ->
+    pp p.P.def "%slet %s : %s =\n" p.P.indent n tn ;
+    P.indent_more p (fun () ->
       let n = print emit p l e in
-      pp p.def "%s%s\n" p.indent n)
+      pp p.P.def "%s%s\n" p.P.indent n)
 
   let print_identifier_declaration n p l e =
     let t = E.type_of l e in
     let tn = type_identifier p t in
-    pp p.def "%sval %s : %s\n" p.indent n tn
+    pp p.P.def "%sval %s : %s\n" p.P.indent n tn
 
   let source_intro =
     "open Stdint\n\

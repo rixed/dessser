@@ -554,9 +554,9 @@ module U = DessserCompilationUnit
 module type BACKEND =
 sig
   val id : T.backend_id
-  val print_definitions : U.t -> unit IO.output -> unit
-  val print_declarations : U.t -> unit IO.output -> unit
-  val print_comment : unit IO.output -> ('a, unit IO.output, unit) format -> 'a
+  val print_definitions : U.t -> string IO.output -> unit
+  val print_declarations : U.t -> string IO.output -> unit
+  val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
