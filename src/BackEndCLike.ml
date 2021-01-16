@@ -218,33 +218,41 @@ struct
       List.iter (fun io ->
         Printf.fprintf oc "%s\n" (IO.close_out io)) in
     Printf.fprintf oc
-      "%a\n\
+      "%t\n\
+       %a\n\n\
+       %a\n\n\
+       %a\n\n\
+       %a\n\n\
+       %a\n\n\
+       %a\n\n\
+       %a\n\n\
        %a\n\n\
        %a\n\n\
        %a\n\n\
        %s\n"
+      print_intro
+      C.print_comment "Verbatim (top)"
+      (print_verbatim p) top_verbatim
       C.print_comment "Declarations"
       print_ios p.decls
+      C.print_comment "Verbatim (middle)"
+      (print_verbatim p) middle_verbatim
       C.print_comment "Definitions"
       print_ios p.defs
+      C.print_comment "Verbatim (bottom)"
+      (print_verbatim p) bottom_verbatim
       C.source_outro
 
-  let print_verbatim location defs p oc =
-    List.rev defs |>
-    List.iter (fun (backend, loc, f) ->
-      if loc = location && backend = id then
-        Printf.sprintf2 "%t" (f p) |>
-        String.print oc)
-
-  let print_definitions : 'b. (U.t, 'b) IO.printer = fun oc compunit ->
-    print_intro oc ;
+  let print_definitions oc compunit =
+    let verbatims loc =
+      List.filter (fun (i, l, _) ->
+        i = id && l = loc
+      ) compunit.U.verbatim_definitions in
     let p = P.make () in
-    print_verbatim U.Top compunit.U.verbatim_definitions p oc ;
-    print_source define compunit p oc ;
-    print_verbatim U.Bottom compunit.U.verbatim_definitions p oc
+    print_source define compunit p oc
+      (verbatims Top) (verbatims Middle) (verbatims Bottom)
 
   let print_declarations oc compunit =
-    print_intro oc ;
     let p = P.make () in
-    print_source declare compunit p oc
+    print_source declare compunit p oc [] [] []
 end

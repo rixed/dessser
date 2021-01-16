@@ -12,7 +12,10 @@ type t =
 and identifier =
   { public : bool ; expr : E.t }
 
-and verbatim_location = Top | Bottom
+and verbatim_location =
+  | Top (* Before any declarations *)
+  | Middle (* After declarations *)
+  | Bottom (* After declarations and definitions *)
 
 let make () =
   { identifiers = [] ; external_identifiers = [] ; verbatim_definitions = [] }
@@ -59,7 +62,7 @@ let add_identifier_of_expression compunit ?name expr =
   E.E0 (Identifier name),
   name
 
-let add_verbatim_definition compunit ?(location=Top) backend f =
+let add_verbatim_definition compunit ?(location=Middle) backend f =
   { compunit with
     verbatim_definitions =
       (backend, location, f) :: compunit.verbatim_definitions }
