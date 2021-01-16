@@ -82,8 +82,10 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
     U.add_identifier_of_expression compunit ~name:"of_value" of_value in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
-  write_source ~src_fname:def_fname (BE.print_definitions compunit) ;
-  write_source ~src_fname:decl_fname (BE.print_declarations compunit) ;
+  write_source ~src_fname:def_fname (fun oc ->
+    BE.print_definitions oc compunit) ;
+  write_source ~src_fname:decl_fname (fun oc ->
+    BE.print_declarations oc compunit) ;
   Printf.printf "declarations in %S\n" decl_fname ;
   Printf.printf "definitions in %S\n" def_fname
 
@@ -115,7 +117,7 @@ let converter
     | "dil" -> ""
     | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions compunit oc ;
+    BE.print_definitions oc compunit ;
     String.print oc (convert_main_for BE.preferred_def_extension)
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;
@@ -153,7 +155,7 @@ let lmdb main
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
   write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions compunit oc ;
+    BE.print_definitions oc compunit ;
     main BE.preferred_def_extension convert_key_name convert_val_name |>
     String.print oc
   ) ;
@@ -177,7 +179,7 @@ let lmdb_load =
 let lmdb_query _ _ _ _ _ _ () =
   todo "lmdb_query"
 
-(* In dessser IL we have to explicitly describe the initial compunit, the update
+(* In dessser IL we have to explicitly describe the initial code, the update
  * function and the finalizer function. Ramen will have to keep working hard
  * to convert simple RaQL aggregation functions into DIL programs. *)
 let aggregator
@@ -192,7 +194,7 @@ let aggregator
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
     E.func1 DataPtr (fun _l -> ToValue.make schema) in
-  (* Check the function that creates the initial compunit that will be used by
+  (* Check the function that creates the initial code that will be used by
    * the update function: *)
   E.type_check [] init_expr ;
   let state_t = E.type_of [] init_expr in
@@ -202,7 +204,7 @@ let aggregator
   let update_t = E.type_of [] update_expr in
   if update_t <> T.Function ([| state_t ; Value schema |], T.void) then
     Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
-                     aggregation compunit and the input value and returning \
+                     aggregation code and the input value and returning \
                      nothing (not %a)"
                      (E.print ~max_depth:4) update_expr
                      T.print update_t |>
@@ -214,7 +216,7 @@ let aggregator
     | T.Function ([| a1 |], Value mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
-                         aggregation compunit (not %a)" T.print t |>
+                         aggregation code (not %a)" T.print t |>
         failwith in
   (* Finally, a function to convert the output value on the heap into stdout
    * in the given encoding: *)
@@ -229,23 +231,23 @@ let aggregator
    * - input_expr, that deserialize and then update and return the new source
    *   pointer;
    * - output_expr, that finalize the value and serialize it. *)
-  let code = U.make () in
-  let code, state_id, state_name =
-    U.add_identifier_of_expression code ~name:"compunit" init_expr in
+  let compunit = U.make () in
+  let compunit, state_id, state_name =
+    U.add_identifier_of_expression compunit ~name:"compunit" init_expr in
   let input_expr =
-    E.func1 ~l:(U.environment code) DataPtr (fun _l src ->
+    E.func1 ~l:(U.environment compunit) DataPtr (fun _l src ->
       let v_src = apply to_value [ src ] in
       E.with_sploded_pair "input_expr" v_src (fun v src ->
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
-  let code, _, input_name =
-    U.add_identifier_of_expression code ~name:"input" input_expr in
+  let compunit, _, input_name =
+    U.add_identifier_of_expression compunit ~name:"input" input_expr in
   let output_expr =
-    E.func1 ~l:(U.environment code) DataPtr (fun _l dst ->
+    E.func1 ~l:(U.environment compunit) DataPtr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
       apply of_value [ v ; dst ]) in
-  let code, _, output_name =
-    U.add_identifier_of_expression code ~name:"output" output_expr in
+  let compunit, _, output_name =
+    U.add_identifier_of_expression compunit ~name:"output" output_expr in
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
@@ -257,7 +259,7 @@ let aggregator
     | "dil" -> ""
     | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions code oc ;
+    BE.print_definitions oc compunit ;
     String.print oc (main_for BE.preferred_def_extension)
   ) ;
   compile ~optim:3 ~link:true backend def_fname dest_fname ;

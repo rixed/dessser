@@ -46,7 +46,7 @@ let make_converter ?exe_fname ?mn backend convert =
     ) mn ;
     BE.print_comment oc "Compile with:\n  %s\n"
       (BE.compile_cmd ~optim:0 ~link:true src_fname exe_fname) ;
-    BE.print_definitions compunit oc ;
+    BE.print_definitions oc compunit ;
     if BE.preferred_def_extension = "cc" then
       String.print oc (FragmentsCPP.converter entry_point)
     else

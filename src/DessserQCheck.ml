@@ -534,7 +534,7 @@ let expression =
       let ext = "."^ BE.preferred_def_extension in
       Filename.temp_file "dessserQCheck_" ext in
     let obj_fname = Filename.remove_extension src_fname in
-    write_source ~src_fname (BE.print_definitions compunit) ;
+    write_source ~src_fname (fun oc -> BE.print_definitions oc compunit) ;
     try compile ~optim:0 ~link:false be src_fname obj_fname ;
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;

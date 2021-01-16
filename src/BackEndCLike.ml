@@ -151,7 +151,14 @@ struct
   let print_intro oc =
     Printf.fprintf oc "%s\n\n" C.source_intro
 
-  let print_source output_identifier compunit p oc =
+  let print_verbatim p oc defs =
+    List.rev defs |>
+    List.iter (fun (_, _, f) ->
+      Printf.sprintf2 "%a" f p |>
+      String.print oc)
+
+  let print_source output_identifier compunit p oc
+                   top_verbatim middle_verbatim bottom_verbatim =
     (* [compunit] is full of identifiers (list of name * exp).
      * Output them in any order as long as dependencies are defined before
      * being used. *)
@@ -226,16 +233,17 @@ struct
     List.rev defs |>
     List.iter (fun (backend, loc, f) ->
       if loc = location && backend = id then
-        Printf.fprintf oc "%t" (f p))
+        Printf.sprintf2 "%t" (f p) |>
+        String.print oc)
 
-  let print_definitions compunit oc =
+  let print_definitions : 'b. (U.t, 'b) IO.printer = fun oc compunit ->
     print_intro oc ;
     let p = P.make () in
     print_verbatim U.Top compunit.U.verbatim_definitions p oc ;
     print_source define compunit p oc ;
     print_verbatim U.Bottom compunit.U.verbatim_definitions p oc
 
-  let print_declarations compunit oc =
+  let print_declarations oc compunit =
     print_intro oc ;
     let p = P.make () in
     print_source declare compunit p oc

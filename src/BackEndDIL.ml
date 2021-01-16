@@ -16,7 +16,7 @@ let type_identifier _p t =
   Printf.sprintf2 "%a" T.print t |>
   String.quote
 
-let print_definitions compunit oc =
+let print_definitions oc compunit =
   (* Print in the order of definition: *)
   List.rev compunit.U.identifiers |>
   List.iter (fun (name, U.{ expr ; _ }, _) ->
@@ -25,7 +25,7 @@ let print_definitions compunit oc =
       E.pretty_print expr) ;
     Format.flush_str_formatter () |> String.print oc)
 
-let print_declarations _state _oc =
+let print_declarations _oc _compunit =
   (* TODO: a header with all those types? *)
   ()
 

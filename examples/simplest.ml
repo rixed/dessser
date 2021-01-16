@@ -193,7 +193,7 @@ let test_backend () =
   let exe_fname = "/tmp/simplest_gen"^ exe_ext in
   let src_fname = change_ext BE.preferred_def_extension exe_fname in
   write_source ~src_fname (fun oc ->
-      BE.print_definitions compunit oc ;
+      BE.print_definitions oc compunit ;
       String.print oc outro) ;
   compile ~link:true backend src_fname exe_fname
 

@@ -99,8 +99,8 @@ LIBDESSSER_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \
-	src/DessserCompilationUnit.ml \
 	src/DessserPrinter.ml \
+	src/DessserCompilationUnit.ml \
 	src/Dessser.ml \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
@@ -204,6 +204,7 @@ TESTABLE_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \
+	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \
 	src/BackEndCPP.ml \
 	src/DessserQCheck.ml \
@@ -216,8 +217,8 @@ LINKED_FOR_TESTS = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \
-	src/DessserCompilationUnit.ml \
 	src/DessserPrinter.ml \
+	src/DessserCompilationUnit.ml \
 	src/Dessser.ml \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \

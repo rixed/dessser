@@ -1,4 +1,5 @@
 module E = DessserExpressions
+module P = DessserPrinter
 module T = DessserTypes
 
 type t =
@@ -6,8 +7,7 @@ type t =
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
     verbatim_definitions :
-      (T.backend_id * verbatim_location *
-       (DessserPrinter.t -> string BatIO.output -> unit)) list }
+      (T.backend_id * verbatim_location * (P.t, unit) BatIO.printer) list }
 
 and identifier =
   { public : bool ; expr : E.t }
