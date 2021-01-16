@@ -9,6 +9,13 @@ type T.backend_id += DIL
 
 let id = DIL
 
+(* The only place where we need explicit types in DIL are in strings for instance
+ * in the null or list expressions. There, types are expressed in the syntax
+ * printed/parsed by DessserTypes: *)
+let type_identifier _p t =
+  Printf.sprintf2 "%a" T.print t |>
+  String.quote
+
 let print_definitions compunit oc =
   (* Print in the order of definition: *)
   List.rev compunit.U.identifiers |>

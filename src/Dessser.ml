@@ -3,6 +3,7 @@ open Stdint
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
+module P = DessserPrinter
 
 (* Used by deserializers to "open" lists: *)
 type list_opener =
@@ -561,4 +562,5 @@ sig
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val compile_cmd : optim:int -> link:bool -> string -> string -> string
+  val type_identifier : P.t -> T.t -> string
 end

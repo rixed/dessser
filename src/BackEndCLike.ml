@@ -61,6 +61,7 @@ struct
   let print_comment = C.print_comment
   let preferred_def_extension = C.preferred_def_extension
   let preferred_decl_extension = C.preferred_decl_extension
+  let type_identifier = C.type_identifier
 
   let valid_source_name fname =
     let ext = Filename.extension fname
