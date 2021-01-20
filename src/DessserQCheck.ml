@@ -573,6 +573,10 @@ let expression =
     "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
   compile_check "(make-vec ())"
   compile_check "(make-list \"U8\" (u8 63))"
+  compile_check "(to-u8 (float 1))"
+  compile_check "(to-float (u8 1))"
+  compile_check "(to-u8 (u8 1))"
+  compile_check "(to-float (float 1))"
 *)
 
 (*

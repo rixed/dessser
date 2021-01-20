@@ -212,7 +212,20 @@ struct
     | t ->
         Printf.sprintf2 "No module implementing %a"
           T.print t |>
-        failwith
+        invalid_arg
+
+  let rec num_name = function
+    | T.Value { vtyp = Mac (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
+                            U40 | I40 | U48 | I48 | U56 | I56 | U64 | I64 |
+                            U128 | I128 | Float) ; nullable = false }
+    | T.(Byte | Word | DWord | QWord | OWord) as t ->
+        String.lowercase (mod_name t)
+    | T.Value { vtyp = Usr t ; nullable = false } ->
+        num_name (Value { vtyp = t.def ; nullable = false })
+    | t ->
+        Printf.sprintf2 "num_name: Not an integer (%a)"
+          T.print t |>
+        invalid_arg
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -660,62 +673,63 @@ struct
     | E.E1 (SetOfSList, e1) ->
         unary_op "make_simple_set_of_slist" e1
     | E.E1 (ToU8, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint8") e1
+        let op = "Uint8.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI8, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int8") e1
+        let op = "Int8.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU16, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint16") e1
+        let op = "Uint16.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI16, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int16") e1
+        let op = "Int16.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU24, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint24") e1
+        let op = "Uint24.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI24, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int24") e1
+        let op = "Int24.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU32, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint32") e1
+        let op = "Uint32.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI32, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int32") e1
+        let op = "Int32.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU40, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint40") e1
+        let op = "Uint40.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI40, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int40") e1
+        let op = "Int40.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU48, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint48") e1
+        let op = "Uint48.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI48, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int48") e1
+        let op = "Int48.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU56, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint56") e1
+        let op = "Uint56.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI56, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int56") e1
+        let op = "Int56.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU64, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint64") e1
+        let op = "Uint64.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI64, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int64") e1
+        let op = "Int64.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToU128, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_uint128") e1
+        let op = "Uint128.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToI128, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_int128") e1
+        let op = "Int128.of_"^ num_name (E.type_of l e1) in
+        unary_op op e1
     | E.E1 (ToFloat, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".to_float") e1
+        if m = "Float" then print ?name emit p l e1
+        else unary_op (m ^".to_float") e1
     | E.E1 (U8OfBool, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n)
