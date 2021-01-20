@@ -19,7 +19,10 @@ type csv_config =
     (* If None, strings are never quoted. Otherwise, look for quotes. *)
     quote : char option ;
     true_ : string ;
-    false_ : string }
+    false_ : string ;
+    (* Are values (esp. of compound types) encoded as described in
+     * https://clickhouse.tech/docs/en/interfaces/formats ? *)
+    clickhouse_syntax : bool }
 
 let default_config =
   { separator = ',' ;
@@ -27,7 +30,8 @@ let default_config =
     null = "\\N" ;  (* À la Postgresql *)
     quote = Some '"' ;
     true_ = "T" ;
-    false_ = "F" }
+    false_ = "F" ;
+    clickhouse_syntax = false }
 
 (* Given how tuples/arrays/lists are flattened then any nullable compound type
  * must have no nullable types up to and including its first concrete item
@@ -245,24 +249,42 @@ struct
 
   let sum_cls _conf _ _ p = p
 
-  let vec_opn _conf _ _ _ _ p = p
+  let vec_opn conf _mn0 _path _dim _t p =
+    if not conf.clickhouse_syntax then p else
+    (* FIXME: we are supposed to switch to clickhouse's TSV from now on. *)
+    (* Use mn0 and path to find out if opening that string is required *)
+    let p = write_byte p (byte_of_const_char '"') in
+    write_byte p (byte_of_const_char '[')
 
-  let vec_cls _conf _ _ p = p
+  let vec_cls conf _mn0 _path p =
+    if not conf.clickhouse_syntax then p else
+    (* Use mn0 and path to find out if opening that string is required *)
+    let p = write_byte p (byte_of_const_char ']') in
+    write_byte p (byte_of_const_char '"')
 
-  let vec_sep conf _ _ p = sep conf p
+  let vec_sep conf _mn0 _path p =
+    if not conf.clickhouse_syntax then sep conf p else
+    write_byte p (byte_of_const_char '\t')
 
   (* Lists are prefixed with a column or their length: *)
-  let list_opn conf vtyp0 path _ n p =
-    match n with
-    | Some n ->
-        let p = su32 conf vtyp0 path n p in
-        sep conf p
-    | None ->
-        failwith "Csv.Ser needs list length upfront"
+  let list_opn conf mn0 path t n p =
+    if not conf.clickhouse_syntax then
+      match n with
+      | Some n ->
+          let p = su32 conf mn0 path n p in
+          sep conf p
+      | None ->
+          failwith "Csv.Ser needs list length upfront"
+    else
+      vec_opn conf mn0 path 0 t p
 
-  let list_cls _conf _ _ p = p
+  let list_cls conf mn0 path p =
+    if not conf.clickhouse_syntax then p else
+    vec_cls conf mn0 path p
 
-  let list_sep conf _ _ p = sep conf p
+  let list_sep conf mn0 path p =
+    if not conf.clickhouse_syntax then sep conf p else
+    vec_sep conf mn0 path p
 
   let nullable _conf _ _ p = p
 
@@ -467,22 +489,43 @@ struct
 
   let sum_cls _conf _ _ p = p
 
-  let vec_opn _conf _ _ _ _ p = p
+  let vec_opn conf _mn0 _path _dim _t p =
+    if not conf.clickhouse_syntax then p else
+    (* FIXME: we may switch back from clickhouse's TSV from now on. *)
+    (* Use mn0 and path to find out if opening that string is required *)
+    let p = skip_char '"' p in
+    skip_char '[' p
 
-  let vec_cls _conf _ _ p = p
+  let vec_cls conf _mn0 _path p =
+    if not conf.clickhouse_syntax then p else
+    (* FIXME: we may switch back from clickhouse's TSV from now on. *)
+    (* Use mn0 and path to find out if opening that string is required *)
+    let p = skip_char ']' p in
+    skip_char '"' p
 
   let vec_sep conf _ _ p =
-    skip_sep conf p
+    if not conf.clickhouse_syntax then skip_sep conf p else
+    skip_char '\t' p
 
   let list_opn conf =
-    KnownSize (fun vtyp0 path _ p ->
-      E.with_sploded_pair "list_opn" (du32 conf vtyp0 path p) (fun v p ->
-        pair v (skip_sep conf p)))
+    if not conf.clickhouse_syntax then
+      KnownSize (fun mn0 path _ p ->
+        E.with_sploded_pair "list_opn" (du32 conf mn0 path p) (fun v p ->
+          pair v (skip_sep conf p)))
+    else
+      UnknownSize (
+        (fun _ _ _ p -> p),
+        (fun _mn0 _path p ->
+          (* Won't work for nested compound types: *)
+          (eq (peek_byte p (size 0)) (byte_of_const_char ']'))))
 
-  let list_cls _conf _ _ p = p
+  let list_cls conf mn0 path p =
+    if not conf.clickhouse_syntax then p else
+    vec_cls conf mn0 path p
 
-  let list_sep conf _ _ p =
-    skip_sep conf p
+  let list_sep conf mn0 path p =
+    if not conf.clickhouse_syntax then skip_sep conf p else
+    vec_sep conf mn0 path p
 
   let is_null conf _ _ p =
     let len = String.length conf.null in

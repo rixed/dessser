@@ -959,13 +959,21 @@ let sexpr mn =
       separator = '|' ;
       null = "" ;
       true_ = "true" ;
-      false_ = "false" }
+      false_ = "false" ;
+      clickhouse_syntax = false }
 
   let csv_config_1 =
     DessserCsv.{ default_config with
       null = "" ;
       true_ = "true" ;
-      false_ = "false" }
+      false_ = "false" ;
+      clickhouse_syntax = false }
+
+  let csv_config_CH =
+    DessserCsv.{ default_config with
+      true_ = "1" ;
+      false_ = "0" ;
+      clickhouse_syntax = true }
 *)
 (*$= check_des_csv & ~printer:BatPervasives.identity
   "(1 F null)" \
@@ -986,6 +994,9 @@ let sexpr mn =
   "-0x1.79c428d047e73p-16" \
     (check_des_csv ~config:csv_config_0 cpp_be \
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")
+  "((1 2 3) F null)" \
+    (check_des_csv ~config:csv_config_CH ocaml_be \
+                   "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1\t2\t3]\",0,\\N\n")
 *)
 
 (* Test DessserCsv.make_serializable: *)
