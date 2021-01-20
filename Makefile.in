@@ -298,7 +298,7 @@ convert-check: src/dessserc
 	@schema='(i32;float;string)'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
-	   f="$$(tempfile --prefix=dessser_convert_check_)" &&\
+	   f="$$(mktemp dessser_convert_check_XXXXXX)" &&\
 	   src/dessserc converter \
 	     --input-enc s-expr --output-enc s-expr -o "$$f" \
 	     --language=$$be --schema="$$schema" \
@@ -324,7 +324,7 @@ aggregator-simplest-check: src/dessserc examples/i32s.csv
 	@schema='i32'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
-	   f="$$(tempfile --prefix=dessser_aggregator_check_)" &&\
+	   f="$$(mktemp dessser_aggregator_check_XXXXXX)" &&\
 	   src/dessserc aggregator \
 	     --input-enc csv --output-enc csv -o "$$f" \
 	     --language=$$be --schema="$$schema" \
@@ -347,7 +347,7 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 	@schema='i32'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
-	   f="$$(tempfile --prefix=dessser_aggregator_check_)" &&\
+	   f="$$(mktemp dessser_aggregator_check_XXXXXX)" &&\
 	   src/dessserc aggregator \
 	     --input-enc csv --output-enc s-expr -o "$$f" \
 	     --language=$$be --schema="$$schema" \
