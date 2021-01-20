@@ -544,8 +544,8 @@ let expression =
         false
 
   let can_be_compiled e =
-    can_be_compiled_with_backend (module BackEndOCaml : BACKEND) e &&
-    can_be_compiled_with_backend (module BackEndCPP : BACKEND) e
+    can_be_compiled_with_backend (module DessserBackEndOCaml : BACKEND) e &&
+    can_be_compiled_with_backend (module DessserBackEndCPP : BACKEND) e
 *)
 
 (*$Q expression & ~count:20
@@ -634,7 +634,7 @@ let rec sexpr_of_vtyp_gen vtyp =
   | T.Lst mn ->
       tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
         (* FIXME: make list_prefix_length a parameter of this function *)
-        (if SExpr.default_config.list_prefix_length then
+        (if DessserSExpr.default_config.list_prefix_length then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
@@ -666,7 +666,7 @@ and sexpr_of_mn_gen mn =
   let open Gen in
   if mn.nullable then
     join (
-      (* Note: This "null" must obviously match the one used in SExpr.ml *)
+      (* Note: This "null" must obviously match the one used in DessserSExpr.ml *)
       map (function true -> return "null"
                  | false -> sexpr_of_vtyp_gen mn.vtyp) bool)
   else
@@ -683,19 +683,19 @@ let sexpr mn =
   open QCheck
   open Ops
   let sexpr_to_sexpr be mn =
-    let module S2S = DesSer (SExpr.Des) (SExpr.Ser) in
+    let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
         S2S.desser mn src dst) in
     make_converter be ~mn e
 
   let test_desser alloc_dst be mn des ser =
     let module Des = (val des : DES) in
     let module Ser = (val ser : SER) in
-    let module S2T = DesSer (SExpr.Des) (Ser : SER) in
-    let module T2S = DesSer (Des : DES) (SExpr.Ser) in
+    let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
+    let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
         let1 alloc_dst (fun tdst ->
           with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
@@ -706,8 +706,8 @@ let sexpr mn =
 
   let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
 
-  let ocaml_be = (module BackEndOCaml : BACKEND)
-  let cpp_be = (module BackEndCPP : BACKEND)
+  let ocaml_be = (module DessserBackEndOCaml : BACKEND)
+  let cpp_be = (module DessserBackEndCPP : BACKEND)
 *)
 
 (* Given a type and a backend, build a converter from s-expr to s-expr for
@@ -748,11 +748,11 @@ let sexpr mn =
     let exe = test_data_desser be mn des ser in
     test_exe format mn exe
 
-  module ToValue = HeapValue.Materialize (SExpr.Des)
-  module OfValue = HeapValue.Serialize (SExpr.Ser)
+  module ToValue = DessserHeapValue.Materialize (DessserSExpr.Des)
+  module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr mn =
-    func2 (SExpr.Des.ptr mn) (SExpr.Ser.ptr mn) (fun _l src dst ->
+    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
       let v_src = ToValue.make mn src in
       with_sploded_pair "v_src" v_src (fun v src ->
         let dst = OfValue.serialize mn copy_field v dst in
@@ -770,27 +770,33 @@ let sexpr mn =
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
     let mn_ringbuf = T.force_maybe_nullable mn in
     (* RamenRingBuffer require record field names to be ordered: *)
-    let mn_ringbuf = RamenRingBuffer.order_rec_fields mn_ringbuf in
+    let mn_ringbuf = DessserRamenRingBuffer.order_rec_fields mn_ringbuf in
     (* CSV cannot encode some nullable compound types: *)
-    let mn_csv = Csv.make_serializable mn in
+    let mn_csv = DessserCsv.make_serializable mn in
 
     test_heap ocaml_be mn ;
     test_heap cpp_be mn ;
     let format = "RamenRingBuffer" in
     test_format ocaml_be mn_ringbuf
-      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
+      (module DessserRamenRingBuffer.Des : DES)
+      (module DessserRamenRingBuffer.Ser : SER) format ;
     test_format cpp_be mn_ringbuf
-      (module RamenRingBuffer.Des : DES) (module RamenRingBuffer.Ser : SER) format ;
+      (module DessserRamenRingBuffer.Des : DES)
+      (module DessserRamenRingBuffer.Ser : SER) format ;
     let format = "RowBinary" in
     test_format ocaml_be mn
-      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
+      (module DessserRowBinary.Des : DES)
+      (module DessserRowBinary.Ser : SER) format ;
     test_format cpp_be mn
-      (module RowBinary.Des : DES) (module RowBinary.Ser : SER) format ;
+      (module DessserRowBinary.Des : DES)
+      (module DessserRowBinary.Ser : SER) format ;
     let format = "CSV" in
     test_format ocaml_be mn_csv
-      (module Csv.Des : DES) (module Csv.Ser : SER) format ;
+      (module DessserCsv.Des : DES)
+      (module DessserCsv.Ser : SER) format ;
     test_format cpp_be mn_csv
-      (module Csv.Des : DES) (module Csv.Ser : SER) format)
+      (module DessserCsv.Des : DES)
+      (module DessserCsv.Ser : SER) format)
 *)
 
 (* Non regression tests: *)
@@ -806,20 +812,20 @@ let sexpr mn =
     String.trim rs = vs
   let check_rowbinary be ts vs =
     let mn = T.maybe_nullable_of_string ts in
-    let des = (module RowBinary.Des : DES)
-    and ser = (module RowBinary.Ser : SER) in
+    let des = (module DessserRowBinary.Des : DES)
+    and ser = (module DessserRowBinary.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_ringbuffer be ts vs =
     let mn = T.maybe_nullable_of_string ts in
-    let des = (module RamenRingBuffer.Des : DES)
-    and ser = (module RamenRingBuffer.Ser : SER) in
+    let des = (module DessserRamenRingBuffer.Des : DES)
+    and ser = (module DessserRamenRingBuffer.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_csv be ts vs =
     let mn = T.maybe_nullable_of_string ts in
-    let des = (module Csv.Des : DES)
-    and ser = (module Csv.Ser : SER) in
+    let des = (module DessserCsv.Des : DES)
+    and ser = (module DessserCsv.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
@@ -879,15 +885,15 @@ let sexpr mn =
 (* Return serialized string of a given value of a given type, for that
  * serializer and backend: *)
 (*$inject
-  let ringbuf_ser = (module RamenRingBuffer.Ser : SER)
-  let rowbinary_ser = (module RowBinary.Ser : SER)
-  let csv_ser = (module Csv.Ser : SER)
-  let sexpr_des = (module SExpr.Des : DES)
+  let ringbuf_ser = (module DessserRamenRingBuffer.Ser : SER)
+  let rowbinary_ser = (module DessserRowBinary.Ser : SER)
+  let csv_ser = (module DessserCsv.Ser : SER)
+  let sexpr_des = (module DessserSExpr.Des : DES)
 
   let check_ser ser be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let module Ser = (val ser : SER) in
-    let module DS = DesSer (SExpr.Des) (Ser) in
+    let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
@@ -900,7 +906,7 @@ let sexpr mn =
   let check_des des be ts vs =
     let mn = T.maybe_nullable_of_string ts in
     let module Des = (val des : DES) in
-    let module DS = DesSer (Des) (SExpr.Ser) in
+    let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
@@ -935,7 +941,7 @@ let sexpr mn =
 (*$inject
   let check_des_csv ?config be ts vs =
     let mn = T.maybe_nullable_of_string ts in
-    let module DS = DesSer (Csv.Des) (SExpr.Ser) in
+    let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let exe =
       let e =
         func2 T.dataptr T.dataptr (fun _l src dst ->
@@ -945,14 +951,14 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs)
 
   let csv_config_0 =
-    Csv.{ default_config with
+    DessserCsv.{ default_config with
       separator = '|' ;
       null = "" ;
       true_ = "true" ;
       false_ = "false" }
 
   let csv_config_1 =
-    Csv.{ default_config with
+    DessserCsv.{ default_config with
       null = "" ;
       true_ = "true" ;
       false_ = "false" }
@@ -980,9 +986,9 @@ let sexpr mn =
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")
 *)
 
-(* Test Csv.make_serializable: *)
+(* Test DessserCsv.make_serializable: *)
 (*$Q maybe_nullable & ~count:20
   maybe_nullable (fun mn -> \
-    let mn = Csv.make_serializable mn in \
-    Csv.is_serializable mn)
+    let mn = DessserCsv.make_serializable mn in \
+    DessserCsv.is_serializable mn)
 *)

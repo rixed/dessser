@@ -1,7 +1,7 @@
 open Batteries
 open Stdint
 open Dessser
-open BackEndCLike
+open DessserBackEndCLike
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -18,7 +18,7 @@ struct
   let valid_identifier s =
     if s = "" then "v" else
     if s.[0] = '!' then s else
-    BackEndCLike.valid_identifier s
+    DessserBackEndCLike.valid_identifier s
 
   let valid_module_name s =
     assert (s <> "" && s.[0] <> '!') ;
@@ -43,7 +43,7 @@ struct
     Printf.sprintf
       "ocamlfind ocamlopt -g -annot -O%d -w -8-26 -I src \
          -package stdint,batteries,lmdb \
-         -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackendHelpers.cmx \
+         -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackEndHelpers.cmx \
          %s %S -o %S"
       optim (if link then "" else "-c") src dst
 
@@ -1221,7 +1221,7 @@ struct
 
   let source_intro =
     "open Stdint\n\
-     open DessserOCamlBackendHelpers\n\
+     open DessserOCamlBackEndHelpers\n\
      \n\
      module DessserGen = struct\n"
 
@@ -1229,4 +1229,4 @@ struct
     "end\n"
 end
 
-include BackEndCLike.Make (Config)
+include DessserBackEndCLike.Make (Config)

@@ -1,7 +1,7 @@
 open Batteries
 open Stdint
 open Dessser
-open BackEndCLike
+open DessserBackEndCLike
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -12,7 +12,7 @@ type T.backend_id += Cpp
 module Config =
 struct
   let id = Cpp
-  let valid_identifier = BackEndCLike.valid_identifier
+  let valid_identifier = DessserBackEndCLike.valid_identifier
   let valid_source_name n = n
   let preferred_def_extension = "cc"
   let preferred_decl_extension = "h"
@@ -1091,4 +1091,4 @@ struct
     "}\n"
 end
 
-include BackEndCLike.Make (Config)
+include DessserBackEndCLike.Make (Config)

@@ -179,9 +179,9 @@ let test_backend () =
   E.type_check [] e ;
   let backend, exe_ext, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
-      (module BackEndOCaml : BACKEND), ".opt", ""
+      (module DessserBackEndOCaml : BACKEND), ".opt", ""
     else if Array.length Sys.argv > 1 && Sys.argv.(1) = "c++" then
-      (module BackEndCPP : BACKEND), ".exe", "int main() { return 0; }\n"
+      (module DessserBackEndCPP : BACKEND), ".exe", "int main() { return 0; }\n"
     else (
       Printf.eprintf "%s ocaml|c++\n" Sys.argv.(0) ;
       exit 1

@@ -52,9 +52,9 @@ let () =
   let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
-      (module BackEndOCaml : BACKEND), ".opt"
+      (module DessserBackEndOCaml : BACKEND), ".opt"
     else if Array.length Sys.argv > 1 && Sys.argv.(1) = "c++" then
-      (module BackEndCPP : BACKEND), ".exe"
+      (module DessserBackEndCPP : BACKEND), ".exe"
     else (
       Printf.eprintf "%s ocaml|c++\n" Sys.argv.(0) ;
       exit 1
@@ -64,18 +64,21 @@ let () =
   let convert =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
-      let module DS = DesSer (RowBinary.Des) (SExpr.Ser) in
+      let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
       E.func2 DataPtr DataPtr (fun _l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser typ src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
-      let module ToValue = HeapValue.Materialize (RowBinary.Des) in
+      let module ToValue =
+        DessserHeapValue.Materialize (DessserRowBinary.Des) in
       (* To compute sersize in RingBuffer: *)
-      let module OfValue1 = HeapValue.Serialize (RamenRingBuffer.Ser) in
+      let module OfValue1 =
+        DessserHeapValue.Serialize (DessserRamenRingBuffer.Ser) in
       (* To serialize into S-Expr: *)
-      let module OfValue2 = HeapValue.Serialize (SExpr.Ser) in
+      let module OfValue2 =
+        DessserHeapValue.Serialize (DessserSExpr.Ser) in
 
       let ma = copy_field in
       E.func2 DataPtr DataPtr (fun _l src dst ->

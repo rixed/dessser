@@ -18,27 +18,27 @@ let debug = true
 type backends = DIL | Cpp | OCaml
 
 let module_of_backend = function
-  | DIL -> (module BackEndDIL : BACKEND)
-  | Cpp -> (module BackEndCPP : BACKEND)
-  | OCaml -> (module BackEndOCaml : BACKEND)
+  | DIL -> (module DessserBackEndDIL : BACKEND)
+  | Cpp -> (module DessserBackEndCPP : BACKEND)
+  | OCaml -> (module DessserBackEndOCaml : BACKEND)
 
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
 type encodings = Null | RowBinary | SExpr | RingBuff | CSV
 
 let des_of_encoding = function
-  | RingBuff -> (module RamenRingBuffer.Des : DES)
-  | RowBinary -> (module RowBinary.Des : DES)
-  | SExpr -> (module SExpr.Des : DES)
-  | CSV -> (module Csv.Des : DES)
+  | RingBuff -> (module DessserRamenRingBuffer.Des : DES)
+  | RowBinary -> (module DessserRowBinary.Des : DES)
+  | SExpr -> (module DessserSExpr.Des : DES)
+  | CSV -> (module DessserCsv.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
-  | Null -> (module DevNull.Ser : SER)
-  | RingBuff -> (module RamenRingBuffer.Ser : SER)
-  | RowBinary -> (module RowBinary.Ser : SER)
-  | SExpr -> (module SExpr.Ser : SER)
-  | CSV -> (module Csv.Ser : SER)
+  | Null -> (module DessserDevNull.Ser : SER)
+  | RingBuff -> (module DessserRamenRingBuffer.Ser : SER)
+  | RowBinary -> (module DessserRowBinary.Ser : SER)
+  | SExpr -> (module DessserSExpr.Ser : SER)
+  | CSV -> (module DessserCsv.Ser : SER)
 
 (* Generate just the code to convert from in to out and from
  * in to a heap value and from a heap value to out, then link into a library. *)
@@ -48,8 +48,8 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
-  let module ToValue = HeapValue.Materialize (Des) in
-  let module OfValue = HeapValue.Serialize (Ser) in
+  let module ToValue = DessserHeapValue.Materialize (Des) in
+  let module OfValue = DessserHeapValue.Serialize (Ser) in
   let convert =
     (* convert from encoding_in to encoding_out: *)
     E.func2 DataPtr DataPtr (fun _l -> DS.desser schema ?transform:None) in
@@ -189,7 +189,7 @@ let aggregator
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
-  let module ToValue = HeapValue.Materialize (Des) in
+  let module ToValue = DessserHeapValue.Materialize (Des) in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
@@ -221,7 +221,7 @@ let aggregator
   (* Finally, a function to convert the output value on the heap into stdout
    * in the given encoding: *)
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
-  let module OfValue = HeapValue.Serialize (Ser) in
+  let module OfValue = DessserHeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
     E.func2 (Value output_t) DataPtr (fun _l v dst ->
