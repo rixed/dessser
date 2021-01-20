@@ -980,8 +980,6 @@ let sexpr mn =
   "(3 F null)" \
     (check_des_csv ~config:csv_config_1 ocaml_be \
                    "{u:U8; b:BOOL; name:STRING?}" "3,false,\n")
-*)
-(*$= check_des_csv & ~printer:BatPervasives.identity
   "-0x1.79c428d047e73p-16" \
     (check_des_csv ~config:csv_config_0 ocaml_be \
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")

@@ -11,7 +11,7 @@ type list_opener =
    * returns both the list size and the new src pointer: *)
   | KnownSize of (T.maybe_nullable -> T.path -> T.maybe_nullable -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the list size is not known beforehand, rather implement
-   * this pair of functions, one to parse the ilst header and return the new
+   * this pair of functions, one to parse the list header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the list is finished: *)
   | UnknownSize of
