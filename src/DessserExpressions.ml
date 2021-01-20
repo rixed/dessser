@@ -548,8 +548,9 @@ let string_of_e1s = function
 let string_of_e1 = function
   | Function (fid, typs) ->
       "fun "^ string_of_int fid ^
-      IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
-        Printf.fprintf oc "%S" (IO.to_string T.print t))) typs
+      (if typs = [||] then "" else
+       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
+         Printf.fprintf oc "%S" (IO.to_string T.print t))) typs)
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
@@ -1686,9 +1687,10 @@ let rec type_of l e0 =
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
   | E1 (Function (fid, ts), e) ->
-      let l = Array.fold_lefti (fun l i t ->
-        (E0 (Param (fid, i)), t) :: l
-      ) l ts in
+      let l =
+        Array.fold_lefti (fun l i t ->
+          (E0 (Param (fid, i)), t) :: l
+        ) l ts in
       Function (ts, type_of l e)
   | E0 (Param p) as e ->
       (try List.assoc e l
@@ -2266,6 +2268,9 @@ let func =
     E1 (Function (fid, typs), f l fid)
 
 (* Specialized to a given arity: *)
+
+let func0 ?l f =
+  func ?l [||] (fun l _fid -> f l)
 
 let func1 ?l t1 f =
   func ?l [| t1 |] (fun l fid ->

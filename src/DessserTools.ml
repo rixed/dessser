@@ -64,6 +64,11 @@ let list_split_last lst =
   let hds_rev, tl = list_split_last_rev lst in
   List.rev hds_rev, tl
 
+(*$= list_split_last & ~printer:(fun (li, la) -> Printf.sprintf2 "%a..%d" (List.print Int.print) li la)
+  ([ 1 ; 2; 3 ], 4) (list_split_last [ 1 ; 2 ; 3 ; 4 ])
+  ([], 1) (list_split_last [ 1 ])
+*)
+
 let list_drop_last lst =
   fst (list_split_last lst)
 
