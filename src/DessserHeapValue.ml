@@ -120,8 +120,8 @@ struct
     let rec loop ids i src =
       if i >= len then
         pair
-          (make_rec (List.fold_lefti (fun inits i id ->
-             string (fst mns.(len - i - 1)) :: id :: inits) [] ids))
+          (make_rec (List.mapi (fun i id ->
+             string (fst mns.(len - i - 1)), id) ids))
           (Des.rec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else

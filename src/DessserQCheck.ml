@@ -385,13 +385,14 @@ and e0s_gen l depth =
   assert (depth > 0) ;
   let open Gen in
   let expr = expression_gen (l, depth - 1) in
+  let expr_pair = pair expr expr in
   let lst = [
     1, map E.Ops.seq (tiny_list expr) ;
     1, map E.Ops.make_vec (tiny_list expr) ;
     1, map2 E.Ops.make_lst (maybe_nullable_gen_of_depth (depth - 1))
                            (tiny_list expr) ;
     1, map E.Ops.make_tup (tiny_list expr) ;
-    1, map E.Ops.make_rec (tiny_list expr) ;
+    1, map E.Ops.make_rec (tiny_list expr_pair) ;
   ] in
   let lst =
     if depth > 0 then
