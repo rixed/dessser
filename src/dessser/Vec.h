@@ -1,6 +1,7 @@
 #ifndef VEC_H_191031
 #define VEC_H_191031
 /* A pre-scaled version of std::vector */
+#include <functional>
 #include <vector>
 #include <initializer_list>
 
@@ -15,6 +16,13 @@ struct Vec : public std::vector<T> {
   {
     this->reserve(DIM);
     this->insert(this->begin(), lst);
+  }
+
+  // Mapped from another Vec:
+  template<class T2>
+  Vec(Vec<DIM, T2> const that, std::function<T(T2)> f)
+  {
+    // TODO
   }
 };
 

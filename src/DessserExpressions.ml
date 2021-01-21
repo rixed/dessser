@@ -296,7 +296,11 @@ type e2 =
   | Or
   | Cons
   | Pair
-  | MapPair (* the pair * the function2 *)
+  (* MapPair takes the pair then the function of 2 arguments returning whatever.
+   * Note: the result is whatever returns the function, not necessarily a
+   * pair! FIXME: that name is misleading *)
+  | MapPair
+  | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
   | Member (* membership test - not for CIDRs nor strings *)
@@ -429,6 +433,9 @@ let rec can_precompute l i = function
       can_precompute l (n :: i) e2
   | E2 (MapPair, _, _) ->
       false (* TODO *)
+  | E2 (Map, e1, e2) ->
+      can_precompute l i e1 &&
+      can_precompute l i e2
   | E2 (_, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l i e2
@@ -737,6 +744,7 @@ let string_of_e2 = function
   | Cons -> "cons"
   | Pair -> "pair"
   | MapPair -> "map-pair"
+  | Map -> "map"
   | Min -> "min"
   | Max -> "max"
   | Member -> "mem"
@@ -1285,6 +1293,7 @@ struct
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
     | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
     | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
+    | Lst [ Sym "map" ; x1 ; x2 ] -> E2 (Map, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
@@ -1667,10 +1676,28 @@ let rec type_of l e0 =
       (match type_of l e |> T.develop_user_types with
       | SList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E2 (MapPair, _, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | Function (_, t) -> t
-      | t -> raise (Type_error (e0, e, t, "be a function")))
+  | E2 (MapPair, _, e2) ->
+      (match type_of l e2 |> T.develop_user_types with
+      | Function (_, ot) -> ot
+      | t2 -> raise (Type_error (e0, e2, t2, "be a function")))
+  | E2 (Map, e1, e2) ->
+      (match type_of l e2 |> T.develop_user_types with
+      | Function (_, ot) as t2 ->
+          let open T in
+          let map_mn f =
+            match ot with
+            | Value mn -> Value (required (f mn))
+            | _ ->
+                let err = "be a function of a value type" in
+                raise (Type_error (e0, e2, t2, err)) in
+          (match type_of l e1 |> T.develop_user_types with
+          | Value { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
+          | Value { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | Value { vtyp = Set _ ; _ } -> map_mn (fun mn -> Set mn)
+          | SList _ -> SList ot
+          | t1 -> raise (Type_error (e0, e1, t1, "be an iterable")))
+      | t2 ->
+          raise (Type_error (e0, e2, t2, "be a function")))
   | E2 ((Min | Max), e, _) ->
       type_of l e
   | E2 (Member, _, _) -> T.bool
@@ -1824,11 +1851,6 @@ let rec type_check l e =
     let bad_arity expected e t =
       let s = Printf.sprintf "be a function of %d parameters" expected in
       raise (Type_error (e0, e, t, s)) in
-    let check_function arity l e =
-      match type_of l e |> T.develop_user_types with
-      | Function (ts, _) as t ->
-          if Array.length ts <> arity then bad_arity arity e t
-      | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params1 l e f =
       match type_of l e |> T.develop_user_types with
       | Function ([|t1|], t2) -> f t1 t2
@@ -2104,8 +2126,45 @@ let rec type_check l e =
     | E2 (Cons, e1, e2) ->
         check_slist_same_type e1 l e2
     | E2 (MapPair, e1, e2) ->
-        check_pair l e1 ;
-        check_function 2 l e2
+        (match type_of l e2 |> T.develop_user_types with
+        | Function ([| i1 ; i2 |], _) ->
+            (match type_of l e1 |> T.develop_user_types with
+            | Pair (p1, p2) as t1 ->
+                if not (T.eq p1 i1 && T.eq p2 i2) then
+                  let err = "be a "^ T.to_string (Pair (i1, i2)) in
+                  raise (Type_error (e0, e1, t1, err))
+            | t1 ->
+                raise (Type_error (e0, e1, t1, "be a pair")))
+        | Function _ as t2 ->
+            bad_arity 2 e2 t2
+        | t2 ->
+            raise (Type_error (e0, e2, t2, "be a function")))
+    | E2 (Map, e1, e2) ->
+        (match type_of l e2 |> T.develop_user_types with
+        | Function ([| it |], ot) as t2 ->
+            let check_fun_type_with t must_output_mn =
+              if not (T.eq t it) then (
+                let err = "be a function of "^ T.to_string t in
+                raise (Type_error (e0, e2, t2, err))) ;
+              if must_output_mn then
+                match ot with T.Value _ -> ()
+                | _ ->
+                    let err = "be a function returning a value type" in
+                    raise (Type_error (e0, e2, t2, err)) in
+            (match type_of l e1 |> T.develop_user_types with
+            | T.(Value { vtyp = Vec (_, mn) ; nullable = false }) ->
+                check_fun_type_with (T.Value mn) true
+            | T.(Value { vtyp = Lst mn ; nullable = false }) ->
+                check_fun_type_with (T.Value mn) true
+            | T.(Value { vtyp = Set mn ; nullable = false }) ->
+                check_fun_type_with (T.Value mn) true
+            | T.SList t ->
+                check_fun_type_with t false
+            | t1 ->
+                raise (Type_error (e0, e1, t1, "be an iterable")))
+        | Function _ as t2 ->
+            raise (Type_error (e0, e2, t2, "be a function of one argument"))
+        | t -> raise (Type_error (e0, e, t, "be a function")))
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
@@ -2609,6 +2668,7 @@ struct
   let get_alt s e1 = E1 (GetAlt s, e1)
   let construct mns i e1 = E1 (Construct (mns, i), e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
+  let map e1 e2 = E2 (Map, e1, e2)
   let min e1 e2 = E2 (Min, e1, e2)
   let max e1 e2 = E2 (Max, e1, e2)
   let mem e1 e2 = E2 (Member, e1, e2)

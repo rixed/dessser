@@ -821,6 +821,10 @@ struct
         let pair = print emit p l e1
         and func = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s(%s.v1, %s.v2)" func pair pair)
+    | E.E2 (Map, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 ((Min | Max as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

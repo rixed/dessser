@@ -1,6 +1,7 @@
 #ifndef SLST_H_200208
 #define SLST_H_200208
 #include <cassert>
+#include <functional>
 #include <memory>
 #include "dessser/typedefs.h"
 #include "dessser/Lst.h"
@@ -26,6 +27,13 @@ struct SList {
   // Cons:
   SList(T hd, SList<T> tl)
     : cells(std::make_shared<Cell>(hd, tl)) {}
+
+  // Mapped from another SList:
+  template<class T2>
+  SList(SList<T2> const that, std::function<T(T2)> f)
+  {
+    // TODO
+  }
 
   bool empty() const { return !cells; }
 

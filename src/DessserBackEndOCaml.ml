@@ -940,10 +940,22 @@ struct
         unary_op "snd" e1
     | E.E2 (MapPair, e1, e2) ->
         let n1 = print emit p l e1 (* the pair *)
-        and n2 = print emit p l e2 (* the function2 *) in
+        and n2 = print emit p l e2 (* the function of 2 args *) in
         let n1_0 = "(fst "^ n1 ^")"
         and n1_1 = "(snd "^ n1 ^")" in
         emit ?name p l e (fun oc -> pp oc "%s %s %s" n2 n1_0 n1_1)
+    | E.E2 (Map, e1, e2) ->
+        let n1 = print emit p l e1 (* the iterable *)
+        and n2 = print emit p l e2 (* the function of 1 arg *) in
+        let t1 = E.type_of l e1 in
+        emit ?name p l e (fun oc ->
+          let mod_name =
+            match t1 with
+            | T.Value { vtyp = (Vec _ | Lst _) ; _ } -> "Array"
+            | T.Value { vtyp = Set _ ; _ } -> todo "map on sets"
+            | T.SList _ -> "List"
+            | _ -> assert false (* because of E.type_check *) in
+          pp oc "%s.map %s %s" mod_name n2 n1)
     | E.E2 (Min, e1, e2) ->
         binary_op "min" e1 e2
     | E.E2 (Max, e1, e2) ->

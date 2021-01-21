@@ -315,7 +315,7 @@ let e2_of_int n =
          Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
          AppendString ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekByte ;
          WriteByte ; WriteBytes ; PokeByte ; DataPtrAdd ; DataPtrSub ;
-         And ; Or ; Pair ; MapPair ; Min ; Max ; Member |] in
+         And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
@@ -578,6 +578,12 @@ let expression =
   compile_check "(to-float (u8 1))"
   compile_check "(to-u8 (u8 1))"
   compile_check "(to-float (float 1))"
+  compile_check \
+    "(map (make-vec (u8 1) (u8 2) (u8 3)) \
+          (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
+  compile_check \
+    "(map (make-list \"u8\" (u8 1) (u8 2) (u8 3)) \
+          (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
 *)
 
 (*
