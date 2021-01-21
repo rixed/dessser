@@ -573,7 +573,7 @@ let expression =
   compile_check \
     "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
   compile_check "(make-vec ())"
-  compile_check "(make-list \"U8\" (u8 63))"
+  compile_check "(make-lst \"U8\" (u8 63))"
   compile_check "(to-u8 (float 1))"
   compile_check "(to-float (u8 1))"
   compile_check "(to-u8 (u8 1))"
@@ -582,7 +582,7 @@ let expression =
     "(map (make-vec (u8 1) (u8 2) (u8 3)) \
           (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
   compile_check \
-    "(map (make-list \"u8\" (u8 1) (u8 2) (u8 3)) \
+    "(map (make-lst \"u8\" (u8 1) (u8 2) (u8 3)) \
           (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
 *)
 

@@ -544,7 +544,7 @@ let string_of_path = IO.to_string T.print_path
 let string_of_e0s = function
   | Seq -> "seq"
   | MakeVec -> "make-vec"
-  | MakeLst mn -> "make-list "^ String.quote (T.string_of_maybe_nullable mn)
+  | MakeLst mn -> "make-lst "^ String.quote (T.string_of_maybe_nullable mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
 
@@ -1066,7 +1066,7 @@ struct
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
-    | Lst (Sym "make-list" :: Str mn :: xs) ->
+    | Lst (Sym "make-lst" :: Str mn :: xs) ->
         E0S (MakeLst (T.maybe_nullable_of_string mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
