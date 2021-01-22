@@ -6,14 +6,22 @@ type t =
   (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
-    verbatim_definitions :
-      (T.backend_id * verbatim_location * (P.t, unit) BatIO.printer) list }
+    verbatim_definitions : verbatim_definition list }
+
+and verbatim_definition =
+  { name : string ; (* or empty string *)
+    typ : T.t ;
+    dependencies : string list ;
+    backend : T.backend_id ;
+    location : verbatim_location ;
+    printer : (P.t, unit) BatIO.printer }
 
 and identifier =
   { public : bool ; expr : E.t }
 
 and verbatim_location =
-  | Top (* Before any declarations *)
+  | Inline (* According to declared names and dependencies *)
+  | Top    (* Before any declarations *)
   | Middle (* After declarations *)
   | Bottom (* After declarations and definitions *)
 
@@ -27,11 +35,21 @@ let environment compunit =
     List.map (fun (name, typ) ->
       E.Ops.ext_identifier name, typ
     ) compunit.external_identifiers in
-  (* ...and already defined identifiers in the environment: *)
+  (* Then already defined identifiers: *)
   let l =
     List.fold_left (fun l (name, _, t) ->
       (E.Ops.identifier name, t) :: l
     ) l compunit.identifiers in
+  (* Finally, we also want to be able to access verbatim identifiers: *)
+  let l =
+    List.fold_left (fun l verb ->
+      (* Assume identifiers will be available in all relevant backends when
+       * they are used. Also assume any named identifier is accessible from
+       * everywhere (ie. including those already defined for Bottom location).
+       *)
+      if verb.name = "" then l else
+        (E.Ops.identifier verb.name, verb.typ) :: l
+    ) l compunit.verbatim_definitions in
   l
 
 let add_external_identifier compunit name typ =
@@ -62,7 +80,23 @@ let add_identifier_of_expression compunit ?name expr =
   E.E0 (Identifier name),
   name
 
-let add_verbatim_definition compunit ?(location=Middle) backend f =
+let make_verbatim_definition
+      ?(name="") ?(typ=T.(Value (required Unit))) ?(dependencies=[])
+      ?(location=Inline) ~backend printer =
+  if location = Inline && name = "" then
+    invalid_arg "make_verbatim_definition: Inline definitions must be named" ;
+  { name ;
+    typ ;
+    dependencies ;
+    backend ;
+    location ;
+    printer }
+
+(* Verbatim definitions can then be accessed as normal identifiers: *)
+let add_verbatim_definition
+      compunit ?name ?typ ?dependencies ?location ~backend printer =
   { compunit with
     verbatim_definitions =
-      (backend, location, f) :: compunit.verbatim_definitions }
+      make_verbatim_definition
+        ?name ?typ ?dependencies ?location ~backend printer ::
+        compunit.verbatim_definitions }

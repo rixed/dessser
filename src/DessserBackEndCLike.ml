@@ -151,65 +151,92 @@ struct
   let print_intro oc =
     Printf.fprintf oc "%s\n\n" C.source_intro
 
-  let print_verbatim p oc defs =
+  let print_verbatims p oc defs =
     List.rev defs |>
-    List.iter (fun (_, _, f) ->
-      Printf.sprintf2 "%a" f p |>
+    List.iter (fun verb ->
+      Printf.sprintf2 "%a" verb.U.printer p |>
       String.print oc)
 
   let print_source output_identifier compunit p oc
                    top_verbatim middle_verbatim bottom_verbatim =
-    (* [compunit] is full of identifiers (list of name * exp).
-     * Output them in any order as long as dependencies are defined before
-     * being used. *)
+    (* [compunit] is full of identifiers (list of name * exp). Also,
+     * [inline_verbatim] is a list of verbatim definitions to be printed
+     * amongst other identifiers.
+     * All of those must be output in any order compatible with dependencies.
+     *)
     let identifiers =
-      List.map (fun (_, identifier, _ as id) ->
+      let print_identifier name id p l =
+        P.new_top_level p (fun p ->
+          output_identifier name p l id.U.expr) in
+      List.map (fun (name, identifier, _) ->
         let l =
           List.map (fun (name, typ) ->
             E.Ops.identifier name, typ
           ) compunit.U.external_identifiers in
         let deps = get_depends l identifier.U.expr in
-        id, deps
+        name, print_identifier name identifier, deps
       ) compunit.U.identifiers in
+    let identifiers =
+      let print_verbatim verb p _l =
+        P.new_top_level p (fun p ->
+          Printf.sprintf2 "%a" verb.U.printer p |>
+          String.print p.P.def) in
+      List.filter_map (fun verb ->
+        if verb.U.backend = id && verb.U.location = U.Inline then
+          Some (verb.U.name, print_verbatim verb, verb.dependencies)
+        else
+          None
+      ) compunit.U.verbatim_definitions |>
+      List.rev_append identifiers in
     if debug then
-      Printf.fprintf stdout "Identifiers:\n%a\n%!"
-        (List.print ~first:"" ~last:"" ~sep:"" (fun oc ((name, id, _), depends) ->
-          pp oc "  name: %s\n  depends: %a\n  expression: %a\n\n"
+      pp stdout "Identifiers:\n%a\n%!"
+        (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, _, deps) ->
+          pp oc "  name: %s\n  depends: %a\n\n"
             name
-            (List.print String.print) depends
-            (E.print ?max_depth:None) id.U.expr)) identifiers ;
+            (List.print String.print) deps)) identifiers ;
+    (* [loop] will print all definitions ordered by dependencies: *)
     let rec loop progress defined left_overs = function
       | [] ->
           if left_overs <> [] then (
             if not progress then (
               let missings =
-                List.fold_left (fun l (_, deps) ->
+                List.fold_left (fun l (_, _, deps) ->
                   List.rev_append deps l
                 ) [] left_overs in
               raise (Missing_dependencies missings)
             ) else loop false defined [] left_overs
           )
-      | ((name, U.{ expr ; _ }, _ as id), depends) :: rest ->
+      | (name, printer, depends) :: rest ->
           let missing_depends =
             List.filter (fun name ->
               not (List.mem_assoc name compunit.U.external_identifiers) &&
-              not (List.exists (fun (n, _, _) -> n = name) defined)
+              not (List.exists ((=) name) defined)
             ) depends in
           if missing_depends <> [] then (
             if debug then
               Printf.fprintf stdout "Identifier %s has some undefined \
                                      dependences, waiting...\n" name ;
-            let left_overs' = (id, missing_depends) :: left_overs in
+            let left_overs' = (name, printer, missing_depends) :: left_overs in
             loop progress defined left_overs' rest
           ) else (
             if debug then
               Printf.fprintf stdout "Identifier %s depends on %d defined \
                                      identifiers, emitting code...\n"
                 name (List.length depends) ;
-            let l = U.environment U.{ compunit with identifiers = defined } in
-            P.new_top_level p (fun p ->
-              output_identifier name p l expr) ;
-            let defined = id :: defined in
+            let l =
+              (* Build an environment with only the defined identifiers: *)
+              let identifiers =
+                List.filter (fun (n, _, _) ->
+                  List.mem n defined
+                ) compunit.U.identifiers
+              and verbatim_definitions =
+                List.filter (fun verb ->
+                  List.mem verb.U.name defined
+                ) compunit.U.verbatim_definitions in
+              U.environment U.{ compunit with identifiers ;
+                                              verbatim_definitions } in
+            printer p l ;
+            let defined = name :: defined in
             loop true defined left_overs rest
           ) in
     loop false [] [] identifiers ;
@@ -232,21 +259,21 @@ struct
        %s\n"
       print_intro
       C.print_comment "Verbatim (top)"
-      (print_verbatim p) top_verbatim
+      (print_verbatims p) top_verbatim
       C.print_comment "Declarations"
       print_ios p.decls
       C.print_comment "Verbatim (middle)"
-      (print_verbatim p) middle_verbatim
+      (print_verbatims p) middle_verbatim
       C.print_comment "Definitions"
       print_ios p.defs
       C.print_comment "Verbatim (bottom)"
-      (print_verbatim p) bottom_verbatim
+      (print_verbatims p) bottom_verbatim
       C.source_outro
 
   let print_definitions oc compunit =
     let verbatims loc =
-      List.filter (fun (i, l, _) ->
-        i = id && l = loc
+      List.filter (fun verb ->
+        verb.U.backend = id && verb.location = loc
       ) compunit.U.verbatim_definitions in
     let p = P.make () in
     print_source define compunit p oc
