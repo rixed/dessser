@@ -167,7 +167,7 @@ struct
     | T.SList t1 ->
         type_identifier p t1 ^" list"
     | T.Function ([||], t) ->
-        "(() -> "^ type_identifier p t ^")"
+        "(unit -> "^ type_identifier p t ^")"
     | T.Function (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
