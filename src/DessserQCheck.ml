@@ -458,7 +458,7 @@ and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   frequency [
-    1, map3 (fun n e in_ -> let_ n e ~in_) let_name_gen expr expr ;
+    1, map3 (fun n e in_ -> let_ n e (fun _ -> in_)) let_name_gen expr expr ;
     1, map3 peek_word endianness_gen expr expr ;
     1, map3 peek_dword endianness_gen expr expr ;
     1, map3 peek_qword endianness_gen expr expr ;

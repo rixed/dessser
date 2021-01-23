@@ -213,9 +213,10 @@ struct
     )
 
   let rec make ?config mn0 src =
-    let dstate, src = Des.start ?config mn0 src in
-    E.with_sploded_pair "make" (make1 dstate mn0 [] mn0 src) (fun v src ->
-      pair v (Des.stop dstate src))
+    let_ "src" src (fun src ->
+      let dstate, src = Des.start ?config mn0 src in
+      E.with_sploded_pair "make" (make1 dstate mn0 [] mn0 src) (fun v src ->
+        pair v (Des.stop dstate src)))
 end
 
 (* The other way around: given a heap value of some type and a serializer,
@@ -236,9 +237,9 @@ struct
       else
         let dst = if i = 0 then dst else
                     Ser.vec_sep sstate mn0 subpath dst in
-        let_ "dst" dst ~in_:(
+        let_ "dst" dst (fun dst ->
           let v' = nth (u32_of_int i) v in
-          ser1 sstate mn0 subpath mn v' copy_field (identifier "dst") |>
+          ser1 sstate mn0 subpath mn v' copy_field dst |>
           loop (i + 1)) in
     loop 0 dst
 
@@ -257,10 +258,9 @@ struct
                 if_ ~cond:(gt n (i32 0l))
                     ~then_:(Ser.list_sep sstate mn0 subpath dst)
                     ~else_:dst)
-                ~in_:(
+                (fun dst ->
                   pair
-                    (ser1 sstate mn0 subpath mn x copy_field
-                          (identifier "dst"))
+                    (ser1 sstate mn0 subpath mn x copy_field dst)
                     (add (i32 1l) n))))) in
     Ser.list_cls sstate mn0 path (first dst_n)
 
@@ -272,8 +272,8 @@ struct
         let_ "dst"
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath dst)
-          ~in_:(ser1 sstate mn0 subpath mn (get_item i v) (mask_get i ma)
-                     (identifier "dst"))
+          (fun dst ->
+            ser1 sstate mn0 subpath mn (get_item i v) (mask_get i ma) dst)
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
 
@@ -285,9 +285,10 @@ struct
         let_ "dst"
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath dst)
-          ~in_:(comment ("serialize field "^ field)
-                  (ser1 sstate mn0 subpath mn (get_field field v)
-                        (mask_get i ma) (identifier "dst")))
+          (fun dst ->
+            comment ("serialize field "^ field)
+                    (ser1 sstate mn0 subpath mn (get_field field v)
+                          (mask_get i ma) dst))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
 
@@ -299,24 +300,22 @@ struct
     let dst =
       let_ "label"
         (label_of v)
-        ~in_:(
+        (fun label ->
           let_ "dst"
-            (Ser.sum_opn sstate mn0 path mns (identifier "label") dst)
-            ~in_:(
+            (Ser.sum_opn sstate mn0 path mns label dst)
+            (fun dst ->
               let rec choose_cstr i =
                 let subpath = T.path_append i path in
                 assert (i <= max_lbl) ;
                 let field, mn = mns.(i) in
                 if i = max_lbl then
                   seq [
-                    assert_ (eq (identifier "label") (u16 (Uint16.of_int max_lbl))) ;
-                    ser1 sstate mn0 subpath mn (get_alt field v) ma
-                         (identifier "dst") ]
+                    assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
+                    ser1 sstate mn0 subpath mn (get_alt field v) ma dst ]
                 else
                   if_
-                    ~cond:(eq (u16 (Uint16.of_int i)) (identifier "label"))
-                    ~then_:(ser1 sstate mn0 subpath mn (get_alt field v) ma
-                                 (identifier "dst"))
+                    ~cond:(eq (u16 (Uint16.of_int i)) label)
+                    ~then_:(ser1 sstate mn0 subpath mn (get_alt field v) ma dst)
                     ~else_:(choose_cstr (i + 1)) in
               choose_cstr 0)) in
     Ser.sum_cls sstate mn0 path dst
@@ -387,9 +386,12 @@ struct
 
   and serialize ?config mn0 ma v dst =
     let path = [] in
-    let sstate, dst = Ser.start ?config mn0 dst in
-    let dst = ser1 sstate mn0 path mn0 v ma dst in
-    Ser.stop sstate dst
+    let_ "ma" ma (fun ma ->
+      let_ "v" v (fun v ->
+        let_ "dst" dst (fun dst ->
+          let sstate, dst = Ser.start ?config mn0 dst in
+          let dst = ser1 sstate mn0 path mn0 v ma dst in
+          Ser.stop sstate dst)))
 
   (*
    * Compute the sersize of a expression:
@@ -424,8 +426,8 @@ struct
       if i >= dim then sizes else
       let subpath = T.path_append i path in
       let v' = nth (u32_of_int i) v in
-      let_ "sizes" sizes ~in_:(
-        let sizes = sersz1 mn mn0 subpath v' copy_field (identifier "sizes") in
+      let_ "sizes" sizes (fun sizes ->
+        let sizes = sersz1 mn mn0 subpath v' copy_field sizes in
         loop sizes (i + 1)) in
     loop sizes 0
 
@@ -450,8 +452,8 @@ struct
       let v' = get_item i v in
       let ma = mask_get i ma in
       let subpath = T.path_append i path in
-      let_ "sizes" sizes
-        ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
+      let_ "sizes" sizes (fun sizes ->
+        sersz1 mn mn0 subpath v' ma sizes)
     ) sizes mns
 
   and ssrec mns ma mn0 path v sizes =
@@ -461,8 +463,8 @@ struct
       let v' = get_field n v in
       let ma = mask_get i ma in
       let subpath = T.path_append i path in
-      let_ "sizes" sizes
-        ~in_:(sersz1 mn mn0 subpath v' ma (identifier "sizes"))
+      let_ "sizes" sizes (fun sizes ->
+        sersz1 mn mn0 subpath v' ma sizes)
     ) sizes mns
 
   and sssum mns mn0 path v sizes =
@@ -471,7 +473,7 @@ struct
     let max_lbl = Array.length mns - 1 in
     let_ "label"
       (label_of v)
-      ~in_:(
+      (fun label ->
         let rec choose_cstr i =
           let name, mn = mns.(i) in
           let v' = get_alt name v in
@@ -479,11 +481,11 @@ struct
           assert (i <= max_lbl) ;
           if i = max_lbl then
             seq [
-              assert_ (eq (identifier "label") (u16 (Uint16.of_int max_lbl))) ;
+              assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
               sersz1 mn mn0 subpath v' copy_field sizes ]
           else
             if_
-              ~cond:(eq (u16 (Uint16.of_int i)) (identifier "label"))
+              ~cond:(eq (u16 (Uint16.of_int i)) label)
               ~then_:(sersz1 mn mn0 subpath v' copy_field sizes)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
@@ -548,6 +550,7 @@ struct
 
   let sersize mn ma v =
     let sizes = pair (size 0) (size 0) in
-    sersz1 mn mn [] v ma sizes
-
+    let_ "ma" ma (fun ma ->
+      let_ "v" v (fun v ->
+        sersz1 mn mn [] v ma sizes))
 end

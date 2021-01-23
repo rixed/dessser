@@ -275,9 +275,9 @@ struct
                      (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
                            (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c))))))
          (or_ (eq (rem_size p) (size 4))
-              (let_ "b" (peek_byte p (size 4))
-                    ~in_:(or_ (eq (identifier "b") (byte_of_const_char ' '))
-                              (eq (identifier "b") (byte_of_const_char ')')))))
+              (let_ "b" (peek_byte p (size 4)) (fun b ->
+                or_ (eq b (byte_of_const_char ' '))
+                    (eq b (byte_of_const_char ')')))))
 
   let dnull _t _conf _ _ p = skip 4 p
 

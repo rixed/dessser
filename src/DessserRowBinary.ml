@@ -190,9 +190,8 @@ struct
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ v =
     DynSize (
-      let_ "wlen" (string_length v)
-        ~in_:(add (ssize_of_leb128 (identifier "wlen"))
-                  (identifier "wlen")))
+      let_ "wlen" (string_length v) (fun wlen ->
+        add (ssize_of_leb128 wlen) wlen))
 end
 
 module Des : DES with type config = unit =
@@ -227,9 +226,9 @@ struct
         ~init:(pair (u32 Uint32.zero) (u8 Uint8.zero))
         ~pos:p)
       (* Still have to add the last byte (which is <128): *)
-      ~in_:(
+      (fun leb_shft_ptr ->
         comment "Last byte from read_leb128"
-          (E.with_sploded_pair "leb128_1" (identifier "leb_shft_ptr") (fun leb_shft ptr ->
+          (E.with_sploded_pair "leb128_1" leb_shft_ptr (fun leb_shft ptr ->
             E.with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->
               pair
                 (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))

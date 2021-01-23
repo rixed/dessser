@@ -282,8 +282,7 @@ struct
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
     let_ "sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
-      ~in_:(
-        let sz = identifier "sz_" in
+      (fun sz ->
         let words = words_of_dyn_bytes (add sz (u32_of_int 1)) in
         let p = write_byte p (byte_of_u8 (to_u8 words)) in
         let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in

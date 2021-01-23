@@ -399,8 +399,8 @@ struct
     let_ "had_quote"
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
-      ~in_:(
-        let pos = if_ ~cond:(identifier "had_quote")
+      (fun had_quote ->
+        let pos = if_ ~cond:had_quote
                       ~then_:(skip_byte quote_byte p)
                       ~else_:p in
         (* Read up to next double-quote or separator/newline, depending on
@@ -409,7 +409,7 @@ struct
         let cond =
           E.func1 T.byte (fun _l b ->
             not_ (
-              if_ ~cond:(identifier "had_quote")
+              if_ ~cond:had_quote
                   ~then_:(eq b quote_byte)
                   ~else_:(or_ (eq b sep_byte)
                               (eq b nl_byte))))
@@ -420,7 +420,7 @@ struct
           (* Skip the initial double-quote: *)
           let bytes_p = read_bytes pos sz in
           (* Skip the closing double-quote: *)
-          let p' = if_ ~cond:(identifier "had_quote")
+          let p' = if_ ~cond:had_quote
                        ~then_:(skip_byte quote_byte p')
                        ~else_:p' in
           pair (op (first bytes_p)) p'))
@@ -533,9 +533,9 @@ struct
       if i >= len then
         (comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
-               (let_ "b" (peek_byte p (size len))
-                 ~in_:(or_ (eq (identifier "b") (byte_of_const_char conf.separator))
-                           (eq (identifier "b") (byte_of_const_char conf.newline))))))
+               (let_ "b" (peek_byte p (size len)) (fun b ->
+                 or_ (eq b (byte_of_const_char conf.separator))
+                     (eq b (byte_of_const_char conf.newline))))))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)
