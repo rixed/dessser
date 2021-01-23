@@ -2235,7 +2235,7 @@ let rec type_check l e =
 let size_of_expr l e =
   fold 0 l (fun n _l _e0 -> n + 1) e
 
-let environment_print oc l =
+let print_environment oc l =
   let p oc (e, t) =
     Printf.fprintf oc "%a:%a"
       (print ~max_depth:2) e
@@ -2279,14 +2279,14 @@ let () =
           Printf.sprintf2
             "Unbound %sidentifier %S: In expression %a, environment is %a"
             ext n (print ~max_depth) e0
-            environment_print l)
+            print_environment l)
     | Unbound_parameter (e0, p, l) ->
         Some (
           Printf.sprintf2
             "Unbound parameter %a: In expression %a, environment is %a"
             param_print p
             (print ~max_depth) e0
-            environment_print l)
+            print_environment l)
     | Invalid_expression (e0, msg) ->
         Some (
           Printf.sprintf2

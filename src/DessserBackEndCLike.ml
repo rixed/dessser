@@ -72,19 +72,26 @@ struct
 
   let compile_cmd = C.compile_cmd
 
-  (* Find references to identifiers. Used to order definitions. So does not
-   * need to take into account external identifiers, as they are defined
-   * outside of dessser's scope. *)
-  let get_depends l e =
+  (* Find references to identifiers. Used to order definitions, so does not
+   * need to include external identifiers, as they are defined outside of
+   * dessser's scope. Yet, we need to pass [E.fold] a valid environment so it
+   * can compute any expression's type. *)
+  let get_depends compunit e =
+    let l =
+      List.map (fun (name, typ) ->
+        E.Ops.ext_identifier name, typ
+      ) compunit.U.external_identifiers in
+    (* Note: [E.fold] will enrich the environment with locally defined
+     *       identifiers *)
     E.fold [] l (fun lst l -> function
       | E0 (Identifier s) as e ->
           assert (s <> "") ;
-          if List.mem_assoc e l || List.mem s lst then (
+          if List.mem_assoc e l (* already defined *) ||
+             List.mem s lst (* already known to be undefined *) then (
             lst
           ) else (
             if debug then
-              Printf.fprintf stdout
-                "Expression depends on external identifier %S\n%!" s ;
+              pp stdout "Expression depends on external identifier %S\n%!" s ;
             s :: lst
           )
       | _ -> lst
@@ -136,7 +143,7 @@ struct
         | Some n -> n
         | None -> U.gen_sym "id_" |> valid_identifier in
       let tn = C.type_identifier p t in
-      Printf.fprintf p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
+      pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
       n
     )
 
@@ -149,7 +156,7 @@ struct
     C.print_identifier_declaration name p l e
 
   let print_intro oc =
-    Printf.fprintf oc "%s\n\n" C.source_intro
+    pp oc "%s\n\n" C.source_intro
 
   let print_verbatims p oc defs =
     List.rev defs |>
@@ -169,11 +176,7 @@ struct
         P.new_top_level p (fun p ->
           output_identifier name p l id.U.expr) in
       List.map (fun (name, identifier, _) ->
-        let l =
-          List.map (fun (name, typ) ->
-            E.Ops.identifier name, typ
-          ) compunit.U.external_identifiers in
-        let deps = get_depends l identifier.U.expr in
+        let deps = get_depends compunit identifier.U.expr in
         name, print_identifier name identifier, deps
       ) compunit.U.identifiers in
     let identifiers =
@@ -181,13 +184,12 @@ struct
         P.new_top_level p (fun p ->
           Printf.sprintf2 "%a" verb.U.printer p |>
           String.print p.P.def) in
-      List.filter_map (fun verb ->
+      List.fold_left (fun identifiers verb ->
         if verb.U.backend = id && verb.U.location = U.Inline then
-          Some (verb.U.name, print_verbatim verb, verb.dependencies)
+          (verb.U.name, print_verbatim verb, verb.dependencies) :: identifiers
         else
-          None
-      ) compunit.U.verbatim_definitions |>
-      List.rev_append identifiers in
+          identifiers
+      ) identifiers compunit.U.verbatim_definitions in
     if debug then
       pp stdout "Identifiers:\n%a\n%!"
         (List.print ~first:"" ~last:"" ~sep:"" (fun oc (name, _, deps) ->
@@ -214,14 +216,14 @@ struct
             ) depends in
           if missing_depends <> [] then (
             if debug then
-              Printf.fprintf stdout "Identifier %s has some undefined \
-                                     dependences, waiting...\n" name ;
+              pp stdout "Identifier %s has some undefined \
+                         dependences, waiting...\n" name ;
             let left_overs' = (name, printer, missing_depends) :: left_overs in
             loop progress defined left_overs' rest
           ) else (
             if debug then
-              Printf.fprintf stdout "Identifier %s depends on %d defined \
-                                     identifiers, emitting code...\n"
+              pp stdout "Identifier %s depends on %d defined \
+                         identifiers, emitting code...\n"
                 name (List.length depends) ;
             let l =
               (* Build an environment with only the defined identifiers: *)
@@ -243,8 +245,8 @@ struct
     let print_ios oc lst =
       List.rev lst |>
       List.iter (fun io ->
-        Printf.fprintf oc "%s\n" (IO.close_out io)) in
-    Printf.fprintf oc
+        pp oc "%s\n" (IO.close_out io)) in
+    pp oc
       "%t\n\
        %a\n\n\
        %a\n\n\
