@@ -2587,7 +2587,11 @@ struct
   let and_ e1 e2 = E2 (And, e1, e2)
   let or_ e1 e2 = E2 (Or, e1, e2)
   let identifier n = E0 (Identifier n)
-  let let_ n e1 f = E2 (Let n, e1, f (identifier n))
+  let let_ n e1 f =
+    (* If [e1] is already an identifier there is no need for a new one: *)
+    match e1 with
+    | E0 (Identifier _) -> f e1
+    | _ -> E2 (Let n, e1, f (identifier n))
   let ext_identifier n = E0 (ExtIdentifier n)
   let to_i8 e1 = E1 (ToI8, e1)
   let to_u8 e1 = E1 (ToU8, e1)
