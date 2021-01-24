@@ -715,7 +715,7 @@ let sexpr mn =
     if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     make_converter be ~mn e
 
-  let test_data_desser = test_desser (data_ptr_of_buffer 50_000)
+  let test_data_desser = test_desser (data_ptr_of_buffer (size 50_000))
 
   let ocaml_be = (module DessserBackEndOCaml : BACKEND)
   let cpp_be = (module DessserBackEndCPP : BACKEND)

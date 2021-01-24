@@ -634,8 +634,9 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E0 (DataPtrOfString s) ->
         emit ?name p l e (fun oc -> pp oc "%S" s)
-    | E.E0 (DataPtrOfBuffer n) ->
-        emit ?name p l e (fun oc -> pp oc "%d" n)
+    | E.E1 (DataPtrOfBuffer, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

@@ -76,7 +76,6 @@ type e0 =
   | OWord of Uint128.t
   | Bytes of Bytes.t
   | DataPtrOfString of string
-  | DataPtrOfBuffer of int
   (* Constant mask actions: *)
   | CopyField
   | SkipField
@@ -251,6 +250,7 @@ type e1 =
   | SlidingWindow of T.maybe_nullable (* Sliding window of the last N added items *)
   | TumblingWindow of T.maybe_nullable (* Tumbling window *)
   | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
+  | DataPtrOfBuffer
 
 type e1s =
   | Coalesce
@@ -407,7 +407,7 @@ let rec can_precompute l i = function
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-       | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
+       | Bytes _ | DataPtrOfString _
        | CopyField | SkipField | SetFieldNull) ->
       true
   | E0 (Param (fid, _)) ->
@@ -706,6 +706,7 @@ let string_of_e1 = function
       "tumbling-window "^ String.quote (T.string_of_maybe_nullable mn)
   | Sampling mn ->
       "sampling "^ String.quote (T.string_of_maybe_nullable mn)
+  | DataPtrOfBuffer -> "data-ptr-of-buffer"
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -813,7 +814,6 @@ let rec string_of_e0 = function
   | OWord n -> "oword "^ Uint128.to_string n
   | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
   | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
-  | DataPtrOfBuffer n -> "data-ptr-of-buffer "^ string_of_int n
   | Identifier s -> "identifier "^ String.quote s
   | ExtIdentifier s -> "ext-identifier "^ String.quote s
   | CopyField -> "copy-field"
@@ -1056,8 +1056,6 @@ struct
     | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
-    | Lst [ Sym "data-ptr-of-buffer" ; Sym n ] ->
-        E0 (DataPtrOfBuffer (int_of_string n))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
     | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier s)
     | Lst [ Sym "copy-field" ] -> E0 CopyField
@@ -1253,6 +1251,8 @@ struct
         E1 (TumblingWindow (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "sampling" ; Str mn ; x ] ->
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
+    | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
+        E1 (DataPtrOfBuffer, e x)
     (* e1s *)
     | Lst (Sym "coalesce" :: x1 :: xs) -> E1S (Coalesce, e x1, List.map e xs)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
@@ -1593,7 +1593,6 @@ let rec type_of l e0 =
   | E1 (BytesOfString, _) -> T.bytes
   | E1 (Cardinality, _) -> T.u32
   | E0 (DataPtrOfString _) -> T.dataptr
-  | E0 (DataPtrOfBuffer _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E2 (GetBit, _, _) -> T.bit
   | E2 (GetVec, e1, _) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
@@ -1656,6 +1655,7 @@ let rec type_of l e0 =
   | E1 (ToU128, _) -> T.u128
   | E1 (ToI128, _) -> T.i128
   | E1 (ToFloat, _) -> T.float
+  | E1 (DataPtrOfBuffer, _) -> T.dataptr
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
@@ -1889,9 +1889,8 @@ let rec type_check l e =
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-         | Bytes _ | DataPtrOfString _ | DataPtrOfBuffer _
-         | Identifier _ | ExtIdentifier _ | Param _
-         | CopyField | SkipField | SetFieldNull)
+         | Bytes _ | DataPtrOfString _ | Identifier _ | ExtIdentifier _
+         | Param _ | CopyField | SkipField | SetFieldNull)
     | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _
           | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
@@ -2027,6 +2026,8 @@ let rec type_check l e =
         check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
         check_slist_of_maybe_nullable l e
+    | E1 (DataPtrOfBuffer, e) ->
+        check_eq l e T.size
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.byte
@@ -2654,7 +2655,7 @@ struct
   let data_ptr_push e1 = E1 (DataPtrPush, e1)
   let data_ptr_pop e1 = E1 (DataPtrPop, e1)
   let data_ptr_of_string s = E0 (DataPtrOfString s)
-  let data_ptr_of_buffer n = E0 (DataPtrOfBuffer n)
+  let data_ptr_of_buffer e1 = E1 (DataPtrOfBuffer, e1)
   let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
   let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
