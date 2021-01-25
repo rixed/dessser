@@ -2433,102 +2433,10 @@ struct
   let dump e1 = E1 (Dump, e1)
   let debug e1 = E1 (Debug, e1)
   let debugs es = E0S (Seq, List.map debug es)
-  let is_null e1 = E1 (IsNull, e1)
-  let coalesce = function
-    | [] -> invalid_arg "coalesce: must have at least one argument"
-    | e1 :: es -> E1S (Coalesce, e1, es)
-  let nth e1 e2 = E2 (Nth, e1, e2)
-  let read_byte e1 = E1 (ReadByte, e1)
-  let read_word en e1 = E1 (ReadWord en, e1)
-  let read_dword en e1 = E1 (ReadDWord en, e1)
-  let read_qword en e1 = E1 (ReadQWord en, e1)
-  let read_oword en e1 = E1 (ReadOWord en, e1)
-  let peek_word en e1 e2 = E2 (PeekWord en, e1, e2)
-  let peek_dword en e1 e2 = E2 (PeekDWord en, e1, e2)
-  let peek_qword en e1 e2 = E2 (PeekQWord en, e1, e2)
-  let peek_oword en e1 e2 = E2 (PeekOWord en, e1, e2)
-  let read_bytes e1 e2 = E2 (ReadBytes, e1, e2)
-  let peek_byte e1 e2 = E2 (PeekByte, e1, e2)
-  let write_bytes e1 e2 = E2 (WriteBytes, e1, e2)
-  let write_byte e1 e2 = E2 (WriteByte, e1, e2)
-  let write_word en e1 e2 = E2 (WriteWord en, e1, e2)
-  let write_dword en e1 e2 = E2 (WriteDWord en, e1, e2)
-  let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
-  let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
-  let insert e1 e2 = E2 (Insert, e1, e2)
-  let bytes_of_string e1 = E1 (BytesOfString, e1)
-  let string_of_int e1 = E1 (StringOfInt, e1)
-  let float_of_string e1 = E1 (FloatOfString, e1)
-  let char_of_string e1 = E1 (CharOfString, e1)
-  let string_of_char e1 = E1 (StringOfChar, e1)
-  let u8_of_string e1 = E1 (U8OfString, e1)
-  let u16_of_string e1 = E1 (U16OfString, e1)
-  let u24_of_string e1 = E1 (U24OfString, e1)
-  let u32_of_string e1 = E1 (U32OfString, e1)
-  let u40_of_string e1 = E1 (U40OfString, e1)
-  let u48_of_string e1 = E1 (U48OfString, e1)
-  let u56_of_string e1 = E1 (U56OfString, e1)
-  let u64_of_string e1 = E1 (U64OfString, e1)
-  let u128_of_string e1 = E1 (U128OfString, e1)
-  let i8_of_string e1 = E1 (I8OfString, e1)
-  let i16_of_string e1 = E1 (I16OfString, e1)
-  let i24_of_string e1 = E1 (I24OfString, e1)
-  let i32_of_string e1 = E1 (I32OfString, e1)
-  let i40_of_string e1 = E1 (I40OfString, e1)
-  let i48_of_string e1 = E1 (I48OfString, e1)
-  let i56_of_string e1 = E1 (I56OfString, e1)
-  let i64_of_string e1 = E1 (I64OfString, e1)
-  let i128_of_string e1 = E1 (I128OfString, e1)
-  let float_of_ptr e1 = E1 (FloatOfPtr, e1)
-  let char_of_ptr e1 = E1 (CharOfPtr, e1)
-  let u8_of_ptr e1 = E1 (U8OfPtr, e1)
-  let u16_of_ptr e1 = E1 (U16OfPtr, e1)
-  let u24_of_ptr e1 = E1 (U24OfPtr, e1)
-  let u32_of_ptr e1 = E1 (U32OfPtr, e1)
-  let u40_of_ptr e1 = E1 (U40OfPtr, e1)
-  let u48_of_ptr e1 = E1 (U48OfPtr, e1)
-  let u56_of_ptr e1 = E1 (U56OfPtr, e1)
-  let u64_of_ptr e1 = E1 (U64OfPtr, e1)
-  let u128_of_ptr e1 = E1 (U128OfPtr, e1)
-  let i8_of_ptr e1 = E1 (I8OfPtr, e1)
-  let i16_of_ptr e1 = E1 (I16OfPtr, e1)
-  let i24_of_ptr e1 = E1 (I24OfPtr, e1)
-  let i32_of_ptr e1 = E1 (I32OfPtr, e1)
-  let i40_of_ptr e1 = E1 (I40OfPtr, e1)
-  let i48_of_ptr e1 = E1 (I48OfPtr, e1)
-  let i56_of_ptr e1 = E1 (I56OfPtr, e1)
-  let i64_of_ptr e1 = E1 (I64OfPtr, e1)
-  let i128_of_ptr e1 = E1 (I128OfPtr, e1)
-  let string_of_float e1 = E1 (StringOfFloat, e1)
-  let byte_of_u8 e1 = E1 (ByteOfU8, e1)
-  let bool_of_u8 e1 = E1 (BoolOfU8, e1)
-  let word_of_u16 e1 = E1 (WordOfU16, e1)
-  let dword_of_u32 e1 = E1 (DWordOfU32, e1)
-  let qword_of_u64 e1 = E1 (QWordOfU64, e1)
-  let oword_of_u128 e1 = E1 (OWordOfU128, e1)
-  let u8_of_byte e1 = E1 (U8OfByte, e1)
-  let u8_of_char e1 = E1 (U8OfChar, e1)
-  let u8_of_bool e1 = E1 (U8OfBool, e1)
-  let bool_of_bit e1 = E1 (BoolOfBit, e1)
-  let bit_of_bool e1 = E1 (BitOfBool, e1)
-  let u8_of_bit = u8_of_bool % bool_of_bit
-  let bit_of_u8 = bit_of_bool % bool_of_u8
-  let char_of_u8 e1 = E1 (CharOfU8, e1)
-  let u32_of_size e1 = E1 (U32OfSize, e1)
-  let size_of_u32 e1 = E1 (SizeOfU32, e1)
-  let null vt = E0 (Null vt)
-  let eol t = E0 (EndOfList t)
-  let end_of_list t = E0 (EndOfList t)
-  let sliding_window t e1 = E1 (SlidingWindow t, e1)
-  let tumbling_window t e1 = E1 (TumblingWindow t, e1)
-  let sampling t e1 = E1 (Sampling t, e1)
-  let empty_set mn = E0 (EmptySet mn)
-  let now = E0 Now
-  let rand = E0 Random
-  let bit n = E0 (Bit n)
   let bool n = E0 (Bool n)
   let false_ = bool false
   let true_ = bool true
+  let bit n = E0 (Bit n)
   let i8 n = E0 (I8 n)
   let u8 n = E0 (U8 n)
   let i16 n = E0 (I16 n)
@@ -2558,19 +2466,242 @@ struct
   let qword n = E0 (QWord n)
   let oword n = E0 (OWord n)
   let bytes s = E0 (Bytes s)
-  let byte_of_char e1 = byte_of_u8 (u8_of_char e1)
+  let is_null = function
+    | E0 (Null _) -> true_
+    | E1 (NotNull, _) -> false_
+    | e -> E1 (IsNull, e)
+  let rec coalesce = function
+    | [] -> invalid_arg "coalesce: must have at least one argument"
+    | [ E0 (Null _) as x ] -> x
+    | E0 (Null _) :: es -> coalesce es
+    | e1 :: es -> E1S (Coalesce, e1, es)
+  let nth e1 e2 = E2 (Nth, e1, e2)
+  let read_byte e1 = E1 (ReadByte, e1)
+  let read_word en e1 = E1 (ReadWord en, e1)
+  let read_dword en e1 = E1 (ReadDWord en, e1)
+  let read_qword en e1 = E1 (ReadQWord en, e1)
+  let read_oword en e1 = E1 (ReadOWord en, e1)
+  let peek_word en e1 e2 = E2 (PeekWord en, e1, e2)
+  let peek_dword en e1 e2 = E2 (PeekDWord en, e1, e2)
+  let peek_qword en e1 e2 = E2 (PeekQWord en, e1, e2)
+  let peek_oword en e1 e2 = E2 (PeekOWord en, e1, e2)
+  let read_bytes e1 e2 = E2 (ReadBytes, e1, e2)
+  let peek_byte e1 e2 = E2 (PeekByte, e1, e2)
+  let write_bytes e1 e2 = E2 (WriteBytes, e1, e2)
+  let write_byte e1 e2 = E2 (WriteByte, e1, e2)
+  let write_word en e1 e2 = E2 (WriteWord en, e1, e2)
+  let write_dword en e1 e2 = E2 (WriteDWord en, e1, e2)
+  let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
+  let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
+  let insert e1 e2 = E2 (Insert, e1, e2)
+  let bytes_of_string e1 = E1 (BytesOfString, e1)
+  let string_of_int = function
+    | E0 (U8 n) -> string (Uint8.to_string n)
+    | E0 (U16 n) -> string (Uint16.to_string n)
+    | E0 (U24 n) -> string (Uint24.to_string n)
+    | E0 (U32 n) -> string (Uint32.to_string n)
+    | E0 (U40 n) -> string (Uint40.to_string n)
+    | E0 (U48 n) -> string (Uint48.to_string n)
+    | E0 (U56 n) -> string (Uint56.to_string n)
+    | E0 (U64 n) -> string (Uint64.to_string n)
+    | E0 (U128 n) -> string (Uint128.to_string n)
+    | E0 (I8 n) -> string (Int8.to_string n)
+    | E0 (I16 n) -> string (Int16.to_string n)
+    | E0 (I24 n) -> string (Int24.to_string n)
+    | E0 (I32 n) -> string (Int32.to_string n)
+    | E0 (I40 n) -> string (Int40.to_string n)
+    | E0 (I48 n) -> string (Int48.to_string n)
+    | E0 (I56 n) -> string (Int56.to_string n)
+    | E0 (I64 n) -> string (Int64.to_string n)
+    | E0 (I128 n) -> string (Int128.to_string n)
+    | e -> E1 (StringOfInt, e)
+  let string_of_float = function
+    | E0 (Float f) -> string (hexstring_of_float f)
+    | e -> E1 (StringOfFloat, e)
+  let float_of_string = function
+    | E0 (String s) -> float (float_of_string s)
+    | e -> E1 (FloatOfString, e)
+  let char_of_string = function
+    | E0 (String s) ->
+        if String.length s = 1 then char s.[0]
+        else invalid_arg "char_of_string"
+    | e ->
+        E1 (CharOfString, e)
+  let string_of_char = function
+    | E0 (Char c) -> string (String.of_char c)
+    | e -> E1 (StringOfChar, e)
+  let u8_of_string = function
+    | E0 (String s) -> u8 (Uint8.of_string s)
+    | e -> E1 (U8OfString, e)
+  let u16_of_string = function
+    | E0 (String s) -> u16 (Uint16.of_string s)
+    | e -> E1 (U16OfString, e)
+  let u24_of_string = function
+    | E0 (String s) -> u24 (Uint24.of_string s)
+    | e -> E1 (U24OfString, e)
+  let u32_of_string = function
+    | E0 (String s) -> u32 (Uint32.of_string s)
+    | e -> E1 (U32OfString, e)
+  let u40_of_string = function
+    | E0 (String s) -> u40 (Uint40.of_string s)
+    | e -> E1 (U40OfString, e)
+  let u48_of_string = function
+    | E0 (String s) -> u48 (Uint48.of_string s)
+    | e -> E1 (U48OfString, e)
+  let u56_of_string = function
+    | E0 (String s) -> u56 (Uint56.of_string s)
+    | e -> E1 (U56OfString, e)
+  let u64_of_string = function
+    | E0 (String s) -> u64 (Uint64.of_string s)
+    | e -> E1 (U64OfString, e)
+  let u128_of_string = function
+    | E0 (String s) -> u128 (Uint128.of_string s)
+    | e -> E1 (U128OfString, e)
+  let i8_of_string = function
+    | E0 (String s) -> i8 (Int8.of_string s)
+    | e -> E1 (I8OfString, e)
+  let i16_of_string = function
+    | E0 (String s) -> i16 (Int16.of_string s)
+    | e -> E1 (I16OfString, e)
+  let i24_of_string = function
+    | E0 (String s) -> i24 (Int24.of_string s)
+    | e -> E1 (I24OfString, e)
+  let i32_of_string = function
+    | E0 (String s) -> i32 (Int32.of_string s)
+    | e -> E1 (I32OfString, e)
+  let i40_of_string = function
+    | E0 (String s) -> i40 (Int40.of_string s)
+    | e -> E1 (I40OfString, e)
+  let i48_of_string = function
+    | E0 (String s) -> i48 (Int48.of_string s)
+    | e -> E1 (I48OfString, e)
+  let i56_of_string = function
+    | E0 (String s) -> i56 (Int56.of_string s)
+    | e -> E1 (I56OfString, e)
+  let i64_of_string = function
+    | E0 (String s) -> i64 (Int64.of_string s)
+    | e -> E1 (I64OfString, e)
+  let i128_of_string = function
+    | E0 (String s) -> i128 (Int128.of_string s)
+    | e -> E1 (I128OfString, e)
+  let float_of_ptr e1 = E1 (FloatOfPtr, e1)
+  let char_of_ptr e1 = E1 (CharOfPtr, e1)
+  let u8_of_ptr e1 = E1 (U8OfPtr, e1)
+  let u16_of_ptr e1 = E1 (U16OfPtr, e1)
+  let u24_of_ptr e1 = E1 (U24OfPtr, e1)
+  let u32_of_ptr e1 = E1 (U32OfPtr, e1)
+  let u40_of_ptr e1 = E1 (U40OfPtr, e1)
+  let u48_of_ptr e1 = E1 (U48OfPtr, e1)
+  let u56_of_ptr e1 = E1 (U56OfPtr, e1)
+  let u64_of_ptr e1 = E1 (U64OfPtr, e1)
+  let u128_of_ptr e1 = E1 (U128OfPtr, e1)
+  let i8_of_ptr e1 = E1 (I8OfPtr, e1)
+  let i16_of_ptr e1 = E1 (I16OfPtr, e1)
+  let i24_of_ptr e1 = E1 (I24OfPtr, e1)
+  let i32_of_ptr e1 = E1 (I32OfPtr, e1)
+  let i40_of_ptr e1 = E1 (I40OfPtr, e1)
+  let i48_of_ptr e1 = E1 (I48OfPtr, e1)
+  let i56_of_ptr e1 = E1 (I56OfPtr, e1)
+  let i64_of_ptr e1 = E1 (I64OfPtr, e1)
+  let i128_of_ptr e1 = E1 (I128OfPtr, e1)
+  let byte_of_u8 = function
+    | E0 (U8 n) -> byte n
+    | e -> E1 (ByteOfU8, e)
+  let bool_of_u8 = function
+    | E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0)
+    | e -> E1 (BoolOfU8, e)
+  let word_of_u16 = function
+    | E0 (U16 n) -> word n
+    | e -> E1 (WordOfU16, e)
+  let dword_of_u32 = function
+    | E0 (U32 n) -> dword n
+    | e -> E1 (DWordOfU32, e)
+  let qword_of_u64 = function
+    | E0 (U64 n) -> qword n
+    | e -> E1 (QWordOfU64, e)
+  let oword_of_u128 = function
+    | E0 (U128 n) -> oword n
+    | e -> E1 (OWordOfU128, e)
+  let u8_of_byte = function
+    | E0 (Byte n) -> u8 n
+    | e -> E1 (U8OfByte, e)
+  let u8_of_char = function
+    | E0 (Char c) -> u8 (Uint8.of_int (Char.code c))
+    | e -> E1 (U8OfChar, e)
+  let u8_of_bool = function
+    | E0 (Bool false) -> u8 (Uint8.of_int 0)
+    | E0 (Bool true) -> u8 (Uint8.of_int 1)
+    | e -> E1 (U8OfBool, e)
+  let bool_of_bit = function
+    | E0 (Bit b) -> bool b
+    | e -> E1 (BoolOfBit, e)
+  let bit_of_bool = function
+    | E0 (Bool b) -> bit b
+    | e -> E1 (BitOfBool, e)
+  let u8_of_bit = u8_of_bool % bool_of_bit
+  let bit_of_u8 = bit_of_bool % bool_of_u8
+  let char_of_u8 = function
+    | E0 (U8 n) -> char (Char.chr (Uint8.to_int n))
+    | e -> E1 (CharOfU8, e)
+  let u32_of_size = function
+    | E0 (Size n) -> u32 (Uint32.of_int n)
+    | e -> E1 (U32OfSize, e)
+  let size_of_u32 = function
+    | E0 (U32 n) -> size (Uint32.to_int n)
+    | e -> E1 (SizeOfU32, e)
+  let null vt = E0 (Null vt)
+  let eol t = E0 (EndOfList t)
+  let end_of_list t = E0 (EndOfList t)
+  let sliding_window t e1 = E1 (SlidingWindow t, e1)
+  let tumbling_window t e1 = E1 (TumblingWindow t, e1)
+  let sampling t e1 = E1 (Sampling t, e1)
+  let empty_set mn = E0 (EmptySet mn)
+  let now = E0 Now
+  let rand = E0 Random
+  let pair e1 e2 = E2 (Pair, e1, e2)
+  let first = function
+    | E2 (Pair, e, _) -> e
+    | e -> E1 (Fst, e)
+  let secnd = function
+    | E2 (Pair, _, e) -> e
+    | e -> E1 (Snd, e)
+  let cons e1 e2 = E2 (Cons, e1, e2)
+  let head = function
+    | E2 (Cons, e, _) -> e
+    | e -> E1 (Head, e)
+  let rec tail = function
+    | E0 (EndOfList _) -> invalid_arg "tail" (* FIXME: return Null *)
+    | E2 (Cons, e, E0 (EndOfList _)) -> e
+    | E2 (Cons, _, e) -> tail e
+    | e -> E1 (Tail, e)
+  let byte_of_char = function
+    | E0 (Char c) -> byte (Uint8.of_int (Char.code c))
+    | e -> byte_of_u8 (u8_of_char e)
   let byte_of_const_char c = byte_of_char (char c)
-  let if_ ~cond ~then_ ~else_ =  E3 (If, cond, then_, else_)
-  let read_while ~cond ~reduce ~init ~pos = E4 (ReadWhile, cond, reduce, init, pos)
-  let float_of_qword e1 = E1 (FloatOfQWord, e1)
-  let qword_of_float e1 = E1 (QWordOfFloat, e1)
+  let if_ ~cond ~then_ ~else_ =
+    match cond with
+    | E0 (Bool true) -> then_
+    | E0 (Bool false) -> else_
+    | _-> E3 (If, cond, then_, else_)
+  let read_while ~cond ~reduce ~init ~pos =
+    match cond with
+    | E0 (Bool false) -> pair init pos
+    | _ -> E4 (ReadWhile, cond, reduce, init, pos)
+  let float_of_qword = function
+    | E0 (QWord n) -> float (BatInt64.float_of_bits (Uint64.to_int64 n))
+    | e -> E1 (FloatOfQWord, e)
+  let qword_of_float = function
+    | E0 (Float f) -> qword (Uint64.of_int64 (BatInt64.bits_of_float f))
+    | e -> E1 (QWordOfFloat, e)
   let comment n e1 = E1 (Comment n, e1)
   let ge e1 e2 = E2 (Ge, e1, e2)
   let gt e1 e2 = E2 (Gt, e1, e2)
   let le e1 e2 = ge e2 e1
   let lt e1 e2 = gt e2 e1
   let eq e1 e2 = E2 (Eq, e1, e2)
-  let not_ e1 = E1 (Not, e1)
+  let not_ = function
+    | E0 (Bool b) -> bool (not b)
+    | e -> E1 (Not, e)
   let abs e1 = E1 (Abs, e1)
   let ne e1 e2 = not_ (eq e1 e2)
   let param fid n = E0 (Param (fid, n))
@@ -2594,6 +2725,7 @@ struct
     | E0 (Identifier _) -> f e1
     | _ -> E2 (Let n, e1, f (identifier n))
   let ext_identifier n = E0 (ExtIdentifier n)
+  (* TODO: Those could also be executed at compile time with some benefit *)
   let to_i8 e1 = E1 (ToI8, e1)
   let to_u8 e1 = E1 (ToU8, e1)
   let to_i16 e1 = E1 (ToI16, e1)
@@ -2615,15 +2747,11 @@ struct
   let to_float e1 = E1 (ToFloat, e1)
   let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
   let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
-  let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
+  let loop_while ~cond ~body ~init =
+    match cond with
+    | E0 (Bool false) -> init
+    | _ -> E3 (LoopWhile, cond, body, init)
   let fold ~init ~body ~lst = E3 (Fold, init, body, lst)
-  let pair e1 e2 = E2 (Pair, e1, e2)
-  let first e1 = E1 (Fst, e1)
-  let secnd e1 = E1 (Snd, e1)
-  let cons e1 e2 = E2 (Cons, e1, e2)
-  let head e1 = E1 (Head, e1)
-  let tail e1 = E1 (Tail, e1)
-  let size_of_u32 e1 = E1 (SizeOfU32, e1)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let rem_size e1 = E1 (RemSize, e1)
   let neg e1 = E1 (Neg, e1)
@@ -2661,7 +2789,11 @@ struct
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)
   let cardinality e1 = E1 (Cardinality, e1)
-  let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
+  let blit_byte e1 e2 e3 =
+    (* Do nothing if blitint nothing: *)
+    match e3 with
+    | E0 (Size 0) -> e1 (* return unmodified pointer *)
+    | _ -> E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
