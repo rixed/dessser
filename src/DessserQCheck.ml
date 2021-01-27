@@ -287,25 +287,25 @@ let get_next_fid =
 let e1_of_int n =
   let e1s =
     E.[| Dump ; Ignore ; IsNull ; NotNull ; Force ; StringOfFloat ;
-         StringOfChar ; StringOfInt ; FloatOfString ; CharOfString ; U8OfString ;
-         U16OfString ; U24OfString ; U32OfString ; U40OfString ; U48OfString ;
-         U56OfString ; U64OfString ; U128OfString ; I8OfString ; I16OfString ;
-         I24OfString ; I32OfString ; I40OfString ; I48OfString ; I56OfString ;
-         I64OfString ; I128OfString ; FloatOfPtr ; CharOfPtr ; U8OfPtr ;
-         U16OfPtr ; U24OfPtr ; U32OfPtr ; U40OfPtr ; U48OfPtr ; U56OfPtr ;
-         U64OfPtr ; U128OfPtr ; I8OfPtr ; I16OfPtr ; I24OfPtr ; I32OfPtr ;
-         I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
-         ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16 ;
-         ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
-         LogNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ; ByteOfU8 ;
-         U16OfWord ; WordOfU16 ; U32OfDWord ; DWordOfU32 ; U64OfQWord ;
-         QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ; CharOfU8 ;
-         SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ; BoolOfU8 ;
-         StringLength ; StringOfBytes ; BytesOfString ; Cardinality ; ReadByte ;
-         DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ;
-         Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ;
-         ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd ;
-         Identity |]
+         StringOfChar ; StringOfInt ; StringOfIp ; FloatOfString ; CharOfString
+         ; U8OfString ; U16OfString ; U24OfString ; U32OfString ; U40OfString ;
+         U48OfString ; U56OfString ; U64OfString ; U128OfString ; I8OfString ;
+         I16OfString ; I24OfString ; I32OfString ; I40OfString ; I48OfString ;
+         I56OfString ; I64OfString ; I128OfString ; FloatOfPtr ; CharOfPtr ;
+         U8OfPtr ; U16OfPtr ; U24OfPtr ; U32OfPtr ; U40OfPtr ; U48OfPtr ;
+         U56OfPtr ; U64OfPtr ; U128OfPtr ; I8OfPtr ; I16OfPtr ; I24OfPtr ;
+         I32OfPtr ; I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ;
+         ToU8 ; ToU16 ; ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128
+         ; ToI8 ; ToI16 ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ;
+         ToI128 ; ToFloat ; LogNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ;
+         ByteOfU8 ; U16OfWord ; WordOfU16 ; U32OfDWord ; DWordOfU32 ;
+         U64OfQWord ; QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ;
+         CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ;
+         BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
+         ; ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ;
+         Exp ; Log ; Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ;
+         ACos ; ASin ; ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ;
+         Snd ; Identity |]
   in
   e1s.(n mod Array.length e1s)
 

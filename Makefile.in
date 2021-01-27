@@ -95,6 +95,7 @@ doc:
 LIBDESSSER_SOURCES = \
 	src/DessserTools.ml \
 	src/DessserFloatTools.ml \
+	src/DessserIpTools.ml \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
@@ -201,6 +202,7 @@ src/DessserCompilConfig.ml: Makefile
 
 TESTABLE_SOURCES = \
 	src/DessserTools.ml \
+	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \
@@ -212,8 +214,9 @@ TESTABLE_SOURCES = \
 	src/DessserCsv.ml
 
 LINKED_FOR_TESTS = \
-	src/DessserFloatTools.ml \
 	src/DessserTools.ml \
+	src/DessserFloatTools.ml \
+	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserMasks.ml \

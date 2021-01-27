@@ -465,6 +465,44 @@ struct
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
+    | E.E1 (StringOfIp, e1) ->
+        let n1 = print emit p l e1 in
+        let str = gen_sym ?name "str_" in
+        let ip = gen_sym ?name "ip_" in
+        ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
+        let case_u mn n =
+          match T.develop_maybe_nullable mn with
+          | T.{ vtyp = Mac U32 ; _ } ->
+              (* Make sure we can take the address of that thing: *)
+              ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
+              ppi p.P.def
+                "std::inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
+          | T.{ vtyp = Mac U128 ; _ } ->
+              ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
+              ppi p.P.def
+                "std::inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;
+          | _ ->
+              assert false (* because of type checking *)
+        in
+        (match E.type_of l e1 |> T.develop_user_types with
+        | Value { vtyp = Sum mns ; _ } ->
+            (* Since the type checking accept any sum type made of u32 and
+             * u128, let's be as general as possible: *)
+            ppi p.P.def "switch (%s.index()) {\n" n1 ;
+            P.indent_more p (fun () ->
+              Array.iteri (fun i (cstr, mn) ->
+                ppi p.P.def "case %d: { /* %s */\n" i cstr ;
+                P.indent_more p (fun () ->
+                  let n = Printf.sprintf "std::get<%d>(%s)" i n1 in
+                  case_u mn n ;
+                  ppi p.P.def "break; }\n")
+              ) mns) ;
+            ppi p.P.def "}"
+        | Value mn ->
+            case_u mn n1
+        | _ ->
+            assert false (* because of type checking *)) ;
+        emit ?name p l e (fun oc -> String.print oc str)
     | E.E1 (CharOfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s[0]" n)

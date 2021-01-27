@@ -110,6 +110,7 @@ type e1 =
   | StringOfFloat
   | StringOfChar
   | StringOfInt
+  | StringOfIp
   | FloatOfString
   | CharOfString
   | U8OfString
@@ -575,6 +576,7 @@ let string_of_e1 = function
   | StringOfFloat -> "string-of-float"
   | StringOfChar -> "string-of-char"
   | StringOfInt -> "string-of-int"
+  | StringOfIp -> "string-of-ip"
   | FloatOfString -> "float-of-string"
   | CharOfString -> "char-of-string"
   | U8OfString -> "u8-of-string"
@@ -1115,6 +1117,7 @@ struct
     | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
     | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
+    | Lst [ Sym "string-of-ip" ; x ] -> E1 (StringOfIp, e x)
     | Lst [ Sym "float-of-string" ; x ] -> E1 (FloatOfString, e x)
     | Lst [ Sym "char-of-string" ; x ] -> E1 (CharOfString, e x)
     | Lst [ Sym "u8-of-string" ; x ] -> E1 (U8OfString, e x)
@@ -1512,6 +1515,7 @@ let rec type_of l e0 =
   | E1 (StringOfFloat, _)
   | E1 (StringOfChar, _)
   | E1 (StringOfInt, _) -> T.string
+  | E1 (StringOfIp, _) -> T.string
   | E1 (CharOfString, _) -> T.char
   | E1 (FloatOfString, _) -> T.float
   | E1 (U8OfString, _) -> T.u8
@@ -1883,6 +1887,16 @@ let rec type_check l e =
               raise (Type_error (e0, e, act, "be a "^ expected))
           done
       | _ -> raise (Apply_error (e0, "argument must be a function")) in
+    let rec check_ip ?(rec_=false) l t =
+      (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
+       * but do not allow recursion in the sum type because code generator
+       * won't deal with that. *)
+      match t |> T.develop_user_types with
+      | Value { vtyp = Mac (U32 | U128) ; nullable = false } ->
+          ()
+      | Value { vtyp = Sum mns ; nullable = false } when rec_ = false ->
+          Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Value mn)) mns
+      | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | EmptySet _ | Now | Random
          | Unit | Float _ | String _ | Bool _ | Char _
@@ -1972,6 +1986,8 @@ let rec type_check l e =
         check_integer l e
     | E1 ((StringOfChar | U8OfChar), e) ->
         check_eq l e T.char
+    | E1 (StringOfIp, e) ->
+        check_ip l (type_of l e)
     | E1 ((FloatOfString | CharOfString | U8OfString | U16OfString
          | U24OfString | U32OfString | U40OfString | U48OfString
          | U56OfString | U64OfString | U128OfString | I8OfString
@@ -2518,6 +2534,10 @@ struct
   let string_of_float = function
     | E0 (Float f) -> string (hexstring_of_float f)
     | e -> E1 (StringOfFloat, e)
+  let string_of_ip = function
+    | E0 (U32 n) -> string (DessserIpTools.V4.to_string n)
+    | E0 (U128 n) -> string (DessserIpTools.V6.to_string n)
+    | e -> E1 (StringOfIp, e)
   let float_of_string = function
     | E0 (String s) -> float (float_of_string s)
     | e -> E1 (FloatOfString, e)

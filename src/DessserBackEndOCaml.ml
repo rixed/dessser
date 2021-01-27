@@ -545,6 +545,32 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let op = mod_name (E.type_of l e1) ^".to_string" in
         unary_op op e1
+    | E.E1 (StringOfIp, e1) ->
+        let n1 = print emit p l e1 in
+        let case_u mn n =
+          match T.develop_maybe_nullable mn with
+          | T.{ vtyp = Mac U32 ; _ } ->
+              ppi p.P.def "DessserIpTools.V4.to_string %s" n
+          | T.{ vtyp = Mac U128 ; _ } ->
+              ppi p.P.def "DessserIpTools.V6.to_string %s" n
+          | _ ->
+              assert false (* because of type checking *)
+        in
+        emit ?name p l e (fun oc ->
+          match E.type_of l e1 |> T.develop_user_types with
+          | Value { vtyp = Sum mns ; _ } ->
+              (* Since the type checking accept any sum type made of u32 and
+               * u128, let's be as general as possible: *)
+              ppi oc "match %s with\n" n1 ;
+              P.indent_more p (fun () ->
+                Array.iter (fun (cstr, mn) ->
+                  ppi oc "| %s ip_ ->\n" (cstr_name cstr) ;
+                  P.indent_more p (fun () -> case_u mn "ip_")
+                ) mns)
+          | Value mn ->
+              case_u mn n1
+          | _ ->
+              assert false (* because of type checking *))
     | E.E1 (CharOfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
