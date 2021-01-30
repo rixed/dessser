@@ -78,69 +78,8 @@ let align_const p extra_bytes =
     let padding_len = word_size - extra_bytes in
     data_ptr_add p (size padding_len)
 
-(*
- * RamenRingBuffer can only des/ser types which record fields are sorted.
- * Since the type is iterated by the Dessser module out of our control, this
- * is the responsibility of the caller to ensure the type is properly sorted
- * (using the following helper functions).
- *)
-
-let rec_field_cmp (n1, _) (n2, _) =
-  String.compare n1 n2
-
-let rec order_rec_fields mn =
-  let rec order_value_type = function
-    | T.Rec mns ->
-        Array.fast_sort rec_field_cmp mns ;
-        T.Rec (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
-    | T.Tup mns ->
-        T.Tup (Array.map order_rec_fields mns)
-    | T.Vec (dim, mn) ->
-        T.Vec (dim, order_rec_fields mn)
-    | T.Lst mn ->
-        T.Lst (order_rec_fields mn)
-    | T.Sum mns ->
-        T.Sum (Array.map (fun (name, mn) -> name, order_rec_fields mn) mns)
-    | T.Usr ut ->
-        order_value_type ut.def
-    | mn -> mn in
-  { mn with vtyp = order_value_type mn.vtyp }
-
-let rec are_rec_fields_ordered mn =
-  let rec aux = function
-    | T.Rec mns ->
-        array_for_alli (fun i (_name, mn) ->
-          are_rec_fields_ordered mn &&
-          (i = 0 || rec_field_cmp mns.(i-1) mns.(i) <= 0)
-        ) mns
-    | T.Tup mns ->
-        Array.for_all are_rec_fields_ordered mns
-    | T.Vec (_, mn) | T.Lst mn ->
-        are_rec_fields_ordered mn
-    | T.Sum mns ->
-        Array.for_all (fun (_, mn) -> are_rec_fields_ordered mn) mns
-    | T.Usr ut ->
-        aux ut.def
-    | _ ->
-        true in
-  aux mn.T.vtyp
-
-let check_rec_fields_ordered mn =
-  if not (are_rec_fields_ordered mn) then
-    failwith "RingBuffer can only serialize/deserialize records which \
-              fields are sorted."
-
-(* Fields which name start with underscore are considered private and are never
- * serialized. *)
-let is_private name =
-  String.length name > 0 && name.[0] = '_'
-
 let tuple_typs_of_record mns =
-  (* Like tuples but with fields in alphabetic order, with private fields
-   * omitted: *)
-  Array.filter_map (fun (name, typ) ->
-    if is_private name then None else Some typ
-  ) mns
+  Array.map snd mns
 
 (* We use a stack of "frames" of pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
@@ -316,8 +255,7 @@ struct
       let p = f p in
       pair p stk)
 
-  let start ?(config=()) mn p =
-    check_rec_fields_ordered mn ;
+  let start ?(config=()) _mn p =
     config, pair p (end_of_list t_frame)
 
   let stop () p_stk =
@@ -523,171 +461,132 @@ struct
 
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
-  (* HeapValue will iterate over the whole tree of values but we want to
-   * hide anything that's below a private field: *)
-  let unless_private mn path k =
-    let rec loop path mn =
-      match path with
-      | [] ->
-          (* Reached the leaf type without meeting a private field name *)
-          k ()
-      | idx :: rest ->
-        (match mn.T.vtyp with
-        | Rec mns ->
-            assert (idx < Array.length mns) ;
-            let name, mn = mns.(idx) in
-            if is_private name then
-              ConstSize 0
-            else
-              loop rest mn
-        | Sum mns ->
-            assert (idx < Array.length mns) ;
-            loop rest (snd mns.(idx))
-        | Tup mns ->
-            assert (idx < Array.length mns) ;
-            loop rest mns.(idx)
-        | Vec (d, mn) ->
-            assert (idx < d) ;
-            loop rest mn
-        | Lst mn ->
-            loop rest mn
-        | _ ->
-            assert false)
-    in
-    loop path mn
-
   (* SerSize of the whole string: *)
-  let ssize_of_string mn path id =
-    unless_private mn path (fun () ->
-      let sz = size_of_u32 (string_length id) in
-      let headsz = size word_size in
-      DynSize (add headsz (round_up_dyn_bytes sz)))
+  let ssize_of_string _mn _path id =
+    let sz = size_of_u32 (string_length id) in
+    let headsz = size word_size in
+    DynSize (add headsz (round_up_dyn_bytes sz))
 
   (* SerSize of the list header: *)
-  let ssize_of_list mn path id =
-    unless_private mn path (fun () ->
-      let with_nullmask () =
-        let nullmask_bits_dyn = cardinality id in
-        (* Add the nullmask length prefix: *)
-        let nullmask_sz_bits = add nullmask_bits_dyn (u32_of_int 8) in
-        (* Round up to ringbuf words: *)
-        let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
-        DynSize (add (size word_size) (* list length *)
-                     nullmask_bytes)
-      and no_nullmask () =
-        ConstSize word_size in
-      (* If the items are not nullable then there is no nullmask. *)
-      match mn.T.vtyp with
-      | Lst vt ->
-          if vt.nullable then
-            with_nullmask ()
-          else
-            no_nullmask ()
-      | _ ->
-          assert false)
+  let ssize_of_list mn _path id =
+    let with_nullmask () =
+      let nullmask_bits_dyn = cardinality id in
+      (* Add the nullmask length prefix: *)
+      let nullmask_sz_bits = add nullmask_bits_dyn (u32_of_int 8) in
+      (* Round up to ringbuf words: *)
+      let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
+      DynSize (add (size word_size) (* list length *)
+                   nullmask_bytes)
+    and no_nullmask () =
+      ConstSize word_size in
+    (* If the items are not nullable then there is no nullmask. *)
+    match mn.T.vtyp with
+    | Lst vt ->
+        if vt.nullable then
+          with_nullmask ()
+        else
+          no_nullmask ()
+    | _ ->
+        assert false
 
-  let ssize_of_float mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
+  let ssize_of_float _mn _path _ =
+    ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_bool mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
+  let ssize_of_bool _mn _path _ =
+    ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_i8 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
+  let ssize_of_i8 _mn _path _ =
+    ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_i16 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 2))
+  let ssize_of_i16 _mn _path _ =
+    ConstSize (round_up_const_bytes 2)
 
-  let ssize_of_i24 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 3))
+  let ssize_of_i24 _mn _path _ =
+    ConstSize (round_up_const_bytes 3)
 
-  let ssize_of_i32 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 4))
+  let ssize_of_i32 _mn _path _ =
+    ConstSize (round_up_const_bytes 4)
 
-  let ssize_of_i40 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 5))
+  let ssize_of_i40 _mn _path _ =
+    ConstSize (round_up_const_bytes 5)
 
-  let ssize_of_i48 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 6))
+  let ssize_of_i48 _mn _path _ =
+    ConstSize (round_up_const_bytes 6)
 
-  let ssize_of_i56 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 7))
+  let ssize_of_i56 _mn _path _ =
+    ConstSize (round_up_const_bytes 7)
 
-  let ssize_of_i64 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
+  let ssize_of_i64 _mn _path _ =
+    ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_i128 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 16))
+  let ssize_of_i128 _mn _path _ =
+    ConstSize (round_up_const_bytes 16)
 
-  let ssize_of_u8 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 1))
+  let ssize_of_u8 _mn _path _ =
+    ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_u16 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 2))
+  let ssize_of_u16 _mn _path _ =
+    ConstSize (round_up_const_bytes 2)
 
-  let ssize_of_u24 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 3))
+  let ssize_of_u24 _mn _path _ =
+    ConstSize (round_up_const_bytes 3)
 
-  let ssize_of_u32 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 4))
+  let ssize_of_u32 _mn _path _ =
+    ConstSize (round_up_const_bytes 4)
 
-  let ssize_of_u40 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 5))
+  let ssize_of_u40 _mn _path _ =
+    ConstSize (round_up_const_bytes 5)
 
-  let ssize_of_u48 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 6))
+  let ssize_of_u48 _mn _path _ =
+    ConstSize (round_up_const_bytes 6)
 
-  let ssize_of_u56 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 7))
+  let ssize_of_u56 _mn _path _ =
+    ConstSize (round_up_const_bytes 7)
 
-  let ssize_of_u64 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 8))
+  let ssize_of_u64 _mn _path _ =
+    ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_u128 mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bytes 16))
+  let ssize_of_u128 _mn _path _ =
+    ConstSize (round_up_const_bytes 16)
 
-  let ssize_of_char mn path _ =
-    unless_private mn path (fun () -> ConstSize (round_up_const_bits 1))
+  let ssize_of_char _mn _path _ =
+    ConstSize (round_up_const_bits 1)
 
   let ssize_of_tup mn path _ =
-    unless_private mn path (fun () ->
-      (* Just the additional bitmask: *)
-      let typs =
-        match (T.type_of_path mn path).vtyp with
-        | Tup typs ->
-            typs
-        | _ -> assert false in
-      ConstSize (round_up_const_bits (
-        8 (* nullmask width *) +
-        Array.length typs (* one bit per possibly selected item *))))
+    (* Just the additional bitmask: *)
+    let typs =
+      match (T.type_of_path mn path).vtyp with
+      | Tup typs ->
+          typs
+      | _ -> assert false in
+    ConstSize (round_up_const_bits (
+      8 (* nullmask width *) +
+      Array.length typs (* one bit per possibly selected item *)))
 
   let ssize_of_rec mn path _ =
-    unless_private mn path (fun () ->
-      (* Just the additional bitmask: *)
-      let typs =
-        match (T.type_of_path mn path).vtyp with
-        | Rec typs ->
-            typs
-        | _ -> assert false in
-      let selectable_fields =
-        Array.count_matching (fun (name, _) -> not (is_private name)) typs in
-      ConstSize (round_up_const_bits (
-        8 (* nullmask width *) +
-        selectable_fields (* one bit per possibly selected field *))))
+    (* Just the additional bitmask: *)
+    let typs =
+      match (T.type_of_path mn path).vtyp with
+      | Rec typs ->
+          typs
+      | _ -> assert false in
+    let selectable_fields = Array.length typs in
+    ConstSize (round_up_const_bits (
+      8 (* nullmask width *) +
+      selectable_fields (* one bit per possibly selected field *)))
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ =
     ConstSize word_size
 
   let ssize_of_vec mn path _ =
-    unless_private mn path (fun () ->
-      let dim, typ =
-        match (T.type_of_path mn path).vtyp with
-        | Vec (dim, typ) ->
-            dim, typ
-        | _ -> assert false in
-      ConstSize (round_up_const_bits (
-        if typ.nullable then (8 + dim) else 0)))
+    let dim, typ =
+      match (T.type_of_path mn path).vtyp with
+      | Vec (dim, typ) ->
+          dim, typ
+      | _ -> assert false in
+    ConstSize (round_up_const_bits (
+      if typ.nullable then (8 + dim) else 0))
 
   let ssize_of_null _mn _path = ConstSize 0
 end
@@ -723,8 +622,7 @@ struct
           and stk = cons new_frame stk in
           pair p stk ]
 
-  let start ?(config=()) mn p =
-    check_rec_fields_ordered mn ;
+  let start ?(config=()) _mn p =
     config, pair p (end_of_list t_frame)
 
   let stop () p_stk =

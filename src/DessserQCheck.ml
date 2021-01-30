@@ -780,8 +780,6 @@ let sexpr mn =
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
     let mn_ringbuf = T.force_maybe_nullable mn in
-    (* RamenRingBuffer require record field names to be ordered: *)
-    let mn_ringbuf = DessserRamenRingBuffer.order_rec_fields mn_ringbuf in
     (* CSV cannot encode some nullable compound types: *)
     let mn_csv = DessserCsv.make_serializable mn in
 

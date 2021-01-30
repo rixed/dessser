@@ -799,6 +799,8 @@ struct
        (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
     (Ok ((required (Rec [| "f1", required (Mac Bool) ; "f2", optional (Mac U8) |])), (19,[]))) \
       (test_p maybe_nullable "{f1: Bool; f2: U8?}")
+    (Ok ((required (Rec [| "f2", required (Mac Bool) ; "f1", optional (Mac U8) |])), (19,[]))) \
+      (test_p maybe_nullable "{f2: Bool; f1: U8?}")
     (Ok ((required (Sum [| "c1", required (Mac Bool) ; "c2", optional (Mac U8) |])), (18,[]))) \
       (test_p maybe_nullable "(c1 Bool | c2 U8?)")
     (Ok ((required (Vec (1, required (Mac Bool)))), (7,[]))) \
