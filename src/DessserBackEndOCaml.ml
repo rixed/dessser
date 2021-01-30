@@ -761,7 +761,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n)
     | E.E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.one %s = 0" n)
+        emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.zero %s <> 0" n)
     | E.E2 (AppendByte, e1, e2) ->
         binary_op "Slice.add" e1 e2
     | E.E2 (AppendBytes, e1, e2) ->

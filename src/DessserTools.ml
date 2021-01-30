@@ -1,3 +1,5 @@
+(* General purpose helper functions with no dependencies on the rest of
+ * Dessser *)
 open Batteries
 
 (*$inject

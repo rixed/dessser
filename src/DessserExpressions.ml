@@ -321,6 +321,7 @@ type e3 =
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
+  (* Unline LoopWhile, LoopUntil executes the body at least once *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
   | Fold (* args are: init, function, list/vector/set *)
   (* Get a slice from a pointer, starting at given offset and shortened to
