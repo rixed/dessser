@@ -1140,7 +1140,7 @@ struct
             P.indent_more p (fun () ->
               ppi oc "if not (%s accum) then accum else" cond ;
               ppi oc "loop_while (%s accum) in" body) ;
-            pp oc "%sloop_while %s" p.P.indent accum))
+            ppi oc "loop_while %s" accum))
     | E.E3 (LoopUntil, e1, e2, e3) ->
         let body = print emit p l e1
         and cond = print emit p l e2

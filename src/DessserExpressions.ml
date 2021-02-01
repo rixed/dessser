@@ -1728,16 +1728,23 @@ let rec type_of l e0 =
       (try List.assoc e l
       with Not_found ->
         raise (Unbound_parameter (e0, p, l)))
-  | E3 (If, _, e, _) -> type_of l e
-  | E4 (ReadWhile, _, _, e, _) -> T.pair (type_of l e) T.dataptr
+  | E3 (If, _, e, _) ->
+      type_of l e
+  | E4 (ReadWhile, _, _, e, _) ->
+      T.pair (type_of l e) T.dataptr
   | E3 (LoopWhile, _, _, e)
   | E3 (LoopUntil, _, _, e)
   | E3 (Fold, e, _, _)
-  | E4 (Repeat, _, _, _, e) -> type_of l e
-  | E1 (MaskGet _, _) -> T.mask
-  | E1 (LabelOf, _) -> T.u16
-  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn), _) -> T.set mn
-  | E2 (Insert, _, _) -> T.void
+  | E4 (Repeat, _, _, _, e) ->
+      type_of l e
+  | E1 (MaskGet _, _) ->
+      T.mask
+  | E1 (LabelOf, _) ->
+      T.u16
+  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn), _) ->
+      T.set mn
+  | E2 (Insert, _, _) ->
+      T.void
 
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
@@ -2832,6 +2839,7 @@ struct
   let mem e1 e2 = E2 (Member, e1, e2)
   (* Avoid useless sequences: *)
   let seq = function
+    (* `seq []` is already synonymous with void/nop *)
     | [ e ] -> e
     | es -> E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
