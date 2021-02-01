@@ -280,14 +280,14 @@ struct
   and srec mns ma sstate mn0 path v dst =
     let dst = Ser.rec_opn sstate mn0 path mns dst in
     let dst =
-      Array.fold_lefti (fun dst i (field, mn) ->
+      Array.fold_lefti (fun dst i (fname, mn) ->
         let subpath = T.path_append i path in
         let_ "dst"
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath dst)
           (fun dst ->
-            comment ("serialize field "^ field)
-                    (ser1 sstate mn0 subpath mn (get_field field v)
+            comment ("serialize field "^ fname)
+                    (ser1 sstate mn0 subpath mn (get_field fname v)
                           (mask_get i ma) dst))
       ) dst mns in
     Ser.rec_cls sstate mn0 path dst
@@ -459,12 +459,13 @@ struct
   and ssrec mns ma mn0 path v sizes =
     let sizes =
       Ser.ssize_of_rec mn0 path v |> add_size sizes in
-    Array.fold_lefti (fun sizes i (n, mn) ->
-      let v' = get_field n v in
+    Array.fold_lefti (fun sizes i (fname, mn) ->
+      let v' = get_field fname v in
       let ma = mask_get i ma in
       let subpath = T.path_append i path in
       let_ "sizes" sizes (fun sizes ->
-        sersz1 mn mn0 subpath v' ma sizes)
+        comment ("sersize of field "^ fname)
+                (sersz1 mn mn0 subpath v' ma sizes))
     ) sizes mns
 
   and sssum mns mn0 path v sizes =
