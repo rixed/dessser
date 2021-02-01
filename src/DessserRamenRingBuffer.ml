@@ -67,9 +67,10 @@ let align_dyn p extra_bytes =
     size_of_u32 (force (rem (u32_of_size extra_bytes)
                        (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
-  if_ ~cond:(gt wsize padding_len)
-    ~then_:(data_ptr_add p padding_len)
-    ~else_:p
+  let_ "align_ptr" p (fun p ->
+    if_ ~cond:(gt wsize padding_len)
+      ~then_:(data_ptr_add p padding_len)
+      ~else_:p)
 
 let align_const p extra_bytes =
   assert (extra_bytes >= 0) ;
