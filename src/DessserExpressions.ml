@@ -2744,8 +2744,22 @@ struct
   let log_and e1 e2 = E2 (LogAnd, e1, e2)
   let log_or e1 e2 = E2 (LogOr, e1, e2)
   let log_xor e1 e2 = E2 (LogXor, e1, e2)
-  let and_ e1 e2 = E2 (And, e1, e2)
-  let or_ e1 e2 = E2 (Or, e1, e2)
+  let and_ e1 e2 =
+    match e1, e2 with
+    | E0 (Bool true), _ -> e2
+    | _, E0 (Bool true) -> e1
+    | E0 (Bool false), _ -> e1  (* False, [e2] not evaluated *)
+    (* Cannot ignore [e1] even if e2 is demonstrably false because of its
+     * possible side effects! *)
+    | _ -> E2 (And, e1, e2)
+  let or_ e1 e2 =
+    match e1, e2 with
+    | E0 (Bool false), _ -> e2
+    | _, E0 (Bool false) -> e1
+    | E0 (Bool true), _ -> e1  (* True, [e2] not evaluated *)
+    (* Cannot ignore [e1] event if e2 is demonstrably true because if its
+     * possible side effects! *)
+    | _ -> E2 (Or, e1, e2)
   let identifier n = E0 (Identifier n)
   let let_ n e1 f =
     (* If [e1] is already an identifier there is no need for a new one: *)
