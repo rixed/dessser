@@ -305,7 +305,7 @@ let e1_of_int n =
          ; ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ;
          Exp ; Log ; Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ;
          ACos ; ASin ; ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ;
-         Snd ; Identity |]
+         Snd ; Identity ; GetEnv |]
   in
   e1s.(n mod Array.length e1s)
 

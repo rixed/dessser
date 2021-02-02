@@ -252,6 +252,7 @@ type e1 =
   | TumblingWindow of T.maybe_nullable (* Tumbling window *)
   | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
   | DataPtrOfBuffer
+  | GetEnv
 
 type e1s =
   | Coalesce
@@ -710,6 +711,7 @@ let string_of_e1 = function
   | Sampling mn ->
       "sampling "^ String.quote (T.string_of_maybe_nullable mn)
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
+  | GetEnv -> "getenv"
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -1257,6 +1259,8 @@ struct
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
         E1 (DataPtrOfBuffer, e x)
+    | Lst [ Sym "getenv" ; x ] ->
+        E1 (GetEnv, e x)
     (* e1s *)
     | Lst (Sym "coalesce" :: x1 :: xs) -> E1S (Coalesce, e x1, List.map e xs)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
@@ -1661,6 +1665,7 @@ let rec type_of l e0 =
   | E1 (ToI128, _) -> T.i128
   | E1 (ToFloat, _) -> T.float
   | E1 (DataPtrOfBuffer, _) -> T.dataptr
+  | E1 (GetEnv, _) -> T.(Value (optional (Mac String)))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
@@ -2052,6 +2057,8 @@ let rec type_check l e =
         check_slist_of_maybe_nullable l e
     | E1 (DataPtrOfBuffer, e) ->
         check_eq l e T.size
+    | E1 (GetEnv, e) ->
+        check_eq l e T.string
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.byte
@@ -2894,4 +2901,5 @@ struct
   let set_field_null = E0 SetFieldNull
   let apply f es = E1S (Apply, f, es)
   let nop = seq []
+  let getenv e = E1 (GetEnv, e)
 end

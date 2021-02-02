@@ -675,6 +675,12 @@ struct
     | E.E1 (DataPtrOfBuffer, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
+    | E.E1 (GetEnv, e1) ->
+        let n1 = print emit p l e1 in
+        let res = gen_sym "getenv_res_" in
+        ppi p.P.def "char *%s { std::getenv(%s.c_str()) };" res n1 ;
+        emit ?name p l e (fun oc ->
+          pp oc "%s == nullptr ? std::nullopt : %s" res res)
     | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1115,6 +1121,7 @@ struct
      #include <charconv>\n\
      #include <chrono>\n\
      #include <cmath>\n\
+     #include <cstdlib>\n\
      #include <fstream>\n\
      #include <functional>\n\
      #include <iostream>\n\
