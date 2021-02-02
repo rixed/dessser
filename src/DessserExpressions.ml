@@ -87,6 +87,9 @@ type e0s =
   | MakeVec
   | MakeLst of T.maybe_nullable
   | MakeTup
+  (* For convenience, MakeRec is handled like an E0S but it is constrained to
+   * have an even number of arguments, the field names being forced to be
+   * constant strings *)
   | MakeRec
 
 type e1 =
@@ -2878,7 +2881,8 @@ struct
     | [] -> unit
     | es ->
         (* Flatten the list to comply with E0S structure: *)
-        let es = List.fold_left (fun lst (n, v) -> n :: v :: lst) [] es in
+        let es =
+          List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] es in
         E0S (MakeRec, es)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)

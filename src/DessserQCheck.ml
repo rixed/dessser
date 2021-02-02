@@ -385,7 +385,7 @@ and e0s_gen l depth =
   assert (depth > 0) ;
   let open Gen in
   let expr = expression_gen (l, depth - 1) in
-  let expr_pair = pair expr expr in
+  let expr_pair = pair field_name_gen expr in
   let lst = [
     1, map E.Ops.seq (tiny_list expr) ;
     1, map E.Ops.make_vec (tiny_list expr) ;
