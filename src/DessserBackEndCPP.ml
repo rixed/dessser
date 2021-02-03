@@ -1069,6 +1069,16 @@ struct
         let set = print emit p l e1 in
         let item = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s->insert(%s)" set item)
+    | E.E2 (Split, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "string_split(%s, %s)" n1 n2)
+    | E.E2 (Join, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "string_join(%s, %s)" n1 n2)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we

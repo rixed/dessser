@@ -1040,4 +1040,5 @@ let mask = Mask
 let dataptr = DataPtr
 let pair t1 t2 = Pair (t1, t2)
 let slist t = SList t
+let list mn = Value (required (Lst mn))
 let set mn = Value (required (Set mn))

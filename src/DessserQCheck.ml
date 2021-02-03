@@ -315,7 +315,8 @@ let e2_of_int n =
          Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
          AppendString ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekByte ;
          WriteByte ; WriteBytes ; PokeByte ; DataPtrAdd ; DataPtrSub ;
-         And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member |] in
+         And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member ; Insert ;
+         Split ; Join |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

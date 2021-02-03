@@ -139,4 +139,27 @@ inline size_t u128_from_chars(char const *start, char const *stop, uint128_t *re
   return count;
 }
 
+inline Lst<std::string> string_split(std::string sep, std::string str)
+{
+  Lst<std::string> res;
+  size_t const sep_len { sep.length() };
+  if (0 == sep_len) return res;  /* TODO: rather a list of single chars? */
+  size_t last { 0 };
+  for (size_t p = str.find(sep, last); p != std::string::npos; last = p + sep_len) {
+    res.push_back(str.substr(last, p - last));
+  }
+  res.push_back(str.substr(last));
+  return res;
+}
+
+inline std::string string_join(std::string sep, Lst<std::string> strs)
+{
+  std::string res;
+  for (std::string const &s : strs) {
+    if (res.empty()) res += sep;
+    res += s;
+  }
+  return res;
+}
+
 #endif

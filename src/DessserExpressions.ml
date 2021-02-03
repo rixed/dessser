@@ -317,6 +317,8 @@ type e2 =
   | WriteQWord of endianness
   | WriteOWord of endianness
   | Insert (* args are: set, item *)
+  | Split
+  | Join
 
 type e3 =
   | SetBit
@@ -762,6 +764,8 @@ let string_of_e2 = function
   | WriteQWord en -> "write-qword "^ string_of_endianness en
   | WriteOWord en -> "write-oword "^ string_of_endianness en
   | Insert -> "insert"
+  | Split -> "split"
+  | Join -> "join"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1321,6 +1325,10 @@ struct
         E2 (WriteOWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "insert" ; x1 ; x2 ] ->
         E2 (Insert, e x1, e x2)
+    | Lst [ Sym "split" ; x1 ; x2 ] ->
+        E2 (Split, e x1, e x2)
+    | Lst [ Sym "join" ; x1 ; x2 ] ->
+        E2 (Join, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1750,6 +1758,10 @@ let rec type_of l e0 =
       T.set mn
   | E2 (Insert, _, _) ->
       T.void
+  | E2 (Split, _, _) ->
+      T.list T.(required (Mac String))
+  | E2 (Join, _, _) ->
+      T.string
 
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
@@ -2051,7 +2063,7 @@ let rec type_check l e =
     | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.bytes
-    | E2 ((AppendString | StartsWith | EndsWith), e1, e2) ->
+    | E2 ((AppendString | StartsWith | EndsWith | Split), e1, e2) ->
         check_eq l e1 T.string ;
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
@@ -2237,6 +2249,12 @@ let rec type_check l e =
             check_eq l e2 (Value mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a set")))
+    | E2 (Join, e1, e2) ->
+        check_eq l e1 T.string ;
+        let item_t = get_item_type ~lst:true ~vec:true e0 l e2 in
+        if item_t <> T.(required (Mac String)) then
+          let msg = "be a list or vector of strings" in
+          raise (Type_error (e0, e, T.Value item_t, msg))
   ) e
 
 (*$inject
@@ -2481,6 +2499,8 @@ struct
   let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
   let insert e1 e2 = E2 (Insert, e1, e2)
+  let split e1 e2 = E2 (Split, e1, e2)
+  let join e1 e2 = E2 (Join, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int = function
     | E0 (U8 n) -> string (Uint8.to_string n)

@@ -1247,6 +1247,17 @@ struct
         let set = print emit p l e1
         and item = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s.insert %s" set item)
+    | E.E2 (Split, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "String.split_on_string %s %s" n1 n2)
+    | E.E2 (Join, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          (* TODO: faster impl with a single string alloc: *)
+          pp oc "String.join %s (Array.to_list %s)" n1 n2)
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in
