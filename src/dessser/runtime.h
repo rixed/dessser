@@ -28,7 +28,7 @@ struct Unit
   Unit() {}
 };
 
-inline uint64_t qwordOfFloat(double v)
+inline uint64_t qword_of_float(double v)
 {
   uint64_t res;
   static_assert(sizeof(v) == sizeof(res));
@@ -36,7 +36,7 @@ inline uint64_t qwordOfFloat(double v)
   return res;
 }
 
-inline double floatOfQword(uint64_t v)
+inline double float_of_qword(uint64_t v)
 {
   double res;
   static_assert(sizeof(v) == sizeof(res));
@@ -44,7 +44,7 @@ inline double floatOfQword(uint64_t v)
   return res;
 }
 
-inline std::string hexStringOfFloat(double f)
+inline std::string hex_string_of_float(double f)
 {
   std::ostringstream so;
   so << std::hexfloat << f;

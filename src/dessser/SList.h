@@ -56,18 +56,18 @@ struct SList {
     else return 1 + cells->next.length();
   }
 
-  List<T> toList() const
+  Lst<T> toList() const
   {
-    List<T> l;
+    Lst<T> l;
     for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
       l.push_back(sl->head());
     }
     return l;
   }
 
-  List<T> toListRev() const
+  Lst<T> toListRev() const
   {
-    List<T> l;
+    Lst<T> l;
     size_t i = length();
     l.resize(i);
     for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {

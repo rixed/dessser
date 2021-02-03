@@ -6,13 +6,13 @@
 #include <vector>
 
 template<class T>
-struct List : public std::vector<T> {
-  List()
+struct Lst : public std::vector<T> {
+  Lst()
   {
     this->reserve(10);
   }
 
-  List(std::initializer_list<T> lst)
+  Lst(std::initializer_list<T> lst)
   {
     this->reserve(10);
     this->insert(this->begin(), lst);
@@ -20,7 +20,7 @@ struct List : public std::vector<T> {
 
   // Mapped from another Lst:
   template<class T2>
-  List(List<T2> const that, std::function<T(T2)> f)
+  Lst(Lst<T2> const that, std::function<T(T2)> f)
   {
     // TODO
   }

@@ -112,7 +112,7 @@ struct
     | T.Value { vtyp = Vec (dim, typ) ; _ } ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
     | T.Value { vtyp = Lst typ ; _ } ->
-        Printf.sprintf "List<%s>" (type_identifier p (Value typ))
+        Printf.sprintf "Lst<%s>" (type_identifier p (Value typ))
     | T.Value { vtyp = Set typ ; _ } ->
         Printf.sprintf "Set<%s> *" (type_identifier p (Value typ))
     | T.Value { vtyp = Map _ ; _ } ->
@@ -606,11 +606,11 @@ struct
         ppi p.P.def "size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
-        unary_func "floatOfQword" e1
+        unary_func "float_of_qword" e1
     | E.E1 (QWordOfFloat, e1) ->
-        unary_func "qwordOfFloat" e1
+        unary_func "qword_of_float" e1
     | E.E1 (StringOfFloat, e1) ->
-        unary_func "hexStringOfFloat" e1
+        unary_func "hex_string_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         let n = print emit p l e1 in
         (* This will use the list-initializer. Beware that "1, %s" would _also_ use
