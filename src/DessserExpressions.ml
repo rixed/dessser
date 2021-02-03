@@ -2843,8 +2843,12 @@ struct
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
-  let not_null e1 = E1 (NotNull, e1)
-  let force e1 = E1 (Force, e1)
+  let not_null = function
+    | E1 (Force, e1) -> e1
+    | e1 -> E1 (NotNull, e1)
+  let force = function
+    | E1 (NotNull, e1) -> e1
+    | e1 -> E1 (Force, e1)
   let get_item n e1 = E1 (GetItem n, e1)
   let get_field s e1 = E1 (GetField s, e1)
   let get_alt s e1 = E1 (GetAlt s, e1)
