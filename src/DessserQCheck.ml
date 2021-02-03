@@ -458,7 +458,8 @@ and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   frequency [
-    1, map3 (fun n e in_ -> let_ n e (fun _ -> in_)) let_name_gen expr expr ;
+    1, map3 (fun name e in_ ->
+               let_ ~name e (fun _ _ -> in_)) let_name_gen expr expr ;
     1, map3 peek_word endianness_gen expr expr ;
     1, map3 peek_dword endianness_gen expr expr ;
     1, map3 peek_qword endianness_gen expr expr ;
@@ -707,7 +708,7 @@ let sexpr mn =
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
       func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
-        let1 alloc_dst (fun tdst ->
+        Ops.let_ alloc_dst (fun _l tdst ->
           with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
             let dst = secnd (T2S.desser mn tdst dst) in

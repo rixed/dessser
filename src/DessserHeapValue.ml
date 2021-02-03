@@ -213,7 +213,7 @@ struct
     )
 
   let rec make ?config mn0 src =
-    let_ "src" src (fun src ->
+    let_ ~name:"src" src (fun _l src ->
       let dstate, src = Des.start ?config mn0 src in
       E.with_sploded_pair "make" (make1 dstate mn0 [] mn0 src) (fun v src ->
         pair v (Des.stop dstate src)))
@@ -237,7 +237,7 @@ struct
       else
         let dst = if i = 0 then dst else
                     Ser.vec_sep sstate mn0 subpath dst in
-        let_ "dst" dst (fun dst ->
+        let_ ~name:"dst" dst (fun _l dst ->
           let v' = nth (u32_of_int i) v in
           ser1 sstate mn0 subpath mn v' copy_field dst |>
           loop (i + 1)) in
@@ -254,11 +254,11 @@ struct
           (E.func2 T.(Pair (Ser.ptr mn0, T.i32)) (T.Value mn)
                    (fun _l dst_n x ->
             E.with_sploded_pair "dst_n" dst_n (fun dst n ->
-              let_ "dst" (
+              let_ ~name:"dst" (
                 if_ ~cond:(gt n (i32 0l))
                     ~then_:(Ser.list_sep sstate mn0 subpath dst)
                     ~else_:dst)
-                (fun dst ->
+                (fun _l dst ->
                   pair
                     (ser1 sstate mn0 subpath mn x copy_field dst)
                     (add (i32 1l) n))))) in
@@ -269,10 +269,10 @@ struct
     let dst =
       Array.fold_lefti (fun dst i mn ->
         let subpath = T.path_append i path in
-        let_ "dst"
+        let_ ~name:"dst"
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath dst)
-          (fun dst ->
+          (fun _l dst ->
             ser1 sstate mn0 subpath mn (get_item i v) (mask_get i ma) dst)
       ) dst mns in
     Ser.tup_cls sstate mn0 path dst
@@ -282,10 +282,10 @@ struct
     let dst =
       Array.fold_lefti (fun dst i (fname, mn) ->
         let subpath = T.path_append i path in
-        let_ "dst"
+        let_ ~name:"dst"
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath dst)
-          (fun dst ->
+          (fun _l dst ->
             comment ("serialize field "^ fname)
                     (ser1 sstate mn0 subpath mn (get_field fname v)
                           (mask_get i ma) dst))
@@ -298,12 +298,12 @@ struct
   and ssum mns ma sstate mn0 path v dst =
     let max_lbl = Array.length mns - 1 in
     let dst =
-      let_ "label"
+      let_ ~name:"label"
         (label_of v)
-        (fun label ->
-          let_ "dst"
+        (fun _l label ->
+          let_ ~name:"dst"
             (Ser.sum_opn sstate mn0 path mns label dst)
-            (fun dst ->
+            (fun _l dst ->
               let rec choose_cstr i =
                 let subpath = T.path_append i path in
                 assert (i <= max_lbl) ;
@@ -386,9 +386,9 @@ struct
 
   and serialize ?config mn0 ma v dst =
     let path = [] in
-    let_ "ma" ma (fun ma ->
-      let_ "v" v (fun v ->
-        let_ "dst" dst (fun dst ->
+    let_ ~name:"ma" ma (fun _l ma ->
+      let_ ~name:"v" v (fun _l v ->
+        let_ ~name:"dst" dst (fun _l dst ->
           let sstate, dst = Ser.start ?config mn0 dst in
           let dst = ser1 sstate mn0 path mn0 v ma dst in
           Ser.stop sstate dst)))
@@ -426,7 +426,7 @@ struct
       if i >= dim then sizes else
       let subpath = T.path_append i path in
       let v' = nth (u32_of_int i) v in
-      let_ "sizes" sizes (fun sizes ->
+      let_ ~name:"sizes" sizes (fun _l sizes ->
         let sizes = sersz1 mn mn0 subpath v' copy_field sizes in
         loop sizes (i + 1)) in
     loop sizes 0
@@ -452,7 +452,7 @@ struct
       let v' = get_item i v in
       let ma = mask_get i ma in
       let subpath = T.path_append i path in
-      let_ "sizes" sizes (fun sizes ->
+      let_ ~name:"sizes" sizes (fun _l sizes ->
         sersz1 mn mn0 subpath v' ma sizes)
     ) sizes mns
 
@@ -463,7 +463,7 @@ struct
       let v' = get_field fname v in
       let ma = mask_get i ma in
       let subpath = T.path_append i path in
-      let_ "sizes" sizes (fun sizes ->
+      let_ ~name:"sizes" sizes (fun _l sizes ->
         comment ("sersize of field "^ fname)
                 (sersz1 mn mn0 subpath v' ma sizes))
     ) sizes mns
@@ -472,9 +472,9 @@ struct
     let sizes =
       Ser.ssize_of_sum mn0 path v |> add_size sizes in
     let max_lbl = Array.length mns - 1 in
-    let_ "label"
+    let_ ~name:"label"
       (label_of v)
-      (fun label ->
+      (fun _l label ->
         let rec choose_cstr i =
           let name, mn = mns.(i) in
           let v' = get_alt name v in
@@ -551,7 +551,7 @@ struct
 
   let sersize mn ma v =
     let sizes = pair (size 0) (size 0) in
-    let_ "ma" ma (fun ma ->
-      let_ "v" v (fun v ->
+    let_ ~name:"ma" ma (fun _l ma ->
+      let_ ~name:"v" v (fun _l v ->
         sersz1 mn mn [] v ma sizes))
 end

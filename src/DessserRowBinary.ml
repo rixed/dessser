@@ -190,7 +190,7 @@ struct
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ v =
     DynSize (
-      let_ "wlen" (string_length v) (fun wlen ->
+      let_ ~name:"wlen" (string_length v) (fun _l wlen ->
         add (ssize_of_leb128 wlen) wlen))
 end
 
@@ -212,7 +212,7 @@ struct
   (* Returns a size and a dataptr: *)
   let read_leb128 p =
     let t_u32_u8 = T.Pair (T.u32, T.u8) in
-    let_ "leb_shft_ptr"
+    let_ ~name:"leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
           (E.func1 T.byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
@@ -226,7 +226,7 @@ struct
         ~init:(pair (u32 Uint32.zero) (u8 Uint8.zero))
         ~pos:p)
       (* Still have to add the last byte (which is <128): *)
-      (fun leb_shft_ptr ->
+      (fun _l leb_shft_ptr ->
         comment "Last byte from read_leb128"
           (E.with_sploded_pair "leb128_1" leb_shft_ptr (fun leb_shft ptr ->
             E.with_sploded_pair "leb128_2" (read_byte ptr) (fun last_b ptr ->

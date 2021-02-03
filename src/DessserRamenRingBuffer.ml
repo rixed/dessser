@@ -67,8 +67,9 @@ let align_dyn p extra_bytes =
     size_of_u32 (force (rem (u32_of_size extra_bytes)
                        (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
-  let_ "align_ptr" p (fun p ->
-    if_ ~cond:(gt wsize padding_len)
+  let_ ~name:"align_ptr" p (fun _l p ->
+    if_
+      ~cond:(gt wsize padding_len)
       ~then_:(data_ptr_add p padding_len)
       ~else_:p)
 
@@ -221,8 +222,8 @@ struct
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
   let zero_nullmask_dyn bits p =
-    let_ "sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
-      (fun sz ->
+    let_ ~name:"sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
+      (fun _l sz ->
         let words = words_of_dyn_bytes (add sz (u32_of_int 1)) in
         let p = write_byte p (byte_of_u8 (to_u8 words)) in
         let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
@@ -832,7 +833,7 @@ struct
     (* Do not advance the nullbit index as it's already done on a per
      * value basis: *)
     E.with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
-      E.let1 (not_ (bool_of_bit (get_bit p bi))) (fun b ->
+      let_ (not_ (bool_of_bit (get_bit p bi))) (fun _l b ->
         seq [ debug (string "des: get nullbit at ") ;
               debug (string_of_int bi) ;
               debug (string " -> ") ;

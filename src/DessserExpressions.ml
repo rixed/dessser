@@ -2401,26 +2401,6 @@ let func5 ?l t1 t2 t3 t4 t5 f =
     and p5 = E0 (Param (fid, 4)) in
     f l p1 p2 p3 p4 p5)
 
-(* FIXME: letn [name*value] f *)
-let let1 ?name v f =
-  let n = match name with Some n -> n | None -> gen_id () in
-  E2 (Let n, v, f (E0 (Identifier n)))
-
-let let2 ?name1 v1 ?name2 v2 f =
-  let n1 = match name1 with Some n -> n | None -> gen_id () in
-  let n2 = match name2 with Some n -> n | None -> gen_id () in
-  E2 (Let n1, v1,
-    E2 (Let n2, v2, f (E0 (Identifier n1)) (E0 (Identifier n2))))
-
-let let3 ?name1 v1 ?name2 v2 ?name3 v3 f =
-  let n1 = match name1 with Some n -> n | None -> gen_id () in
-  let n2 = match name2 with Some n -> n | None -> gen_id () in
-  let n3 = match name3 with Some n -> n | None -> gen_id () in
-  E2 (Let n1, v1,
-    E2 (Let n2, v2,
-      E2 (Let n3, v3, f (E0 (Identifier n1)) (E0 (Identifier n2))
-                        (E0 (Identifier n3)))))
-
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(BatIO.to_string T.print)
   (Pair (u24, DataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
@@ -2771,11 +2751,20 @@ struct
      * possible side effects! *)
     | _ -> E2 (Or, e1, e2)
   let identifier n = E0 (Identifier n)
-  let let_ n e1 f =
-    (* If [e1] is already an identifier there is no need for a new one: *)
-    match e1 with
-    | E0 (Identifier _) -> f e1
-    | _ -> E2 (Let n, e1, f (identifier n))
+  (* [let_] can forward the environment [l] and even complete it with the
+   * type [typ] of [e]: *)
+  let let_ ?(l=[]) ?name ?typ e f =
+    (* If [e] is already an identifier there is no need for a new one: *)
+    match e with
+    | E0 (Identifier _) ->
+        f l e
+    | _ ->
+        let n = match name with Some n -> n | None -> gen_id () in
+        let l =
+          match typ with
+          | Some t -> (identifier n, t) :: l
+          | None -> l in
+        E2 (Let n, e, f l (identifier n))
   let ext_identifier n = E0 (ExtIdentifier n)
   (* TODO: Those could also be executed at compile time with some benefit *)
   let to_i8 e1 = E1 (ToI8, e1)

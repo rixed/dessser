@@ -168,7 +168,7 @@ let test_desser () =
                  nullable = false } in
   let src = data_ptr_of_string "\001X"
   and dst = data_ptr_of_string "_____" in
-  E.let1 (TestDesSer.desser vtyp src dst) (fun e ->
+  E.Ops.let_ (TestDesSer.desser vtyp src dst) (fun _l e ->
     seq [ dump e ;
           dump (string "\n") ;
           e ])

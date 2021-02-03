@@ -396,10 +396,10 @@ struct
     let quote_byte = byte_of_const_char (Option.get conf.quote)
     and sep_byte = byte_of_const_char conf.separator
     and nl_byte = byte_of_const_char conf.newline in
-    let_ "had_quote"
+    let_ ~name:"had_quote"
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
-      (fun had_quote ->
+      (fun _l had_quote ->
         let pos = if_ ~cond:had_quote
                       ~then_:(skip_byte quote_byte p)
                       ~else_:p in
@@ -533,7 +533,7 @@ struct
       if i >= len then
         (comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
-               (let_ "b" (peek_byte p (size len)) (fun b ->
+               (let_ ~name:"b" (peek_byte p (size len)) (fun _l b ->
                  or_ (eq b (byte_of_const_char conf.separator))
                      (eq b (byte_of_const_char conf.newline))))))
       else
