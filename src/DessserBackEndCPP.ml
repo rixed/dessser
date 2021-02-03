@@ -310,32 +310,6 @@ struct
         else
           let n = print emit p l e1 in
           emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
-    | E.E1S (Coalesce, e1, es) ->
-        let res = gen_sym ?name "coalesce_" in
-        let t1 = E.type_of l e in
-        ppi p.P.def "%s %s;" (type_identifier p t1) res ;
-        let rec loop = function
-          | [] ->
-              assert false (* because of type_check *)
-          | [ e ] ->
-              let n1 = print emit p l e in
-              ppi p.P.def "%s = %s;" res n1
-          | e :: es' ->
-              if E.is_const_null e then (
-                loop es'
-              ) else (
-                let n1 = print emit p l e in
-                let t = E.type_of l e in
-                assert (T.is_nullable t) ; (* because type_checking *)
-                ppi p.P.def "if (%s.has_value ()) {\n" n1 ;
-                P.indent_more p (fun () ->
-                  ppi p.P.def "%s = %s.value();\n" res n1) ;
-                ppi p.P.def "} else {\n" ;
-                P.indent_more p (fun () ->
-                  loop es')
-              ) in
-        loop (e1 :: es) ;
-        res
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

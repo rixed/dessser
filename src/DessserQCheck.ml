@@ -452,7 +452,10 @@ and e1s_gen l depth =
   assert (depth > 0) ;
   let open Gen in
   let expr = expression_gen (l, depth - 1) in
-  map E.Ops.coalesce (tiny_list expr)
+  map (function
+    | [] -> assert false (* Because of tiny_list *)
+    | f :: es -> E.Ops.apply f es
+  ) (tiny_list expr)
 
 and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in

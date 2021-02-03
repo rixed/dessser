@@ -396,21 +396,6 @@ struct
     | E.E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s = Null" n)
-    | E.E1S (Coalesce, e1, es) ->
-        let rec loop oc = function
-          | [] ->
-              assert false (* because of type checking *)
-          | [ e ] ->
-              let n1 = print emit p l e in
-              pp oc "%s" n1
-          | e :: es' ->
-              let t = E.type_of l e in
-              assert (T.is_nullable t) ; (* because type_checking *)
-              let n1 = print emit p l e in
-              pp oc "(match %s with NotNull x_ -> x_ | Null ->" n1 ;
-              P.indent_more p (fun () -> loop p.P.def es') ;
-              pp oc ")" in
-        emit ?name p l e (fun oc -> loop oc (e1 :: es))
     | E.E2 (Nth, e1, e2) ->
         let n1 = print emit p l e1 in
         let n2 = print emit p l e2 in

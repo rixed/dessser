@@ -258,7 +258,6 @@ type e1 =
   | GetEnv
 
 type e1s =
-  | Coalesce
   | Apply
 
 type e2 =
@@ -427,8 +426,6 @@ let rec can_precompute l i = function
   | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
-  | E1S (Coalesce, e1, es) ->
-      can_precompute l i e1 && List.for_all (can_precompute l i) es
   | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
       List.for_all (can_precompute l i) e2s &&
       can_precompute (fid :: l) i body
@@ -555,7 +552,6 @@ let string_of_e0s = function
   | MakeRec -> "make-rec"
 
 let string_of_e1s = function
-  | Coalesce -> "coalesce"
   | Apply -> "apply"
 
 let string_of_e1 = function
@@ -1265,7 +1261,6 @@ struct
     | Lst [ Sym "getenv" ; x ] ->
         E1 (GetEnv, e x)
     (* e1s *)
-    | Lst (Sym "coalesce" :: x1 :: xs) -> E1S (Coalesce, e x1, List.map e xs)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
     | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
@@ -1427,8 +1422,6 @@ let rec type_of l e0 =
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
       Value (T.make (Rec (Array.of_list mns)))
-  | E1S (Coalesce, e1, xs) ->
-      type_of l (if xs = [] then e1 else List.last xs)
   | E1S (Apply, f, _) ->
       (match type_of l f with
       | Function (_, t) -> t
@@ -1956,20 +1949,6 @@ let rec type_check l e =
           if i mod 2 = 0 then ignore (field_name_of_expr e)
           else check_maybe_nullable l e
         ) es
-    | E1S (Coalesce, e1, es) ->
-        (match List.rev (e1 :: es) with
-        | last :: rest ->
-            (match  type_of l last with
-            | Value { vtyp ; _ } ->
-                let exp = T.Value { vtyp ; nullable = true } in
-                List.iter (fun e ->
-                  check_nullable true l e ;
-                  check_eq l e exp
-                ) rest
-            | t ->
-              raise (Type_error (e0, last, t, "be a value type")))
-        | [] ->
-            assert false (* by construction *))
     | E1S (Apply, f, es) ->
         check_fun_sign l f (Array.of_list es)
     | E1 (IsNull, e) ->
@@ -2266,11 +2245,6 @@ let rec type_check l e =
     try type_check [] e ; true
     with _ -> false *)
 
-(*$T pass_type_check
-  pass_type_check "(coalesce (null \"i56\") (i56 4))"
-  not (pass_type_check "(coalesce (null \"string\") (i56 4))")
-*)
-
 let size_of_expr l e =
   fold 0 l (fun n _l _e0 -> n + 1) e
 
@@ -2488,11 +2462,6 @@ struct
     | E0 (Null _) -> true_
     | E1 (NotNull, _) -> false_
     | e -> E1 (IsNull, e)
-  let rec coalesce = function
-    | [] -> invalid_arg "coalesce: must have at least one argument"
-    | [ E0 (Null _) as x ] -> x
-    | E0 (Null _) :: es -> coalesce es
-    | e1 :: es -> E1S (Coalesce, e1, es)
   let nth e1 e2 = E2 (Nth, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
   let read_word en e1 = E1 (ReadWord en, e1)
