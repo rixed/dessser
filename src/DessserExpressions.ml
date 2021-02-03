@@ -2282,7 +2282,7 @@ let print_environment oc l =
   pretty_list_print p oc l
 
 let () =
-  let max_depth = 3 in
+  let max_depth = 5 in
   Printexc.register_printer (function
     | Type_error (e0, e, t, s) ->
         Some (
