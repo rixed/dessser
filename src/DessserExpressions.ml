@@ -1447,7 +1447,11 @@ let rec type_of l e0 =
       | Value { vtyp = Rec mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
-              raise (Struct_error (e0, "no field named "^ name))
+              let msg =
+                Printf.sprintf2 "no field named %s (have %a)"
+                  name
+                  (pretty_enum_print String.print) (Array.enum mns /@ fst) in
+              raise (Struct_error (e0, msg))
           | mn -> Value mn)
       | t -> raise (Type_error (e0, e1, t, "be a record")))
   | E1 ((GetAlt name), e1) ->
