@@ -1256,11 +1256,11 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
-          pp oc "" ;
-          pp oc "{ %s = String.sub %s 0 %s ;"
-            (tuple_field_name 0) n2 n1 ;
-          pp oc "  %s = String.sub %s %s (String.length %s - %s) }"
-            (tuple_field_name 1) n2 n1 n2 n1)
+          pp oc "let pos_ = %s.to_int %s in" (mod_name (E.type_of l e1)) n1 ;
+          pp oc "{ %s = String.sub %s 0 pos_ ;"
+            (tuple_field_name 0) n2 ;
+          pp oc "  %s = String.sub %s pos_ (String.length %s - pos_) }"
+            (tuple_field_name 1) n2 n2)
     | E.E2 (Join, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -1272,7 +1272,8 @@ struct
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
         emit ?name p l e (fun oc ->
-          pp oc "try NotNull ((if %s then String.find else String.rfind) %s %s)"
+          pp oc "try NotNull (Uint24.of_int \
+                   ((if %s then string_find else string_rfind) %s %s))"
             n1 n3 n2 ;
           pp oc "with Not_found -> Null")
 

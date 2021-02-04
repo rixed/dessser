@@ -6,6 +6,49 @@ let debug = false
 
 let string_of_char c = String.make 1 c
 
+(* Taken from BatString.find_from: *)
+let string_find str sub =
+  let len = String.length str in
+  let sublen = String.length sub in
+  if sublen = 0 then 0 else
+    let rec find ~str ~sub i =
+      if i > len - sublen then raise Not_found
+      else
+        (* 0 <= i <= length str - length sub *)
+        let rec loop ~str ~sub i j =
+          if j = sublen then i
+          else
+            (* 0 <= j < length sub *)
+            (* ==>  0 <= i + j < length str *)
+            if String.unsafe_get str (i + j) <> String.unsafe_get sub j
+            then find ~str ~sub (i + 1)
+            else loop ~str ~sub i (j + 1)
+        in loop ~str ~sub i 0
+    in find ~str ~sub 0
+
+(* Taken from BatString.rfind_from: *)
+let string_rfind str sub =
+  let sublen = String.length sub
+  and len = String.length str in
+  (* 0 <= pos + 1 <= length str *)
+  if sublen = 0 then len else
+    (* length sub > 0 *)
+    (* (pos + 1 - sublen) <= length str - length sub < length str *)
+    let rec find ~str ~sub i =
+      if i < 0 then raise Not_found
+      else
+        (* 0 <= i <= length str - length sub < length str *)
+        let rec loop ~str ~sub i j =
+          if j = sublen then i
+          else
+            (* 0 <= j < length sub *)
+            (* ==> 0 <= i + j < length str *)
+            if String.unsafe_get str (i + j) <> String.unsafe_get sub j
+            then find ~str ~sub (i - 1)
+            else loop ~str ~sub i (j + 1)
+        in loop ~str ~sub i 0
+    in find ~str ~sub (len - sublen)
+
 let array_of_list_rev l =
   let a = Array.of_list l in
   let len = Array.length a in
