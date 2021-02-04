@@ -2526,7 +2526,19 @@ struct
   let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
   let insert e1 e2 = E2 (Insert, e1, e2)
-  let join e1 e2 = E2 (Join, e1, e2)
+  let join e1 e2 =
+    match e1, e2 with
+    | E0 (String s1), E0S (MakeVec, ss) ->
+        (try
+          List.map (function
+            | E0 (String s) -> s
+            | _ -> raise Exit
+          ) ss |>
+          String.join s1 |>
+          string
+        with Exit ->
+          E2 (Join, e1, e2))
+    | _ -> E2 (Join, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int = function
     | E0 (U8 n) -> string (Uint8.to_string n)
