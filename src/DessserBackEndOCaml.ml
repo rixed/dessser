@@ -1247,17 +1247,34 @@ struct
         let set = print emit p l e1
         and item = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s.insert %s" set item)
-    | E.E2 (Split, e1, e2) ->
+    | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "String.split_on_string %s %s" n1 n2)
+    | E.E2 (SplitAt, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "" ;
+          pp oc "{ %s = String.sub %s 0 %s ;"
+            (tuple_field_name 0) n2 n1 ;
+          pp oc "  %s = String.sub %s %s (String.length %s - %s) }"
+            (tuple_field_name 1) n2 n1 n2 n1)
     | E.E2 (Join, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           (* TODO: faster impl with a single string alloc: *)
           pp oc "String.join %s (Array.to_list %s)" n1 n2)
+    | E.E3 (FindSubstring, e1, e2, e3) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and n3 = print emit p l e3 in
+        emit ?name p l e (fun oc ->
+          pp oc "try NotNull ((if %s then String.find else String.rfind) %s %s)"
+            n1 n3 n2 ;
+          pp oc "with Not_found -> Null")
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

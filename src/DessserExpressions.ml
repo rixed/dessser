@@ -317,7 +317,8 @@ type e2 =
   | WriteQWord of endianness
   | WriteOWord of endianness
   | Insert (* args are: set, item *)
-  | Split
+  | SplitBy
+  | SplitAt
   | Join
 
 type e3 =
@@ -332,6 +333,9 @@ type e3 =
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
   | DataPtrOfPtr
+  (* bool to indicate the search direction (true = from start), then the needle
+   * and finally the haystack. *)
+  | FindSubstring
 
 type e4 =
   | ReadWhile
@@ -764,7 +768,8 @@ let string_of_e2 = function
   | WriteQWord en -> "write-qword "^ string_of_endianness en
   | WriteOWord en -> "write-oword "^ string_of_endianness en
   | Insert -> "insert"
-  | Split -> "split"
+  | SplitBy -> "split-on"
+  | SplitAt -> "split-at"
   | Join -> "join"
 
 let string_of_e3 = function
@@ -776,6 +781,7 @@ let string_of_e3 = function
   | LoopUntil -> "loop-until"
   | Fold -> "fold"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
+  | FindSubstring -> "find-substring"
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
@@ -1325,8 +1331,10 @@ struct
         E2 (WriteOWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "insert" ; x1 ; x2 ] ->
         E2 (Insert, e x1, e x2)
-    | Lst [ Sym "split" ; x1 ; x2 ] ->
-        E2 (Split, e x1, e x2)
+    | Lst [ Sym "split-on" ; x1 ; x2 ] ->
+        E2 (SplitBy, e x1, e x2)
+    | Lst [ Sym "split-at" ; x1 ; x2 ] ->
+        E2 (SplitAt, e x1, e x2)
     | Lst [ Sym "join" ; x1 ; x2 ] ->
         E2 (Join, e x1, e x2)
     (* e3 *)
@@ -1339,6 +1347,8 @@ struct
     | Lst [ Sym "fold" ; x1 ; x2 ; x3 ] -> E3 (Fold, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
+    | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
+        E3 (FindSubstring, e x1, e x2, e x3)
     (* e4 *)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
@@ -1611,6 +1621,7 @@ let rec type_of l e0 =
   | E1 (Cardinality, _) -> T.u32
   | E0 (DataPtrOfString _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
+  | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac U24)))
   | E2 (GetBit, _, _) -> T.bit
   | E2 (GetVec, e1, _) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
@@ -1758,8 +1769,10 @@ let rec type_of l e0 =
       T.set mn
   | E2 (Insert, _, _) ->
       T.void
-  | E2 (Split, _, _) ->
+  | E2 (SplitBy, _, _) ->
       T.list T.(required (Mac String))
+  | E2 (SplitAt, _, _) ->
+      T.tuple T.[| required (Mac String) ; required (Mac String) |]
   | E2 (Join, _, _) ->
       T.string
 
@@ -1818,30 +1831,37 @@ let rec type_check l e =
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord | Mask
-      | Value { vtyp = (Mac (
+      | Value { vtyp = Mac (
           Float | String | Char |
           U8 | U16 | U32 | U64 | U128 |
-          I8 | I16 | I32 | I64 | I128)) ; nullable = false } -> ()
+          I8 | I16 | I32 | I64 | I128) ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_mac=false) l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord when not only_mac ->
           ()
       | Value {
-          vtyp = (Mac (
+          vtyp = Mac (
             Float | Char |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
+            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord
-      | Value { vtyp = (Mac (
+      | Value { vtyp = Mac (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-          I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
+          I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
+    let check_unsigned l e =
+      match type_of l e |> T.develop_user_types with
+      | Size
+      | Value { vtyp = Mac (
+          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
+          nullable = false } -> ()
+      | t -> raise (Type_error (e0, e, t, "be an unsigned integer")) in
     let check_param fe n act exp =
       if not (T.eq act exp) then
         let expected = IO.to_string T.print act in
@@ -2063,7 +2083,7 @@ let rec type_check l e =
     | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.bytes
-    | E2 ((AppendString | StartsWith | EndsWith | Split), e1, e2) ->
+    | E2 ((AppendString | StartsWith | EndsWith | SplitBy), e1, e2) ->
         check_eq l e1 T.string ;
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
@@ -2124,11 +2144,15 @@ let rec type_check l e =
     | E1 ((DataPtrPush | DataPtrPop), e1) ->
         check_eq l e1 T.dataptr
     | E1 ((RemSize | DataPtrOffset), e) ->
-        check_eq l e T.dataptr ;
+        check_eq l e T.dataptr
     | E3 (DataPtrOfPtr, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
-        check_eq l e3 T.size ;
+        check_eq l e3 T.size
+    | E3 (FindSubstring, e1, e2, e3) ->
+        check_eq l e1 T.bool ;
+        check_eq l e2 T.string ;
+        check_eq l e3 T.string
     | E2 ((And | Or), e1, e2) ->
         check_eq l e1 T.bool ;
         check_eq l e2 T.bool
@@ -2249,6 +2273,9 @@ let rec type_check l e =
             check_eq l e2 (Value mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a set")))
+    | E2 (SplitAt, e1, e2) ->
+        check_unsigned l e1 ;
+        check_eq l e2 T.string
     | E2 (Join, e1, e2) ->
         check_eq l e1 T.string ;
         let item_t = get_item_type ~lst:true ~vec:true e0 l e2 in
@@ -2499,7 +2526,6 @@ struct
   let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
   let insert e1 e2 = E2 (Insert, e1, e2)
-  let split e1 e2 = E2 (Split, e1, e2)
   let join e1 e2 = E2 (Join, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int = function
@@ -2838,6 +2864,18 @@ struct
   let force = function
     | E1 (NotNull, e1) -> e1
     | e1 -> E1 (Force, e1)
+  let find_substring e1 e2 e3 =
+    match e2, e3 with
+    | E0 (String s1), E0 (String s2) ->
+        (* Let if_ optimize away that condition if the bool is known: *)
+        let then_ =
+          try not_null (u24 (Uint24.of_int (String.find s2 s1)))
+          with Not_found -> null T.(Mac U24)
+        and else_ =
+          try not_null (u24 (Uint24.of_int (String.rfind s2 s1)))
+          with Not_found -> null T.(Mac U24) in
+        if_ ~cond:e1 ~then_ ~else_
+    | _ -> E3 (FindSubstring, e1, e2, e3)
   let get_item n e1 = E1 (GetItem n, e1)
   let get_field s e1 = E1 (GetField s, e1)
   let get_alt s e1 = E1 (GetAlt s, e1)
@@ -2857,6 +2895,14 @@ struct
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
+  let split_by e1 e2 =
+    match e1, e2 with
+    | E0 (String s1), E0 (String s2) ->
+        String.split_on_string s1 s2 |>
+        List.map string |>
+        make_lst T.(required (Mac String))
+    | _ ->
+        E2 (SplitBy, e1, e2)
   (* It might be easier for users to accept also 0 or 1 expressions and turn
    * them into what's expected: *)
   let make_tup = function
@@ -2870,6 +2916,30 @@ struct
         let es =
           List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] es in
         E0S (MakeRec, es)
+  let split_at e1 e2 =
+    let res s n =
+      make_tup [ string (String.sub s 0 n) ;
+                 string (String.sub s n (String.length s - n)) ] in
+    match e1, e2 with
+    | E0 (U8 n), E0 (String s) -> res s (Uint8.to_int n)
+    | E0 (U16 n), E0 (String s) -> res s (Uint16.to_int n)
+    | E0 (U24 n), E0 (String s) -> res s (Uint24.to_int n)
+    | E0 (U32 n), E0 (String s) -> res s (Uint32.to_int n)
+    | E0 (U40 n), E0 (String s) -> res s (Uint40.to_int n)
+    | E0 (U48 n), E0 (String s) -> res s (Uint48.to_int n)
+    | E0 (U56 n), E0 (String s) -> res s (Uint56.to_int n)
+    | E0 (U64 n), E0 (String s) -> res s (Uint64.to_int n)
+    | E0 (U128 n), E0 (String s) -> res s (Uint128.to_int n)
+    | E0 (I8 n), E0 (String s) -> res s (Int8.to_int n)
+    | E0 (I16 n), E0 (String s) -> res s (Int16.to_int n)
+    | E0 (I24 n), E0 (String s) -> res s (Int24.to_int n)
+    | E0 (I32 n), E0 (String s) -> res s (Int32.to_int n)
+    | E0 (I40 n), E0 (String s) -> res s (Int40.to_int n)
+    | E0 (I48 n), E0 (String s) -> res s (Int48.to_int n)
+    | E0 (I56 n), E0 (String s) -> res s (Int56.to_int n)
+    | E0 (I64 n), E0 (String s) -> res s (Int64.to_int n)
+    | E0 (I128 n), E0 (String s) -> res s (Int128.to_int n)
+    | _ -> E2 (SplitAt, e1, e2)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)

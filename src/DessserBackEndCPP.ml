@@ -1069,16 +1069,30 @@ struct
         let set = print emit p l e1 in
         let item = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s->insert(%s)" set item)
-    | E.E2 (Split, e1, e2) ->
+    | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_split(%s, %s)" n1 n2)
+    | E.E2 (SplitAt, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          pp oc "%s.substr(0, %s), %s.substr(%s)" n2 n1 n2 n1)
     | E.E2 (Join, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_join(%s, %s)" n1 n2)
+    | E.E3 (FindSubstring, e1, e2, e3) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2
+        and n3 = print emit p l e3 in
+        let pos = gen_sym ?name "pos_" in
+        ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) }"
+          pos n1 n3 n2 n3 n2 ;
+        emit ?name p l e (fun oc ->
+          pp oc "%s != std::string::npos ? %s : std::nullopt" pos pos)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
