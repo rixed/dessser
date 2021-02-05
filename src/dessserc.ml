@@ -502,7 +502,7 @@ let default_cmd =
   let sdocs = Manpage.s_common_options in
   let doc = "Ramen Stream Processor" in
   Term.((ret (const (`Help (`Pager, None)))),
-        info "ramen" ~version ~doc ~sdocs)
+        info "dessserc" ~version ~doc ~sdocs)
 
 let () =
   match
