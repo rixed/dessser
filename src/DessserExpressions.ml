@@ -2902,8 +2902,8 @@ struct
   let construct mns i e1 = E1 (Construct (mns, i), e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
   let map e1 e2 = E2 (Map, e1, e2)
-  let min e1 e2 = E2 (Min, e1, e2)
-  let max e1 e2 = E2 (Max, e1, e2)
+  let min_ e1 e2 = E2 (Min, e1, e2)
+  let max_ e1 e2 = E2 (Max, e1, e2)
   let mem e1 e2 = E2 (Member, e1, e2)
   (* Avoid useless sequences: *)
   let seq = function
