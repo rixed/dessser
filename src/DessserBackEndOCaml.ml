@@ -82,18 +82,25 @@ struct
       pp oc "%stype t = \n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (n, mn) ->
-          let typ_id = type_identifier p (T.Value mn) in
-          pp oc "%s| %s of %s\n" p.P.indent (cstr_name n) typ_id
+          if mn.T.vtyp = Unit then
+            pp oc "%s| %s\n" p.P.indent (cstr_name n)
+          else
+            let typ_id = type_identifier p (T.Value mn) in
+            pp oc "%s| %s of %s\n" p.P.indent (cstr_name n) typ_id
         ) mns
       ) ;
       pp oc "\n" ;
       (* Associated "label_of_cstr": *)
-      pp oc "%slet label_of_cstr = function\n" p.P.indent ;
-      P.indent_more p (fun () ->
-        Array.iteri (fun i (n, _) ->
-          pp oc "%s| %s _ -> Uint16.of_int %d" p.P.indent (cstr_name n) i
-        ) mns
-      ) ;
+      match p.context with
+      | P.Declaration ->
+          pp oc "%sval label_of_cstr : t -> int\n" p.P.indent ;
+      | P.Definition ->
+          pp oc "%slet label_of_cstr = function\n" p.P.indent ;
+          P.indent_more p (fun () ->
+            Array.iteri (fun i (n, _) ->
+              pp oc "%s| %s _ -> %d\n" p.P.indent (cstr_name n) i
+            ) mns
+          )
     ) ;
     pp oc "\n%send\n" p.P.indent ;
     (* Also define the type alias: *)
@@ -1218,7 +1225,7 @@ struct
         emit ?name p l e (fun oc ->
           let t1 = E.type_of l e1 in
           let m = T.uniq_id t1 |> valid_module_name in
-          pp oc "%s.label_of_cstr %s" m n1)
+          pp oc "Uint16.of_int (%s.label_of_cstr %s)" m n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "DessserMasks.Copy")
     | E.E0 SkipField ->

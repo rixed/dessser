@@ -1,16 +1,20 @@
 open Batteries
 module T = DessserTypes
 
+type context = Declaration | Definition
+
 type t =
-  { mutable decl : string IO.output ;
+  { context : context ;
+    mutable decl : string IO.output ;
     def : string IO.output ;
     mutable decls : string IO.output list ;
     mutable defs : string  IO.output list ;
     mutable indent : string ;
     mutable declared : Set.String.t }
 
-let make ?(declared=Set.String.empty) () =
-  { decl = IO.output_string () ;
+let make ?(declared=Set.String.empty) context =
+  { context ;
+    decl = IO.output_string () ;
     def = IO.output_string () ;
     decls = [] ;
     defs = [] ;
@@ -18,7 +22,7 @@ let make ?(declared=Set.String.empty) () =
     declared }
 
 let new_top_level p f =
-  let p' = make ~declared:p.declared () in
+  let p' = make ~declared:p.declared p.context in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
   p.defs <- p'.def :: p.defs ;
