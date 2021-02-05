@@ -298,7 +298,7 @@ struct
   and ssum mns ma sstate mn0 path v dst =
     let max_lbl = Array.length mns - 1 in
     let dst =
-      let_ ~name:"label"
+      let_ ~name:"label1"
         (label_of v)
         (fun _l label ->
           let_ ~name:"dst"
@@ -472,7 +472,7 @@ struct
     let sizes =
       Ser.ssize_of_sum mn0 path v |> add_size sizes in
     let max_lbl = Array.length mns - 1 in
-    let_ ~name:"label"
+    let_ ~name:"label2"
       (label_of v)
       (fun _l label ->
         let rec choose_cstr i =
