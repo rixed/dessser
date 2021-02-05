@@ -699,7 +699,8 @@ struct
     let constructor m =
       let m = "constructor" :: m in
       (
-        identifier +- !blanks ++ maybe_nullable
+        identifier ++
+        optional ~def:(required Unit) (!blanks -+ maybe_nullable)
       ) m
     and sep =
       opt_blanks -- char '|' -- opt_blanks in
