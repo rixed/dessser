@@ -125,36 +125,85 @@ struct
 
   let snotnull _t _conf _ _ p = p
 
+  (* Overestimate some of them: *)
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
-  let todo_ssize () = failwith "TODO: ssize for SExpr"
-  let ssize_of_float _ _ _ = todo_ssize ()
-  let ssize_of_string _ _ _ = todo_ssize ()
-  let ssize_of_bool _ _ _ = todo_ssize ()
-  let ssize_of_char _ _ _ = todo_ssize ()
-  let ssize_of_i8 _ _ _ = todo_ssize ()
-  let ssize_of_i16 _ _ _ = todo_ssize ()
-  let ssize_of_i24 _ _ _ = todo_ssize ()
-  let ssize_of_i32 _ _ _ = todo_ssize ()
-  let ssize_of_i40 _ _ _ = todo_ssize ()
-  let ssize_of_i48 _ _ _ = todo_ssize ()
-  let ssize_of_i56 _ _ _ = todo_ssize ()
-  let ssize_of_i64 _ _ _ = todo_ssize ()
-  let ssize_of_i128 _ _ _ = todo_ssize ()
-  let ssize_of_u8 _ _ _ = todo_ssize ()
-  let ssize_of_u16 _ _ _ = todo_ssize ()
-  let ssize_of_u24 _ _ _ = todo_ssize ()
-  let ssize_of_u32 _ _ _ = todo_ssize ()
-  let ssize_of_u40 _ _ _ = todo_ssize ()
-  let ssize_of_u48 _ _ _ = todo_ssize ()
-  let ssize_of_u56 _ _ _ = todo_ssize ()
-  let ssize_of_u64 _ _ _ = todo_ssize ()
-  let ssize_of_u128 _ _ _ = todo_ssize ()
-  let ssize_of_tup _ _ _ = todo_ssize ()
-  let ssize_of_rec _ _ _ = todo_ssize ()
-  let ssize_of_sum _ _ _ = todo_ssize ()
-  let ssize_of_vec _ _ _ = todo_ssize ()
-  let ssize_of_list _ _ _ = todo_ssize ()
-  let ssize_of_null _ _ = todo_ssize ()
+
+  let ssize_of_float _ _ _ = ConstSize 22
+
+  let ssize_of_string _ _ v =
+    DynSize (size_of_u32 (add (string_length v) (u32_of_int 2)))
+
+  let ssize_of_bool _ _ _ = ConstSize 1
+
+  let ssize_of_char _ _ _ = ConstSize 3
+
+  let ssize_of_i8 _ _ _ = ConstSize 4
+
+  let ssize_of_i16 _ _ _ = ConstSize 6
+
+  let ssize_of_i24 _ _ _ = ConstSize 8
+
+  let ssize_of_i32 _ _ _ = ConstSize 11
+
+  let ssize_of_i40 _ _ _ = ConstSize 13
+
+  let ssize_of_i48 _ _ _ = ConstSize 16
+
+  let ssize_of_i56 _ _ _ = ConstSize 18
+
+  let ssize_of_i64 _ _ _ = ConstSize 20
+
+  let ssize_of_i128 _ _ _ = ConstSize 40
+
+  let ssize_of_u8 _ _ _ = ConstSize 3
+
+  let ssize_of_u16 _ _ _ = ConstSize 5
+
+  let ssize_of_u24 _ _ _ = ConstSize 7
+
+  let ssize_of_u32 _ _ _ = ConstSize 10
+
+  let ssize_of_u40 _ _ _ = ConstSize 12
+
+  let ssize_of_u48 _ _ _ = ConstSize 15
+
+  let ssize_of_u56 _ _ _ = ConstSize 17
+
+  let ssize_of_u64 _ _ _ = ConstSize 19
+
+  let ssize_of_u128 _ _ _ = ConstSize 39
+
+  let ssize_of_tup mn path _ =
+    let num_items =
+      match (T.type_of_path mn path).vtyp with
+      | Tup mns -> Array.length mns
+      | Rec mns -> Array.length mns
+      | _ -> assert false in
+    ConstSize (2 + num_items - 1)
+
+  let ssize_of_rec = ssize_of_tup
+
+  let ssize_of_sum mn path _ =
+    let max_label =
+      match (T.type_of_path mn path).vtyp with
+      | Sum mns ->
+          Array.fold_left (fun m (label, _) ->
+            max m (String.length label)
+          ) 0 mns
+      | _ -> assert false in
+    ConstSize (max_label + 3)
+
+  let ssize_of_vec mn path _ =
+    let dim =
+      match (T.type_of_path mn path).vtyp with
+      | Vec (dim, _) -> dim
+      | _ -> assert false in
+    ConstSize (2 + dim - 1)
+
+  let ssize_of_list _ _ v =
+    DynSize (size_of_u32 (add (cardinality v) (u32_of_int 2)))
+
+  let ssize_of_null _ _ = ConstSize 4
 end
 
 module Des : DES with type config = sexpr_config =
