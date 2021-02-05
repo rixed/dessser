@@ -559,6 +559,13 @@ struct
 
   let external_type = ref fail
 
+  let identifier =
+    let what = "identifier" in
+    let first_char = letter ||| underscore ||| char '-' in
+    let any_char = first_char ||| decimal_digit in
+    first_char ++ repeat_greedy ~sep:none ~what any_char >>: fun (c, s) ->
+      String.of_list (c :: s)
+
   type key_type =
     VecDim of int | ListDim | SetDim | MapKey of maybe_nullable
 
