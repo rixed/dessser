@@ -928,6 +928,13 @@ struct
       tok str res (i + 1)
     else if str.[i] = '\\' && ctx = String && i < String.length str - 1 then
       tok str res (i + 2)
+    else if str.[i] = ';' && ctx <> String then
+      let i' =
+        match String.index_from str i '\n' with
+        | exception Not_found -> String.length str
+        | nl_pos -> nl_pos + 1 in
+      let res = if ctx = Blank then res else (Blank, i) :: res in
+      tok str res i'
     else
       if ctx = String then
         tok str res (i + 1)
@@ -1020,6 +1027,7 @@ struct
     [ Lst [ Lst [ Sym "pas" ; Str "glop" ] ; Lst [ Sym "glop" ] ] ] \
       (sexpr_of_string "((pas \"glop\") (glop))")
     [ Lst [ Sym "null" ; Str "u8" ] ] (sexpr_of_string "(null \"u8\")")
+    [ Sym "glop" ] (sexpr_of_string "glop ; comment")
   *)
 
   let int_of_symbol x d =
