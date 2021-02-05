@@ -18,6 +18,7 @@ type emitter =
 
 (* Avoid modifying the name when it's valid: *)
 let valid_identifier s =
+  let s = String.map (function '-' -> '_' | c -> c) s in
   if s = "" then "v" else
   if s.[0] >= 'a' && s.[0] <= 'z' || s.[0] = '_' then s else
   "v_"^ s
