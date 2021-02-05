@@ -1,5 +1,6 @@
 (* Tool to generate various piece of code to manipulate data *)
 open Batteries
+
 open Dessser
 open DessserTools
 open DessserDSTools
@@ -292,12 +293,12 @@ let val_schema =
   let doc = "file or inline schema for values" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options
             [ "schema" ; "value-schema" ] in
-  Arg.(required (opt (some maybe_nullable) None i))
+  Arg.(opt (some maybe_nullable) None i)
 
 let key_schema =
   let doc = "file or inline schema for keys" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options [ "key-schema" ] in
-  Arg.(required (opt (some maybe_nullable) None i))
+  Arg.(opt (some maybe_nullable) None i)
 
 let docv_of_enum l =
   IO.to_string (
@@ -315,7 +316,7 @@ let encoding_in =
   let doc = "encoding format for input" in
   let docv = docv_of_enum known_inputs in
   let i = Arg.info ~doc ~docv [ "input-encoding" ] in
-  Arg.(value (opt (enum known_inputs) RowBinary i))
+  Arg.(opt (enum known_inputs) RowBinary i)
 
 let known_outputs =
   [ "null", Null ;
@@ -328,7 +329,7 @@ let encoding_out =
   let doc = "encoding format for output" in
   let docv = docv_of_enum known_outputs in
   let i = Arg.info ~doc ~docv [ "output-encoding" ] in
-  Arg.(value (opt (enum known_outputs) SExpr i))
+  Arg.(opt (enum known_outputs) SExpr i)
 
 let backend =
   let languages =
@@ -338,7 +339,7 @@ let backend =
   let doc = "Language to generate code for" in
   let docv = docv_of_enum languages in
   let i = Arg.info ~doc ~docv [ "language" ; "backend" ] in
-  Arg.(value (opt (enum languages) Cpp i))
+  Arg.(opt (some (enum languages)) None i)
 
 let fieldmask =
   let parse s =
@@ -356,7 +357,7 @@ let comptime_fieldmask =
   let doc = "Compile-time fieldmask to apply when serializing" in
   let docv = "MASK" in
   let i = Arg.info ~doc ~docv [ "mask" ; "field-mask" ] in
-  Arg.(value (opt fieldmask M.Copy i))
+  Arg.(opt fieldmask M.Copy i)
 
 let parse_expression s =
   match E.Parser.expr s with
@@ -391,13 +392,13 @@ let modifier_exprs =
      input value)" in
   let docv = "EXPRESSION" in
   let i = Arg.info ~doc ~docv [ "e" ; "expression" ] in
-  Arg.(value (opt_all path_expression [] i))
+  Arg.(opt_all path_expression [] i)
 
 let aggr_init =
   let doc = "Initial valueof the aggregation" in
   let docv = "EXPRESSION" in
   let i = Arg.info ~doc ~docv [ "init" ] in
-  Arg.(required (opt (some expression) None i))
+  Arg.(opt (some expression) None i)
 
 let aggr_update =
   let doc = "Function updating the aggregation value with the current input \
@@ -405,31 +406,31 @@ let aggr_update =
   let docv = "EXPRESSION" in
   let i = Arg.info ~doc ~docv [ "update" ] in
   (* TODO: by default, a function returning the first argument (prev compunit) *)
-  Arg.(required (opt (some expression) None i))
+  Arg.(opt (some expression) None i)
 
 let aggr_finalize =
   let doc = "Function building the output value from the aggregation value" in
   let docv = "EXPRESSION" in
   let i = Arg.info ~doc ~docv [ "finalize" ] in
-  Arg.(required (opt (some expression) None i))
+  Arg.(opt (some expression) None i)
 
 let dest_fname =
   let doc = "Output file" in
   let docv = "FILE" in
   let i = Arg.info ~doc ~docv [ "o" ; "output-file" ] in
-  Arg.(required (opt (some string) None i))
+  Arg.(opt (some string) None i)
 
 let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
   Term.(
     (const converter
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ comptime_fieldmask
-     $ modifier_exprs
-     $ dest_fname),
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.value comptime_fieldmask
+     $ Arg.value modifier_exprs
+     $ Arg.required dest_fname),
     info "converter" ~doc)
 
 let lib_cmd =
@@ -437,12 +438,12 @@ let lib_cmd =
              encodings" in
   Term.(
     (const lib
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ comptime_fieldmask
-     $ dest_fname),
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.value comptime_fieldmask
+     $ Arg.required dest_fname),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =
@@ -450,12 +451,12 @@ let lmdb_dump_cmd =
              types" in
   Term.(
     (const lmdb_dump
-     $ key_schema
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ dest_fname),
+     $ Arg.required key_schema
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.required dest_fname),
     info "lmdb-dump" ~doc)
 
 let lmdb_load_cmd =
@@ -463,12 +464,12 @@ let lmdb_load_cmd =
              types" in
   Term.(
     (const lmdb_load
-     $ key_schema
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ dest_fname),
+     $ Arg.required key_schema
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.required dest_fname),
     info "lmdb-load" ~doc)
 
 let lmdb_query_cmd =
@@ -476,26 +477,26 @@ let lmdb_query_cmd =
              types" in
   Term.(
     (const lmdb_query
-     $ key_schema
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ dest_fname),
+     $ Arg.required key_schema
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.required dest_fname),
     info "lmdb-query" ~doc)
 
 let aggregator_cmd =
   let doc = "Generate a tool to compute an aggregated value of its input" in
   Term.(
     (const aggregator
-     $ val_schema
-     $ backend
-     $ encoding_in
-     $ encoding_out
-     $ aggr_init
-     $ aggr_update
-     $ aggr_finalize
-     $ dest_fname),
+     $ Arg.required val_schema
+     $ Arg.required backend
+     $ Arg.value encoding_in
+     $ Arg.value encoding_out
+     $ Arg.required aggr_init
+     $ Arg.required aggr_update
+     $ Arg.required aggr_finalize
+     $ Arg.required dest_fname),
     info "aggregator" ~doc)
 
 let default_cmd =
