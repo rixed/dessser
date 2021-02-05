@@ -158,13 +158,18 @@ struct
     C.print_identifier_declaration name p l e
 
   let print_intro oc =
-    pp oc "%s\n\n" C.source_intro
+    pp oc "%s" C.source_intro
 
-  let print_verbatims p oc defs =
-    List.rev defs |>
-    List.iter (fun verb ->
-      Printf.sprintf2 "%a" verb.U.printer p |>
-      String.print oc)
+  let print_verbatims where p oc = function
+    | [] ->
+        ()
+    | defs ->
+        C.print_comment oc "Verbatim (%s)" where ;
+        List.rev defs |>
+        List.iter (fun verb ->
+          Printf.sprintf2 "%a" verb.U.printer p |>
+          String.print oc) ;
+        String.print oc "\n"
 
   let print_source output_identifier compunit p oc
                    top_verbatim middle_verbatim bottom_verbatim =
@@ -244,34 +249,27 @@ struct
             loop true defined left_overs rest
           ) in
     loop false [] [] identifiers ;
-    let print_ios oc lst =
-      List.rev lst |>
-      List.iter (fun io ->
-        pp oc "%s\n" (IO.close_out io)) in
+    let print_ios oc = function
+      | [] ->
+          ()
+      | lst ->
+          List.rev lst |>
+          List.iter (fun io ->
+            pp oc "%s" (IO.close_out io)) in
     pp oc
-      "%t\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %a\n\n\
-       %s\n"
+      "%t%a%a%a%a%a%a%a%a%a%a%a%s"
       print_intro
-      C.print_comment "Verbatim (top)"
-      (print_verbatims p) top_verbatim
+      (print_verbatims "top" p) top_verbatim
+      C.print_comment "------------"
       C.print_comment "Declarations"
+      C.print_comment "------------"
       print_ios p.decls
-      C.print_comment "Verbatim (middle)"
-      (print_verbatims p) middle_verbatim
+      (print_verbatims "middle" p) middle_verbatim
+      C.print_comment "-----------"
       C.print_comment "Definitions"
+      C.print_comment "-----------"
       print_ios p.defs
-      C.print_comment "Verbatim (bottom)"
-      (print_verbatims p) bottom_verbatim
+      (print_verbatims "bottom" p) bottom_verbatim
       C.source_outro
 
   let print_definitions oc compunit =

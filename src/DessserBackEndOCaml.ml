@@ -79,7 +79,7 @@ struct
     let id = valid_identifier id in
     pp oc "%smodule %s = struct\n" p.P.indent m ;
     P.indent_more p (fun () ->
-      pp oc "%stype t = \n" p.P.indent ;
+      pp oc "%stype t =\n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (n, mn) ->
           if mn.T.vtyp = Unit then
@@ -102,7 +102,7 @@ struct
             ) mns
           )
     ) ;
-    pp oc "\n%send\n" p.P.indent ;
+    pp oc "%send\n" p.P.indent ;
     (* Also define the type alias: *)
     pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 
@@ -1304,7 +1304,7 @@ struct
      module DessserGen = struct\n"
 
   let source_outro =
-    "end\n"
+    "end (* DessserGen module *)\n"
 end
 
 include DessserBackEndCLike.Make (Config)
