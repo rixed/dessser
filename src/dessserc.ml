@@ -275,22 +275,23 @@ open Cmdliner
 let maybe_nullable =
   let parse s =
     try (
-      let p = T.maybe_nullable_of_string ~what:"schema" in
-      let parse_as_string s = Stdlib.Ok (p s) in
-      (* First try to parse that file, then to parse that string: *)
-      try (
-        let s = read_whole_file s in
-        parse_as_string s
-      ) with _ ->
-        parse_as_string s
-    ) with e -> Stdlib.Error (`Msg (Printexc.to_string e))
+      let s =
+        if String.starts_with s "@" then
+          (* That's a file *)
+          let filename = String.lchop s in
+          read_whole_file filename
+        else
+          s in
+      Stdlib.Ok (T.maybe_nullable_of_string ~what:"schema" s)
+    ) with e ->
+      Stdlib.Error (`Msg (Printexc.to_string e))
   and print fmt mn =
     Format.fprintf fmt "%s" (T.string_of_maybe_nullable mn)
   in
   Arg.conv ~docv:"TYPE" (parse, print)
 
 let val_schema =
-  let doc = "file or inline schema for values" in
+  let doc = "schema for values (inline or @file)" in
   let i = Arg.info ~doc ~docs:Manpage.s_common_options
             [ "schema" ; "value-schema" ] in
   Arg.(opt (some maybe_nullable) None i)
