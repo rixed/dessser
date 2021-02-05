@@ -41,19 +41,23 @@ let ser_of_encoding = function
   | SExpr -> (module DessserSExpr.Ser : SER)
   | CSV -> (module DessserCsv.Ser : SER)
 
-(* Generate just the code to convert from in to out and from
+(* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
-  let module DS = DesSer (Des) (Ser) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
+  let has_convert = encoding_in <> encoding_out in
   let convert =
-    (* convert from encoding_in to encoding_out: *)
-    E.func2 DataPtr DataPtr (fun _l -> DS.desser schema ?transform:None) in
+    if has_convert then
+      (* convert from encoding_in to encoding_out: *)
+      E.func2 DataPtr DataPtr (fun _l p1 p2 ->
+        let module DS = DesSer (Des) (Ser) in
+        DS.desser schema ?transform:None p1 p2)
+    else nop in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
     E.func1 DataPtr (fun _l src ->
@@ -68,13 +72,16 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
     E.func2 (Value schema) DataPtr (fun _l v dst ->
       OfValue.serialize schema ma v dst) in
   if debug then (
-    E.type_check [] convert ;
+    if has_convert then E.type_check [] convert ;
     E.type_check [] to_value ;
     E.type_check [] value_sersize ;
     E.type_check [] of_value) ;
   let compunit = U.make () in
-  let compunit, _, _ =
-    U.add_identifier_of_expression compunit ~name:"convert" convert in
+  let compunit =
+    if has_convert then
+      let c, _, _ =
+        U.add_identifier_of_expression compunit ~name:"convert" convert in c
+    else compunit in
   let compunit, _, _ =
     U.add_identifier_of_expression compunit ~name:"to_value" to_value in
   let compunit, _, _ =
