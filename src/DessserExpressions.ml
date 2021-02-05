@@ -3030,13 +3030,15 @@ struct
   let u8_of_int n = u8 (Uint8.of_int n)
   let u16_of_int n = u16 (Uint16.of_int n)
   let u32_of_int n = u32 (Uint32.of_int n)
-  let assert_ e = E1 (Assert, e)
+  let nop = seq []
+  let assert_ = function
+    | E0 (Bool true) -> nop
+    | e -> E1 (Assert, e)
   let mask_get i m = E1 (MaskGet i, m)
   let label_of e = E1 (LabelOf, e)
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField
   let set_field_null = E0 SetFieldNull
   let apply f es = E1S (Apply, f, es)
-  let nop = seq []
   let getenv e = E1 (GetEnv, e)
 end
