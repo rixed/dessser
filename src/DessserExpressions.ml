@@ -2755,7 +2755,64 @@ struct
   let gt e1 e2 = E2 (Gt, e1, e2)
   let le e1 e2 = ge e2 e1
   let lt e1 e2 = gt e2 e1
-  let eq e1 e2 = E2 (Eq, e1, e2)
+  let rec eq e1 e2 =
+    match e1, e2 with
+    | E0 Null _, E0 Null _
+    | E0 (EndOfList _), E0 (EndOfList _)
+    | E0 (EmptySet _), E0 (EmptySet _)
+    | E0 Unit, E0 Unit
+    | E0 CopyField, E0 CopyField
+    | E0 SkipField, E0 SkipField
+    | E0 SetFieldNull, E0 SetFieldNull ->
+        true_
+    (* None other combination of those can be equal: *)
+    | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+         | CopyField | SkipField | SetFieldNull),
+      E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+         | CopyField | SkipField | SetFieldNull) ->
+        false_
+    (* Another easy case of practical importance: comparison of a null with
+     * a NotNull: *)
+    | E0 (Null _), E1 (NotNull, _)
+    | E1 (NotNull, _), E0 (Null _) ->
+        false_
+    (* Peel away some common wrappers: *)
+    | E1 (NotNull, e1), E1 (NotNull, e2)
+    | E1 (Force, e1), E1 (Force, e2) ->
+        eq e1 e2
+    (* Compare numerical constant (only if of the same type (TODO)): *)
+    | E0 (Float v1), E0 (Float v2) -> bool (v1 = v2)
+    | E0 (String v1), E0 (String v2) -> bool (v1 = v2)
+    | E0 (Bool v1), E0 (Bool v2) -> bool (v1 = v2)
+    | E0 (Char v1), E0 (Char v2) -> bool (v1 = v2)
+    | E0 (U8 v1), E0 (U8 v2) -> bool (v1 = v2)
+    | E0 (U16 v1), E0 (U16 v2) -> bool (v1 = v2)
+    | E0 (U24 v1), E0 (U24 v2) -> bool (v1 = v2)
+    | E0 (U32 v1), E0 (U32 v2) -> bool (v1 = v2)
+    | E0 (U40 v1), E0 (U40 v2) -> bool (v1 = v2)
+    | E0 (U48 v1), E0 (U48 v2) -> bool (v1 = v2)
+    | E0 (U56 v1), E0 (U56 v2) -> bool (v1 = v2)
+    | E0 (U64 v1), E0 (U64 v2) -> bool (v1 = v2)
+    | E0 (U128 v1), E0 (U128 v2) -> bool (v1 = v2)
+    | E0 (I8 v1), E0 (I8 v2) -> bool (v1 = v2)
+    | E0 (I16 v1), E0 (I16 v2) -> bool (v1 = v2)
+    | E0 (I24 v1), E0 (I24 v2) -> bool (v1 = v2)
+    | E0 (I32 v1), E0 (I32 v2) -> bool (v1 = v2)
+    | E0 (I40 v1), E0 (I40 v2) -> bool (v1 = v2)
+    | E0 (I48 v1), E0 (I48 v2) -> bool (v1 = v2)
+    | E0 (I56 v1), E0 (I56 v2) -> bool (v1 = v2)
+    | E0 (I64 v1), E0 (I64 v2) -> bool (v1 = v2)
+    | E0 (I128 v1), E0 (I128 v2) -> bool (v1 = v2)
+    | E0 (Bit v1), E0 (Bit v2) -> bool (v1 = v2)
+    | E0 (Size v1), E0 (Size v2) -> bool (v1 = v2)
+    | E0 (Byte v1), E0 (Byte v2) -> bool (v1 = v2)
+    | E0 (Word v1), E0 (Word v2) -> bool (v1 = v2)
+    | E0 (DWord v1), E0 (DWord v2) -> bool (v1 = v2)
+    | E0 (QWord v1), E0 (QWord v2) -> bool (v1 = v2)
+    | E0 (OWord v1), E0 (OWord v2) -> bool (v1 = v2)
+    | E0 (Bytes v1), E0 (Bytes v2) -> bool (v1 = v2)
+    | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> bool (v1 = v2)
+    | _ -> E2 (Eq, e1, e2)
   let not_ = function
     | E0 (Bool b) -> bool (not b)
     | e -> E1 (Not, e)
