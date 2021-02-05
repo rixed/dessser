@@ -511,7 +511,7 @@ struct
       fun m ->
         let m = "comment" :: m in
         (
-          char '-' -- char '-' --
+          char '/' -- char '/' --
           repeat_greedy ~sep:none ~what:"comment" all_but_newline
         ) m
     )
