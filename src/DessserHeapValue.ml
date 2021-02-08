@@ -12,10 +12,20 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
-module Materialize (Des : DES) : sig
-    val make : ?config:Des.config -> T.maybe_nullable -> (*src*) E.t -> (*e*src*) E.t
-  end =
+module type MATERIALIZE =
+sig
+  module Des : DES
+
+  val make : ?config:Des.config ->
+             T.maybe_nullable ->
+             (*src*) E.t ->
+             (*e*src*) E.t
+end
+
+module Materialize (Des : DES) :
+  MATERIALIZE with module Des = Des =
 struct
+  module Des = Des
 
   let rec dvec dim mn dstate mn0 path src =
     let src = Des.vec_opn dstate mn0 path dim mn src in
@@ -222,11 +232,27 @@ end
 (* The other way around: given a heap value of some type and a serializer,
  * serialize that value: *)
 
-module Serialize (Ser : SER) : sig
-    val serialize : ?config:Ser.config -> T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*dst*) E.t -> (*dst*) E.t
-    val sersize : T.maybe_nullable -> E.t (*ma*) -> E.t (*v*) -> (*size*size*) E.t
-  end =
+module type SERIALIZE =
+sig
+  module Ser : SER
+
+  val serialize : ?config:Ser.config ->
+                  T.maybe_nullable ->
+                  E.t (*ma*) ->
+                  E.t (*v*) ->
+                  (*dst*) E.t ->
+                  (*dst*) E.t
+
+  val sersize : T.maybe_nullable ->
+                E.t (*ma*) ->
+                E.t (*v*) ->
+                (*size*size*) E.t
+end
+
+module Serialize (Ser : SER) :
+  SERIALIZE with module Ser = Ser =
 struct
+  module Ser = Ser
 
   let rec svec dim mn sstate mn0 path v dst =
     let dst = Ser.vec_opn sstate mn0 path dim mn dst in
