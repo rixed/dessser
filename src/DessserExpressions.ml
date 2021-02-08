@@ -43,7 +43,10 @@ type e0 =
   | EndOfList of T.t (* T.t being the type of list items *)
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
   | Now
-  | Random
+  | RandomFloat
+  | RandomU32
+  | RandomU64
+  | RandomU128
   | Unit
   | Float of float
   | String of string
@@ -412,7 +415,7 @@ and eq e1 e2 =
  * Here, p is a list of parameters (function id) that can be precomputed
  * and i a set of identifiers (names) that can. *)
 let rec can_precompute l i = function
-  | E0 (Now | Random) ->
+  | E0 (Now | RandomFloat | RandomU32 | RandomU64 | RandomU128) ->
       false
   | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -795,7 +798,10 @@ let rec string_of_e0 = function
   | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
   | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
   | Now -> "now"
-  | Random -> "rand"
+  | RandomFloat -> "random-float"
+  | RandomU32 -> "random-u32"
+  | RandomU64 -> "random-u64"
+  | RandomU128 -> "random-u128"
   | Float f -> "float "^ hexstring_of_float f
   | Unit -> "()"
   | String s -> "string "^ String.quote s
@@ -1045,7 +1051,10 @@ struct
     | Lst [ Sym "empty-set" ; Str mn ] ->
         E0 (EmptySet (T.maybe_nullable_of_string mn))
     | Lst [ Sym "now" ] -> E0 Now
-    | Lst [ Sym "rand" ] -> E0 Random
+    | Lst [ Sym "random-float" ] -> E0 RandomFloat
+    | Lst [ Sym "random-u32" ] -> E0 RandomU32
+    | Lst [ Sym "random-u64" ] -> E0 RandomU64
+    | Lst [ Sym "random-u128" ] -> E0 RandomU128
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
     | Lst [] -> E0 (Unit)
     | Lst [ Sym "string" ; Str s ] -> E0 (String s)
@@ -1507,7 +1516,10 @@ let rec type_of l e0 =
   | E0 (EndOfList t) -> SList t
   | E0 (EmptySet mn) -> Value (T.make (T.Set mn))
   | E0 Now -> T.float
-  | E0 Random -> T.float
+  | E0 RandomFloat -> T.float
+  | E0 RandomU32 -> T.u32
+  | E0 RandomU64 -> T.u64
+  | E0 RandomU128 -> T.u128
   | E0 (Float _) -> T.float
   | E0 Unit -> T.unit
   | E0 (String _) -> T.string
@@ -1951,7 +1963,8 @@ let rec type_check l e =
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Value mn)) mns
       | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
-    | E0 (Null _ | EndOfList _ | EmptySet _ | Now | Random
+    | E0 (Null _ | EndOfList _ | EmptySet _ | Now
+         | RandomFloat | RandomU32 | RandomU64 | RandomU128
          | Unit | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
@@ -2714,7 +2727,10 @@ struct
   let sampling t e1 = E1 (Sampling t, e1)
   let empty_set mn = E0 (EmptySet mn)
   let now = E0 Now
-  let rand = E0 Random
+  let random_float = E0 RandomFloat
+  let random_u32 = E0 RandomU32
+  let random_u64 = E0 RandomU64
+  let random_u128 = E0 RandomU128
   let pair e1 e2 = E2 (Pair, e1, e2)
   let first = function
     | E2 (Pair, e, _) -> e

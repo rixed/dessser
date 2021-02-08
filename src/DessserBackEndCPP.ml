@@ -818,8 +818,16 @@ struct
     | E.E0 Now ->
         emit ?name p l e (fun oc ->
           pp oc "std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()")
-    | E.E0 Random ->
-        emit ?name p l e (fun oc -> pp oc "_random_(_random_engine_)")
+    | E.E0 RandomFloat ->
+        emit ?name p l e (fun oc -> pp oc "_random_float_(_random_engine_)")
+    | E.E0 RandomU32 ->
+        emit ?name p l e (fun oc -> pp oc "_random_u32_(_random_engine_)")
+    | E.E0 RandomU64 ->
+        emit ?name p l e (fun oc -> pp oc "_random_u64_(_random_engine_)")
+    | E.E0 RandomU128 ->
+        emit ?name p l e (fun oc ->
+          pp oc "_random_u64_(_random_engine_) |\
+                 ((uint128_t)_random_u64_(_random_engine_) << 64)")
     | E.E2 (Cons, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -1130,7 +1138,9 @@ struct
      #include <vector>\n\
      #include \"dessser/runtime.h\"\n\
      \n\
-     std::uniform_real_distribution<double> _random_(0, 1);\n\
+     std::uniform_real_distribution<double> _random_float_(0, 1);\n\
+     std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
+     std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
      std::default_random_engine _random_engine_;\n\
      \n\
      namespace dessser_gen {\n"

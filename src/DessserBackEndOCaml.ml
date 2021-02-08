@@ -947,8 +947,27 @@ struct
         emit ?name p l e (fun oc -> pp oc "make_simple_set ()")
     | E.E0 Now ->
         emit ?name p l e (fun oc -> pp oc "Unix.gettimeofday ()")
-    | E.E0 Random ->
+    | E.E0 RandomFloat ->
         emit ?name p l e (fun oc -> pp oc "Random.float 1.")
+    | E.E0 RandomU32 ->
+        emit ?name p l e (fun oc ->
+          pp oc "Uint32.(logor" ;
+          pp oc "  (of_int (Random.bits ()))" ;
+          pp oc "  (shift_left (of_int (Random.bits ())) 30))")
+    | E.E0 RandomU64 ->
+        emit ?name p l e (fun oc ->
+          pp oc "Uint64.(logor" ;
+          pp oc "  (of_int (Random.bits ()))" ;
+          pp oc "  (logor (shift_left (of_int (Random.bits ())) 30)" ;
+          pp oc "         (shift_left (of_int (Random.bits ())) 60)))")
+    | E.E0 RandomU128 ->
+        emit ?name p l e (fun oc ->
+          pp oc "Uint128.(logor" ;
+          pp oc "  (of_int (Random.bits ()))" ;
+          pp oc "  (logor (shift_left (of_int (Random.bits ())) 30)" ;
+          pp oc "         (logor (shift_left (of_int (Random.bits ())) 60)" ;
+          pp oc "                (logor (shift_left (of_int (Random.bits ())) 90)" ;
+          pp oc "                       (shift_left (of_int (Random.bits ())) 120)))))")
     | E.E1 (Head, e1) ->
         unary_op "List.hd" e1
     | E.E1 (Tail, e1) ->
