@@ -10,19 +10,23 @@ type t =
     mutable decls : string IO.output list ;
     mutable defs : string  IO.output list ;
     mutable indent : string ;
-    mutable declared : Set.String.t }
+    mutable declared : Set.String.t ;
+    (* Copied from the compilation unit to help the printer to make more
+     * educated guesses at time names: *)
+    type_names : (T.value_type * string) list }
 
-let make ?(declared=Set.String.empty) context =
+let make ?(declared=Set.String.empty) context type_names =
   { context ;
     decl = IO.output_string () ;
     def = IO.output_string () ;
     decls = [] ;
     defs = [] ;
     indent = "" ;
-    declared }
+    declared ;
+    type_names }
 
 let new_top_level p f =
-  let p' = make ~declared:p.declared p.context in
+  let p' = make ~declared:p.declared p.context p.type_names in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
   p.defs <- p'.def :: p.defs ;
@@ -37,7 +41,13 @@ let indent_more p f =
     f ()
 
 let declared_type p t f =
-  let id = T.uniq_id t in
+  let id =
+    match t with
+    | T.Value { vtyp ; _ } ->
+        (try List.assoc vtyp p.type_names
+        with Not_found -> T.uniq_id t)
+    | _ ->
+        T.uniq_id t in
   if Set.String.mem id p.declared then id
   else (
     p.declared <- Set.String.add id p.declared ;

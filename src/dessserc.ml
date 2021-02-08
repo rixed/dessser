@@ -43,7 +43,8 @@ let ser_of_encoding = function
 
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
+let lib schema backend encoding_in encoding_out _fieldmask dest_fname
+        type_name () =
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -77,6 +78,8 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname () =
     E.type_check [] value_sersize ;
     E.type_check [] of_value) ;
   let compunit = U.make () in
+  (* Christen the schema type with the user provided name: *)
+  let compunit = U.name_type compunit schema.T.vtyp (type_name |? "t") in
   let compunit =
     if has_convert then
       let c, _, _ =
@@ -308,6 +311,11 @@ let key_schema =
   let i = Arg.info ~doc ~docs:Manpage.s_common_options [ "key-schema" ] in
   Arg.(opt (some maybe_nullable) None i)
 
+let type_name =
+  let doc = "name for the schema" in
+  let i = Arg.info ~doc [ "type-name" ; "name" ] in
+  Arg.(opt (some string) None i)
+
 let docv_of_enum l =
   IO.to_string (
     List.print ~first:"" ~last:"" ~sep:"|" (fun oc (n, _) ->
@@ -451,7 +459,8 @@ let lib_cmd =
      $ Arg.value encoding_in
      $ Arg.value encoding_out
      $ Arg.value comptime_fieldmask
-     $ Arg.required dest_fname),
+     $ Arg.required dest_fname
+     $ Arg.value type_name),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =

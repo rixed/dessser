@@ -6,7 +6,9 @@ type t =
   (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
-    verbatim_definitions : verbatim_definition list }
+    verbatim_definitions : verbatim_definition list ;
+    (* User may prefer some specific name for some types: *)
+    type_names : (T.value_type * string) list }
 
 and verbatim_definition =
   { name : string ; (* or empty string *)
@@ -26,7 +28,18 @@ and verbatim_location =
   | Bottom (* After declarations and definitions *)
 
 let make () =
-  { identifiers = [] ; external_identifiers = [] ; verbatim_definitions = [] }
+  { identifiers = [] ;
+    external_identifiers = [] ;
+    verbatim_definitions = [] ;
+    type_names = [] }
+
+let name_type compunit vtyp name =
+  match List.assoc vtyp compunit.type_names with
+  | exception Not_found ->
+      { compunit with type_names = (vtyp, name) :: compunit.type_names }
+  | name' ->
+      Printf.sprintf "name_type: type %S already named %S" name name' |>
+      invalid_arg
 
 (* Extract the currently defined environment from the compunit: *)
 let environment compunit =
