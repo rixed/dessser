@@ -26,7 +26,7 @@ struct
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_float v))
+    write_bytes p (bytes_of_string (string_of_float_ v))
 
   let sbytes v p =
     let quo = byte_of_const_char '"' in
@@ -42,7 +42,7 @@ struct
     write_byte p (if_ v (byte_of_const_char 'T') (byte_of_const_char 'F'))
 
   let si _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_int v))
+    write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
   let si16 = si

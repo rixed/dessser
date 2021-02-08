@@ -2561,7 +2561,7 @@ struct
           E2 (Join, e1, e2))
     | _ -> E2 (Join, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
-  let string_of_int = function
+  let string_of_int_ = function
     | E0 (U8 n) -> string (Uint8.to_string n)
     | E0 (U16 n) -> string (Uint16.to_string n)
     | E0 (U24 n) -> string (Uint24.to_string n)
@@ -2581,14 +2581,14 @@ struct
     | E0 (I64 n) -> string (Int64.to_string n)
     | E0 (I128 n) -> string (Int128.to_string n)
     | e -> E1 (StringOfInt, e)
-  let string_of_float = function
+  let string_of_float_ = function
     | E0 (Float f) -> string (hexstring_of_float f)
     | e -> E1 (StringOfFloat, e)
   let string_of_ip = function
     | E0 (U32 n) -> string (DessserIpTools.V4.to_string n)
     | E0 (U128 n) -> string (DessserIpTools.V6.to_string n)
     | e -> E1 (StringOfIp, e)
-  let float_of_string = function
+  let float_of_string_ = function
     | E0 (String s) -> float (float_of_string s)
     | e -> E1 (FloatOfString, e)
   let char_of_string = function
@@ -3057,4 +3057,5 @@ struct
   let set_field_null = E0 SetFieldNull
   let apply f es = E1S (Apply, f, es)
   let getenv e = E1 (GetEnv, e)
+  let string_of_char_ e = E1 (StringOfChar, e)
 end

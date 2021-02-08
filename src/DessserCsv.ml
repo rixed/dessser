@@ -178,7 +178,7 @@ struct
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_float v))
+    write_bytes p (bytes_of_string (string_of_float_ v))
 
   let sbytes_quoted conf v p =
     let quote_byte = byte_of_const_char (Option.get conf.quote) in
@@ -206,7 +206,7 @@ struct
                          (bytes (Bytes.of_string conf.false_)))
 
   let si _conf _ _ v p =
-    write_bytes p (bytes_of_string (string_of_int v))
+    write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
   let si16 = si

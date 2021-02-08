@@ -97,7 +97,7 @@ let leave_frame p_stk =
 let set_nullbit stk =
   E.with_sploded_pair "set_nullbit" (head stk) (fun p bi ->
     seq [ debug (string "set nullbit at ") ;
-          debug (string_of_int bi) ;
+          debug (string_of_int_ bi) ;
           debug (char '\n') ;
           set_bit p bi (bit true) ;
           let frame = pair p (add bi (size 1)) in
@@ -106,7 +106,7 @@ let set_nullbit stk =
 let skip_nullbit stk =
   E.with_sploded_pair "skip_nullbit" (head stk) (fun p bi ->
     seq [ debug (string "skip nullbit at ") ;
-          debug (string_of_int bi) ;
+          debug (string_of_int_ bi) ;
           debug (char '\n') ;
           let frame = pair p (add bi (size 1)) in
           cons frame (tail stk) ])
@@ -238,9 +238,9 @@ struct
       let stk = may_set_nullbit true mn0 path stk in
       let new_frame = pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
-            debug (string_of_int (data_ptr_offset p)) ;
+            debug (string_of_int_ (data_ptr_offset p)) ;
             debug (string " with ") ;
-            debug (string_of_int (to_expr nullmask_bits)) ;
+            debug (string_of_int_ (to_expr nullmask_bits)) ;
             debug (string " nullbits\n") ;
             pair
               (if has_nullmask then zero_nullmask nullmask_bits p else p)
@@ -269,7 +269,7 @@ struct
   let sfloat () mn0 path v p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
       seq [ debug (string "ser a float at ") ;
-            debug (string_of_int (data_ptr_offset p)) ;
+            debug (string_of_int_ (data_ptr_offset p)) ;
             debug (char '\n') ;
             write_qword LittleEndian p (qword_of_float v) ])
 
@@ -278,9 +278,9 @@ struct
       let len = string_length v in
       let p =
         seq [ debug (string "ser a string at ") ;
-              debug (string_of_int (data_ptr_offset p)) ;
+              debug (string_of_int_ (data_ptr_offset p)) ;
               debug (string " of length ") ;
-              debug (string_of_int len) ;
+              debug (string_of_int_ len) ;
               debug (char '\n') ;
               write_dword LittleEndian p (dword_of_u32 len) ] in
       let bytes = bytes_of_string v in
@@ -612,7 +612,7 @@ struct
      * always use 8 since bit offset should not be used when not nullable. *)
     let new_frame = pair p (size (if has_nullmask then 8 else 0)) in
     seq [ debug (string "des: enter a new frame at ") ;
-          debug (string_of_int (data_ptr_offset p)) ;
+          debug (string_of_int_ (data_ptr_offset p)) ;
           debug (string "\n") ;
           let p =
             if has_nullmask then
@@ -645,7 +645,7 @@ struct
   let dfloat () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
       seq [ debug (string "desser a float from ") ;
-            debug (string_of_int (data_ptr_offset p)) ;
+            debug (string_of_int_ (data_ptr_offset p)) ;
             debug (char '\n') ;
             E.with_sploded_pair "dfloat" (read_qword LittleEndian p) (fun w p ->
               pair (float_of_qword w) p) ])
@@ -653,7 +653,7 @@ struct
   let dstring () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
       seq [ debug (string "deser a string from ") ;
-            debug (string_of_int (data_ptr_offset p)) ;
+            debug (string_of_int_ (data_ptr_offset p)) ;
             debug (char '\n') ;
             E.with_sploded_pair "dstring1" (read_dword LittleEndian p) (fun len p ->
               let len = size_of_dword len in
@@ -835,9 +835,9 @@ struct
     E.with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
       let_ (not_ (bool_of_bit (get_bit p bi))) (fun _l b ->
         seq [ debug (string "des: get nullbit at ") ;
-              debug (string_of_int bi) ;
+              debug (string_of_int_ bi) ;
               debug (string " -> ") ;
-              debug (string_of_int (u8_of_bool b)) ;
+              debug (string_of_int_ (u8_of_bool b)) ;
               debug (char '\n') ;
               b ]))
 
