@@ -848,9 +848,107 @@ struct
       )
     ) m
 
-  let of_string ?what =
+  (* In addition to native dessser format for type specification, we
+   * can also make sense of ClickHouse "NamesAndTypes" somewhat informal
+   * specifications: *)
+  let clickhouse_names_and_types m =
+    let m = "ClickHouse NameAndTypes format" :: m in
+    let backquoted_string_with_sql_style m =
+      let m = "Backquoted field name" :: m in
+      (
+        char '`' -+
+        repeat_greedy ~sep:none (
+          cond "field name" ((<>) '`') 'x') +-
+        char '`' >>: String.of_list
+      ) m in
+    let rec ptype m =
+      let with_param np ap =
+        np -- opt_blanks -- char '(' -+ ap +- char ')' in
+      let with_2_params np p1 p2 =
+        let ap = p1 -+ opt_blanks +- char ',' +- opt_blanks ++ p2 in
+        with_param np ap in
+      let unsigned =
+        integer >>: fun n ->
+          let i = Num.to_int n in
+          if i < 0 then raise (Reject "Type parameter must be >0") ;
+          i in
+      let with_num_param s =
+        with_param (strinG s) unsigned in
+      let with_2_num_params s =
+        with_2_params (strinG s) number number in
+      let with_typ_param s =
+        with_param (strinG s) ptype in
+      let legit_identifier_chars =
+        letter |<| underscore |<| decimal_digit in
+      let iD s =
+        ParseUsual.string ~case_sensitive:false s --
+        nay legit_identifier_chars in
+      let m = "Type name" :: m in
+      (
+        (* Look only for simple types, starting with numerics: *)
+        (iD "UInt8" >>: fun () -> required (Mac U8)) |<|
+        (iD "UInt16" >>: fun () -> required (Mac U16)) |<|
+        (iD "UInt32" >>: fun () -> required (Mac U32)) |<|
+        (iD "UInt64" >>: fun () -> required (Mac U64)) |<|
+        ((iD "Int8" |<| iD "TINYINT") >>:
+          fun () -> required (Mac I8)) |<|
+        ((iD "Int16" |<| iD "SMALLINT") >>:
+          fun () -> required (Mac I16)) |<|
+        ((iD "Int32" |<| iD "INTEGER" |<| iD "INT") >>:
+          fun () -> required (Mac I32)) |<|
+        ((iD "Int64" |<| iD "BIGINT") >>:
+          fun () -> required (Mac I64)) |<|
+        ((iD "Float32" |<| iD "Float64" |<|
+          iD "FLOAT" |<| iD "DOUBLE") >>:
+          fun () -> required (Mac Float)) |<|
+        (* Assuming UUIDs are just plain U128 with funny-printing: *)
+        (iD "UUID" >>: fun () -> required (Mac U128)) |<|
+        (* Decimals: for now forget about the size of the decimal part,
+         * just map into corresponding int type*)
+        (with_num_param "Decimal32" >>: fun _p -> required (Mac I32)) |<|
+        (with_num_param "Decimal64" >>: fun _p -> required (Mac I64)) |<|
+        (with_num_param "Decimal128" >>: fun _p -> required (Mac I128)) |<|
+        (* TODO: actually do something with the size: *)
+        ((with_2_num_params "Decimal" |<| with_2_num_params "DEC") >>:
+          fun (_n, _m)  -> required (Mac I128)) |<|
+        ((iD "DateTime" |<| iD "TIMESTAMP") >>:
+          fun () -> required (Mac U32)) |<|
+        (iD "Date" >>: fun () -> required (Mac U16)) |<|
+        ((iD "String" |<| iD "CHAR" |<| iD "VARCHAR" |<|
+          iD "TEXT" |<| iD "TINYTEXT" |<| iD "MEDIUMTEXT" |<|
+          iD "LONGTEXT" |<| iD "BLOB" |<| iD "TINYBLOB" |<|
+          iD "MEDIUMBLOB" |<| iD "LONGBLOB") >>:
+          fun () -> required (Mac String)) |<|
+        ((with_num_param "FixedString" |<| with_num_param "BINARY") >>:
+          fun d -> required (Vec (d, required (Mac Char)))) |<|
+        (with_typ_param "Nullable" >>: not_null) |<|
+        (* Just ignore those ones (for now): *)
+        (with_typ_param "LowCardinality")
+        (* Etc... *)
+      ) m
+    in
+    (
+      char '(' -- opt_blanks -+
+      optional ~def:() (
+        string "columns format version: " -- number -- !blanks) --
+      optional ~def:() (
+        number -- !blanks -- string "columns:" -- !blanks) -+
+      several ~sep:!blanks (
+        backquoted_string_with_sql_style +- !blanks ++ ptype) +-
+      opt_blanks +- char ')' >>: fun mns ->
+        let mns = Array.of_list mns in
+        Value { nullable = false ; vtyp = Rec mns }
+    ) m
+
+  (* If [any_format] then any known format to specify types will be tried.
+   * If not then only dessser own format will be tried (faster, esp when
+   * parsing DIL s-expressions) *)
+  let of_string ?(any_format=false) ?what =
     let print = print in
-    string_parser ~print ?what typ
+    let p =
+      if any_format then typ ||| clickhouse_names_and_types
+      else typ in
+    string_parser ~print ?what p
 
   (*$>*)
 end
