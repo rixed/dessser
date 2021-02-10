@@ -264,6 +264,14 @@ struct
   let of_pointer p start stop =
     { p with start ; stop }
 
+  let reset p =
+    { p with start = 0 ;
+             stop = Bytes.length p.bytes ;
+             stack = [] }
+
+  let contents p =
+    Bytes.sub p.bytes 0 p.start
+
   (* Check that the given start is not past the end; But end position is OK *)
   let check_input_length o l =
     if o > l then raise (NotEnoughInput { missing = o - l ; offset = o })
