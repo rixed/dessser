@@ -338,8 +338,10 @@ struct
     | E.E1S (Apply, f, es) ->
         let nf = print emit p l f in
         let ns =
-          List.fold_left (fun ns e -> print emit p l e :: ns) [] es |>
-          List.rev in
+          if es = [] then [ "()" ]
+          else
+            List.fold_left (fun ns e -> print emit p l e :: ns) [] es |>
+            List.rev in
         emit ?name p l e (fun oc ->
           pp oc "%s%a"
             nf
