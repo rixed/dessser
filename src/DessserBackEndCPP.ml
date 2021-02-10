@@ -1115,7 +1115,7 @@ struct
       let n = print emit p l e in
       print_return n p l e) ;
     pp p.P.def "%s}\n" p.P.indent ;
-    pp p.P.def "%s%s %s(%s_init());\n" p.P.indent tn n n
+    pp p.P.def "%s%s %s(%s_init());\n\n" p.P.indent tn n n
 
   let print_identifier_declaration n p l e =
     let t = E.type_of l e in
@@ -1143,10 +1143,10 @@ struct
      std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
      std::default_random_engine _random_engine_;\n\
      \n\
-     namespace dessser_gen {\n"
+     namespace dessser_gen {\n\n"
 
   let source_outro =
-    "}\n"
+    "\n}\n"
 end
 
 include DessserBackEndCLike.Make (Config)

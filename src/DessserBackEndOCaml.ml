@@ -1309,8 +1309,10 @@ struct
     let tn = type_identifier p t in
     pp p.P.def "%slet %s : %s =\n" p.P.indent n tn ;
     P.indent_more p (fun () ->
+      (* TODO: find a way to force the first call to emit to inline
+       * the expression, in order to avoid the useless "let id = x in id" *)
       let n = print emit p l e in
-      pp p.P.def "%s%s\n" p.P.indent n)
+      pp p.P.def "%s%s\n\n" p.P.indent n)
 
   let print_identifier_declaration n p l e =
     let t = E.type_of l e in
@@ -1321,10 +1323,10 @@ struct
     "open Stdint\n\
      open DessserOCamlBackEndHelpers\n\
      \n\
-     module DessserGen = struct\n"
+     module DessserGen = struct\n\n"
 
   let source_outro =
-    "end (* DessserGen module *)\n"
+    "\nend (* DessserGen module *)\n"
 end
 
 include DessserBackEndCLike.Make (Config)

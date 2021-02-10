@@ -1978,6 +1978,7 @@ let rec type_check l e =
     | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _
           | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
+        (* Subexpressions will be type checked recursively already *)
         ()
     | E0S (Seq, es) ->
         let rec loop = function
