@@ -552,6 +552,8 @@ module U = DessserCompilationUnit
  * functions.
  *)
 
+type link = Object | SharedObject | Executable
+
 module type BACKEND =
 sig
   val id : T.backend_id
@@ -561,6 +563,7 @@ sig
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
-  val compile_cmd : optim:int -> link:bool -> string -> string -> string
+  val preferred_comp_extension : link -> string
+  val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> optim:int -> link:link -> string -> string -> string
   val type_identifier : P.t -> T.t -> string
 end

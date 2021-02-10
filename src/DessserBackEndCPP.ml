@@ -14,15 +14,31 @@ struct
   let id = Cpp
   let valid_identifier = DessserBackEndCLike.valid_identifier
   let valid_source_name n = n
+
   let preferred_def_extension = "cc"
+
   let preferred_decl_extension = "h"
-  let compile_cmd ~optim ~link src dst =
+
+  let preferred_comp_extension = function
+    | Object -> "o"
+    | SharedObject -> "so"
+    | Executable -> ""
+
+  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
     let optim = cap 0 3 optim in
-    Printf.sprintf
+    Printf.sprintf2
       "g++ -std=c++17 -g -O%d -W -Wall \
            -Wno-unused-parameter -Wno-unused-variable \
-           -Wno-shift-negative-value -I src %s %S -o %S"
-      optim (if link then "" else "-c") src dst
+           -Wno-shift-negative-value %a %s %s %S -o %S"
+      optim
+      (List.print ~first:"" ~last:"" ~sep:" " (fun oc path ->
+        Printf.fprintf oc "-I %s" path)) extra_search_paths
+      (if dev_mode then "-I src" else "")
+      (match link with
+      | Object -> "-c"
+      | SharedObject -> "-fPIC -c"
+      | Executable -> "")
+      src dst
 
   let tuple_field_name i = "field_"^ string_of_int i
 

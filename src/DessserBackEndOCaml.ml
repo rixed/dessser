@@ -37,15 +37,34 @@ struct
     ) n
 
   let preferred_def_extension = "ml"
+
   let preferred_decl_extension = "mli"
-  let compile_cmd ~optim ~link src dst =
+
+  let preferred_comp_extension = function
+  | Object -> "cmx"
+  | SharedObject -> "cmxs"
+  | Executable -> ""
+
+  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
     let optim = cap 2 3 optim in
-    Printf.sprintf
-      "ocamlfind ocamlopt -g -annot -O%d -w -8-26 -I src \
-         -package stdint,batteries,lmdb \
-         -linkpkg src/DessserFloatTools.cmx src/DessserOCamlBackEndHelpers.cmx \
+    (* FIXME: path to src files! *)
+    Printf.sprintf2
+      "ocamlfind ocamlopt -g -annot -O%d -w -8-26 %a %s \
+         -package batteries,lmdb,stdint%s \
          %s %S -o %S"
-      optim (if link then "" else "-c") src dst
+      optim
+      (List.print ~first:"" ~last:"" ~sep:" " (fun oc path ->
+        Printf.fprintf oc "-I %s" path)) extra_search_paths
+      (if dev_mode then "-I src" else "")
+      (if dev_mode then
+         " src/DessserFloatTools.cmx src/DessserOCamlBackEndHelpers.cmx"
+       else
+         ",dessser")
+      (match link with
+      | Object -> "-c"
+      | SharedObject -> "-shared"
+      | Executable -> "-linkpkg")
+      src dst
 
   let module_of_type t =
     valid_module_name (T.uniq_id t)

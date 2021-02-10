@@ -38,7 +38,10 @@ let preferred_def_extension = "dil"
 
 let preferred_decl_extension = "dild"
 
-let compile_cmd ~optim ~link _src _dst =
-  ignore optim ; ignore link ;
+let preferred_comp_extension _ =
+  invalid_arg "DIL has no preferred_comp_extension"
+
+let compile_cmd ?dev_mode ?extra_search_paths ~optim ~link _src _dst =
+  ignore optim ; ignore link ; ignore dev_mode ; ignore extra_search_paths ;
   Printf.printf "Won't compile Desser Inetermediate Language (DIL).\n" ;
   "true"

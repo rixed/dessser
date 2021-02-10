@@ -19,7 +19,7 @@ OCAMLOPTFLAGS += -g
 endif
 
 PACKAGES = \
-	batteries,parsercombinator,stdint,qcheck
+	batteries,dynlink,parsercombinator,stdint,qcheck
 
 META_REQUIRES = \
 	findlib,$(PACKAGES)
@@ -92,6 +92,8 @@ all: $(INSTALLED) examples
 
 doc:
 
+# FIXME: have a separate libdessser_runtime.cmxa with only the runtime
+# dependencies, namely DessserFloatTools and DessserOCamlBackEndHelpers
 LIBDESSSER_SOURCES = \
 	src/DessserTools.ml \
 	src/DessserFloatTools.ml \
@@ -99,6 +101,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserStdLib.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \
@@ -146,11 +149,11 @@ include .depend
 
 src/dessser.cmxa: $(LIBDESSSER_SOURCES:.ml=.cmx)
 	@echo 'Linking runtime library $@ (native)'
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -I src -a $(filter %.cmx, $^) -o $@
+	$(OCAMLOPT) $(OCAMLOPTFLAGS) -linkall -I src -a $(filter %.cmx, $^) -o $@
 
 src/dessser.cma: $(LIBDESSSER_SOURCES:.ml=.cmo)
 	@echo 'Linking runtime library $@ (bytecode)'
-	$(OCAMLC) $(OCAMLCFLAGS) -I src -a $(filter %.cmo, $^) -o $@
+	$(OCAMLC) $(OCAMLCFLAGS) -linkall -I src -a $(filter %.cmo, $^) -o $@
 
 src/dessser.a: src/dessser.cmxa
 
@@ -250,18 +253,19 @@ all_tests.opt: \
 unit-check: all_tests.opt
 	@echo 'Running unit tests...'
 	@ulimit -n 5000 ;\
-	 TZ=CET OCAMLRUNPARAM=b ./all_tests.opt -bt
+	 TZ=CET OCAMLRUNPARAM=b DESSSER_DEV_MODE=1 ./all_tests.opt -bt
 
 examples-check: examples/simplest.opt examples/manual_codegen.opt
 	@echo Testing examples
-	@ulimit -n 5000
-	@examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK"
-	@examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK"
-	@examples/manual_codegen.opt ocaml && \
+	@ulimit -n 5000 ;\
+	 export DESSSER_DEV_MODE=1 ;\
+	 examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK" && \
+	 examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK" && \
+	 examples/manual_codegen.opt ocaml && \
 	 examples/rowbinary2sexpr.opt < udp_v30.chb > examples/rowbinary2sexpr.opt.out && \
 	 diff examples/rowbinary2sexpr.opt.out examples/rowbinary2sexpr.expected && \
-	 echo "manual_codegen ocaml OK"
-	@examples/manual_codegen.opt c++ && \
+	 echo "manual_codegen ocaml OK" && \
+	 examples/manual_codegen.opt c++ && \
 	 examples/rowbinary2sexpr.exe < udp_v30.chb > examples/rowbinary2sexpr.exe.out && \
 	 diff examples/rowbinary2sexpr.exe.out examples/rowbinary2sexpr.expected && \
 	 echo "manual_codegen c++ OK"
@@ -272,7 +276,7 @@ src/cpp_tests: src/cpp_tests.cc src/dessser/runtime.h
 
 cpp-check: src/cpp_tests
 	@echo Testing cpp_tests
-	@src/cpp_tests
+	@DESSSER_DEV_MODE=1 src/cpp_tests
 
 testdb-dump: src/dessserc
 	@echo Generating $@
@@ -291,6 +295,7 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 	@ENVNAME=/tmp/testdb ;\
 	 rm -rf $$ENVNAME ;\
 	 mkdir -p $$ENVNAME ;\
+	 export DESSSER_DEV_MODE=1 ;\
 	 ./testdb-load --kv-delim : $$ENVNAME < testdb.dump ;\
 	 ./testdb-dump --kv-delim : $$ENVNAME | sort > /tmp/testdb.dump ;\
 	 diff /tmp/testdb.dump testdb.dump
@@ -298,7 +303,8 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 # Check we can build a simple program that transform its input, in any backend
 convert-check: src/dessserc
 	@echo Testing converter
-	@schema='(i32;float;string)'; \
+	@export DESSSER_DEV_MODE=1 ;\
+	 schema='(i32;float;string)'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
 	   f="$$(mktemp --tmpdir dessser_convert_check_XXXXXX)" &&\
@@ -324,7 +330,8 @@ examples/i32s.csv: Makefile
 
 aggregator-simplest-check: src/dessserc examples/i32s.csv
 	@echo Testing aggregator
-	@schema='i32'; \
+	@export DESSSER_DEV_MODE=1 ;\
+	 schema='i32'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
 	   f="$$(mktemp --tmpdir dessser_aggregator_check_XXXXXX)" &&\
@@ -347,7 +354,8 @@ aggregator-simplest-check: src/dessserc examples/i32s.csv
 
 aggregator-sets-check: src/dessserc examples/i32s.csv
 	@echo Testing aggregator with sets
-	@schema='i32'; \
+	@export DESSSER_DEV_MODE=1 ;\
+	 schema='i32'; \
 	 ok=yes; \
 	 for be in OCaml C++; do \
 	   f="$$(mktemp --tmpdir dessser_aggregator_check_XXXXXX)" &&\

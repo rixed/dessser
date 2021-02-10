@@ -547,7 +547,7 @@ let expression =
       Filename.temp_file "dessserQCheck_" ext in
     let obj_fname = Filename.remove_extension src_fname in
     write_source ~src_fname (fun oc -> BE.print_definitions oc compunit) ;
-    try compile ~optim:0 ~link:false be src_fname obj_fname ;
+    try compile ~optim:0 ~link:Object be src_fname obj_fname ;
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;
         true

@@ -16,13 +16,31 @@ let has_timeout () =
       s.st_kind = S_REG &&
       s.st_perm land 1 = 1
 
+let dev_mode =
+  try ignore (Sys.getenv "DESSSER_DEV_MODE") ; true
+  with Not_found -> false
+
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
-let compile ?(optim=0) ~link backend src_fname dest_fname =
+let compile ?(optim=0) ?extra_search_paths ~link backend src_fname dest_fname =
   let module BE = (val backend : BACKEND) in
-  let cmd = BE.compile_cmd ~optim ~link src_fname dest_fname in
+  let cmd = BE.compile_cmd ~dev_mode ?extra_search_paths ~optim ~link src_fname dest_fname in
   run_cmd cmd
+
+(* Compile and dynload the given compunit.
+ * The compunit should do something on its own to register something
+ * to the main program, as usual with Dynlink. *)
+let compile_and_load ?optim ?extra_search_paths backend compunit =
+  let module BE = (val backend : BACKEND) in
+  let src_fname =
+    Filename.temp_file "dessser_" ("."^ BE.preferred_def_extension) in
+  write_source ~src_fname (fun oc -> BE.print_definitions oc compunit) ;
+  let dest_fname =
+    change_extension src_fname (BE.preferred_comp_extension SharedObject) in
+  compile ?optim ?extra_search_paths ~link:SharedObject backend src_fname dest_fname ;
+  (* Dynload dest_fname *)
+  Dynlink.loadfile dest_fname
 
 (* [convert] is a filter, aka a function from a pair of src*dst data-ptrs to
  * another such pair, as returned by DesSer.desser function. From that a
@@ -45,13 +63,13 @@ let make_converter ?exe_fname ?mn backend convert =
         T.print_maybe_nullable mn
     ) mn ;
     BE.print_comment oc "Compile with:\n  %s\n"
-      (BE.compile_cmd ~optim:0 ~link:true src_fname exe_fname) ;
+      (BE.compile_cmd ~dev_mode ~optim:0 ~link:Object src_fname exe_fname) ;
     BE.print_definitions oc compunit ;
     if BE.preferred_def_extension = "cc" then
       String.print oc (FragmentsCPP.converter entry_point)
     else
       String.print oc (FragmentsOCaml.converter entry_point)) ;
-  compile ~optim:3 ~link:true backend src_fname exe_fname ;
+  compile ~optim:3 ~link:Executable backend src_fname exe_fname ;
   exe_fname
 
 (* Write an input to some single-shot converter program and return its

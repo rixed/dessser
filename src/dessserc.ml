@@ -131,7 +131,7 @@ let converter
     BE.print_definitions oc compunit ;
     String.print oc (convert_main_for BE.preferred_def_extension)
   ) ;
-  compile ~optim:3 ~link:true backend def_fname dest_fname ;
+  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
@@ -170,7 +170,7 @@ let lmdb main
     main BE.preferred_def_extension convert_key_name convert_val_name |>
     String.print oc
   ) ;
-  compile ~optim:3 ~link:true backend def_fname dest_fname ;
+  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 let lmdb_dump =
@@ -273,7 +273,7 @@ let aggregator
     BE.print_definitions oc compunit ;
     String.print oc (main_for BE.preferred_def_extension)
   ) ;
-  compile ~optim:3 ~link:true backend def_fname dest_fname ;
+  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 (*
