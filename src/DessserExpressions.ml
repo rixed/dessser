@@ -1925,11 +1925,13 @@ let rec type_check l e =
     let check_params1 l e f =
       match type_of l e |> T.develop_user_types with
       | Function ([|t1|], t2) -> f t1 t2
-      | t -> bad_arity 1 e t in
+      | Function _ as t -> bad_arity 1 e t
+      | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params2 l e f =
       match type_of l e |> T.develop_user_types with
       | Function ([|t1; t2|], t3) -> f t1 t2 t3
-      | t -> bad_arity 2 e t in
+      | Function _ as t -> bad_arity 2 e t
+      | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_slist_of_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
       | SList (Value _) -> ()
