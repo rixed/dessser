@@ -6,10 +6,12 @@ module E = DessserExpressions
 open E.Ops
 
 type sexpr_config =
-  { list_prefix_length : bool }
+  { list_prefix_length : bool ;
+    newline : char }
 
 let default_config =
-  { list_prefix_length = true }
+  { list_prefix_length = true ;
+    newline = '\n' }
 
 module Ser : SER with type config = sexpr_config =
 struct
@@ -21,7 +23,8 @@ struct
 
   let start ?(config=default_config) _v p = config, p
 
-  let stop _conf p = p
+  let stop conf p =
+    write_byte p (byte_of_const_char conf.newline)
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
