@@ -1953,7 +1953,7 @@ let rec type_check l e =
             let act = type_of l ps.(i) in
             if not (T.eq act ts.(i)) then
               let expected = IO.to_string T.print ts.(i) in
-              raise (Type_error (e0, e, act, "be a "^ expected))
+              raise (Type_error (e0, ps.(i), act, "be a "^ expected))
           done
       | _ -> raise (Apply_error (e0, "argument must be a function")) in
     let rec check_ip ?(rec_=false) l t =
