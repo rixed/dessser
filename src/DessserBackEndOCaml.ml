@@ -597,7 +597,8 @@ struct
     | E.E1 (CharOfPtr, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->
-          pp oc "Char.chr (Pointer.peekByte %s 0), Pointer.skip %s 1" n n)
+          pp oc "Char.chr (Uint8.to_int (Pointer.peekByte %s 0)),\
+                          Pointer.skip %s 1" n n)
     | E.E1 (FloatOfPtr, e1) ->
         let n1 = print emit p l e1 in
         (* Note: Scanf uses two distinct format specifiers for "normal"
