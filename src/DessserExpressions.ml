@@ -2890,7 +2890,12 @@ struct
           match typ with
           | Some t -> (identifier n, t) :: l
           | None -> l in
-        E2 (Let n, e, f l (identifier n))
+        (match f l (identifier n) with
+        | E0 (Identifier n') when n' = n ->
+            (* In that case the identifier is useless: *)
+            e
+        | body ->
+            E2 (Let n, e, body))
   let ext_identifier n = E0 (ExtIdentifier n)
   (* TODO: Those could also be executed at compile time with some benefit *)
   let to_i8 e1 = E1 (ToI8, e1)
