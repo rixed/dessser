@@ -339,6 +339,7 @@ let rec e0_gen l depth =
     1, map E.Ops.empty_set (maybe_nullable_gen_of_depth depth) ;
     1, return E.Ops.now ;
     1, return E.Ops.random_float ;
+    1, return E.Ops.random_u8 ;
     1, return E.Ops.random_u32 ;
     1, return E.Ops.random_u64 ;
     1, return E.Ops.random_u128 ;

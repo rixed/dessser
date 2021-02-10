@@ -950,6 +950,8 @@ struct
         emit ?name p l e (fun oc -> pp oc "Unix.gettimeofday ()")
     | E.E0 RandomFloat ->
         emit ?name p l e (fun oc -> pp oc "Random.float 1.")
+    | E.E0 RandomU8 ->
+        emit ?name p l e (fun oc -> pp oc "Uint8.(of_int (Random.bits ()))")
     | E.E0 RandomU32 ->
         emit ?name p l e (fun oc ->
           pp oc "Uint32.(logor" ;

@@ -44,6 +44,7 @@ type e0 =
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
   | Now
   | RandomFloat
+  | RandomU8
   | RandomU32
   | RandomU64
   | RandomU128
@@ -415,7 +416,7 @@ and eq e1 e2 =
  * Here, p is a list of parameters (function id) that can be precomputed
  * and i a set of identifiers (names) that can. *)
 let rec can_precompute l i = function
-  | E0 (Now | RandomFloat | RandomU32 | RandomU64 | RandomU128) ->
+  | E0 (Now | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128) ->
       false
   | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -799,6 +800,7 @@ let rec string_of_e0 = function
   | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
   | Now -> "now"
   | RandomFloat -> "random-float"
+  | RandomU8 -> "random-u8"
   | RandomU32 -> "random-u32"
   | RandomU64 -> "random-u64"
   | RandomU128 -> "random-u128"
@@ -1054,6 +1056,7 @@ struct
         E0 (EmptySet (T.maybe_nullable_of_string mn))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "random-float" ] -> E0 RandomFloat
+    | Lst [ Sym "random-u8" ] -> E0 RandomU8
     | Lst [ Sym "random-u32" ] -> E0 RandomU32
     | Lst [ Sym "random-u64" ] -> E0 RandomU64
     | Lst [ Sym "random-u128" ] -> E0 RandomU128
@@ -1519,6 +1522,7 @@ let rec type_of l e0 =
   | E0 (EmptySet mn) -> Value (T.make (T.Set mn))
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
+  | E0 RandomU8 -> T.u8
   | E0 RandomU32 -> T.u32
   | E0 RandomU64 -> T.u64
   | E0 RandomU128 -> T.u128
@@ -1969,7 +1973,7 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | EmptySet _ | Now
-         | RandomFloat | RandomU32 | RandomU64 | RandomU128
+         | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128
          | Unit | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
@@ -2734,6 +2738,7 @@ struct
   let empty_set mn = E0 (EmptySet mn)
   let now = E0 Now
   let random_float = E0 RandomFloat
+  let random_u8 = E0 RandomU8
   let random_u32 = E0 RandomU32
   let random_u64 = E0 RandomU64
   let random_u128 = E0 RandomU128
