@@ -2868,9 +2868,17 @@ struct
   (* [let_] can forward the environment [l] and even complete it with the
    * type [typ] of [e]: *)
   let let_ ?(l=[]) ?name ?typ e f =
-    (* If [e] is already an identifier there is no need for a new one: *)
     match e with
-    | E0 (Identifier _) ->
+    (* If [e] is already an identifier (or a param) there is no need for a
+     * new one: *)
+    | E0 (Param _ | Identifier _)
+    (* Also, if it's a constant then the optimizer will work better if it's
+     * not hidden behind an identifier: *)
+    | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | Bool _ | Char _
+         | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
+         | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
+         | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+         | CopyField | SkipField | SetFieldNull)  ->
         f l e
     | _ ->
         let n = match name with Some n -> n | None -> gen_id () in
