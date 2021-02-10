@@ -851,15 +851,17 @@ and print ?max_depth oc e =
     | E0 op ->
         pp oc "(%s)" (string_of_e0 op)
     | E0S (op, es) ->
-        pp oc "(%s %a)"
+        pp oc "(%s%s%a)"
           (string_of_e0s op)
+          (if es = [] then "" else " ")
           (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E1 (op, e1) ->
         pp oc "(%s %a)" (string_of_e1 op) p e1
     | E1S (op, e1, es) ->
-        pp oc "(%s %a %a)"
+        pp oc "(%s %a%s%a)"
           (string_of_e1s op)
           p e1
+          (if es = [] then "" else " ")
           (List.print ~first:"" ~last:"" ~sep:" " p) es
     | E2 (op, e1, e2) ->
         pp oc "(%s %a %a)" (string_of_e2 op) p e1 p e2
