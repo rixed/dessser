@@ -1462,7 +1462,7 @@ let rec type_of l e0 =
   | E1S (Apply, f, _) ->
       (match type_of l f with
       | Function (_, t) -> t
-      | _ -> raise (Apply_error (e0, "argument must be a function")))
+      | t -> raise (Type_error (e0, f, t, "be a function")))
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Value { vtyp = Tup mns ; nullable = false } ->
@@ -1955,7 +1955,8 @@ let rec type_check l e =
               let expected = IO.to_string T.print ts.(i) in
               raise (Type_error (e0, ps.(i), act, "be a "^ expected))
           done
-      | _ -> raise (Apply_error (e0, "argument must be a function")) in
+      | t ->
+          raise (Type_error (e0, f, t, "be a function")) in
     let rec check_ip ?(rec_=false) l t =
       (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
        * but do not allow recursion in the sum type because code generator
