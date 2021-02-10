@@ -595,6 +595,7 @@ let expression =
   compile_check \
     "(map (make-lst \"u8\" (u8 1) (u8 2) (u8 3)) \
           (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
+  compile_check "(string-of-ip (random-u128))"
 *)
 
 (*

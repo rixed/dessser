@@ -450,11 +450,11 @@ struct
               (* Make sure we can take the address of that thing: *)
               ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
               ppi p.P.def
-                "std::inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
+                "inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
           | T.{ vtyp = Mac U128 ; _ } ->
               ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
               ppi p.P.def
-                "std::inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;
+                "inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;
           | _ ->
               assert false (* because of type checking *)
         in
@@ -1126,6 +1126,7 @@ struct
 
   let source_intro =
     "#include <algorithm>\n\
+     #include <arpa/inet.h>\n\
      #include <charconv>\n\
      #include <chrono>\n\
      #include <cmath>\n\
