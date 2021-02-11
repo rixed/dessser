@@ -243,7 +243,8 @@ sig
                   (*dst*) E.t ->
                   (*dst*) E.t
 
-  val sersize : T.maybe_nullable ->
+  val sersize : ?config:Ser.config ->
+                T.maybe_nullable ->
                 E.t (*ma*) ->
                 E.t (*v*) ->
                 (*size*size*) E.t
@@ -575,9 +576,9 @@ struct
             else
               ssz_of_vt vt mn0 path v sizes))
 
-  let sersize mn ma v =
+  let sersize ?config mn ma v =
     let sizes = pair (size 0) (size 0) in
-    let sizes = add_size sizes (Ser.ssize_start mn) in
+    let sizes = add_size sizes (Ser.ssize_start ?config mn) in
     let_ ~name:"ma" ma (fun _l ma ->
       let_ ~name:"v" v (fun _l v ->
         sersz1 mn mn [] v ma sizes))

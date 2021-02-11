@@ -19,7 +19,7 @@ let converter ?(out_buf_size=50_000) entry_point =
 int main(int numArgs, char **args)
 {
   char const *fname = "/dev/stdin";
-  char delim = '\n';  // added after each output
+  char delim = '\000';  // added after each output
   char const *single_input = nullptr;
 
   for (int a = 1; a < numArgs; a++) {

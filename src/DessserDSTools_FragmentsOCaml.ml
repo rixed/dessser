@@ -16,7 +16,7 @@ open Batteries
 
 let main () =
   let fname = ref "/dev/stdin"
-  and delim = ref '\n'
+  and delim = ref '\000'
   and single_input = ref "" in
 
   let syntax () =
@@ -66,7 +66,6 @@ let main () =
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
       if !delim <> '\000' then Char.print stdout !delim ;
-      Char.print stdout !delim ;
       flush stdout ;
       if !single_input <> "" && Pointer.remSize src > 0 then
         Printf.sprintf "%%d bytes left of input" (Pointer.remSize src) |>

@@ -60,6 +60,7 @@ let () =
       exit 1
     ) in
   let module BE = (val backend : BACKEND) in
+  let sexpr_config = { DessserSExpr.default_config with newline = Some '\n' } in
   let convert_only = false in
   let convert =
     if convert_only then (
@@ -67,7 +68,7 @@ let () =
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
       E.func2 DataPtr DataPtr (fun _l src dst ->
         comment "Convert from RowBinary into S-Expression:"
-          (DS.desser typ src dst))
+          (DS.desser ~ser_config:sexpr_config typ src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
@@ -95,7 +96,8 @@ let () =
                   dump dyn_sz ;
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
-                    let dst' = OfValue2.serialize typ ma v dst in
+                    let dst' =
+                      OfValue2.serialize ~config:sexpr_config typ ma v dst in
                     pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
