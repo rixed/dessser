@@ -341,15 +341,13 @@ struct
 
   let skip n p = data_ptr_add p (size n)
 
-  let skip1 = skip 1
-
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
     if debug then
       seq [ assert_ (eq (peek_byte p (size 0)) b) ;
-            skip1 p ]
+            skip 1 p ]
     else
-      skip1 p
+      skip 1 p
 
   let skip_char c p =
     skip_byte (byte_of_const_char c) p

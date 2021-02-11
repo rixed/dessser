@@ -2846,6 +2846,7 @@ struct
   let abs e1 = E1 (Abs, e1)
   let ne e1 e2 = not_ (eq e1 e2)
   let param fid n = E0 (Param (fid, n))
+  (* TODO: optimize constants *)
   let add e1 e2 = E2 (Add, e1, e2)
   let sub e1 e2 = E2 (Sub, e1, e2)
   let mul e1 e2 = E2 (Mul, e1, e2)
@@ -3070,6 +3071,7 @@ struct
   let u8_of_int n = u8 (Uint8.of_int n)
   let u16_of_int n = u16 (Uint16.of_int n)
   let u32_of_int n = u32 (Uint32.of_int n)
+  let i32_of_int n = i32 (Int32.of_int n)
   let nop = seq []
   let assert_ = function
     | E0 (Bool true) -> nop

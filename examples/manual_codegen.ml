@@ -101,4 +101,4 @@ let () =
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in
   let exe_fname = make_converter ~exe_fname backend convert in
-  Printf.printf "executable in %s" exe_fname
+  Printf.printf "executable in %s\n" exe_fname

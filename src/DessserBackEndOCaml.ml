@@ -404,7 +404,7 @@ struct
         print ?name emit p l e1
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
-        pp p.P.def "%signore %s;\n" p.P.indent n ;
+        ppi p.P.def "ignore %s ;" n ;
         "()"
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
@@ -417,7 +417,7 @@ struct
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
           p.P.indent n ;
-        pp p.P.def "%sflush stdout ;" p.P.indent ;
+        ppi p.P.def "flush stdout ;" ;
         "()"
     | E.E1 (Debug, e1) ->
         print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
