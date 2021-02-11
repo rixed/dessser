@@ -193,7 +193,9 @@ struct
       let_ ~name:"wlen" (string_length v) (fun _l wlen ->
         add (ssize_of_leb128 wlen) wlen))
 
-  let ssize_start _ = ConstSize 0
+  let ssize_start ?(config=()) _ =
+    ignore config ;
+    ConstSize 0
 end
 
 module Des : DES with type config = unit =

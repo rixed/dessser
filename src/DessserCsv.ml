@@ -14,7 +14,8 @@ let debug = false
 
 type csv_config =
   { separator : char ;
-    newline : char ;
+    (* Optional char to add (or skip) at the end of values: *)
+    newline : char option ;
     null : string ;
     (* If None, strings are never quoted. Otherwise, look for quotes. *)
     quote : char option ;
@@ -26,7 +27,7 @@ type csv_config =
 
 let default_config =
   { separator = ',' ;
-    newline = '\n' ;
+    newline = Some '\n' ;
     null = "\\N" ;  (* À la Postgresql *)
     quote = Some '"' ;
     true_ = "T" ;
@@ -173,7 +174,11 @@ struct
   let start ?(config=default_config) _v p = config, p
 
   let stop conf p =
-    write_byte p (byte_of_const_char conf.newline)
+    match conf.newline with
+    | None ->
+        p
+    | Some c ->
+        write_byte p (byte_of_const_char c)
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
@@ -323,7 +328,9 @@ struct
   let ssize_of_vec _ _ _ = todo_ssize ()
   let ssize_of_list _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
-  let ssize_start _ = todo_ssize ()
+  let ssize_start ?(config=default_config) _ =
+    ignore config ;
+    todo_ssize ()
 end
 
 module Des : DES with type config = csv_config =
@@ -356,16 +363,17 @@ struct
   let skip_sep conf p =
     skip_char conf.separator p
 
-  let skip_nl conf p =
-    skip_char conf.newline p
-
   (* Skip the final newline if present: *)
   let stop conf p =
     let ret =
-      if_
-        ~cond:(gt (rem_size p) (size 0))
-        ~then_:(skip_nl conf p)
-        ~else_:p in
+      match conf.newline with
+      | None ->
+          p
+      | Some c ->
+          if_
+            ~cond:(gt (rem_size p) (size 0))
+            ~then_:(skip_char c p)
+            ~else_:p in
     if debug then
       seq [ dump (string "rec stop at offset ") ;
             dump (data_ptr_offset p) ;
@@ -389,12 +397,19 @@ struct
       ~then_:(pair true_ (skip (String.length conf.true_) p))
       ~else_:(pair false_ (skip (String.length conf.false_) p))
 
+  let is_sep_or_newline conf b =
+    let sep_byte = byte_of_const_char conf.separator in
+    match conf.newline with
+    | None ->
+        eq b sep_byte
+    | Some c ->
+        or_ (eq b sep_byte)
+            (eq b (byte_of_const_char c))
+
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes_quoted conf op p =
     (* Skip the double-quote: *)
-    let quote_byte = byte_of_const_char (Option.get conf.quote)
-    and sep_byte = byte_of_const_char conf.separator
-    and nl_byte = byte_of_const_char conf.newline in
+    let quote_byte = byte_of_const_char (Option.get conf.quote) in
     let_ ~name:"had_quote"
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
@@ -410,8 +425,7 @@ struct
             not_ (
               if_ ~cond:had_quote
                   ~then_:(eq b quote_byte)
-                  ~else_:(or_ (eq b sep_byte)
-                              (eq b nl_byte))))
+                  ~else_:(is_sep_or_newline conf b)))
         and init = size 0
         and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
@@ -425,13 +439,10 @@ struct
           pair (op (first bytes_p)) p'))
 
   let dbytes conf op p =
-    let sep_byte = byte_of_const_char conf.separator
-    and nl_byte = byte_of_const_char conf.newline in
     (* Read up to next separator/newline *)
     let cond =
       E.func1 T.byte (fun _l b ->
-        not_ ((or_ (eq b sep_byte)
-                   (eq b nl_byte))))
+        not_ (is_sep_or_newline conf b))
     and init = size 0
     and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
     let sz_p = read_while ~cond ~reduce ~init ~pos:p in
@@ -530,11 +541,10 @@ struct
     let len = String.length conf.null in
     let rec loop i =
       if i >= len then
-        (comment (Printf.sprintf "Test end of string %S" conf.null)
+        comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
                (let_ ~name:"b" (peek_byte p (size len)) (fun _l b ->
-                 or_ (eq b (byte_of_const_char conf.separator))
-                     (eq b (byte_of_const_char conf.newline))))))
+                 is_sep_or_newline conf b)))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)

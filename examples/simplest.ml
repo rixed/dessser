@@ -157,7 +157,9 @@ struct
   let ssize_of_vec _ _ _ = ConstSize 0
   let ssize_of_list _ _ _ = ConstSize 0
   let ssize_of_null _ _ = ConstSize 1
-  let ssize_start _ = ConstSize 0
+  let ssize_start ?(config=()) _ =
+    ignore config ;
+    ConstSize 0
 end
 
 (* The simplest possible converter: *)

@@ -9,11 +9,12 @@ let debug = false
 
 type sexpr_config =
   { list_prefix_length : bool ;
-    newline : char }
+    (* Optional char added (or skipped) at end of values: *)
+    newline : char option }
 
 let default_config =
   { list_prefix_length = true ;
-    newline = '\n' }
+    newline = None }
 
 module Ser : SER with type config = sexpr_config =
 struct
@@ -26,7 +27,11 @@ struct
   let start ?(config=default_config) _v p = config, p
 
   let stop conf p =
-    write_byte p (byte_of_const_char conf.newline)
+    match conf.newline with
+    | None ->
+        p
+    | Some c ->
+        write_byte p (byte_of_const_char c)
 
   type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
 
@@ -133,7 +138,8 @@ struct
   (* Overestimate some of them: *)
   type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
 
-  let ssize_start _ = ConstSize 1 (* For the newline *)
+  let ssize_start ?(config=default_config) _ =
+    ConstSize (if config.newline = None then 0 else 1)
 
   let ssize_of_float _ _ _ = ConstSize 22
 
@@ -239,10 +245,14 @@ struct
     skip_byte (byte_of_const_char c) p
 
   let stop conf p =
-    if_
-      ~cond:(gt (rem_size p) (size 0))
-      ~then_:(skip_char conf.newline p)
-      ~else_:p
+    match conf.newline with
+    | None ->
+        p
+    | Some c ->
+        if_
+          ~cond:(gt (rem_size p) (size 0))
+          ~then_:(skip_char c p)
+          ~else_:p
 
   type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
 

@@ -199,7 +199,7 @@ sig
   val ssize_of_null : T.maybe_nullable -> T.path -> ssize
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
-  val ssize_start : T.maybe_nullable -> ssize
+  val ssize_start : ?config:config -> T.maybe_nullable -> ssize
 end
 
 (* Now we can combine a DES and a SER to create a converter from one format
