@@ -943,7 +943,6 @@ struct
    * If not then only dessser own format will be tried (faster, esp when
    * parsing DIL s-expressions) *)
   let of_string ?(any_format=false) ?what =
-    let print = print in
     let p =
       if any_format then typ ||| clickhouse_names_and_types
       else typ in
