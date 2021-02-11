@@ -65,6 +65,7 @@ let main () =
       let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
       String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+      if !delim <> '\000' then Char.print stdout !delim ;
       Char.print stdout !delim ;
       flush stdout ;
       if !single_input <> "" && Pointer.remSize src > 0 then
