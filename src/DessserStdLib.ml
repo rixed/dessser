@@ -36,7 +36,7 @@ let rec random mn =
   if mn.T.nullable then
     if_ ~cond:(std_random T.(required (Mac Bool)))
         ~then_:(null mn.vtyp)
-        ~else_:(std_random { mn with nullable = false })
+        ~else_:(not_null (std_random { mn with nullable = false }))
   else match mn.vtyp with
   | T.Unknown ->
       invalid_arg "random for unknown type"
@@ -45,19 +45,20 @@ let rec random mn =
   | Mac Float ->
       random_float
   | Mac Bool ->
-      eq (u32_of_int 0) (and_ random_u32 (u32_of_int 128))
+      eq (u32_of_int 0) (log_and random_u32 (u32_of_int 128))
   | Mac String ->
       (* Just 5 random letters for now: *)
       repeat
-        ~from:(u8_of_int 0) ~to_:(u8_of_int 5)
-        ~init:(string "") ~body:(E.func2 T.u8 T.string (fun _l _i s ->
+        ~from:(i32 0l) ~to_:(i32 5l)
+        ~init:(string "") ~body:(E.func2 T.i32 T.string (fun _l _i s ->
           let c = std_random T.(required (Mac Char)) in
           append_string s (string_of_char_ c)))
   | Mac Char ->
       (* Just a random lowercase letter for now *)
-      add (char 'a')
-          (char_of_u8 (rem (std_random T.(required (Mac U8)))
-                           (u8_of_int 26)))
+      (char_of_u8
+        (add (u8_of_char (char 'a'))
+             (force (rem (std_random T.(required (Mac U8)))
+                         (u8_of_int 26)))))
   | Mac U8 ->
       random_u8
   | Mac U16 ->
