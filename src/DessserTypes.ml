@@ -928,14 +928,13 @@ struct
       ) m
     in
     (
-      char '(' -- opt_blanks -+
       optional ~def:() (
         string "columns format version: " -- number -- !blanks) --
       optional ~def:() (
         number -- !blanks -- string "columns:" -- !blanks) -+
       several ~sep:!blanks (
-        backquoted_string_with_sql_style +- !blanks ++ ptype) +-
-      opt_blanks +- char ')' >>: fun mns ->
+        backquoted_string_with_sql_style +- !blanks ++ ptype)
+      >>: fun mns ->
         let mns = Array.of_list mns in
         Value { nullable = false ; vtyp = Rec mns }
     ) m
