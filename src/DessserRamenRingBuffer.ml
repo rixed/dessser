@@ -591,6 +591,8 @@ struct
       if typ.nullable then (8 + dim) else 0))
 
   let ssize_of_null _mn _path = ConstSize 0
+
+  let ssize_start _ = ConstSize 0
 end
 
 module Des : DES with type config = unit =

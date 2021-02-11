@@ -323,6 +323,7 @@ struct
   let ssize_of_vec _ _ _ = todo_ssize ()
   let ssize_of_list _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
+  let ssize_start _ = todo_ssize ()
 end
 
 module Des : DES with type config = csv_config =
