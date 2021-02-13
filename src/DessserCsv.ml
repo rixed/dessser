@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
+
 open Dessser
+open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
@@ -21,6 +23,7 @@ type csv_config =
     quote : char option ;
     true_ : string ;
     false_ : string ;
+    vectors_of_chars_as_string : bool ;
     (* Are values (esp. of compound types) encoded as described in
      * https://clickhouse.tech/docs/en/interfaces/formats ? *)
     clickhouse_syntax : bool }
@@ -32,6 +35,7 @@ let default_config =
     quote = Some '"' ;
     true_ = "T" ;
     false_ = "F" ;
+    vectors_of_chars_as_string = true ;
     clickhouse_syntax = false }
 
 (* Given how tuples/arrays/lists are flattened then any nullable compound type
@@ -147,6 +151,25 @@ let make_serializable =
   else
     make_serializable
 
+(* As a special case, we want vectors of chars to be encoded as a string
+ * (because ClickHouse FixedString are rightfully vectors of chars, but
+ * then clickhouse expects to receive them in CSV as strings, so we do
+ * the same) *)
+let is_fixed_string mn0 path =
+  match T.type_of_path mn0 path with
+  | { vtyp = Vec (_, { vtyp = Mac Char ; nullable = false } ) ; _ } ->
+      true
+  | _ ->
+      false
+
+let is_in_fixed_string mn0 path =
+  if path = [] then
+    (* outermost value, so not within a vector *)
+    false
+  else
+    let parent_path, _ = list_split_last path in
+    is_fixed_string mn0 parent_path
+
 (*$inject
   let make_serializable_str =
     T.string_of_maybe_nullable %
@@ -201,9 +224,16 @@ struct
     (if conf.quote = None then sbytes else sbytes_quoted)
       conf (bytes_of_string v) p
 
-  let schar conf _ _ v p =
-    (if conf.quote = None then sbytes else sbytes_quoted)
-      conf (bytes_of_string (string_of_char v)) p
+  (* Individual chars are represented as single char strings, but for
+   * the special case of vectors of chars, in which case we want the
+   * whole vector to be a string (see discussion about FixedStrings) *)
+  let schar conf mn0 path v p =
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
+      comment "char in a FixedString"
+        (write_byte p (byte_of_char v))
+    else
+      (if conf.quote = None then sbytes else sbytes_quoted)
+        conf (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
   let sbool conf _ _ v p =
@@ -254,20 +284,31 @@ struct
 
   let sum_cls _conf _ _ p = p
 
-  let vec_opn conf _mn0 _path _dim _t p =
-    if not conf.clickhouse_syntax then p else
-    (* FIXME: we are supposed to switch to clickhouse's TSV from now on. *)
-    (* Use mn0 and path to find out if opening that string is required *)
-    let p = write_byte p (byte_of_const_char '"') in
-    write_byte p (byte_of_const_char '[')
+  let vec_opn conf mn0 path _dim _t p =
+    if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
+      match conf.quote with
+      | None -> p
+      | Some q -> write_byte p (byte_of_const_char q)
+    else if not conf.clickhouse_syntax then p
+    else
+      (* FIXME: we are supposed to switch to clickhouse's TSV from now on. *)
+      (* Use mn0 and path to find out if opening that string is required *)
+      let p = write_byte p (byte_of_const_char '"') in
+      write_byte p (byte_of_const_char '[')
 
-  let vec_cls conf _mn0 _path p =
-    if not conf.clickhouse_syntax then p else
-    (* Use mn0 and path to find out if opening that string is required *)
-    let p = write_byte p (byte_of_const_char ']') in
-    write_byte p (byte_of_const_char '"')
+  let vec_cls conf mn0 path p =
+    if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
+      match conf.quote with
+      | None -> p
+      | Some q -> write_byte p (byte_of_const_char q)
+    else if not conf.clickhouse_syntax then p
+    else
+      (* Use mn0 and path to find out if opening that string is required *)
+      let p = write_byte p (byte_of_const_char ']') in
+      write_byte p (byte_of_const_char '"')
 
-  let vec_sep conf _mn0 _path p =
+  let vec_sep conf mn0 path p =
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then sep conf p else
     write_byte p (byte_of_const_char '\t')
 
@@ -454,10 +495,14 @@ struct
     (if conf.quote = None then dbytes else dbytes_quoted)
       conf string_of_bytes p
 
-  (* Chars are encoded as single char strings *)
-  let dchar conf _ _ p =
-    (if conf.quote = None then dbytes else dbytes_quoted)
-      conf (char_of_string % string_of_bytes) p
+  (* Chars are encoded as single char strings (unless part of a FixedString) *)
+  let dchar conf mn0 path p =
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
+      E.with_sploded_pair "dchar" (read_byte p) (fun b p ->
+        pair (char_of_byte b) p)
+    else
+      (if conf.quote = None then dbytes else dbytes_quoted)
+        conf (char_of_string % string_of_bytes) p
 
   let di8 _conf _ _ p = i8_of_ptr p
   let du8 _conf _ _ p = u8_of_ptr p
@@ -499,21 +544,32 @@ struct
 
   let sum_cls _conf _ _ p = p
 
-  let vec_opn conf _mn0 _path _dim _t p =
-    if not conf.clickhouse_syntax then p else
-    (* FIXME: we may switch back from clickhouse's TSV from now on. *)
-    (* Use mn0 and path to find out if opening that string is required *)
-    let p = skip_char '"' p in
-    skip_char '[' p
+  let vec_opn conf mn0 path _dim _t p =
+    if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
+      match conf.quote with
+      | None -> p
+      | Some _ -> skip 1 p
+    else if not conf.clickhouse_syntax then p
+    else
+      (* FIXME: we may switch back from clickhouse's TSV from now on. *)
+      (* Use mn0 and path to find out if opening that string is required *)
+      let p = skip_char '"' p in
+      skip_char '[' p
 
-  let vec_cls conf _mn0 _path p =
-    if not conf.clickhouse_syntax then p else
-    (* FIXME: we may switch back from clickhouse's TSV from now on. *)
-    (* Use mn0 and path to find out if opening that string is required *)
-    let p = skip_char ']' p in
-    skip_char '"' p
+  let vec_cls conf mn0 path p =
+    if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
+      match conf.quote with
+      | None -> p
+      | Some _ -> skip 1 p
+    else if not conf.clickhouse_syntax then p
+    else
+      (* FIXME: we may switch back from clickhouse's TSV from now on. *)
+      (* Use mn0 and path to find out if opening that string is required *)
+      let p = skip_char ']' p in
+      skip_char '"' p
 
-  let vec_sep conf _ _ p =
+  let vec_sep conf mn0 path p =
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then skip_sep conf p else
     skip_char '\t' p
 

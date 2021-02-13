@@ -971,6 +971,17 @@ let sexpr mn =
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 
+  let check_ser_csv ?config be ts vs =
+    let mn = T.maybe_nullable_of_string ts in
+    let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
+    let exe =
+      let e =
+        func2 T.dataptr T.dataptr (fun _l src dst ->
+          DS.desser ?ser_config:config mn src dst) in
+      if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
+      make_converter be ~mn e in
+    String.trim (run_converter ~timeout:2 exe vs)
+
   let csv_config_0 =
     DessserCsv.{ default_config with
       separator = '|' ;
@@ -985,6 +996,9 @@ let sexpr mn =
       true_ = "true" ;
       false_ = "false" ;
       clickhouse_syntax = false }
+
+  let csv_config_2 =
+    DessserCsv.{ default_config with quote = None }
 
   let csv_config_CH =
     DessserCsv.{ default_config with
@@ -1014,6 +1028,23 @@ let sexpr mn =
   "((1 2 3) F null)" \
     (check_des_csv ~config:csv_config_CH ocaml_be \
                    "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1\t2\t3]\",0,\\N\n")
+*)
+(* Test FixedStrings: *)
+(*$= check_des_csv & ~printer:BatPervasives.identity
+  "(\"a\" \"b\" \"c\")" \
+    (check_des_csv ~config:csv_config_1 ocaml_be \
+                   "char[3]" "\"abc\"\n")
+  "(\"a\" \"b\" \"c\")" \
+    (check_des_csv ~config:csv_config_2 ocaml_be \
+                   "char[3]" "abc\n")
+*)
+(*$= check_ser_csv & ~printer:BatPervasives.identity
+  "\"abc\"" \
+    (check_ser_csv ~config:csv_config_1 ocaml_be \
+                   "char[3]" "(\"a\" \"b\" \"c\")")
+  "abc" \
+    (check_ser_csv ~config:csv_config_2 ocaml_be \
+                   "char[3]" "(\"a\" \"b\" \"c\")")
 *)
 
 (* Test DessserCsv.make_serializable: *)
