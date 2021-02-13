@@ -134,7 +134,7 @@ let may_set_nullbit bit mn0 path stk =
       assert (not mn0.T.nullable) ;
       stk
   | _ ->
-      (* This is an item of some compiund (top level or inner), which have a
+      (* This is an item of some compound (top level or inner), which have a
        * nullbit if it is nullable: *)
       if (T.type_of_path mn0 path).nullable then
         set_nullbit_to bit stk
