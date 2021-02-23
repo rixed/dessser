@@ -1122,3 +1122,4 @@ let slist t = SList t
 let list mn = Value (required (Lst mn))
 let tuple mns = Value (required (Tup mns))
 let set mn = Value (required (Set mn))
+let vector d mn = Value (required (Vec (d, mn)))

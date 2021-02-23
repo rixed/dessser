@@ -3070,8 +3070,14 @@ struct
   let byte_of_char = byte_of_u8 % u8_of_char
   let u8_of_int n = u8 (Uint8.of_int n)
   let u16_of_int n = u16 (Uint16.of_int n)
+  let u24_of_int n = u24 (Uint24.of_int n)
   let u32_of_int n = u32 (Uint32.of_int n)
+  let u40_of_int n = u40 (Uint40.of_int n)
+  let u48_of_int n = u48 (Uint48.of_int n)
   let i32_of_int n = i32 (Int32.of_int n)
+  let u56_of_int n = u56 (Uint56.of_int n)
+  let u64_of_int n = u64 (Uint64.of_int n)
+  let u128_of_int n = u128 (Uint128.of_int n)
   let nop = seq []
   let assert_ = function
     | E0 (Bool true) -> nop
