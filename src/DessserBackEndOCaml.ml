@@ -155,7 +155,7 @@ struct
     | { vtyp = Usr t ; _ } ->
         value_type_identifier p { vtyp = t.def ; nullable = false }
     | { vtyp = Ext n ; _ } ->
-        T.get_external_type n OCaml
+        P.get_external_type p n OCaml
     | { vtyp = (Vec (_, t) | Lst t) ; _ } ->
         value_type_identifier p t ^" array"
     | { vtyp = Set t ; _ } ->

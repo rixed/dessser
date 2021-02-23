@@ -11,11 +11,12 @@ type t =
     mutable defs : string  IO.output list ;
     mutable indent : string ;
     mutable declared : Set.String.t ;
+    external_types : (string * (t -> T.backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses at time names: *)
     type_names : (T.value_type * string) list }
 
-let make ?(declared=Set.String.empty) context type_names =
+let make ?(declared=Set.String.empty) context type_names external_types =
   { context ;
     decl = IO.output_string () ;
     def = IO.output_string () ;
@@ -23,10 +24,11 @@ let make ?(declared=Set.String.empty) context type_names =
     defs = [] ;
     indent = "" ;
     declared ;
+    external_types ;
     type_names }
 
 let new_top_level p f =
-  let p' = make ~declared:p.declared p.context p.type_names in
+  let p' = make ~declared:p.declared p.context p.type_names p.external_types in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
   p.defs <- p'.def :: p.defs ;
@@ -61,3 +63,7 @@ let declared_type p t f =
     String.print p.decl (IO.close_out oc) ;
     id
   )
+
+let get_external_type p name backend_id =
+  let f = List.assoc name p.external_types in
+  f p backend_id

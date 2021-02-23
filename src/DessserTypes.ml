@@ -557,7 +557,7 @@ struct
 
   let user_type = ref fail
 
-  let external_type = ref fail
+  let external_type : unit t ref = ref fail
 
   let identifier =
     let what = "identifier" in
@@ -1005,31 +1005,6 @@ let () =
   register_user_type "Cidr"
     (Sum [| "v4", required (get_user_type "Cidr4") ;
             "v6", required (get_user_type "Cidr6") |])
-
-(*
- * External types
- * They can be manipulated only by external identifiers.
- *)
-
-let external_types : (string, (backend_id, string) Map.t) Hashtbl.t =
-  Hashtbl.create 50
-
-let register_external_type name lst =
-  Hashtbl.modify_opt name (function
-    | None ->
-        Parser.external_type := Parser.(oneof !external_type (string name)) ;
-        let map = Map.of_enum (List.enum lst) in
-        Some map
-    | Some _ ->
-        invalid_arg "register_external_type"
-  ) external_types
-
-let get_external_type name backend_id =
-  let map = Hashtbl.find external_types name in
-  Map.find backend_id map
-
-let is_external_type_registered name =
-  Hashtbl.mem external_types name
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then

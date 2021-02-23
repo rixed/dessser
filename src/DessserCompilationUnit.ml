@@ -7,6 +7,7 @@ type t =
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
     verbatim_definitions : verbatim_definition list ;
+    external_types : (string * (P.t -> T.backend_id -> string)) list ;
     (* User may prefer some specific name for some types: *)
     type_names : (T.value_type * string) list }
 
@@ -31,6 +32,7 @@ let make () =
   { identifiers = [] ;
     external_identifiers = [] ;
     verbatim_definitions = [] ;
+    external_types = [] ;
     type_names = [] }
 
 let name_type compunit vtyp name =
@@ -113,3 +115,15 @@ let add_verbatim_definition
       make_verbatim_definition
         ?name ?typ ?dependencies ?location ~backend printer ::
         compunit.verbatim_definitions }
+
+(*
+ * External types
+ * They can be manipulated only by external identifiers.
+ *)
+
+let register_external_type compunit name f =
+  { compunit with
+      external_types = (name, f) :: compunit.external_types }
+
+let is_external_type_registered compunit name =
+  List.mem_assoc name compunit.external_types
