@@ -228,6 +228,8 @@ and develop_user_types = function
   | t -> t
 
 (* Top-down folding of a value_type: *)
+(* FIXME: either consider Usr types as opaque and stop the recursion, or as
+ * transparent and do not call [f] on Usr: *)
 let rec fold_value_type u f vt =
   let u = f u vt in
   match vt with
