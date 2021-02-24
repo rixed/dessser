@@ -924,6 +924,7 @@ struct
         ((with_num_param "FixedString" |<| with_num_param "BINARY") >>:
           fun d -> required (Vec (d, required (Mac Char)))) |<|
         (with_typ_param "Nullable" >>: not_null) |<|
+        (with_typ_param "Array" >>: fun mn -> required (Lst mn)) |<|
         (* Just ignore those ones (for now): *)
         (with_typ_param "LowCardinality")
         (* Etc... *)
@@ -940,6 +941,14 @@ struct
         let mns = Array.of_list mns in
         Value { nullable = false ; vtyp = Rec mns }
     ) m
+
+  (*$= clickhouse_names_and_types & ~printer:(test_printer print)
+    (Ok (Value (required (Rec [| "thing", required (Mac U16) |])), (14,[]))) \
+       (test_p clickhouse_names_and_types "`thing` UInt16")
+
+    (Ok (Value (required (Rec [| "thing", required (Lst (required (Mac U16))) |])), (21,[]))) \
+       (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
+  *)
 
   (* If [any_format] then any known format to specify types will be tried.
    * If not then only dessser own format will be tried (faster, esp when
