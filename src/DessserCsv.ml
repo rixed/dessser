@@ -310,7 +310,7 @@ struct
   let vec_sep conf mn0 path p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then sep conf p else
-    write_byte p (byte_of_const_char '\t')
+    write_byte p (byte_of_const_char ',')
 
   (* Lists are prefixed with a column or their length: *)
   let list_opn conf mn0 path t n p =
@@ -571,7 +571,7 @@ struct
   let vec_sep conf mn0 path p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then skip_sep conf p else
-    skip_char '\t' p
+    skip_char ',' p
 
   let list_opn conf =
     if not conf.clickhouse_syntax then
