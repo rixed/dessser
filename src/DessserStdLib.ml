@@ -27,9 +27,24 @@ let coalesce l es =
             e) in
   loop 0 es
 
+let random_i32 =
+  let open E.Ops in
+  to_i32 random_u32
+
+let rec random_slist mn =
+  let open E.Ops in
+  let max_list_length = i32_of_int 8 in
+  let from = i32_of_int 0
+  and to_ = force (rem (add (i32_of_int 1) random_i32) max_list_length)
+  and body =
+    E.func2 T.i32 T.(SList (Value mn)) (fun _l _idx lst ->
+      cons (random mn) lst)
+  and init = eol T.(Value mn) in
+  repeat ~from ~to_ ~body ~init
+
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
-let rec random mn =
+and random mn =
   (* this [random] is going to be shaddowed by E.Ops: *)
   let std_random = random in
   let open E.Ops in
@@ -102,10 +117,12 @@ let rec random mn =
   | Vec (dim, mn) ->
       List.init dim (fun _ -> std_random mn) |>
       make_vec
-  | Lst _mn ->
-      todo "random for lists"
-  | Set _ ->
-      invalid_arg "random for Set type"
+  | Lst mn ->
+      random_slist mn |>
+      list_of_slist
+  | Set mn ->
+      random_slist mn |>
+      set_of_slist
   | Tup mns ->
       Array.map std_random mns |>
       Array.to_list |>
