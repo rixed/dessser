@@ -362,8 +362,8 @@ struct
                 ~else_:(
                   E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
                     pair
-                      (Des.vec_sep dstate mn0 path src)
-                      (Ser.vec_sep sstate mn0 path dst)))in
+                      (Des.vec_sep dstate mn0 subpath src)
+                      (Ser.vec_sep sstate mn0 subpath dst)))in
             desser_ transform sstate dstate mn0 subpath src_dst)))
     in
     E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
@@ -434,8 +434,8 @@ struct
                           ~else_:(
                             E.with_sploded_pair "dslist3" src_dst (fun psrc pdst ->
                               pair
-                                (Des.list_sep dstate mn0 path psrc)
-                                (Ser.list_sep sstate mn0 path pdst))
+                                (Des.list_sep dstate mn0 subpath psrc)
+                                (Ser.list_sep sstate mn0 subpath pdst))
                           ) in
                       desser_ transform sstate dstate mn0 subpath src_dst))))
           | UnknownSize (list_opn, end_of_list) ->
@@ -458,8 +458,8 @@ struct
                             ~else_:(
                               E.with_sploded_pair "dslist5" src_dst (fun psrc pdst ->
                                 pair
-                                  (Des.list_sep dstate mn0 path psrc)
-                                  (Ser.list_sep sstate mn0 path pdst))) in
+                                  (Des.list_sep dstate mn0 subpath psrc)
+                                  (Ser.list_sep sstate mn0 subpath pdst))) in
                         pair
                           false_
                           (desser_ transform sstate dstate mn0 subpath src_dst)))))
