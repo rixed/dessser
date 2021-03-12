@@ -76,7 +76,9 @@ let required = make ~nullable:false
 
 let optional = make ~nullable:true
 
-let rec depth ?(opaque_user_type=false) = function
+(* Consider user types opaque by default, so that it matches DessserQCheck
+ * generators. *)
+let rec depth ?(opaque_user_type=true) = function
   | Unknown -> invalid_arg "depth"
   | Unit | Mac _ | Ext _ -> 0
   | Usr { def ; _ } ->
@@ -97,6 +99,30 @@ let rec depth ?(opaque_user_type=false) = function
 (*$= depth & ~printer:string_of_int
   0 (depth (Mac U8))
   2 (depth (Tup [| required (Mac U8) ; required (Lst (required (Mac U8))) |]))
+  7 (depth (\
+    Lst (required (\
+      Vec (4, (required (\
+        Rec [| \
+          "mgfhm", required (\
+            Rec [| \
+              "ceci", optional (Mac Char) ; \
+              "zauxs", required (\
+                Rec [| \
+                  "gidf", required (\
+                    Rec [| \
+                      "qskv", optional (Mac Float) ; \
+                      "lefr", required (Mac I16) ; \
+                      "bdujmi", required (\
+                        Vec (8, required (get_user_type "Cidr6"))) |]) ; \
+                  "cdwcv", required (Mac U64) ; \
+                  "jcdivs", required (\
+                    Rec [| \
+                      "hgtixf", required (Lst (optional (Mac I128))) ; \
+                      "yuetd", required (Mac Char) ; \
+                      "bsbff", required (Mac U16) |]) |]) |]) ; \
+          "pudia", required (get_user_type "Cidr4") ; \
+          "qngl", required (Mac Bool) ; \
+          "iajv", optional (Mac I128) |])))))))
 *)
 
 (* In many occasions we want the items of a record to be deterministically
