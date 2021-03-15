@@ -95,6 +95,11 @@ let add_identifier_of_expression compunit ?name expr =
   E.E0 (Identifier name),
   name
 
+let get_type_of_identifier compunit name =
+  let _, _, t =
+    List.find (fun (name', _id, _t) -> name = name') compunit.identifiers in
+  t
+
 let make_verbatim_definition
       ?(name="") ?(typ=T.(Value (required Unit))) ?(dependencies=[])
       ?(location=Inline) ~backend printer =
