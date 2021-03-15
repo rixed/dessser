@@ -811,7 +811,7 @@ struct
     | E.E1 (GetEnv, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
-          pp oc "try NotNull (Sys.getenv_opt %s) with Not_found -> Null" n1)
+          pp oc "try NotNull (Sys.getenv %s) with Not_found -> Null" n1)
     | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
