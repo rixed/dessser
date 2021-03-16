@@ -66,9 +66,9 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
-      E.func2 DataPtr DataPtr (fun _l src dst ->
+      E.func2 DataPtr DataPtr (fun l src dst ->
         comment "Convert from RowBinary into S-Expression:"
-          (DS.desser ~ser_config:sexpr_config typ src dst))
+          (DS.desser ~ser_config:sexpr_config typ l src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
@@ -82,13 +82,13 @@ let () =
         DessserHeapValue.Serialize (DessserSExpr.Ser) in
 
       let ma = copy_field in
-      E.func2 DataPtr DataPtr (fun _l src dst ->
+      E.func2 DataPtr DataPtr (fun l src dst ->
         comment "Convert from RowBinary into a heap value:" (
-          let v_src = ToValue.make typ src in
-          E.with_sploded_pair "v_src" v_src (fun v src ->
+          let v_src = ToValue.make typ l src in
+          E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
             comment "Compute the serialized size of this tuple:" (
-              let const_dyn_sz = OfValue1.sersize typ ma v in
-              E.with_sploded_pair "read_tuple" const_dyn_sz (fun const_sz dyn_sz ->
+              let const_dyn_sz = OfValue1.sersize typ l ma v in
+              E.with_sploded_pair ~l "read_tuple" const_dyn_sz (fun l const_sz dyn_sz ->
                 seq [
                   dump (string "Constant size: ") ;
                   dump const_sz ;
@@ -97,7 +97,7 @@ let () =
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
                     let dst' =
-                      OfValue2.serialize ~config:sexpr_config typ ma v dst in
+                      OfValue2.serialize ~config:sexpr_config typ l ma v dst in
                     pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)

@@ -708,8 +708,8 @@ let sexpr mn =
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
-        S2S.desser mn src dst) in
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
+        S2S.desser mn l src dst) in
     make_converter be ~mn e
 
   let test_desser alloc_dst be mn des ser =
@@ -718,11 +718,11 @@ let sexpr mn =
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
-        Ops.let_ alloc_dst (fun _l tdst ->
-          with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
+        Ops.let_ ~l alloc_dst (fun l tdst ->
+          with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
             let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
-            let dst = secnd (T2S.desser mn tdst dst) in
+            let dst = secnd (T2S.desser mn l tdst dst) in
             pair src dst))) in
     if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
     make_converter be ~mn e
@@ -775,10 +775,10 @@ let sexpr mn =
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr mn =
-    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun _l src dst ->
-      let v_src = ToValue.make mn src in
-      with_sploded_pair "v_src" v_src (fun v src ->
-        let dst = OfValue.serialize mn copy_field v dst in
+    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
+      let v_src = ToValue.make mn l src in
+      with_sploded_pair ~l "v_src" v_src (fun l v src ->
+        let dst = OfValue.serialize mn l copy_field v dst in
         pair src dst))
 *)
 (*$R
@@ -917,8 +917,8 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun _l src dst ->
-          DS.desser mn src dst) in
+        func2 T.dataptr T.dataptr (fun l src dst ->
+          DS.desser mn l src dst) in
       if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
@@ -930,8 +930,8 @@ let sexpr mn =
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun _l src dst ->
-          DS.desser mn src dst) in
+        func2 T.dataptr T.dataptr (fun l src dst ->
+          DS.desser mn l src dst) in
       if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
@@ -965,8 +965,8 @@ let sexpr mn =
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun _l src dst ->
-          DS.desser ?des_config:config mn src dst) in
+        func2 T.dataptr T.dataptr (fun l src dst ->
+          DS.desser ?des_config:config mn l src dst) in
       if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
@@ -976,8 +976,8 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun _l src dst ->
-          DS.desser ?ser_config:config mn src dst) in
+        func2 T.dataptr T.dataptr (fun l src dst ->
+          DS.desser ?ser_config:config mn l src dst) in
       if dbg then Format.eprintf "@[<v>Expression:@,%a@." E.pretty_print e ;
       make_converter be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)

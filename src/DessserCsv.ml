@@ -194,21 +194,21 @@ struct
     if not (is_serializable mn) then invalid_arg "not serializable" ;
     T.dataptr
 
-  let start ?(config=default_config) _v p = config, p
+  let start ?(config=default_config) _l _v p = config, p
 
-  let stop conf p =
+  let stop conf _l p =
     match conf.newline with
     | None ->
         p
     | Some c ->
         write_byte p (byte_of_const_char c)
 
-  type ser = state -> T.maybe_nullable -> T.path -> E.t -> E.t -> E.t
+  type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
 
-  let sfloat _conf _ _ v p =
+  let sfloat _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
 
-  let sbytes_quoted conf v p =
+  let sbytes_quoted conf _l v p =
     let quote_byte = byte_of_const_char (Option.get conf.quote) in
     (* Quote systematically: *)
     let p = write_byte p quote_byte in
@@ -216,31 +216,31 @@ struct
     let p = write_bytes p v in
     write_byte p quote_byte
 
-  let sbytes _conf v p =
+  let sbytes _conf _l v p =
     (* FIXME: escape separator/newline: *)
     write_bytes p v
 
-  let sstring conf _ _ v p =
+  let sstring conf _ _ l v p =
     (if conf.quote = None then sbytes else sbytes_quoted)
-      conf (bytes_of_string v) p
+      conf l (bytes_of_string v) p
 
   (* Individual chars are represented as single char strings, but for
    * the special case of vectors of chars, in which case we want the
    * whole vector to be a string (see discussion about FixedStrings) *)
-  let schar conf mn0 path v p =
+  let schar conf mn0 path l v p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
       comment "char in a FixedString"
         (write_byte p (byte_of_char v))
     else
       (if conf.quote = None then sbytes else sbytes_quoted)
-        conf (bytes_of_string (string_of_char v)) p
+        conf l (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
-  let sbool conf _ _ v p =
+  let sbool conf _ _ _ v p =
     write_bytes p (if_ v (bytes (Bytes.of_string conf.true_))
                          (bytes (Bytes.of_string conf.false_)))
 
-  let si _conf _ _ v p =
+  let si _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
 
   let si8 = si
@@ -262,29 +262,29 @@ struct
   let su64 = si
   let su128 = si
 
-  let sep conf p =
+  let sep conf _l p =
     write_byte p (byte_of_const_char conf.separator)
 
-  let tup_opn _conf _ _ _ p = p
+  let tup_opn _conf _ _ _ _ p = p
 
-  let tup_cls _conf _ _ p = p
+  let tup_cls _conf _ _ _ p = p
 
-  let tup_sep conf _ _ p = sep conf p
+  let tup_sep conf _ _ l p = sep conf l p
 
-  let rec_opn _conf _ _ _ p = p
+  let rec_opn _conf _ _ _ _ p = p
 
-  let rec_cls _conf _ _ p = p
+  let rec_cls _conf _ _ _ p = p
 
-  let rec_sep conf _ _ p = sep conf p
+  let rec_sep conf _ _ l p = sep conf l p
 
   (* Sum label comes as a separate column: *)
-  let sum_opn conf mn0 path _ lbl p =
-    let p = su16 conf mn0 path lbl p in
-    sep conf p
+  let sum_opn conf mn0 path _ l lbl p =
+    let p = su16 conf mn0 path l lbl p in
+    sep conf l p
 
-  let sum_cls _conf _ _ p = p
+  let sum_cls _conf _ _ _ p = p
 
-  let vec_opn conf mn0 path _dim _t p =
+  let vec_opn conf mn0 path _dim _t _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -296,7 +296,7 @@ struct
       let p = write_byte p (byte_of_const_char '"') in
       write_byte p (byte_of_const_char '[')
 
-  let vec_cls conf mn0 path p =
+  let vec_cls conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -307,67 +307,67 @@ struct
       let p = write_byte p (byte_of_const_char ']') in
       write_byte p (byte_of_const_char '"')
 
-  let vec_sep conf mn0 path p =
+  let vec_sep conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
-    if not conf.clickhouse_syntax then sep conf p else
+    if not conf.clickhouse_syntax then sep conf l p else
     write_byte p (byte_of_const_char ',')
 
   (* Lists are prefixed with a column or their length: *)
-  let list_opn conf mn0 path t n p =
+  let list_opn conf mn0 path t n l p =
     if not conf.clickhouse_syntax then
       match n with
       | Some n ->
-          let p = su32 conf mn0 path n p in
-          sep conf p
+          let p = su32 conf mn0 path l n p in
+          sep conf l p
       | None ->
           failwith "Csv.Ser needs list length upfront"
     else
-      vec_opn conf mn0 path 0 t p
+      vec_opn conf mn0 path 0 t l p
 
-  let list_cls conf mn0 path p =
+  let list_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
-    vec_cls conf mn0 path p
+    vec_cls conf mn0 path l p
 
-  let list_sep conf mn0 path p =
-    if not conf.clickhouse_syntax then sep conf p else
-    vec_sep conf mn0 path p
+  let list_sep conf mn0 path l p =
+    if not conf.clickhouse_syntax then sep conf l p else
+    vec_sep conf mn0 path l p
 
-  let nullable _conf _ _ p = p
+  let nullable _conf _ _ _ p = p
 
-  let snull _t conf _ _ p =
+  let snull _t conf _ _ _ p =
     write_bytes p (bytes (Bytes.of_string conf.null))
 
-  let snotnull _t _conf _ _ p = p
+  let snotnull _t _conf _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> T.path -> E.t -> ssize
-  let todo_ssize _conf = failwith "TODO: ssize for CSV"
-  let ssize_of_float _ _ _ = todo_ssize ()
-  let ssize_of_string _ _ _ = todo_ssize ()
-  let ssize_of_bool _ _ _ = todo_ssize ()
-  let ssize_of_char _ _ _ = todo_ssize ()
-  let ssize_of_i8 _ _ _ = todo_ssize ()
-  let ssize_of_i16 _ _ _ = todo_ssize ()
-  let ssize_of_i24 _ _ _ = todo_ssize ()
-  let ssize_of_i32 _ _ _ = todo_ssize ()
-  let ssize_of_i40 _ _ _ = todo_ssize ()
-  let ssize_of_i48 _ _ _ = todo_ssize ()
-  let ssize_of_i56 _ _ _ = todo_ssize ()
-  let ssize_of_i64 _ _ _ = todo_ssize ()
-  let ssize_of_i128 _ _ _ = todo_ssize ()
-  let ssize_of_u8 _ _ _ = todo_ssize ()
-  let ssize_of_u16 _ _ _ = todo_ssize ()
-  let ssize_of_u24 _ _ _ = todo_ssize ()
-  let ssize_of_u32 _ _ _ = todo_ssize ()
-  let ssize_of_u40 _ _ _ = todo_ssize ()
-  let ssize_of_u48 _ _ _ = todo_ssize ()
-  let ssize_of_u56 _ _ _ = todo_ssize ()
-  let ssize_of_u64 _ _ _ = todo_ssize ()
-  let ssize_of_u128 _ _ _ = todo_ssize ()
-  let ssize_of_tup _ _ _ = todo_ssize ()
-  let ssize_of_rec _ _ _ = todo_ssize ()
-  let ssize_of_sum _ _ _ = todo_ssize ()
-  let ssize_of_vec _ _ _ = todo_ssize ()
-  let ssize_of_list _ _ _ = todo_ssize ()
+  type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
+  let todo_ssize () = failwith "TODO: ssize for CSV"
+  let ssize_of_float _ _ _ _ = todo_ssize ()
+  let ssize_of_string _ _ _ _ = todo_ssize ()
+  let ssize_of_bool _ _ _ _ = todo_ssize ()
+  let ssize_of_char _ _ _ _ = todo_ssize ()
+  let ssize_of_i8 _ _ _ _ = todo_ssize ()
+  let ssize_of_i16 _ _ _ _ = todo_ssize ()
+  let ssize_of_i24 _ _ _ _ = todo_ssize ()
+  let ssize_of_i32 _ _ _ _ = todo_ssize ()
+  let ssize_of_i40 _ _ _ _ = todo_ssize ()
+  let ssize_of_i48 _ _ _ _ = todo_ssize ()
+  let ssize_of_i56 _ _ _ _ = todo_ssize ()
+  let ssize_of_i64 _ _ _ _ = todo_ssize ()
+  let ssize_of_i128 _ _ _ _ = todo_ssize ()
+  let ssize_of_u8 _ _ _ _ = todo_ssize ()
+  let ssize_of_u16 _ _ _ _ = todo_ssize ()
+  let ssize_of_u24 _ _ _ _ = todo_ssize ()
+  let ssize_of_u32 _ _ _ _ = todo_ssize ()
+  let ssize_of_u40 _ _ _ _ = todo_ssize ()
+  let ssize_of_u48 _ _ _ _ = todo_ssize ()
+  let ssize_of_u56 _ _ _ _ = todo_ssize ()
+  let ssize_of_u64 _ _ _ _ = todo_ssize ()
+  let ssize_of_u128 _ _ _ _ = todo_ssize ()
+  let ssize_of_tup _ _ _ _ = todo_ssize ()
+  let ssize_of_rec _ _ _ _ = todo_ssize ()
+  let ssize_of_sum _ _ _ _ = todo_ssize ()
+  let ssize_of_vec _ _ _ _ = todo_ssize ()
+  let ssize_of_list _ _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
   let ssize_start ?(config=default_config) _ =
     ignore config ;
@@ -384,9 +384,9 @@ struct
     if not (is_serializable mn) then invalid_arg "not serializable" ;
     T.dataptr
 
-  let start ?(config=default_config) _mn p = config, p
+  let start ?(config=default_config) _mn _l p = config, p
 
-  type des = state -> T.maybe_nullable -> T.path -> E.t -> E.t
+  type des = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t
 
   let skip n p = data_ptr_add p (size n)
 
@@ -405,7 +405,7 @@ struct
     skip_char conf.separator p
 
   (* Skip the final newline if present: *)
-  let stop conf p =
+  let stop conf _l p =
     let ret =
       match conf.newline with
       | None ->
@@ -425,10 +425,10 @@ struct
     else
       ret
 
-  let dfloat _conf _ _ p =
+  let dfloat _conf _ _ _ p =
     float_of_ptr p
 
-  let dbool conf _ _ p =
+  let dbool conf _ _ _ p =
     (* TODO: Look for false_.[0] otherwise: *)
     (* TODO: find out where is the first distinct char of true and false (that
      * may not be in position 0) and test only that one *)
@@ -438,7 +438,7 @@ struct
       ~then_:(pair true_ (skip (String.length conf.true_) p))
       ~else_:(pair false_ (skip (String.length conf.false_) p))
 
-  let is_sep_or_newline conf b =
+  let is_sep_or_newline conf _l b =
     let sep_byte = byte_of_const_char conf.separator in
     match conf.newline with
     | None ->
@@ -448,13 +448,13 @@ struct
             (eq b (byte_of_const_char c))
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes_quoted conf op p =
+  let dbytes_quoted conf op l p =
     (* Skip the double-quote: *)
     let quote_byte = byte_of_const_char (Option.get conf.quote) in
-    let_ ~name:"had_quote"
+    let_ ~name:"had_quote" ~l
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
-      (fun _l had_quote ->
+      (fun l had_quote ->
         let pos = if_ ~cond:had_quote
                       ~then_:(skip_byte quote_byte p)
                       ~else_:p in
@@ -462,15 +462,15 @@ struct
          * had_quote: *)
         (* FIXME: handle escaping the separator/newline! *)
         let cond =
-          E.func1 T.byte (fun _l b ->
+          E.func1 ~l T.byte (fun l b ->
             not_ (
               if_ ~cond:had_quote
                   ~then_:(eq b quote_byte)
-                  ~else_:(is_sep_or_newline conf b)))
+                  ~else_:(is_sep_or_newline conf l b)))
         and init = size 0
-        and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
+        and reduce = E.func2 ~l T.size T.byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
-        E.with_sploded_pair "dbytes_quoted1" sz_p (fun sz p' ->
+        E.with_sploded_pair ~l "dbytes_quoted1" sz_p (fun _l sz p' ->
           (* Skip the initial double-quote: *)
           let bytes_p = read_bytes pos sz in
           (* Skip the closing double-quote: *)
@@ -479,72 +479,72 @@ struct
                        ~else_:p' in
           pair (op (first bytes_p)) p'))
 
-  let dbytes conf op p =
+  let dbytes conf op l p =
     (* Read up to next separator/newline *)
     let cond =
-      E.func1 T.byte (fun _l b ->
-        not_ (is_sep_or_newline conf b))
+      E.func1 ~l T.byte (fun l b ->
+        not_ (is_sep_or_newline conf l b))
     and init = size 0
-    and reduce = E.func2 T.size T.byte (fun _l s _b -> add s (size 1)) in
+    and reduce = E.func2 ~l T.size T.byte (fun _l s _b -> add s (size 1)) in
     let sz_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair "dbytes" sz_p (fun sz p' ->
+    E.with_sploded_pair ~l "dbytes" sz_p (fun _l sz p' ->
       let bytes_p = read_bytes p sz in
       pair (op (first bytes_p)) p')
 
-  let dstring conf _ _ p =
+  let dstring conf _ _ l p =
     (if conf.quote = None then dbytes else dbytes_quoted)
-      conf string_of_bytes p
+      conf string_of_bytes l p
 
   (* Chars are encoded as single char strings (unless part of a FixedString) *)
-  let dchar conf mn0 path p =
+  let dchar conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
-      E.with_sploded_pair "dchar" (read_byte p) (fun b p ->
+      E.with_sploded_pair ~l "dchar" (read_byte p) (fun _l b p ->
         pair (char_of_byte b) p)
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
-        conf (char_of_string % string_of_bytes) p
+        conf (char_of_string % string_of_bytes) l p
 
-  let di8 _conf _ _ p = i8_of_ptr p
-  let du8 _conf _ _ p = u8_of_ptr p
-  let di16 _conf _ _ p = i16_of_ptr p
-  let du16 _conf _ _ p = u16_of_ptr p
-  let di24 _conf _ _ p = i24_of_ptr p
-  let du24 _conf _ _ p = u24_of_ptr p
-  let di32 _conf _ _ p = i32_of_ptr p
-  let du32 _conf _ _ p = u32_of_ptr p
-  let di40 _conf _ _ p = i40_of_ptr p
-  let du40 _conf _ _ p = u40_of_ptr p
-  let di48 _conf _ _ p = i48_of_ptr p
-  let du48 _conf _ _ p = u48_of_ptr p
-  let di56 _conf _ _ p = i56_of_ptr p
-  let du56 _conf _ _ p = u56_of_ptr p
-  let di64 _conf _ _ p = i64_of_ptr p
-  let du64 _conf _ _ p = u64_of_ptr p
-  let di128 _conf _ _ p = i128_of_ptr p
-  let du128 _conf _ _ p = u128_of_ptr p
+  let di8 _conf _ _ _ p = i8_of_ptr p
+  let du8 _conf _ _ _ p = u8_of_ptr p
+  let di16 _conf _ _ _ p = i16_of_ptr p
+  let du16 _conf _ _ _ p = u16_of_ptr p
+  let di24 _conf _ _ _ p = i24_of_ptr p
+  let du24 _conf _ _ _ p = u24_of_ptr p
+  let di32 _conf _ _ _ p = i32_of_ptr p
+  let du32 _conf _ _ _ p = u32_of_ptr p
+  let di40 _conf _ _ _ p = i40_of_ptr p
+  let du40 _conf _ _ _ p = u40_of_ptr p
+  let di48 _conf _ _ _ p = i48_of_ptr p
+  let du48 _conf _ _ _ p = u48_of_ptr p
+  let di56 _conf _ _ _ p = i56_of_ptr p
+  let du56 _conf _ _ _ p = u56_of_ptr p
+  let di64 _conf _ _ _ p = i64_of_ptr p
+  let du64 _conf _ _ _ p = u64_of_ptr p
+  let di128 _conf _ _ _ p = i128_of_ptr p
+  let du128 _conf _ _ _ p = u128_of_ptr p
 
-  let tup_opn _conf _ _ _ p = p
+  let tup_opn _conf _ _ _ _ p = p
 
-  let tup_cls _conf _ _ p = p
+  let tup_cls _conf _ _ _ p = p
 
-  let tup_sep conf _ _ p =
+  let tup_sep conf _ _ _ p =
     skip_sep conf p
 
-  let rec_opn _conf _ _ _ p = p
+  let rec_opn _conf _ _ _ _ p = p
 
-  let rec_cls _conf _ _ p = p
+  let rec_cls _conf _ _ _ p = p
 
-  let rec_sep conf _ _ p =
+  let rec_sep conf _ _ _ p =
       skip_sep conf p
 
-  let sum_opn conf mn0 path _ p =
-    let c_p = du16 conf mn0 path p in
-    E.with_sploded_pair "sum_opn" c_p (fun c p ->
+  let sum_opn conf mn0 path _ l p =
+    let c_p = du16 conf mn0 path l p in
+    E.with_sploded_pair ~l "sum_opn" c_p (fun _l c p ->
       pair c (skip_sep conf p))
 
-  let sum_cls _conf _ _ p = p
+  let sum_cls _conf _ _ _ p = p
 
-  let vec_opn conf mn0 path _dim _t p =
+  let vec_opn conf mn0 path _dim _t _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -556,7 +556,7 @@ struct
       let p = skip_char '"' p in
       skip_char '[' p
 
-  let vec_cls conf mn0 path p =
+  let vec_cls conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -568,39 +568,39 @@ struct
       let p = skip_char ']' p in
       skip_char '"' p
 
-  let vec_sep conf mn0 path p =
+  let vec_sep conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then skip_sep conf p else
     skip_char ',' p
 
   let list_opn conf =
     if not conf.clickhouse_syntax then
-      KnownSize (fun mn0 path _ p ->
-        E.with_sploded_pair "list_opn" (du32 conf mn0 path p) (fun v p ->
+      KnownSize (fun mn0 path _ l p ->
+        E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
           pair v (skip_sep conf p)))
     else
       UnknownSize (
-        (fun _ _ _ p -> p),
-        (fun _mn0 _path p ->
+        (fun _ _ _ _ p -> p),
+        (fun _mn0 _path _l p ->
           (* Won't work for nested compound types: *)
           (eq (peek_byte p (size 0)) (byte_of_const_char ']'))))
 
-  let list_cls conf mn0 path p =
+  let list_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
-    vec_cls conf mn0 path p
+    vec_cls conf mn0 path l p
 
-  let list_sep conf mn0 path p =
+  let list_sep conf mn0 path l p =
     if not conf.clickhouse_syntax then skip_sep conf p else
-    vec_sep conf mn0 path p
+    vec_sep conf mn0 path l p
 
-  let is_null conf _ _ p =
+  let is_null conf _ _ l p =
     let len = String.length conf.null in
     let rec loop i =
       if i >= len then
         comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
                (let_ ~name:"b" (peek_byte p (size len)) (fun _l b ->
-                 is_sep_or_newline conf b)))
+                 is_sep_or_newline conf l b)))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)
@@ -615,8 +615,8 @@ struct
     else
       (loop 0)
 
-  let dnull _t conf _ _ p =
+  let dnull _t conf _ _ _ p =
     skip (String.length conf.null) p
 
-  let dnotnull _t _conf _ _ p = p
+  let dnotnull _t _conf _ _ _ p = p
 end

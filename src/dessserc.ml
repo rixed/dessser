@@ -55,23 +55,23 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let convert =
     if has_convert then
       (* convert from encoding_in to encoding_out: *)
-      E.func2 DataPtr DataPtr (fun _l p1 p2 ->
+      E.func2 DataPtr DataPtr (fun l p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
-        DS.desser schema ?transform:None p1 p2)
+        DS.desser schema ?transform:None l p1 p2)
     else nop in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    E.func1 DataPtr (fun _l src ->
-      first (ToValue.make schema src)) in
+    E.func1 DataPtr (fun l src ->
+      first (ToValue.make schema l src)) in
   let ma = copy_field in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 (Value schema) (fun _l v ->
-      OfValue.sersize schema ma v) in
+    E.func1 (Value schema) (fun l v ->
+      OfValue.sersize schema l ma v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    E.func2 (Value schema) DataPtr (fun _l v dst ->
-      OfValue.serialize schema ma v dst) in
+    E.func2 (Value schema) DataPtr (fun l v dst ->
+      OfValue.serialize schema l ma v dst) in
   if debug then (
     if has_convert then E.type_check [] convert ;
     E.type_check [] to_value ;
@@ -108,13 +108,13 @@ let converter
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
-  let transform _mn0 path v =
+  let transform _mn0 path _l v =
     match List.find (fun (p, _) -> p = path) modifier_exprs with
     | exception Not_found -> v
     | _p, e -> apply e [v] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 DataPtr DataPtr (fun _l -> DS.desser schema ~transform) in
+    E.func2 DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
   if debug then E.type_check [] convert ;
   let compunit = U.make () in
   let compunit, _, convert_name =
@@ -150,9 +150,9 @@ let lmdb main
   let module DS = DesSer (Des) (Ser) in
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 DataPtr DataPtr (fun _l -> DS.desser key_schema ?transform:None) in
+    E.func2 DataPtr DataPtr (fun l -> DS.desser key_schema l) in
   let convert_val =
-    E.func2 DataPtr DataPtr (fun _l -> DS.desser val_schema ?transform:None) in
+    E.func2 DataPtr DataPtr (fun l -> DS.desser val_schema l) in
   if debug then (
     E.type_check [] convert_key ;
     E.type_check [] convert_val
@@ -204,7 +204,7 @@ let aggregator
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
-    E.func1 DataPtr (fun _l -> ToValue.make schema) in
+    E.func1 DataPtr (fun l -> ToValue.make schema l) in
   (* Check the function that creates the initial code that will be used by
    * the update function: *)
   E.type_check [] init_expr ;
@@ -235,8 +235,8 @@ let aggregator
   let module OfValue = DessserHeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
-    E.func2 (Value output_t) DataPtr (fun _l v dst ->
-      OfValue.serialize output_t ma v dst) in
+    E.func2 (Value output_t) DataPtr (fun l v dst ->
+      OfValue.serialize output_t l ma v dst) in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source
@@ -246,9 +246,9 @@ let aggregator
   let compunit, state_id, state_name =
     U.add_identifier_of_expression compunit ~name:"compunit" init_expr in
   let input_expr =
-    E.func1 ~l:(U.environment compunit) DataPtr (fun _l src ->
+    E.func1 ~l:(U.environment compunit) DataPtr (fun l src ->
       let v_src = apply to_value [ src ] in
-      E.with_sploded_pair "input_expr" v_src (fun v src ->
+      E.with_sploded_pair ~l "input_expr" v_src (fun _l v src ->
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
   let compunit, _, input_name =
