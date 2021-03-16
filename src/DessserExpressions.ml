@@ -2877,7 +2877,7 @@ struct
   let identifier n = E0 (Identifier n)
   (* [let_] can forward the environment [l] and even complete it with the
    * type [typ] of [e]: *)
-  let let_ ?(l=[]) ?name ?typ e f =
+  let let_ ?(l=[]) ?name e f =
     match e with
     (* If [e] is already an identifier (or a param) there is no need for a
      * new one: *)
@@ -2892,10 +2892,7 @@ struct
         f l e
     | _ ->
         let n = match name with Some n -> n | None -> gen_id () in
-        let l =
-          match typ with
-          | Some t -> (identifier n, t) :: l
-          | None -> l in
+        let l = (identifier n, type_of l e) :: l in
         (match f l (identifier n) with
         | E0 (Identifier n') when n' = n ->
             (* In that case the identifier is useless: *)
