@@ -363,7 +363,7 @@ struct
                   E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
                     pair
                       (Des.vec_sep dstate mn0 subpath src)
-                      (Ser.vec_sep sstate mn0 subpath dst)))in
+                      (Ser.vec_sep sstate mn0 subpath dst))) in
             desser_ transform sstate dstate mn0 subpath src_dst)))
     in
     E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
