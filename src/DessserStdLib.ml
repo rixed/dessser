@@ -7,7 +7,7 @@ module T = DessserTypes
  * expression in [rs]. *)
 let coalesce l es =
   let open E.Ops in
-  let rec loop i = function
+  let rec loop i l = function
     | [] ->
         assert false (* because of type checking *)
     | [ e ] ->
@@ -16,16 +16,16 @@ let coalesce l es =
         (match E.type_of l e with
         | T.Value { nullable = true ; _ } ->
             let name = "coalesced_"^ string_of_int i in
-            let_ ~name e (fun _l d ->
+            let_ ~name ~l e (fun l d ->
               if_
                 ~cond:(is_null d)
-                ~then_:(loop (i + 1) es)
+                ~then_:(loop (i + 1) l es)
                 ~else_:(force d))
         | _ ->
             (* If [e] is not a nullable thing there is no point looking
              * further: *)
             e) in
-  loop 0 es
+  loop 0 l es
 
 let random_i32 =
   let open E.Ops in
