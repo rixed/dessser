@@ -138,7 +138,8 @@ type e1 =
   | I56OfString
   | I64OfString
   | I128OfString
-  (* Faster versions of the above: *)
+  (* Faster versions of the above, returning a pair with value and next pointer.
+   * No test for error, input must be a valid number. *)
   | FloatOfPtr
   | CharOfPtr
   | U8OfPtr
