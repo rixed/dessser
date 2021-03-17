@@ -1569,25 +1569,25 @@ let rec type_of l e0 =
   | E1 (StringOfInt, _) -> T.string
   | E1 (StringOfIp, _) -> T.string
   | E1 (CharOfString, _) -> T.char
-  | E1 (FloatOfString, _) -> T.float
-  | E1 (U8OfString, _) -> T.u8
-  | E1 (U16OfString, _) -> T.u16
-  | E1 (U24OfString, _) -> T.u24
-  | E1 (U32OfString, _) -> T.u32
-  | E1 (U40OfString, _) -> T.u40
-  | E1 (U48OfString, _) -> T.u48
-  | E1 (U56OfString, _) -> T.u56
-  | E1 (U64OfString, _) -> T.u64
-  | E1 (U128OfString, _) -> T.u128
-  | E1 (I8OfString, _) -> T.i8
-  | E1 (I16OfString, _) -> T.i16
-  | E1 (I24OfString, _) -> T.i24
-  | E1 (I32OfString, _) -> T.i32
-  | E1 (I40OfString, _) -> T.i40
-  | E1 (I48OfString, _) -> T.i48
-  | E1 (I56OfString, _) -> T.i56
-  | E1 (I64OfString, _) -> T.i64
-  | E1 (I128OfString, _) -> T.i128
+  | E1 (FloatOfString, _) -> T.(Value (optional (Mac Float)))
+  | E1 (U8OfString, _) -> T.(Value (optional (Mac U8)))
+  | E1 (U16OfString, _) -> T.(Value (optional (Mac U16)))
+  | E1 (U24OfString, _) -> T.(Value (optional (Mac U24)))
+  | E1 (U32OfString, _) -> T.(Value (optional (Mac U32)))
+  | E1 (U40OfString, _) -> T.(Value (optional (Mac U40)))
+  | E1 (U48OfString, _) -> T.(Value (optional (Mac U48)))
+  | E1 (U56OfString, _) -> T.(Value (optional (Mac U56)))
+  | E1 (U64OfString, _) -> T.(Value (optional (Mac U64)))
+  | E1 (U128OfString, _) -> T.(Value (optional (Mac U128)))
+  | E1 (I8OfString, _) -> T.(Value (optional (Mac I8)))
+  | E1 (I16OfString, _) -> T.(Value (optional (Mac I16)))
+  | E1 (I24OfString, _) -> T.(Value (optional (Mac I24)))
+  | E1 (I32OfString, _) -> T.(Value (optional (Mac I32)))
+  | E1 (I40OfString, _) -> T.(Value (optional (Mac I40)))
+  | E1 (I48OfString, _) -> T.(Value (optional (Mac I48)))
+  | E1 (I56OfString, _) -> T.(Value (optional (Mac I56)))
+  | E1 (I64OfString, _) -> T.(Value (optional (Mac I64)))
+  | E1 (I128OfString, _) -> T.(Value (optional (Mac I128)))
   | E1 (CharOfPtr, _) -> T.pair T.char T.dataptr
   | E1 (FloatOfPtr, _) -> T.pair T.float T.dataptr
   | E1 (U8OfPtr, _) -> T.pair T.u8 T.dataptr
@@ -2624,9 +2624,6 @@ struct
     | E0 (U32 n) -> string (DessserIpTools.V4.to_string n)
     | E0 (U128 n) -> string (DessserIpTools.V6.to_string n)
     | e -> E1 (StringOfIp, e)
-  let float_of_string_ = function
-    | E0 (String s) -> float (float_of_string s)
-    | e -> E1 (FloatOfString, e)
   let char_of_string = function
     | E0 (String s) ->
         if String.length s = 1 then char s.[0]
@@ -2636,59 +2633,68 @@ struct
   let string_of_char = function
     | E0 (Char c) -> string (String.of_char c)
     | e -> E1 (StringOfChar, e)
+  let null vt = E0 (Null vt)
+  let not_null = function
+    | E1 (Force, e1) -> e1
+    | e1 -> E1 (NotNull, e1)
+  let or_null vt op conv s =
+    try not_null (op (conv s)) with Invalid_argument _ -> null vt
+  let float_of_string_ = function
+    | E0 (String s) -> or_null (Mac Float) float float_of_string s
+    | e -> E1 (FloatOfString, e)
   let u8_of_string = function
-    | E0 (String s) -> u8 (Uint8.of_string s)
+    | E0 (String s) -> or_null (Mac U8) u8 Uint8.of_string s
     | e -> E1 (U8OfString, e)
   let u16_of_string = function
-    | E0 (String s) -> u16 (Uint16.of_string s)
+    | E0 (String s) -> or_null (Mac U16) u16 Uint16.of_string s
     | e -> E1 (U16OfString, e)
   let u24_of_string = function
-    | E0 (String s) -> u24 (Uint24.of_string s)
+    | E0 (String s) -> or_null (Mac U24) u24 Uint24.of_string s
     | e -> E1 (U24OfString, e)
   let u32_of_string = function
-    | E0 (String s) -> u32 (Uint32.of_string s)
+    | E0 (String s) -> or_null (Mac U32) u32 Uint32.of_string s
     | e -> E1 (U32OfString, e)
   let u40_of_string = function
-    | E0 (String s) -> u40 (Uint40.of_string s)
+    | E0 (String s) -> or_null (Mac U40) u40 Uint40.of_string s
     | e -> E1 (U40OfString, e)
   let u48_of_string = function
-    | E0 (String s) -> u48 (Uint48.of_string s)
+    | E0 (String s) -> or_null (Mac U48) u48 Uint48.of_string s
     | e -> E1 (U48OfString, e)
   let u56_of_string = function
-    | E0 (String s) -> u56 (Uint56.of_string s)
+    | E0 (String s) -> or_null (Mac U56) u56 Uint56.of_string s
     | e -> E1 (U56OfString, e)
   let u64_of_string = function
-    | E0 (String s) -> u64 (Uint64.of_string s)
+    | E0 (String s) -> or_null (Mac U64) u64 Uint64.of_string s
     | e -> E1 (U64OfString, e)
   let u128_of_string = function
-    | E0 (String s) -> u128 (Uint128.of_string s)
+    | E0 (String s) -> or_null (Mac U128) u128 Uint128.of_string s
     | e -> E1 (U128OfString, e)
   let i8_of_string = function
-    | E0 (String s) -> i8 (Int8.of_string s)
+    | E0 (String s) -> or_null (Mac I8) i8 Int8.of_string s
     | e -> E1 (I8OfString, e)
   let i16_of_string = function
-    | E0 (String s) -> i16 (Int16.of_string s)
+    | E0 (String s) -> or_null (Mac I16) i16 Int16.of_string s
     | e -> E1 (I16OfString, e)
   let i24_of_string = function
-    | E0 (String s) -> i24 (Int24.of_string s)
+    | E0 (String s) -> or_null (Mac I24) i24 Int24.of_string s
     | e -> E1 (I24OfString, e)
   let i32_of_string = function
-    | E0 (String s) -> i32 (Int32.of_string s)
+    | E0 (String s) -> or_null (Mac I32) i32 Int32.of_string s
     | e -> E1 (I32OfString, e)
   let i40_of_string = function
-    | E0 (String s) -> i40 (Int40.of_string s)
+    | E0 (String s) -> or_null (Mac I40) i40 Int40.of_string s
     | e -> E1 (I40OfString, e)
   let i48_of_string = function
-    | E0 (String s) -> i48 (Int48.of_string s)
+    | E0 (String s) -> or_null (Mac I48) i48 Int48.of_string s
     | e -> E1 (I48OfString, e)
   let i56_of_string = function
-    | E0 (String s) -> i56 (Int56.of_string s)
+    | E0 (String s) -> or_null (Mac I56) i56 Int56.of_string s
     | e -> E1 (I56OfString, e)
   let i64_of_string = function
-    | E0 (String s) -> i64 (Int64.of_string s)
+    | E0 (String s) -> or_null (Mac I64) i64 Int64.of_string s
     | e -> E1 (I64OfString, e)
   let i128_of_string = function
-    | E0 (String s) -> i128 (Int128.of_string s)
+    | E0 (String s) -> or_null (Mac I128) i128 Int128.of_string s
     | e -> E1 (I128OfString, e)
   let float_of_ptr e1 = E1 (FloatOfPtr, e1)
   let char_of_ptr e1 = E1 (CharOfPtr, e1)
@@ -2755,7 +2761,6 @@ struct
   let size_of_u32 = function
     | E0 (U32 n) -> size (Uint32.to_int n)
     | e -> E1 (SizeOfU32, e)
-  let null vt = E0 (Null vt)
   let eol t = E0 (EndOfList t)
   let end_of_list t = E0 (EndOfList t)
   let sliding_window t e1 = E1 (SlidingWindow t, e1)
@@ -2976,9 +2981,6 @@ struct
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
-  let not_null = function
-    | E1 (Force, e1) -> e1
-    | e1 -> E1 (NotNull, e1)
   let force = function
     | E1 (NotNull, e1) -> e1
     | e1 -> E1 (Force, e1)

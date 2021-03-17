@@ -1,5 +1,6 @@
 #ifndef RUNTIME_H_191025
 #define RUNTIME_H_191025
+#include <exception>
 #include <iostream> // for dump
 #include <limits>   // for std::numeric_limits
 #include <optional> // for nullable types
@@ -103,18 +104,29 @@ inline std::string string_of_i128(int128_t const i128)
 inline bool is_sign(char const x) { return x == '-' || x == '+'; }
 inline bool is_digit(char const x) { return x >= '0' && x <= '9'; }
 
-inline int128_t i128_of_string(std::string const &s)
+inline std::optional<int128_t> i128_of_string(std::string const &s)
 {
   // FIXME: do not split just after the leading minus sign!
   size_t const len = s.length();
   assert(len > 0);
   size_t const max_len(E10_INT64 + (is_sign(s[0]) ? 1:0));
-  if (len <= max_len) return std::stoll(s);
+  if (len <= max_len) {
+    std::size_t pos;
+    try {
+      int128_t const v_ { std::stoll(s, &pos) };
+      if (pos == s.length()) return v_;
+      else return std::nullopt;
+    } catch (const std::exception&) {
+      return std::nullopt;
+    }
+  }
   size_t const hi_len(len - E10_INT64);
-  int128_t const hi(i128_of_string(s.substr(0, hi_len)));
-  int128_t const lo(i128_of_string(s.substr(hi_len, E10_INT64)));
+  std::optional<int128_t> const hi { i128_of_string(s.substr(0, hi_len)) };
+  if (! hi) return std::nullopt;
+  std::optional<int128_t> const lo { i128_of_string(s.substr(hi_len, E10_INT64)) };
+  if (! lo) return std::nullopt;
   return
-    hi >= 0 ? hi * P10_INT64 + lo : hi * P10_INT64 - lo;
+    *hi >= 0 ? *hi * P10_INT64 + *lo : *hi * P10_INT64 - *lo;
 }
 
 inline size_t i128_from_chars(char const *start, char const *stop, int128_t *res)
@@ -124,7 +136,8 @@ inline size_t i128_from_chars(char const *start, char const *stop, int128_t *res
   for (; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };
-  *res = i128_of_string(s);
+  std::optional<int128_t> v { i128_of_string(s) };
+  *res = v ? *v : 0;
   return count;
 }
 
@@ -135,7 +148,8 @@ inline size_t u128_from_chars(char const *start, char const *stop, uint128_t *re
   for (count = 0 ; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };
-  *res = (uint128_t)i128_of_string(s);
+  std::optional<int128_t> v { i128_of_string(s) };
+  *res = v ? (uint128_t)*v : 0;
   return count;
 }
 

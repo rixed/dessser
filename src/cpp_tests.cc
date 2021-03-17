@@ -5,8 +5,8 @@
 
 void test_i128(std::string const s)
 {
-  int128_t const v = i128_of_string(s);
-  std::string const got_s(string_of_i128(v));
+  std::optional<int128_t> const v { i128_of_string(s) };
+  std::string const got_s { v ? string_of_i128(*v) : "NULL" };
   assert(got_s == s);
 
   char const *str = s.c_str();

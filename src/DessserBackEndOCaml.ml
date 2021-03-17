@@ -320,6 +320,17 @@ struct
     let unary_mod_op op e1 =
       let op = mod_name (E.type_of l e) ^"."^ op in
       unary_op op e1 in
+    let unary_op_or_null op e1 =
+      let n1 = print emit p l e1 in
+      emit ?name p l e (fun oc ->
+        pp oc "(try NotNull (%s %s)" op n1 ;
+        pp oc " with _ as e ->" ;
+        if debug then
+          pp oc "   Printf.eprintf \"%s %%S\\n\" %s ;" op n1 ;
+        pp oc "   Null)") in
+    let unary_mod_op_or_null op e1 =
+      let op = mod_name (E.type_of l e) ^"."^ op in
+      unary_op_or_null op e1 in
     let any_op op es =
       let ns = List.map (print emit p l) es in
       let ns = String.concat " " ns in
@@ -588,14 +599,7 @@ struct
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
     | E.E1 (FloatOfString, e1) ->
-        if debug then
-          let n1 = print emit p l e1 in
-          emit ?name p l e (fun oc ->
-            pp oc
-              "(try float_of_string %s \
-                with Failure _ as e -> Printf.eprintf \"float_of_string %%S\\n\" %s ; raise e)" n1 n1)
-        else
-          unary_op "float_of_string" e1
+        unary_op_or_null "float_of_string" e1
     | E.E1 (U8OfString, e1)
     | E.E1 (I8OfString, e1)
     | E.E1 (U16OfString, e1)
@@ -614,7 +618,7 @@ struct
     | E.E1 (I64OfString, e1)
     | E.E1 (U128OfString, e1)
     | E.E1 (I128OfString, e1) ->
-        unary_mod_op "of_string" e1
+        unary_mod_op_or_null "of_string" e1
     | E.E1 (CharOfPtr, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->

@@ -273,6 +273,22 @@ struct
     let null_of_nan res =
       ppi p.P.def "if (std::isnan(*%s)) %s.reset();" res res ;
       res in
+    (* Convert from string to nullable number: *)
+    let of_string e1 prefix cpp_op =
+      let n1 = print emit p l e1 in
+      let res = gen_sym ?name (prefix ^"_res_")
+      and pos = gen_sym (prefix ^"_pos_") in
+      let t = E.type_of l e in
+      assert (T.is_nullable t) ; (* tn must be an optional<...> *)
+      let tn = type_identifier p (T.force t) in
+      ppi p.P.def "std::optional<%s> %s;" tn res ;
+      ppi p.P.def "std::size_t %s;" pos ;
+      ppi p.P.def "try {" ;
+      ppi p.P.def "  %s const v_ { std::%s(%s, &%s) };" tn cpp_op n1 pos ;
+      ppi p.P.def "  if (%s == %s.length()) %s = v_;" pos n1 res ;
+      ppi p.P.def "} catch (const std::exception&) {}" ;
+      res
+    in
     match e with
     | E.E1S (Apply, f, es) ->
         let nf = print emit p l f in
@@ -497,39 +513,39 @@ struct
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s[0]" n)
     | E.E1 (FloatOfString, e1) ->
-        unary_func "std::stod" e1
-    | E.E1 (U8OfString, e1)
-    | E.E1 (U16OfString, e1)
-    | E.E1 (U24OfString, e1)
+        of_string e1 "float_of_string" "stod"
+    | E.E1 (U8OfString, e1) ->
+        of_string e1 "u8_of_string" "stoul"
+    | E.E1 (U16OfString, e1) ->
+        of_string e1 "u16_of_string" "stoul"
+    | E.E1 (U24OfString, e1) ->
+        of_string e1 "u24_of_string" "stoul"
     | E.E1 (U32OfString, e1) ->
-        let n = print emit p l e1 in
-        let t = E.type_of l e in
-        emit ?name p l e (fun oc ->
-          print_cast p t (fun oc -> pp oc "std::stoul(%s)" n) oc)
-    | E.E1 (U40OfString, e1)
-    | E.E1 (U48OfString, e1)
-    | E.E1 (U56OfString, e1)
+        of_string e1 "u32_of_string" "stoul"
+    | E.E1 (U40OfString, e1) ->
+        of_string e1 "u40_of_string" "stoull"
+    | E.E1 (U48OfString, e1) ->
+        of_string e1 "u48_of_string" "stoull"
+    | E.E1 (U56OfString, e1) ->
+        of_string e1 "u56_of_string" "stoull"
     | E.E1 (U64OfString, e1) ->
-        let n = print emit p l e1 in
-        let t = E.type_of l e in
-        emit ?name p l e (fun oc ->
-          print_cast p t (fun oc -> pp oc "std::stoull(%s)" n) oc)
-    | E.E1 (I8OfString, e1)
-    | E.E1 (I16OfString, e1)
-    | E.E1 (I24OfString, e1)
+        of_string e1 "u64_of_string" "stoull"
+    | E.E1 (I8OfString, e1) ->
+        of_string e1 "i8_of_string" "stol"
+    | E.E1 (I16OfString, e1) ->
+        of_string e1 "i16_of_string" "stol"
+    | E.E1 (I24OfString, e1) ->
+        of_string e1 "i24_of_string" "stol"
     | E.E1 (I32OfString, e1) ->
-        let n = print emit p l e1 in
-        let t = E.type_of l e in
-        emit ?name p l e (fun oc ->
-          print_cast p t (fun oc -> pp oc "std::stol(%s)" n) oc)
-    | E.E1 (I40OfString, e1)
-    | E.E1 (I48OfString, e1)
-    | E.E1 (I56OfString, e1)
+        of_string e1 "i32_of_string" "stol"
+    | E.E1 (I40OfString, e1) ->
+        of_string e1 "i40_of_string" "stoll"
+    | E.E1 (I48OfString, e1) ->
+        of_string e1 "i48_of_string" "stoll"
+    | E.E1 (I56OfString, e1) ->
+        of_string e1 "i60_of_string" "stoll"
     | E.E1 (I64OfString, e1) ->
-        let n = print emit p l e1 in
-        let t = E.type_of l e in
-        emit ?name p l e (fun oc ->
-          print_cast p t (fun oc -> pp oc "std::stoll(%s)" n) oc)
+        of_string e1 "i64_of_string" "stoll"
     | E.E1 ((I128OfString | U128OfString), e1) ->
         unary_func "i128_of_string" e1
     | E.E1 (CharOfPtr, e1) ->
@@ -1147,6 +1163,7 @@ struct
      #include <chrono>\n\
      #include <cmath>\n\
      #include <cstdlib>\n\
+     #include <exception>\n\
      #include <fstream>\n\
      #include <functional>\n\
      #include <iostream>\n\
