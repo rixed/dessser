@@ -799,7 +799,7 @@ struct
     | E.E1 (Cardinality, e1) ->
         (match E.type_of l e1 |> T.develop_user_types with
         | Value { vtyp = Vec (d, _) ; _ } ->
-            string_of_int d
+            emit ?name p l e (fun oc -> pp oc "Uint32.of_int %d" d)
         | Value { vtyp = Lst _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
         | Value { vtyp = Set _ ; _ } ->
