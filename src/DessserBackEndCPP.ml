@@ -653,6 +653,9 @@ struct
         method_call e1 "toListRev" []
     | E.E1 (SetOfSList, e1) ->
         method_call e1 "toSet" []
+    | E.E1 (ListOfVec, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> String.print oc n1)
     | E.E2 (AppendByte, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

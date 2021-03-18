@@ -700,7 +700,8 @@ struct
     | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)
     | E.E1 (U64OfQWord, e1) | E.E1 (QWordOfU64, e1)
     | E.E1 (U128OfOWord, e1) | E.E1 (OWordOfU128, e1)
-    | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1) ->
+    | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1)
+    | E.E1 (ListOfVec, e1) ->
         print ?name emit p l e1
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1

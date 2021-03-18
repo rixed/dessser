@@ -4,6 +4,7 @@
 #include <functional>
 #include <initializer_list>
 #include <vector>
+#include "dessser/Vec.h"
 
 template<class T>
 struct Lst : public std::vector<T> {
@@ -16,6 +17,11 @@ struct Lst : public std::vector<T> {
   {
     this->reserve(10);
     this->insert(this->begin(), lst);
+  }
+
+  template<unsigned DIM>
+  Lst(Vec<DIM, T> vec) : std::vector<T>(vec)
+  {
   }
 
   // Mapped from another Lst:

@@ -300,12 +300,13 @@ let e1_of_int n =
          ToI128 ; ToFloat ; LogNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ;
          ByteOfU8 ; U16OfWord ; WordOfU16 ; U32OfDWord ; DWordOfU32 ;
          U64OfQWord ; QWordOfU64 ; U128OfOWord ; OWordOfU128 ; U8OfChar ;
-         CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; U8OfBool ;
-         BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
-         ; ReadByte ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ;
-         Exp ; Log ; Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ;
-         ACos ; ASin ; ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ;
-         Snd ; Identity ; GetEnv |]
+         CharOfU8 ; SizeOfU32 ; U32OfSize ; BitOfBool ; BoolOfBit ; ListOfSList
+         ; ListOfSListRev ; SetOfSList ; ListOfVec ; U8OfBool ; BoolOfU8 ;
+         StringLength ; StringOfBytes ; BytesOfString ; Cardinality ; ReadByte
+         ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ;
+         Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ;
+         ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd ;
+         Identity ; GetEnv |]
   in
   e1s.(n mod Array.length e1s)
 

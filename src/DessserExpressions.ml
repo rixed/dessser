@@ -203,6 +203,7 @@ type e1 =
   | ListOfSList
   | ListOfSListRev
   | SetOfSList
+  | ListOfVec
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
@@ -673,6 +674,7 @@ let string_of_e1 = function
   | ListOfSList -> "list-of-slist"
   | ListOfSListRev -> "list-of-slist-rev"
   | SetOfSList -> "set-of-slist"
+  | ListOfVec -> "list-of-vec"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -1237,6 +1239,7 @@ struct
     | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
     | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
     | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
+    | Lst [ Sym "list-of-vec" ; x ] -> E1 (ListOfVec, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
@@ -1639,6 +1642,12 @@ let rec type_of l e0 =
       | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
+  | E1 (ListOfVec, e) ->
+      (match type_of l e |> T.develop_user_types with
+      | T.Value ({ vtyp = Vec (_, mn) ; nullable = false }) ->
+          Value (T.make (Lst mn))
+      | t ->
+          raise (Type_error (e0, e, t, "be a vec")))
   | E1 (U8OfBool, _) -> T.u8
   | E1 (BoolOfU8, _) -> T.bool
   | E2 (AppendByte, _, _) -> T.bytes
@@ -1911,6 +1920,8 @@ let rec type_check l e =
       | Value _ -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a possibly nullable value")) in
+    let check_vector l e =
+      ignore (get_item_type ~vec:true e0 l e) in
     let check_list_or_vector l e =
       ignore (get_item_type ~lst:true ~vec:true e0 l e) in
     let check_list_or_vector_or_set l e =
@@ -2108,6 +2119,8 @@ let rec type_check l e =
         check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
         check_slist_of_maybe_nullable l e
+    | E1 (ListOfVec, e) ->
+        check_vector l e
     | E1 (DataPtrOfBuffer, e) ->
         check_eq l e T.size
     | E1 (GetEnv, e) ->
@@ -2561,6 +2574,16 @@ struct
   let qword n = E0 (QWord n)
   let oword n = E0 (OWord n)
   let bytes s = E0 (Bytes s)
+  let u8_of_int n = u8 (Uint8.of_int n)
+  let u16_of_int n = u16 (Uint16.of_int n)
+  let u24_of_int n = u24 (Uint24.of_int n)
+  let u32_of_int n = u32 (Uint32.of_int n)
+  let u40_of_int n = u40 (Uint40.of_int n)
+  let u48_of_int n = u48 (Uint48.of_int n)
+  let i32_of_int n = i32 (Int32.of_int n)
+  let u56_of_int n = u56 (Uint56.of_int n)
+  let u64_of_int n = u64 (Uint64.of_int n)
+  let u128_of_int n = u128 (Uint128.of_int n)
   let is_null = function
     | E0 (Null _) -> true_
     | E1 (NotNull, _) -> false_
@@ -2972,7 +2995,9 @@ struct
   let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)
-  let cardinality e1 = E1 (Cardinality, e1)
+  let cardinality = function
+    | E0S ((MakeVec | MakeLst _), es) -> u32_of_int (List.length es)
+    | e1 -> E1 (Cardinality, e1)
   let blit_byte e1 e2 e3 =
     (* Do nothing if blitint nothing: *)
     match e3 with
@@ -2983,8 +3008,13 @@ struct
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
   let force = function
-    | E1 (NotNull, e1) -> e1
-    | e1 -> E1 (Force, e1)
+    | E1 (NotNull, e1) ->
+        e1
+    | E0 (Null _) as e ->
+        Printf.sprintf2 "force %a" (print ?max_depth:None) e |>
+        invalid_arg
+    | e1 ->
+        E1 (Force, e1)
   let find_substring e1 e2 e3 =
     match e2, e3 with
     | E0 (String s1), E0 (String s2) ->
@@ -3016,6 +3046,7 @@ struct
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
+  let list_of_vec e1 = E1 (ListOfVec, e1)
   let split_by e1 e2 =
     match e1, e2 with
     | E0 (String s1), E0 (String s2) ->
@@ -3071,16 +3102,6 @@ struct
   let byte_of_bool = byte_of_u8 % u8_of_bool
   let char_of_byte = char_of_u8 % u8_of_byte
   let byte_of_char = byte_of_u8 % u8_of_char
-  let u8_of_int n = u8 (Uint8.of_int n)
-  let u16_of_int n = u16 (Uint16.of_int n)
-  let u24_of_int n = u24 (Uint24.of_int n)
-  let u32_of_int n = u32 (Uint32.of_int n)
-  let u40_of_int n = u40 (Uint40.of_int n)
-  let u48_of_int n = u48 (Uint48.of_int n)
-  let i32_of_int n = i32 (Int32.of_int n)
-  let u56_of_int n = u56 (Uint56.of_int n)
-  let u64_of_int n = u64 (Uint64.of_int n)
-  let u128_of_int n = u128 (Uint128.of_int n)
   let nop = seq []
   let assert_ = function
     | E0 (Bool true) -> nop
