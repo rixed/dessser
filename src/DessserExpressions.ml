@@ -3092,5 +3092,7 @@ struct
   let set_field_null = E0 SetFieldNull
   let apply f es = E1S (Apply, f, es)
   let getenv e = E1 (GetEnv, e)
-  let string_of_char_ e = E1 (StringOfChar, e)
+  let string_of_char_ = function
+    | E0 (Char c) -> string (String.of_char c)
+    | e -> E1 (StringOfChar, e)
 end
