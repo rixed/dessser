@@ -470,7 +470,7 @@ struct
     DynSize (add headsz (round_up_dyn_bytes sz))
 
   (* SerSize of the list header: *)
-  let ssize_of_list mn _path _l id =
+  let ssize_of_list mn0 path _l id =
     let with_nullmask () =
       let nullmask_bits_dyn = cardinality id in
       (* Add the nullmask length prefix: *)
@@ -482,7 +482,7 @@ struct
     and no_nullmask () =
       ConstSize word_size in
     (* If the items are not nullable then there is no nullmask. *)
-    match mn.T.vtyp with
+    match (T.type_of_path mn0 path).vtyp with
     | Lst vt ->
         if vt.nullable then
           with_nullmask ()
