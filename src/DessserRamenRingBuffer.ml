@@ -65,7 +65,7 @@ let align_dyn l p extra_bytes =
     (* FIXME: Improve type-checking so that rem/div do not have to return
      * nullable types when used with constants *)
     size_of_u32 (force (rem (u32_of_size extra_bytes)
-                       (u32_of_size wsize))) in
+                            (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
   let_ ~name:"align_ptr" ~l p (fun _l p ->
     if_
@@ -464,7 +464,7 @@ struct
   type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
 
   (* SerSize of the whole string: *)
-  let ssize_of_string _mn _path _l id =
+  let ssize_of_string _mn0 _path _l id =
     let sz = size_of_u32 (string_length id) in
     let headsz = size word_size in
     DynSize (add headsz (round_up_dyn_bytes sz))
@@ -481,97 +481,105 @@ struct
                    nullmask_bytes)
     and no_nullmask () =
       ConstSize word_size in
-    (* If the items are not nullable then there is no nullmask. *)
     match (T.type_of_path mn0 path).vtyp with
     | Lst vt ->
+        (* If the items are not nullable then there is no nullmask. *)
         if vt.nullable then
           with_nullmask ()
         else
           no_nullmask ()
-    | _ ->
+    | vtyp ->
+        Printf.eprintf "ERROR: List of type %a!?\n%!"
+          T.print_value_type vtyp ;
         assert false
 
-  let ssize_of_float _mn _path _ _ =
+  let ssize_of_float _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_bool _mn _path _ _ =
+  let ssize_of_bool _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_i8 _mn _path _ _ =
+  let ssize_of_i8 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_i16 _mn _path _ _ =
+  let ssize_of_i16 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 2)
 
-  let ssize_of_i24 _mn _path _ _ =
+  let ssize_of_i24 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 3)
 
-  let ssize_of_i32 _mn _path _ _ =
+  let ssize_of_i32 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 4)
 
-  let ssize_of_i40 _mn _path _ _ =
+  let ssize_of_i40 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 5)
 
-  let ssize_of_i48 _mn _path _ _ =
+  let ssize_of_i48 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 6)
 
-  let ssize_of_i56 _mn _path _ _ =
+  let ssize_of_i56 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 7)
 
-  let ssize_of_i64 _mn _path _ _ =
+  let ssize_of_i64 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_i128 _mn _path _ _ =
+  let ssize_of_i128 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 16)
 
-  let ssize_of_u8 _mn _path _ _ =
+  let ssize_of_u8 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 1)
 
-  let ssize_of_u16 _mn _path _ _ =
+  let ssize_of_u16 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 2)
 
-  let ssize_of_u24 _mn _path _ _ =
+  let ssize_of_u24 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 3)
 
-  let ssize_of_u32 _mn _path _ _ =
+  let ssize_of_u32 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 4)
 
-  let ssize_of_u40 _mn _path _ _ =
+  let ssize_of_u40 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 5)
 
-  let ssize_of_u48 _mn _path _ _ =
+  let ssize_of_u48 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 6)
 
-  let ssize_of_u56 _mn _path _ _ =
+  let ssize_of_u56 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 7)
 
-  let ssize_of_u64 _mn _path _ _ =
+  let ssize_of_u64 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 8)
 
-  let ssize_of_u128 _mn _path _ _ =
+  let ssize_of_u128 _mn0 _path _ _ =
     ConstSize (round_up_const_bytes 16)
 
-  let ssize_of_char _mn _path _ _ =
+  let ssize_of_char _mn0 _path _ _ =
     ConstSize (round_up_const_bits 1)
 
-  let ssize_of_tup mn path _ _ =
+  let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
     let typs =
-      match (T.type_of_path mn path).vtyp with
+      match (T.type_of_path mn0 path).vtyp with
       | Tup typs ->
           typs
-      | _ -> assert false in
+      | vtyp ->
+          Printf.eprintf "ERROR: Tuple of type %a!?\n%!"
+            T.print_value_type vtyp ;
+          assert false in
     ConstSize (round_up_const_bits (
       8 (* nullmask width *) +
       Array.length typs (* one bit per possibly selected item *)))
 
-  let ssize_of_rec mn path _ _ =
+  let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
     let typs =
-      match (T.type_of_path mn path).vtyp with
+      match (T.type_of_path mn0 path).vtyp with
       | Rec typs ->
           typs
-      | _ -> assert false in
+      | vtyp ->
+          Printf.eprintf "ERROR: Record of type %a!?\n%!"
+            T.print_value_type vtyp ;
+          assert false in
     let selectable_fields = Array.length typs in
     ConstSize (round_up_const_bits (
       8 (* nullmask width *) +
@@ -581,16 +589,19 @@ struct
   let ssize_of_sum _ _ _ _ =
     ConstSize word_size
 
-  let ssize_of_vec mn path _ _ =
+  let ssize_of_vec mn0 path _ _ =
     let dim, typ =
-      match (T.type_of_path mn path).vtyp with
+      match (T.type_of_path mn0 path).vtyp with
       | Vec (dim, typ) ->
           dim, typ
-      | _ -> assert false in
+      | vtyp ->
+          Printf.eprintf "ERROR: Vector of type %a!?\n%!"
+            T.print_value_type vtyp ;
+          assert false in
     ConstSize (round_up_const_bits (
       if typ.nullable then (8 + dim) else 0))
 
-  let ssize_of_null _mn _path = ConstSize 0
+  let ssize_of_null _mn0 _path = ConstSize 0
 
   let ssize_start ?(config=()) _ =
     ignore config ;
