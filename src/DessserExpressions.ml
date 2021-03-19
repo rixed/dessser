@@ -11,6 +11,9 @@ module T = DessserTypes
 (* Controls whether Debug translate into Dump or Ignore: *)
 let dump_debug = ref false
 
+(* Controls whether optimisation is enabled: *)
+let optimize = ref true
+
 type endianness = LittleEndian | BigEndian
 
 let string_of_endianness = function
@@ -2576,19 +2579,27 @@ struct
   let qword n = E0 (QWord n)
   let oword n = E0 (OWord n)
   let bytes s = E0 (Bytes s)
+  let i8_of_int n = i8 (Int8.of_int n)
   let u8_of_int n = u8 (Uint8.of_int n)
+  let i16_of_int n = i16 (Int16.of_int n)
   let u16_of_int n = u16 (Uint16.of_int n)
+  let i24_of_int n = i24 (Int24.of_int n)
   let u24_of_int n = u24 (Uint24.of_int n)
-  let u32_of_int n = u32 (Uint32.of_int n)
-  let u40_of_int n = u40 (Uint40.of_int n)
-  let u48_of_int n = u48 (Uint48.of_int n)
   let i32_of_int n = i32 (Int32.of_int n)
+  let u32_of_int n = u32 (Uint32.of_int n)
+  let i40_of_int n = i40 (Int40.of_int n)
+  let u40_of_int n = u40 (Uint40.of_int n)
+  let i48_of_int n = i48 (Int48.of_int n)
+  let u48_of_int n = u48 (Uint48.of_int n)
+  let i56_of_int n = i56 (Int56.of_int n)
   let u56_of_int n = u56 (Uint56.of_int n)
+  let i64_of_int n = i64 (Int64.of_int n)
   let u64_of_int n = u64 (Uint64.of_int n)
+  let i128_of_int n = i128 (Int128.of_int n)
   let u128_of_int n = u128 (Uint128.of_int n)
   let is_null = function
-    | E0 (Null _) -> true_
-    | E1 (NotNull, _) -> false_
+    | E0 (Null _) when !optimize -> true_
+    | E1 (NotNull, _) when !optimize -> false_
     | e -> E1 (IsNull, e)
   let nth e1 e2 = E2 (Nth, e1, e2)
   let read_byte e1 = E1 (ReadByte, e1)
@@ -2611,7 +2622,7 @@ struct
   let insert e1 e2 = E2 (Insert, e1, e2)
   let join e1 e2 =
     match e1, e2 with
-    | E0 (String s1), E0S (MakeVec, ss) ->
+    | E0 (String s1), E0S (MakeVec, ss) when !optimize ->
         (try
           List.map (function
             | E0 (String s) -> s
@@ -2624,103 +2635,103 @@ struct
     | _ -> E2 (Join, e1, e2)
   let bytes_of_string e1 = E1 (BytesOfString, e1)
   let string_of_int_ = function
-    | E0 (U8 n) -> string (Uint8.to_string n)
-    | E0 (U16 n) -> string (Uint16.to_string n)
-    | E0 (U24 n) -> string (Uint24.to_string n)
-    | E0 (U32 n) -> string (Uint32.to_string n)
-    | E0 (U40 n) -> string (Uint40.to_string n)
-    | E0 (U48 n) -> string (Uint48.to_string n)
-    | E0 (U56 n) -> string (Uint56.to_string n)
-    | E0 (U64 n) -> string (Uint64.to_string n)
-    | E0 (U128 n) -> string (Uint128.to_string n)
-    | E0 (I8 n) -> string (Int8.to_string n)
-    | E0 (I16 n) -> string (Int16.to_string n)
-    | E0 (I24 n) -> string (Int24.to_string n)
-    | E0 (I32 n) -> string (Int32.to_string n)
-    | E0 (I40 n) -> string (Int40.to_string n)
-    | E0 (I48 n) -> string (Int48.to_string n)
-    | E0 (I56 n) -> string (Int56.to_string n)
-    | E0 (I64 n) -> string (Int64.to_string n)
-    | E0 (I128 n) -> string (Int128.to_string n)
+    | E0 (U8 n) when !optimize -> string (Uint8.to_string n)
+    | E0 (U16 n) when !optimize -> string (Uint16.to_string n)
+    | E0 (U24 n) when !optimize -> string (Uint24.to_string n)
+    | E0 (U32 n) when !optimize -> string (Uint32.to_string n)
+    | E0 (U40 n) when !optimize -> string (Uint40.to_string n)
+    | E0 (U48 n) when !optimize -> string (Uint48.to_string n)
+    | E0 (U56 n) when !optimize -> string (Uint56.to_string n)
+    | E0 (U64 n) when !optimize -> string (Uint64.to_string n)
+    | E0 (U128 n) when !optimize -> string (Uint128.to_string n)
+    | E0 (I8 n) when !optimize -> string (Int8.to_string n)
+    | E0 (I16 n) when !optimize -> string (Int16.to_string n)
+    | E0 (I24 n) when !optimize -> string (Int24.to_string n)
+    | E0 (I32 n) when !optimize -> string (Int32.to_string n)
+    | E0 (I40 n) when !optimize -> string (Int40.to_string n)
+    | E0 (I48 n) when !optimize -> string (Int48.to_string n)
+    | E0 (I56 n) when !optimize -> string (Int56.to_string n)
+    | E0 (I64 n) when !optimize -> string (Int64.to_string n)
+    | E0 (I128 n) when !optimize -> string (Int128.to_string n)
     | e -> E1 (StringOfInt, e)
   let string_of_float_ = function
-    | E0 (Float f) -> string (hexstring_of_float f)
+    | E0 (Float f) when !optimize -> string (hexstring_of_float f)
     | e -> E1 (StringOfFloat, e)
   let string_of_ip = function
-    | E0 (U32 n) -> string (DessserIpTools.V4.to_string n)
-    | E0 (U128 n) -> string (DessserIpTools.V6.to_string n)
+    | E0 (U32 n) when !optimize -> string (DessserIpTools.V4.to_string n)
+    | E0 (U128 n) when !optimize -> string (DessserIpTools.V6.to_string n)
     | e -> E1 (StringOfIp, e)
   let char_of_string = function
-    | E0 (String s) ->
+    | E0 (String s) when !optimize ->
         if String.length s = 1 then char s.[0]
         else invalid_arg "char_of_string"
     | e ->
         E1 (CharOfString, e)
   let string_of_char = function
-    | E0 (Char c) -> string (String.of_char c)
+    | E0 (Char c) when !optimize -> string (String.of_char c)
     | e -> E1 (StringOfChar, e)
   let null vt = E0 (Null vt)
   let not_null = function
-    | E1 (Force, e1) -> e1
+    | E1 (Force, e1) when !optimize -> e1
     | e1 -> E1 (NotNull, e1)
   let or_null vt op conv s =
     try not_null (op (conv s)) with Invalid_argument _ -> null vt
   let float_of_string_ = function
-    | E0 (String s) -> or_null (Mac Float) float float_of_string s
+    | E0 (String s) when !optimize -> or_null (Mac Float) float float_of_string s
     | e -> E1 (FloatOfString, e)
   let u8_of_string = function
-    | E0 (String s) -> or_null (Mac U8) u8 Uint8.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U8) u8 Uint8.of_string s
     | e -> E1 (U8OfString, e)
   let u16_of_string = function
-    | E0 (String s) -> or_null (Mac U16) u16 Uint16.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U16) u16 Uint16.of_string s
     | e -> E1 (U16OfString, e)
   let u24_of_string = function
-    | E0 (String s) -> or_null (Mac U24) u24 Uint24.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U24) u24 Uint24.of_string s
     | e -> E1 (U24OfString, e)
   let u32_of_string = function
-    | E0 (String s) -> or_null (Mac U32) u32 Uint32.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U32) u32 Uint32.of_string s
     | e -> E1 (U32OfString, e)
   let u40_of_string = function
-    | E0 (String s) -> or_null (Mac U40) u40 Uint40.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U40) u40 Uint40.of_string s
     | e -> E1 (U40OfString, e)
   let u48_of_string = function
-    | E0 (String s) -> or_null (Mac U48) u48 Uint48.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U48) u48 Uint48.of_string s
     | e -> E1 (U48OfString, e)
   let u56_of_string = function
-    | E0 (String s) -> or_null (Mac U56) u56 Uint56.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U56) u56 Uint56.of_string s
     | e -> E1 (U56OfString, e)
   let u64_of_string = function
-    | E0 (String s) -> or_null (Mac U64) u64 Uint64.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U64) u64 Uint64.of_string s
     | e -> E1 (U64OfString, e)
   let u128_of_string = function
-    | E0 (String s) -> or_null (Mac U128) u128 Uint128.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac U128) u128 Uint128.of_string s
     | e -> E1 (U128OfString, e)
   let i8_of_string = function
-    | E0 (String s) -> or_null (Mac I8) i8 Int8.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I8) i8 Int8.of_string s
     | e -> E1 (I8OfString, e)
   let i16_of_string = function
-    | E0 (String s) -> or_null (Mac I16) i16 Int16.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I16) i16 Int16.of_string s
     | e -> E1 (I16OfString, e)
   let i24_of_string = function
-    | E0 (String s) -> or_null (Mac I24) i24 Int24.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I24) i24 Int24.of_string s
     | e -> E1 (I24OfString, e)
   let i32_of_string = function
-    | E0 (String s) -> or_null (Mac I32) i32 Int32.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I32) i32 Int32.of_string s
     | e -> E1 (I32OfString, e)
   let i40_of_string = function
-    | E0 (String s) -> or_null (Mac I40) i40 Int40.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I40) i40 Int40.of_string s
     | e -> E1 (I40OfString, e)
   let i48_of_string = function
-    | E0 (String s) -> or_null (Mac I48) i48 Int48.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I48) i48 Int48.of_string s
     | e -> E1 (I48OfString, e)
   let i56_of_string = function
-    | E0 (String s) -> or_null (Mac I56) i56 Int56.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I56) i56 Int56.of_string s
     | e -> E1 (I56OfString, e)
   let i64_of_string = function
-    | E0 (String s) -> or_null (Mac I64) i64 Int64.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I64) i64 Int64.of_string s
     | e -> E1 (I64OfString, e)
   let i128_of_string = function
-    | E0 (String s) -> or_null (Mac I128) i128 Int128.of_string s
+    | E0 (String s) when !optimize -> or_null (Mac I128) i128 Int128.of_string s
     | e -> E1 (I128OfString, e)
   let float_of_ptr e1 = E1 (FloatOfPtr, e1)
   let char_of_ptr e1 = E1 (CharOfPtr, e1)
@@ -2743,49 +2754,49 @@ struct
   let i64_of_ptr e1 = E1 (I64OfPtr, e1)
   let i128_of_ptr e1 = E1 (I128OfPtr, e1)
   let byte_of_u8 = function
-    | E0 (U8 n) -> byte n
+    | E0 (U8 n) when !optimize -> byte n
     | e -> E1 (ByteOfU8, e)
   let bool_of_u8 = function
-    | E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0)
+    | E0 (U8 n) when !optimize -> bool (Uint8.compare Uint8.zero n <> 0)
     | e -> E1 (BoolOfU8, e)
   let word_of_u16 = function
-    | E0 (U16 n) -> word n
+    | E0 (U16 n) when !optimize -> word n
     | e -> E1 (WordOfU16, e)
   let dword_of_u32 = function
-    | E0 (U32 n) -> dword n
+    | E0 (U32 n) when !optimize -> dword n
     | e -> E1 (DWordOfU32, e)
   let qword_of_u64 = function
-    | E0 (U64 n) -> qword n
+    | E0 (U64 n) when !optimize -> qword n
     | e -> E1 (QWordOfU64, e)
   let oword_of_u128 = function
-    | E0 (U128 n) -> oword n
+    | E0 (U128 n) when !optimize -> oword n
     | e -> E1 (OWordOfU128, e)
   let u8_of_byte = function
-    | E0 (Byte n) -> u8 n
+    | E0 (Byte n) when !optimize -> u8 n
     | e -> E1 (U8OfByte, e)
   let u8_of_char = function
-    | E0 (Char c) -> u8 (Uint8.of_int (Char.code c))
+    | E0 (Char c) when !optimize -> u8 (Uint8.of_int (Char.code c))
     | e -> E1 (U8OfChar, e)
   let u8_of_bool = function
-    | E0 (Bool false) -> u8 (Uint8.of_int 0)
-    | E0 (Bool true) -> u8 (Uint8.of_int 1)
+    | E0 (Bool false) when !optimize -> u8 (Uint8.of_int 0)
+    | E0 (Bool true) when !optimize -> u8 (Uint8.of_int 1)
     | e -> E1 (U8OfBool, e)
   let bool_of_bit = function
-    | E0 (Bit b) -> bool b
+    | E0 (Bit b) when !optimize -> bool b
     | e -> E1 (BoolOfBit, e)
   let bit_of_bool = function
-    | E0 (Bool b) -> bit b
+    | E0 (Bool b) when !optimize -> bit b
     | e -> E1 (BitOfBool, e)
   let u8_of_bit = u8_of_bool % bool_of_bit
   let bit_of_u8 = bit_of_bool % bool_of_u8
   let char_of_u8 = function
-    | E0 (U8 n) -> char (Char.chr (Uint8.to_int n))
+    | E0 (U8 n) when !optimize -> char (Char.chr (Uint8.to_int n))
     | e -> E1 (CharOfU8, e)
   let u32_of_size = function
-    | E0 (Size n) -> u32 (Uint32.of_int n)
+    | E0 (Size n) when !optimize -> u32 (Uint32.of_int n)
     | e -> E1 (U32OfSize, e)
   let size_of_u32 = function
-    | E0 (U32 n) -> size (Uint32.to_int n)
+    | E0 (U32 n) when !optimize -> size (Uint32.to_int n)
     | e -> E1 (SizeOfU32, e)
   let eol t = E0 (EndOfList t)
   let end_of_list t = E0 (EndOfList t)
@@ -2801,38 +2812,38 @@ struct
   let random_u128 = E0 RandomU128
   let pair e1 e2 = E2 (Pair, e1, e2)
   let first = function
-    | E2 (Pair, e, _) -> e
+    | E2 (Pair, e, _) when !optimize -> e
     | e -> E1 (Fst, e)
   let secnd = function
-    | E2 (Pair, _, e) -> e
+    | E2 (Pair, _, e) when !optimize -> e
     | e -> E1 (Snd, e)
   let cons e1 e2 = E2 (Cons, e1, e2)
   let head = function
-    | E2 (Cons, e, _) -> e
+    | E2 (Cons, e, _) when !optimize -> e
     | e -> E1 (Head, e)
   let rec tail = function
-    | E0 (EndOfList _) -> invalid_arg "tail" (* FIXME: return Null *)
-    | E2 (Cons, e, E0 (EndOfList _)) -> e
-    | E2 (Cons, _, e) -> tail e
+    | E0 (EndOfList _) when !optimize -> invalid_arg "tail" (* FIXME: return Null *)
+    | E2 (Cons, e, E0 (EndOfList _)) when !optimize -> e
+    | E2 (Cons, _, e) when !optimize -> tail e
     | e -> E1 (Tail, e)
   let byte_of_char = function
-    | E0 (Char c) -> byte (Uint8.of_int (Char.code c))
+    | E0 (Char c) when !optimize -> byte (Uint8.of_int (Char.code c))
     | e -> byte_of_u8 (u8_of_char e)
   let byte_of_const_char c = byte_of_char (char c)
   let if_ ~cond ~then_ ~else_ =
     match cond with
-    | E0 (Bool true) -> then_
-    | E0 (Bool false) -> else_
+    | E0 (Bool true) when !optimize -> then_
+    | E0 (Bool false) when !optimize -> else_
     | _-> E3 (If, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos =
     match cond with
-    | E0 (Bool false) -> pair init pos
+    | E0 (Bool false) when !optimize -> pair init pos
     | _ -> E4 (ReadWhile, cond, reduce, init, pos)
   let float_of_qword = function
-    | E0 (QWord n) -> float (BatInt64.float_of_bits (Uint64.to_int64 n))
+    | E0 (QWord n) when !optimize -> float (BatInt64.float_of_bits (Uint64.to_int64 n))
     | e -> E1 (FloatOfQWord, e)
   let qword_of_float = function
-    | E0 (Float f) -> qword (Uint64.of_int64 (BatInt64.bits_of_float f))
+    | E0 (Float f) when !optimize -> qword (Uint64.of_int64 (BatInt64.bits_of_float f))
     | e -> E1 (QWordOfFloat, e)
   let comment n e1 = E1 (Comment n, e1)
   let ge e1 e2 = E2 (Ge, e1, e2)
@@ -2847,58 +2858,58 @@ struct
     | E0 Unit, E0 Unit
     | E0 CopyField, E0 CopyField
     | E0 SkipField, E0 SkipField
-    | E0 SetFieldNull, E0 SetFieldNull ->
+    | E0 SetFieldNull, E0 SetFieldNull when !optimize ->
         true_
     (* None other combination of those can be equal: *)
     | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
          | CopyField | SkipField | SetFieldNull),
       E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-         | CopyField | SkipField | SetFieldNull) ->
+         | CopyField | SkipField | SetFieldNull) when !optimize ->
         false_
     (* Another easy case of practical importance: comparison of a null with
      * a NotNull: *)
     | E0 (Null _), E1 (NotNull, _)
-    | E1 (NotNull, _), E0 (Null _) ->
+    | E1 (NotNull, _), E0 (Null _) when !optimize ->
         false_
     (* Peel away some common wrappers: *)
     | E1 (NotNull, e1), E1 (NotNull, e2)
-    | E1 (Force, e1), E1 (Force, e2) ->
+    | E1 (Force, e1), E1 (Force, e2) when !optimize ->
         eq e1 e2
     (* Compare numerical constant (only if of the same type (TODO)): *)
-    | E0 (Float v1), E0 (Float v2) -> bool (v1 = v2)
-    | E0 (String v1), E0 (String v2) -> bool (v1 = v2)
-    | E0 (Bool v1), E0 (Bool v2) -> bool (v1 = v2)
-    | E0 (Char v1), E0 (Char v2) -> bool (v1 = v2)
-    | E0 (U8 v1), E0 (U8 v2) -> bool (v1 = v2)
-    | E0 (U16 v1), E0 (U16 v2) -> bool (v1 = v2)
-    | E0 (U24 v1), E0 (U24 v2) -> bool (v1 = v2)
-    | E0 (U32 v1), E0 (U32 v2) -> bool (v1 = v2)
-    | E0 (U40 v1), E0 (U40 v2) -> bool (v1 = v2)
-    | E0 (U48 v1), E0 (U48 v2) -> bool (v1 = v2)
-    | E0 (U56 v1), E0 (U56 v2) -> bool (v1 = v2)
-    | E0 (U64 v1), E0 (U64 v2) -> bool (v1 = v2)
-    | E0 (U128 v1), E0 (U128 v2) -> bool (v1 = v2)
-    | E0 (I8 v1), E0 (I8 v2) -> bool (v1 = v2)
-    | E0 (I16 v1), E0 (I16 v2) -> bool (v1 = v2)
-    | E0 (I24 v1), E0 (I24 v2) -> bool (v1 = v2)
-    | E0 (I32 v1), E0 (I32 v2) -> bool (v1 = v2)
-    | E0 (I40 v1), E0 (I40 v2) -> bool (v1 = v2)
-    | E0 (I48 v1), E0 (I48 v2) -> bool (v1 = v2)
-    | E0 (I56 v1), E0 (I56 v2) -> bool (v1 = v2)
-    | E0 (I64 v1), E0 (I64 v2) -> bool (v1 = v2)
-    | E0 (I128 v1), E0 (I128 v2) -> bool (v1 = v2)
-    | E0 (Bit v1), E0 (Bit v2) -> bool (v1 = v2)
-    | E0 (Size v1), E0 (Size v2) -> bool (v1 = v2)
-    | E0 (Byte v1), E0 (Byte v2) -> bool (v1 = v2)
-    | E0 (Word v1), E0 (Word v2) -> bool (v1 = v2)
-    | E0 (DWord v1), E0 (DWord v2) -> bool (v1 = v2)
-    | E0 (QWord v1), E0 (QWord v2) -> bool (v1 = v2)
-    | E0 (OWord v1), E0 (OWord v2) -> bool (v1 = v2)
-    | E0 (Bytes v1), E0 (Bytes v2) -> bool (v1 = v2)
-    | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> bool (v1 = v2)
+    | E0 (Float v1), E0 (Float v2) when !optimize -> bool (v1 = v2)
+    | E0 (String v1), E0 (String v2) when !optimize -> bool (v1 = v2)
+    | E0 (Bool v1), E0 (Bool v2) when !optimize -> bool (v1 = v2)
+    | E0 (Char v1), E0 (Char v2) when !optimize -> bool (v1 = v2)
+    | E0 (U8 v1), E0 (U8 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U16 v1), E0 (U16 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U24 v1), E0 (U24 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U32 v1), E0 (U32 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U40 v1), E0 (U40 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U48 v1), E0 (U48 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U56 v1), E0 (U56 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U64 v1), E0 (U64 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U128 v1), E0 (U128 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I8 v1), E0 (I8 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I16 v1), E0 (I16 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I24 v1), E0 (I24 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I32 v1), E0 (I32 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I40 v1), E0 (I40 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I48 v1), E0 (I48 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I56 v1), E0 (I56 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I64 v1), E0 (I64 v2) when !optimize -> bool (v1 = v2)
+    | E0 (I128 v1), E0 (I128 v2) when !optimize -> bool (v1 = v2)
+    | E0 (Bit v1), E0 (Bit v2) when !optimize -> bool (v1 = v2)
+    | E0 (Size v1), E0 (Size v2) when !optimize -> bool (v1 = v2)
+    | E0 (Byte v1), E0 (Byte v2) when !optimize -> bool (v1 = v2)
+    | E0 (Word v1), E0 (Word v2) when !optimize -> bool (v1 = v2)
+    | E0 (DWord v1), E0 (DWord v2) when !optimize -> bool (v1 = v2)
+    | E0 (QWord v1), E0 (QWord v2) when !optimize -> bool (v1 = v2)
+    | E0 (OWord v1), E0 (OWord v2) when !optimize -> bool (v1 = v2)
+    | E0 (Bytes v1), E0 (Bytes v2) when !optimize -> bool (v1 = v2)
+    | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) when !optimize -> bool (v1 = v2)
     | _ -> E2 (Eq, e1, e2)
   let not_ = function
-    | E0 (Bool b) -> bool (not b)
+    | E0 (Bool b) when !optimize -> bool (not b)
     | e -> E1 (Not, e)
   let abs e1 = E1 (Abs, e1)
   let ne e1 e2 = not_ (eq e1 e2)
@@ -2917,17 +2928,17 @@ struct
   let log_xor e1 e2 = E2 (LogXor, e1, e2)
   let and_ e1 e2 =
     match e1, e2 with
-    | E0 (Bool true), _ -> e2
-    | _, E0 (Bool true) -> e1
-    | E0 (Bool false), _ -> e1  (* False, [e2] not evaluated *)
+    | E0 (Bool true), _ when !optimize -> e2
+    | _, E0 (Bool true) when !optimize -> e1
+    | E0 (Bool false), _ when !optimize -> e1  (* False, [e2] not evaluated *)
     (* Cannot ignore [e1] even if e2 is demonstrably false because of its
      * possible side effects! *)
     | _ -> E2 (And, e1, e2)
   let or_ e1 e2 =
     match e1, e2 with
-    | E0 (Bool false), _ -> e2
-    | _, E0 (Bool false) -> e1
-    | E0 (Bool true), _ -> e1  (* True, [e2] not evaluated *)
+    | E0 (Bool false), _ when !optimize -> e2
+    | _, E0 (Bool false) when !optimize -> e1
+    | E0 (Bool true), _ when !optimize -> e1  (* True, [e2] not evaluated *)
     (* Cannot ignore [e1] event if e2 is demonstrably true because if its
      * possible side effects! *)
     | _ -> E2 (Or, e1, e2)
@@ -2958,7 +2969,7 @@ struct
   let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
   let loop_while ~cond ~body ~init =
     match cond with
-    | E0 (Bool false) -> init
+    | E0 (Bool false) when !optimize -> init
     | _ -> E3 (LoopWhile, cond, body, init)
   let fold ~init ~body ~lst = E3 (Fold, init, body, lst)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
@@ -2998,28 +3009,28 @@ struct
   let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
   let string_length e1 = E1 (StringLength, e1)
   let cardinality = function
-    | E0S ((MakeVec | MakeLst _), es) -> u32_of_int (List.length es)
+    | E0S ((MakeVec | MakeLst _), es) when !optimize -> u32_of_int (List.length es)
     | e1 -> E1 (Cardinality, e1)
   let blit_byte e1 e2 e3 =
     (* Do nothing if blitint nothing: *)
     match e3 with
-    | E0 (Size 0) -> e1 (* return unmodified pointer *)
+    | E0 (Size 0) when !optimize -> e1 (* return unmodified pointer *)
     | _ -> E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
   let force = function
-    | E1 (NotNull, e1) ->
+    | E1 (NotNull, e1) when !optimize ->
         e1
-    | E0 (Null _) as e ->
+    | E0 (Null _) as e when !optimize ->
         Printf.sprintf2 "force %a" (print ?max_depth:None) e |>
         invalid_arg
     | e1 ->
         E1 (Force, e1)
   let find_substring e1 e2 e3 =
     match e2, e3 with
-    | E0 (String s1), E0 (String s2) ->
+    | E0 (String s1), E0 (String s2) when !optimize ->
         (* Let if_ optimize away that condition if the bool is known: *)
         let then_ =
           try not_null (u24 (Uint24.of_int (String.find s2 s1)))
@@ -3041,7 +3052,7 @@ struct
   (* Avoid useless sequences: *)
   let seq = function
     (* `seq []` is already synonymous with void/nop *)
-    | [ e ] -> e
+    | [ e ] when !optimize -> e
     | es -> E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_lst mn es = E0S (MakeLst mn, es)
@@ -3051,7 +3062,7 @@ struct
   let list_of_vec e1 = E1 (ListOfVec, e1)
   let split_by e1 e2 =
     match e1, e2 with
-    | E0 (String s1), E0 (String s2) ->
+    | E0 (String s1), E0 (String s2) when !optimize ->
         String.split_on_string s1 s2 |>
         List.map string |>
         make_lst T.(required (Mac String))
@@ -3075,24 +3086,24 @@ struct
       make_tup [ string (String.sub s 0 n) ;
                  string (String.sub s n (String.length s - n)) ] in
     match e1, e2 with
-    | E0 (U8 n), E0 (String s) -> res s (Uint8.to_int n)
-    | E0 (U16 n), E0 (String s) -> res s (Uint16.to_int n)
-    | E0 (U24 n), E0 (String s) -> res s (Uint24.to_int n)
-    | E0 (U32 n), E0 (String s) -> res s (Uint32.to_int n)
-    | E0 (U40 n), E0 (String s) -> res s (Uint40.to_int n)
-    | E0 (U48 n), E0 (String s) -> res s (Uint48.to_int n)
-    | E0 (U56 n), E0 (String s) -> res s (Uint56.to_int n)
-    | E0 (U64 n), E0 (String s) -> res s (Uint64.to_int n)
-    | E0 (U128 n), E0 (String s) -> res s (Uint128.to_int n)
-    | E0 (I8 n), E0 (String s) -> res s (Int8.to_int n)
-    | E0 (I16 n), E0 (String s) -> res s (Int16.to_int n)
-    | E0 (I24 n), E0 (String s) -> res s (Int24.to_int n)
-    | E0 (I32 n), E0 (String s) -> res s (Int32.to_int n)
-    | E0 (I40 n), E0 (String s) -> res s (Int40.to_int n)
-    | E0 (I48 n), E0 (String s) -> res s (Int48.to_int n)
-    | E0 (I56 n), E0 (String s) -> res s (Int56.to_int n)
-    | E0 (I64 n), E0 (String s) -> res s (Int64.to_int n)
-    | E0 (I128 n), E0 (String s) -> res s (Int128.to_int n)
+    | E0 (U8 n), E0 (String s) when !optimize -> res s (Uint8.to_int n)
+    | E0 (U16 n), E0 (String s) when !optimize -> res s (Uint16.to_int n)
+    | E0 (U24 n), E0 (String s) when !optimize -> res s (Uint24.to_int n)
+    | E0 (U32 n), E0 (String s) when !optimize -> res s (Uint32.to_int n)
+    | E0 (U40 n), E0 (String s) when !optimize -> res s (Uint40.to_int n)
+    | E0 (U48 n), E0 (String s) when !optimize -> res s (Uint48.to_int n)
+    | E0 (U56 n), E0 (String s) when !optimize -> res s (Uint56.to_int n)
+    | E0 (U64 n), E0 (String s) when !optimize -> res s (Uint64.to_int n)
+    | E0 (U128 n), E0 (String s) when !optimize -> res s (Uint128.to_int n)
+    | E0 (I8 n), E0 (String s) when !optimize -> res s (Int8.to_int n)
+    | E0 (I16 n), E0 (String s) when !optimize -> res s (Int16.to_int n)
+    | E0 (I24 n), E0 (String s) when !optimize -> res s (Int24.to_int n)
+    | E0 (I32 n), E0 (String s) when !optimize -> res s (Int32.to_int n)
+    | E0 (I40 n), E0 (String s) when !optimize -> res s (Int40.to_int n)
+    | E0 (I48 n), E0 (String s) when !optimize -> res s (Int48.to_int n)
+    | E0 (I56 n), E0 (String s) when !optimize -> res s (Int56.to_int n)
+    | E0 (I64 n), E0 (String s) when !optimize -> res s (Int64.to_int n)
+    | E0 (I128 n), E0 (String s) when !optimize -> res s (Int128.to_int n)
     | _ -> E2 (SplitAt, e1, e2)
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
@@ -3106,7 +3117,7 @@ struct
   let byte_of_char = byte_of_u8 % u8_of_char
   let nop = seq []
   let assert_ = function
-    | E0 (Bool true) -> nop
+    | E0 (Bool true) when !optimize -> nop
     | e -> E1 (Assert, e)
   let mask_get i m = E1 (MaskGet i, m)
   let label_of e = E1 (LabelOf, e)
@@ -3116,6 +3127,6 @@ struct
   let apply f es = E1S (Apply, f, es)
   let getenv e = E1 (GetEnv, e)
   let string_of_char_ = function
-    | E0 (Char c) -> string (String.of_char c)
+    | E0 (Char c) when !optimize -> string (String.of_char c)
     | e -> E1 (StringOfChar, e)
 end
