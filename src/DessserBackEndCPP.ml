@@ -699,14 +699,14 @@ struct
     | E.E2 (GetVec, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s[%s]" n1 n2)
+        emit ?name p l e (fun oc -> pp oc "%s[%s]" n2 n1)
     | E.E3 (SetBit, e1, e2, e3) ->
         method_call e1 "setBit" [ e2 ; e3 ]
     | E.E3 (SetVec, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
-        emit ?name p l e (fun oc -> pp oc "%s[%s] = %s" n1 n2 n3)
+        emit ?name p l e (fun oc -> pp oc "%s[%s] = %s" n2 n1 n3)
     | E.E1 (ReadByte, e1) ->
         method_call e1 "readByte" []
     | E.E1 (ReadWord LittleEndian, e1) ->

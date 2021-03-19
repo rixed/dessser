@@ -314,8 +314,9 @@ let e2_of_int n =
   let e2s =
     E.[| Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
          Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
-         AppendString ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekByte ;
-         WriteByte ; WriteBytes ; PokeByte ; DataPtrAdd ; DataPtrSub ;
+         AppendString ; StartsWith ; EndsWith ; GetBit ; GetVec ;
+         ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
+         DataPtrAdd ; DataPtrSub ;
          And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member ; Insert ;
          SplitBy ; SplitAt ; Join |] in
   e2s.(n mod Array.length e2s)

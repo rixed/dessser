@@ -294,7 +294,7 @@ type e2 =
   | StartsWith
   | EndsWith
   | GetBit
-  | GetVec (* for vectors or lists *)
+  | GetVec (* first the index then the vector or list (as in Getfield) *)
   | ReadBytes
   | PeekByte
   | WriteByte
@@ -329,7 +329,9 @@ type e2 =
 
 type e3 =
   | SetBit
-  | SetVec (* for vectors or lists. Args are: vector, index and new value *)
+  (* Similarly to GetVec: first the index, then the vector or list, then
+   * the value *)
+  | SetVec
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
@@ -1662,7 +1664,7 @@ let rec type_of l e0 =
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac U24)))
   | E2 (GetBit, _, _) -> T.bit
-  | E2 (GetVec, e1, _) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
+  | E2 (GetVec, _, e1) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
   | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
   | E1 (ReadWord _, _) -> T.pair T.word T.dataptr
@@ -2142,19 +2144,19 @@ let rec type_check l e =
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size
     | E2 (GetVec, e1, e2) ->
-        check_list_or_vector l e1 ;
-        check_integer l e2
+        check_integer l e1 ;
+        check_list_or_vector l e2
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
         check_eq l e3 T.bit
     | E3 (SetVec, e1, e2, e3) ->
-        (match type_of l e1 |> T.develop_user_types with
+        check_integer l e1 ;
+        (match type_of l e2 |> T.develop_user_types with
         | T.Value { vtyp = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
             check_eq l e3 (Value mn)
         | t ->
-            raise (Type_error (e0, e1, t, "be a vector"))) ;
-        check_integer l e2
+            raise (Type_error (e0, e1, t, "be a vector")))
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
         check_eq l e T.dataptr
     | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
