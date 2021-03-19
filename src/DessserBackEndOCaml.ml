@@ -329,7 +329,11 @@ struct
           pp oc "   Printf.eprintf \"%s %%S\\n\" %s ;" op n1 ;
         pp oc "   Null)") in
     let unary_mod_op_or_null op e1 =
-      let op = mod_name (E.type_of l e) ^"."^ op in
+      let t =
+        match E.type_of l e with
+        | T.Value { vtyp ; _ } -> T.Value { vtyp ; nullable = false }
+        | t -> t in
+      let op = mod_name t ^"."^ op in
       unary_op_or_null op e1 in
     let any_op op es =
       let ns = List.map (print emit p l) es in
