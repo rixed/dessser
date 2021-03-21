@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
+
 open Dessser
+open DessserTools
 module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
@@ -11,6 +13,15 @@ let debug = false
 let pp = Printf.fprintf
 
 exception Missing_dependencies of string list
+
+let () =
+  Printexc.register_printer (function
+    | Missing_dependencies deps ->
+        Some (
+          Printf.sprintf2 "Missing dependencies: %a"
+            (pretty_list_print String.print) deps)
+    | _ ->
+        None)
 
 type emitter =
   ?name:string -> P.t -> (E.t * T.t) list -> E.t -> (string IO.output -> unit) ->
