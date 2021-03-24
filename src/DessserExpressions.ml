@@ -2674,64 +2674,64 @@ struct
   let not_null = function
     | E1 (Force, e1) when !optimize -> e1
     | e1 -> E1 (NotNull, e1)
-  let or_null vt op conv s =
+  let or_null_ vt op conv s =
     try not_null (op (conv s)) with Invalid_argument _ -> null vt
   let float_of_string_ = function
-    | E0 (String s) when !optimize -> or_null (Mac Float) float float_of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac Float) float float_of_string s
     | e -> E1 (FloatOfString, e)
   let u8_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U8) u8 Uint8.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U8) u8 Uint8.of_string s
     | e -> E1 (U8OfString, e)
   let u16_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U16) u16 Uint16.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U16) u16 Uint16.of_string s
     | e -> E1 (U16OfString, e)
   let u24_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U24) u24 Uint24.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U24) u24 Uint24.of_string s
     | e -> E1 (U24OfString, e)
   let u32_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U32) u32 Uint32.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U32) u32 Uint32.of_string s
     | e -> E1 (U32OfString, e)
   let u40_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U40) u40 Uint40.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U40) u40 Uint40.of_string s
     | e -> E1 (U40OfString, e)
   let u48_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U48) u48 Uint48.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U48) u48 Uint48.of_string s
     | e -> E1 (U48OfString, e)
   let u56_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U56) u56 Uint56.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U56) u56 Uint56.of_string s
     | e -> E1 (U56OfString, e)
   let u64_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U64) u64 Uint64.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U64) u64 Uint64.of_string s
     | e -> E1 (U64OfString, e)
   let u128_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac U128) u128 Uint128.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac U128) u128 Uint128.of_string s
     | e -> E1 (U128OfString, e)
   let i8_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I8) i8 Int8.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I8) i8 Int8.of_string s
     | e -> E1 (I8OfString, e)
   let i16_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I16) i16 Int16.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I16) i16 Int16.of_string s
     | e -> E1 (I16OfString, e)
   let i24_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I24) i24 Int24.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I24) i24 Int24.of_string s
     | e -> E1 (I24OfString, e)
   let i32_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I32) i32 Int32.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I32) i32 Int32.of_string s
     | e -> E1 (I32OfString, e)
   let i40_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I40) i40 Int40.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I40) i40 Int40.of_string s
     | e -> E1 (I40OfString, e)
   let i48_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I48) i48 Int48.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I48) i48 Int48.of_string s
     | e -> E1 (I48OfString, e)
   let i56_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I56) i56 Int56.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I56) i56 Int56.of_string s
     | e -> E1 (I56OfString, e)
   let i64_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I64) i64 Int64.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I64) i64 Int64.of_string s
     | e -> E1 (I64OfString, e)
   let i128_of_string = function
-    | E0 (String s) when !optimize -> or_null (Mac I128) i128 Int128.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac I128) i128 Int128.of_string s
     | e -> E1 (I128OfString, e)
   let float_of_ptr e1 = E1 (FloatOfPtr, e1)
   let char_of_ptr e1 = E1 (CharOfPtr, e1)
