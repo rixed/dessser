@@ -135,3 +135,50 @@ and random mn =
       todo "random for sum types"
   | Map _ ->
       invalid_arg "random for Map type"
+
+(*
+ * Kahan sums for better accuracy when summing large number of floats:
+ *)
+
+module Kahan =
+struct
+  (* The state of the sum consists of the sum itself and some carry: *)
+  let state_t =
+    let float = T.(required (Mac Float)) in
+    T.tuple [| float ; float |]
+
+  (* Return the initial value for the state: *)
+  let init =
+    let open E.Ops in
+    let zero = float 0. in
+    make_tup [ zero ; zero ]
+
+  (* Add [x] (a float) to [sum] ([c] is carried along and must be added too
+   * eventually): *)
+  let add ~l sum_c x =
+    let open E.Ops in
+    let sum = get_item 0 sum_c
+    and carry = get_item 1 sum_c in
+    let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
+      let carry' =
+        if_
+          ~cond:(ge (abs sum) (abs x))
+          ~then_:(add (sub sum s) x)
+          ~else_:(add (sub x s) sum) in
+      make_tup [ s ; add carry carry' ])
+
+  (* In some rare cases we might want to scale the counter: *)
+  let mul ~l sum_c x =
+    ignore l ;
+    let open E.Ops in
+    let sum = get_item 0 sum_c
+    and carry = get_item 1 sum_c in
+    make_tup [ mul sum x ; mul carry x ]
+
+  let finalize ~l sum_c =
+    ignore l ;
+    let open E.Ops in
+    let sum = get_item 0 sum_c
+    and carry = get_item 1 sum_c in
+    add sum carry
+end
