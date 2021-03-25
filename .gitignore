@@ -45,7 +45,7 @@ ber/IntRepr.ml
 *.gch
 examples/example.cc
 examples/example.ml
-examples/rowbinary2sexpr.*
+examples/rowbinary2sexpr.*.out
 examples/i32s.csv
 src/dessserc
 src/DessserCompilConfig.ml

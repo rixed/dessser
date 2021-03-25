@@ -192,11 +192,16 @@ struct
     | _ ->
         false, 0
 
+  (* Return the number of bytes required to encode the nullmask, including
+   * its prefix length. 0 means: no nullmask necessary. *)
+  let bytes_of_type typ =
+    let has_nullmask, nullmask_bits = of_type typ in
+    if not has_nullmask then 0 else round_up_const_bits (nullmask_bits + 8)
+
   (* Return the number of words required to encode the nullmask, including
    * its prefix length. 0 means: no nullmask necessary. *)
-  let words_of_type typ =
-    let has_nullmask, nullmask_bits = of_type typ in
-    if not has_nullmask then 0 else words_of_const_bits (nullmask_bits + 8)
+  let words_of_type =
+    words_of_const_bytes % bytes_of_type
 end
 
 module Ser : SER with type config = unit =
@@ -479,7 +484,7 @@ struct
       let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
       DynSize (add (size word_size) (* list length *)
                    nullmask_bytes)
-    and no_nullmask () =
+    and without_nullmask () =
       ConstSize word_size in
     match (T.type_of_path mn0 path).vtyp with
     | Lst vt ->
@@ -487,7 +492,7 @@ struct
         if vt.nullable then
           with_nullmask ()
         else
-          no_nullmask ()
+          without_nullmask ()
     | vtyp ->
         Printf.eprintf "ERROR: List of type %a!?\n%!"
           T.print_value_type vtyp ;
@@ -558,48 +563,24 @@ struct
 
   let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
-    let typs =
-      match (T.type_of_path mn0 path).vtyp with
-      | Tup typs ->
-          typs
-      | vtyp ->
-          Printf.eprintf "ERROR: Tuple of type %a!?\n%!"
-            T.print_value_type vtyp ;
-          assert false in
-    ConstSize (round_up_const_bits (
-      8 (* nullmask width *) +
-      Array.length typs (* one bit per possibly selected item *)))
+    let nullmask_words =
+      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize nullmask_words
 
   let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
-    let typs =
-      match (T.type_of_path mn0 path).vtyp with
-      | Rec typs ->
-          typs
-      | vtyp ->
-          Printf.eprintf "ERROR: Record of type %a!?\n%!"
-            T.print_value_type vtyp ;
-          assert false in
-    let selectable_fields = Array.length typs in
-    ConstSize (round_up_const_bits (
-      8 (* nullmask width *) +
-      selectable_fields (* one bit per possibly selected field *)))
+    let nullmask_words =
+      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize nullmask_words
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ _ =
     ConstSize word_size
 
   let ssize_of_vec mn0 path _ _ =
-    let dim, typ =
-      match (T.type_of_path mn0 path).vtyp with
-      | Vec (dim, typ) ->
-          dim, typ
-      | vtyp ->
-          Printf.eprintf "ERROR: Vector of type %a!?\n%!"
-            T.print_value_type vtyp ;
-          assert false in
-    ConstSize (round_up_const_bits (
-      if typ.nullable then (8 + dim) else 0))
+    let nullmask_words =
+      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize nullmask_words
 
   let ssize_of_null _mn0 _path = ConstSize 0
 
