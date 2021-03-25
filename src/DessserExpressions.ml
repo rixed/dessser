@@ -3024,10 +3024,11 @@ struct
     | E1 (NotNull, e1) when !optimize ->
         e1
     | E0 (Null _) as e when !optimize ->
-        Printf.sprintf2 "force %a" (print ?max_depth:None) e |>
-        invalid_arg
-    | e1 ->
-        E1 (Force, e1)
+        (* TODO: A special "fail of type" instruction translated into
+         * "assert false" *)
+        E1 (Force, e)
+    | e ->
+        E1 (Force, e)
   let find_substring e1 e2 e3 =
     match e2, e3 with
     | E0 (String s1), E0 (String s2) when !optimize ->
