@@ -1875,10 +1875,12 @@ let rec type_check l e =
     let check_comparable l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord | Mask
-      | Value { vtyp = Mac (
-          Float | String | Char |
-          U8 | U16 | U32 | U64 | U128 |
-          I8 | I16 | I32 | I64 | I128) ; nullable = false } -> ()
+      | Value {
+          vtyp = Mac (
+            Float | String | Char |
+            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+          nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_mac=false) l e =
       match type_of l e |> T.develop_user_types with
