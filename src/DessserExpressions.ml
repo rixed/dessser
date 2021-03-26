@@ -2832,10 +2832,11 @@ struct
     | E0 (Char c) when !optimize -> byte (Uint8.of_int (Char.code c))
     | e -> byte_of_u8 (u8_of_char e)
   let byte_of_const_char c = byte_of_char (char c)
-  let if_ ~cond ~then_ ~else_ =
+  let rec if_ ~cond ~then_ ~else_ =
     match cond with
     | E0 (Bool true) when !optimize -> then_
     | E0 (Bool false) when !optimize -> else_
+    | E1 (Not, e) when !optimize -> if_ ~cond:e ~then_:else_ ~else_:then_
     | _-> E3 (If, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos =
     match cond with
@@ -2912,6 +2913,7 @@ struct
     | _ -> E2 (Eq, e1, e2)
   let not_ = function
     | E0 (Bool b) when !optimize -> bool (not b)
+    | E1 (Not, e) when !optimize -> e
     | e -> E1 (Not, e)
   let abs e1 = E1 (Abs, e1)
   let ne e1 e2 = not_ (eq e1 e2)
