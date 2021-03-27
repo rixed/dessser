@@ -1059,7 +1059,7 @@ struct
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 s)
+          Printf.fprintf oc "%s.%s" n1 (valid_identifier s))
     | E.E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_user_types with
         | T.Value { vtyp = Sum mns ; nullable = false } ->

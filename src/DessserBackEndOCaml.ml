@@ -1253,7 +1253,7 @@ struct
         let n1 = print emit p l e1 in
         let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s.%s" n1 m s)
+          Printf.fprintf oc "%s.%s.%s" n1 m (valid_identifier s))
     | E.E1 (GetAlt s, e1) ->
         let n1 = print emit p l e1 in
         let m = module_of_type (E.type_of l e1) in
