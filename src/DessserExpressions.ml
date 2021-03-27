@@ -2988,7 +2988,7 @@ struct
     match cond with
     | E0 (Bool false) when !optimize -> init
     | _ -> E3 (LoopWhile, cond, body, init)
-  let fold ~init ~body ~lst = E3 (Fold, init, body, lst)
+  let fold ~init ~body ~list = E3 (Fold, init, body, list)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let rem_size e1 = E1 (RemSize, e1)
   let neg e1 = E1 (Neg, e1)

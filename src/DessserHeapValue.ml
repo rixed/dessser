@@ -278,7 +278,7 @@ struct
     let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
     let dst_n =
       let subpath = T.path_append 0 path in
-      fold ~lst:v
+      fold ~list:v
         ~init:(pair dst (i32 0l))
         ~body:
           (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32)) (T.Value mn)
