@@ -22,7 +22,7 @@ let print_definitions oc compunit =
   List.iter (fun (name, U.{ expr ; _ }, _) ->
     Format.(fprintf str_formatter "@[<hov 2>(define@ %s@ %a)@]"
       name
-      E.pretty_print expr) ;
+      (E.pretty_print ?max_depth:None) expr) ;
     Format.flush_str_formatter () |> String.print oc)
 
 let print_declarations _oc _compunit =

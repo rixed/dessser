@@ -385,7 +385,8 @@ let parse_expression s =
       Stdlib.Error (`Msg "A single s-expression must be provided")
 
 let expression =
-  Arg.conv ~docv:"EXPRESSION" (parse_expression, E.pretty_print)
+  Arg.conv ~docv:"EXPRESSION" (parse_expression,
+  E.pretty_print ?max_depth:None)
 
 let path_expression =
   let parse s =
@@ -399,7 +400,7 @@ let path_expression =
   and print fmt (path, expr) =
     Legacy.Format.fprintf fmt "%s:%a"
       (T.string_of_path path)
-      E.pretty_print expr in
+      (E.pretty_print ?max_depth:None) expr in
   Arg.conv ~docv:"PATH:FUNCTION" (parse, print)
 
 let modifier_exprs =

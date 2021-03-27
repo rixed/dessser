@@ -888,28 +888,38 @@ and print ?max_depth oc e =
 let to_string ?max_depth e =
   IO.to_string (print ?max_depth) e
 
-let rec pretty_print fmt =
-  let p s es =
-    Format.fprintf fmt "@[<hov 2>(%s" s ;
-    List.iter (fun e ->
-      Format.fprintf fmt "@ %a" pretty_print e
-    ) es ;
-    Format.fprintf fmt ")@]" in
-  function
-  | E0 op ->
-      p (string_of_e0 op) []
-  | E0S (op, es) ->
-      p (string_of_e0s op) es
-  | E1 (op, e1) ->
-      p (string_of_e1 op) [ e1 ]
-  | E1S (op, e1, es) ->
-      p (string_of_e1s op) (e1 :: es)
-  | E2 (op, e1, e2) ->
-      p (string_of_e2 op) [ e1 ; e2 ]
-  | E3 (op, e1, e2, e3) ->
-      p (string_of_e3 op) [ e1 ; e2 ; e3 ]
-  | E4 (op, e1, e2, e3, e4) ->
-      p (string_of_e4 op) [ e1 ; e2 ; e3 ; e4 ]
+let rec pretty_print ?max_depth fmt e =
+  if Option.map_default (fun m -> m <= 0) false max_depth then
+    Format.fprintf fmt "…"
+  else
+    let max_depth = Option.map pred max_depth in
+    let p s es =
+      Format.fprintf fmt "@[<hov 2>(%s" s ;
+      List.iter (fun e ->
+        Format.fprintf fmt "@ %a" (pretty_print ?max_depth) e
+      ) es ;
+      Format.fprintf fmt ")@]" in
+    match e with
+    | E0 op ->
+        p (string_of_e0 op) []
+    | E0S (op, es) ->
+        p (string_of_e0s op) es
+    | E1 (op, e1) ->
+        p (string_of_e1 op) [ e1 ]
+    | E1S (op, e1, es) ->
+        p (string_of_e1s op) (e1 :: es)
+    | E2 (op, e1, e2) ->
+        p (string_of_e2 op) [ e1 ; e2 ]
+    | E3 (op, e1, e2, e3) ->
+        p (string_of_e3 op) [ e1 ; e2 ; e3 ]
+    | E4 (op, e1, e2, e3, e4) ->
+        p (string_of_e4 op) [ e1 ; e2 ; e3 ; e4 ]
+
+let to_pretty_string ?max_depth e =
+  let buf = Buffer.create 1024 in
+  let fmt = Format.formatter_of_buffer buf in
+  Format.fprintf fmt "@.    @[<hov 4>%a@]@." (pretty_print ?max_depth) e ;
+  Buffer.contents buf
 
 module Parser =
 struct
@@ -2374,50 +2384,83 @@ let () =
     | Type_error (e0, e, t, s) ->
         Some (
           Printf.sprintf2
-            "Type Error: In expression %a, expression %a should %s but is a %a"
-            (print ~max_depth) e0 (print ~max_depth) e s T.print t)
+            "Type Error: In expression\
+             %s\
+             expression\
+             %s\
+             should %s but is a %a"
+            (to_pretty_string ~max_depth e0)
+            (to_pretty_string ~max_depth e)
+            s
+            T.print t)
     | Type_error_param (e0, e, n, t, s) ->
         Some (
           Printf.sprintf2
-            "Type Error: In expression %a, %s of function %a \
+            "Type Error: In expression\
+             %s\
+             %s of function\
+             %s\
              should %s but is a %a"
-            (print ~max_depth) e0
+            (to_pretty_string ~max_depth e0)
             (if n >= 0 then "parameter "^ string_of_int n else "return type")
-            (print ~max_depth) e s T.print t)
+            (to_pretty_string ~max_depth e)
+            s
+            T.print t)
     | Type_error_path (e0, e, path, s) ->
         Some (
           Printf.sprintf2
-            "Type Error: In expression %a, path %a of expression %a should %s"
-            (print ~max_depth) e0 T.print_path path (print ~max_depth) e s)
+            "Type Error: In expression\
+             %s\
+             path %a of expression\
+             %s\
+             should %s"
+            (to_pretty_string ~max_depth e0)
+            T.print_path path
+            (to_pretty_string ~max_depth e)
+            s)
     | Struct_error (e0, s) ->
         Some (
           Printf.sprintf2
-            "Invalid type structure: In expression %a, %s"
-            (print ~max_depth) e0 s)
+            "Invalid type structure: In expression\
+             %s\
+             %s"
+            (to_pretty_string ~max_depth e0)
+            s)
     | Apply_error (e0, s) ->
         Some (
           Printf.sprintf2
-            "Invalid function application: In expression %a, %s"
-            (print ~max_depth) e0 s)
+            "Invalid function application: In expression\
+             %s\
+             %s"
+            (to_pretty_string ~max_depth e0)
+            s)
     | Unbound_identifier (e0, ext, n, l) ->
         Some (
           let ext = if ext then "external " else "" in
           Printf.sprintf2
-            "Unbound %sidentifier %S: In expression %a, environment is %a"
-            ext n (print ~max_depth) e0
+            "Unbound %sidentifier %S: In expression\
+             %s\
+             environment is %a"
+            ext n
+            (to_pretty_string ~max_depth e0)
             print_environment l)
     | Unbound_parameter (e0, p, l) ->
         Some (
           Printf.sprintf2
-            "Unbound parameter %a: In expression %a, environment is %a"
+            "Unbound parameter %a: In expression\
+             %s\
+             environment is %a"
             param_print p
-            (print ~max_depth) e0
+            (to_pretty_string ~max_depth e0)
             print_environment l)
     | Invalid_expression (e0, msg) ->
         Some (
           Printf.sprintf2
-            "Invalid expression %a: %s"
-              (print ~max_depth) e0 msg)
+            "Invalid expression\
+             %s\
+             %s"
+            (to_pretty_string ~max_depth e0)
+            msg)
     | _ ->
         None)
 
