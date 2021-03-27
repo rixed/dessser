@@ -2301,7 +2301,7 @@ let rec type_check l e =
           check_eq l e3 t1 ;
           check_param e2 ~-1 t2 T.bool) ;
     | E3 (Fold, e1, e2, e3) ->
-        (* FOld function first parameter is the result and second is the list
+        (* Fold function first parameter is the result and second is the list
          * item *)
         let item_t =
           T.Value (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in

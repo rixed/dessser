@@ -706,6 +706,7 @@ struct
     | E.E1 (U128OfOWord, e1) | E.E1 (OWordOfU128, e1)
     | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1)
     | E.E1 (ListOfVec, e1) ->
+        (* Those are NOPs *)
         print ?name emit p l e1
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1

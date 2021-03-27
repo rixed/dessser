@@ -347,7 +347,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s[%s]" n2 n1)
     | E.E1 (NotNull, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> String.print oc n1)
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (Force, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
@@ -507,7 +507,7 @@ struct
             case_u mn n1
         | _ ->
             assert false (* because of type checking *)) ;
-        emit ?name p l e (fun oc -> String.print oc str)
+        emit ?name p l e (fun oc -> pp oc "%s" str)
     | E.E1 (CharOfString, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s[0]" n)
@@ -646,7 +646,7 @@ struct
         let n = print emit p l e1 in
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
-          print_cast p t (fun oc -> String.print oc n) oc)
+          print_cast p t (fun oc -> pp oc "%s" n) oc)
     | E.E1 (ListOfSList, e1) ->
         method_call e1 "toList" []
     | E.E1 (ListOfSListRev, e1) ->
@@ -655,7 +655,7 @@ struct
         method_call e1 "toSet" []
     | E.E1 (ListOfVec, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> String.print oc n1)
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E2 (AppendByte, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
