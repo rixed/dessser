@@ -602,6 +602,12 @@ let make_sampling def max_sz =
     cardinality = (fun () -> Sampling.length s) ;
     fold = (fun u f -> Sampling.fold s u f) }
 
+(* TODO: this operation needs to be faster, ideally a nop! *)
+let list_of_set s =
+  s.fold [] (fun lst x -> x :: lst) |>
+  List.rev |>
+  Array.of_list
+
 (* Runtime Field Masks *)
 
 let mask_get ma i =

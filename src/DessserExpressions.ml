@@ -207,6 +207,7 @@ type e1 =
   | ListOfSListRev
   | SetOfSList
   | ListOfVec
+  | ListOfSet
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
@@ -680,6 +681,7 @@ let string_of_e1 = function
   | ListOfSListRev -> "list-of-slist-rev"
   | SetOfSList -> "set-of-slist"
   | ListOfVec -> "list-of-vec"
+  | ListOfSet -> "list-of-set"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -1245,6 +1247,7 @@ struct
     | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
     | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
     | Lst [ Sym "list-of-vec" ; x ] -> E1 (ListOfVec, e x)
+    | Lst [ Sym "list-of-set" ; x ] -> E1 (ListOfSet, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
@@ -1653,6 +1656,12 @@ let rec type_of l e0 =
           Value (T.make (Lst mn))
       | t ->
           raise (Type_error (e0, e, t, "be a vec")))
+  | E1 (ListOfSet, e) ->
+      (match type_of l e |> T.develop_user_types with
+      | T.Value ({ vtyp = Set mn ; nullable = false }) ->
+          Value (T.make (Lst mn))
+      | t ->
+          raise (Type_error (e0, e, t, "be a set")))
   | E1 (U8OfBool, _) -> T.u8
   | E1 (BoolOfU8, _) -> T.bool
   | E2 (AppendByte, _, _) -> T.bytes
@@ -1929,6 +1938,8 @@ let rec type_check l e =
                "be a possibly nullable value")) in
     let check_vector l e =
       ignore (get_item_type ~vec:true e0 l e) in
+    let check_set l e =
+      ignore (get_item_type ~set:true e0 l e) in
     let check_list_or_vector l e =
       ignore (get_item_type ~lst:true ~vec:true e0 l e) in
     let check_list_or_vector_or_set l e =
@@ -2128,6 +2139,8 @@ let rec type_check l e =
         check_slist_of_maybe_nullable l e
     | E1 (ListOfVec, e) ->
         check_vector l e
+    | E1 (ListOfSet, e) ->
+        check_set l e
     | E1 (DataPtrOfBuffer, e) ->
         check_eq l e T.size
     | E1 (GetEnv, e) ->
@@ -3065,6 +3078,7 @@ struct
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
   let list_of_vec e1 = E1 (ListOfVec, e1)
+  let list_of_set e1 = E1 (ListOfSet, e1)
   let split_by e1 e2 =
     match e1, e2 with
     | E0 (String s1), E0 (String s2) when !optimize ->

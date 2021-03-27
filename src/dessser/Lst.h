@@ -5,6 +5,7 @@
 #include <initializer_list>
 #include <vector>
 #include "dessser/Vec.h"
+#include "dessser/Set.h"
 
 template<class T>
 struct Lst : public std::vector<T> {
@@ -22,6 +23,14 @@ struct Lst : public std::vector<T> {
   template<unsigned DIM>
   Lst(Vec<DIM, T> vec) : std::vector<T>(vec)
   {
+  }
+
+  Lst(Set<T> *set)
+  {
+    this->reserve(set->size());
+    set->iter([this](T &x) {
+      this->push_back(x);
+    });
   }
 
   // Mapped from another Lst:
