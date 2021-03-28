@@ -312,12 +312,13 @@ type e2 =
   | Pair
   (* MapPair takes the pair then the function of 2 arguments returning whatever.
    * Note: the result is whatever returns the function, not necessarily a
-   * pair! FIXME: that name is misleading *)
+   * pair! FIXME: that name is misleading ; also, should be part of stdlib *)
   | MapPair
   | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
-  | Member (* membership test - not for CIDRs nor strings *)
+  (* Membership test for vectors, lists and sets; Not for CIDRs nor strings *)
+  | Member
   | PeekWord of endianness
   | PeekDWord of endianness
   | PeekQWord of endianness
@@ -2857,10 +2858,10 @@ struct
     | E0 (U32 n) when !optimize -> size (Uint32.to_int n)
     | e -> E1 (SizeOfU32, e)
   let eol t = E0 (EndOfList t)
-  let end_of_list t = E0 (EndOfList t)
-  let sliding_window t e1 = E1 (SlidingWindow t, e1)
-  let tumbling_window t e1 = E1 (TumblingWindow t, e1)
-  let sampling t e1 = E1 (Sampling t, e1)
+  let end_of_list = eol
+  let sliding_window mn e1 = E1 (SlidingWindow mn, e1)
+  let tumbling_window mn e1 = E1 (TumblingWindow mn, e1)
+  let sampling mn e1 = E1 (Sampling mn, e1)
   let empty_set mn = E0 (EmptySet mn)
   let now = E0 Now
   let random_float = E0 RandomFloat

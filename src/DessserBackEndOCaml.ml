@@ -1287,21 +1287,21 @@ struct
         emit ?name p l e (fun oc -> pp oc "DessserMasks.Skip")
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "DessserMasks.SetNull")
-    | E.E1 (SlidingWindow t, e1) ->
+    | E.E1 (SlidingWindow mn, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t)
+        and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "make_sliding_window %s (%s.to_int %s)" def m n1)
-    | E.E1 (TumblingWindow t, e1) ->
+    | E.E1 (TumblingWindow mn, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t)
+        and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "make_tumbling_window %s (%s.to_int %s)" def m n1)
-    | E.E1 (Sampling t, e1) ->
+    | E.E1 (Sampling mn, e1) ->
         let n1 = print emit p l e1
-        and def = print emit p l (E.default_value t)
+        and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "make_sampling %s (%s.to_int %s)" def m n1)

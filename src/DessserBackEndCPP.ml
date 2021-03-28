@@ -1088,26 +1088,26 @@ struct
         emit ?name p l e (fun oc -> pp oc "Mask::SKIP")
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "Mask::SET_NULL")
-    | E.E1 (SlidingWindow t, e1) ->
+    | E.E1 (SlidingWindow mn, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (Value t) in
+        let tn = type_identifier p (Value mn) in
         let res = gen_sym ?name "sliding_win_" in
         ppi p.P.def "SlidingWindow<%s> *%s = new SlidingWindow<%s>(%s);"
           tn res tn n1 ;
         res
-    | E.E1 (TumblingWindow t, e1) ->
+    | E.E1 (TumblingWindow mn, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (Value t) in
+        let tn = type_identifier p (Value mn) in
         let res = gen_sym ?name "tumbling_win_" in
         ppi p.P.def "TumblingWindow<%s> *%s = new TumblingWindow<%s>(%s);"
           tn res tn n1 ;
         res
-    | E.E1 (Sampling t, e1) ->
+    | E.E1 (Sampling mn, e1) ->
         let n1 = print emit p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier p (Value t) in
+        let tn = type_identifier p (Value mn) in
         let res = gen_sym ?name "sampling_" in
         ppi p.P.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
           tn res tn n1 ;
