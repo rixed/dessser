@@ -1305,6 +1305,11 @@ struct
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "make_sampling %s (%s.to_int %s)" def m n1)
+    | E.E1 (HashTable _, e1) ->
+        let n1 = print emit p l e1
+        and m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc ->
+          pp oc "make_hash_table (%s.to_int %s)" m n1)
     | E.E2 (Insert, e1, e2) ->
         let set = print emit p l e1
         and item = print emit p l e2 in

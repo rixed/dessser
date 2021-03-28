@@ -563,6 +563,33 @@ struct
     loop u 0
 end
 
+(* A Hash table for quick Member tests: *)
+module HashTable =
+struct
+  type 'a t =
+    { h : ('a, unit) Hashtbl.t ;
+      mutable last_added : 'a option }
+
+  let make init_sz =
+    { h = Hashtbl.create init_sz ;
+      last_added = None }
+
+  let length t =
+    Hashtbl.length t.h |> Uint32.of_int
+
+  let insert t x =
+    Hashtbl.add t.h x () ;
+    t.last_added <- Some x
+
+  let last_update t =
+    match t.last_added with
+    | None -> failwith "HashTable.last_update: no items added"
+    | Some x -> x, []
+
+  let fold t u f =
+    Hashtbl.fold (fun x () u -> f u x) t.h u
+end
+
 (* Finally, the generic set type: *)
 
 type 'a set =
@@ -601,6 +628,13 @@ let make_sampling def max_sz =
     last_update = (fun () -> Sampling.last_update s) ;
     cardinality = (fun () -> Sampling.length s) ;
     fold = (fun u f -> Sampling.fold s u f) }
+
+let make_hash_table init_sz =
+  let s = HashTable.make init_sz in
+  { insert = HashTable.insert s ;
+    last_update = (fun () -> HashTable.last_update s) ;
+    cardinality = (fun () -> HashTable.length s) ;
+    fold = (fun u f -> HashTable.fold s u f) }
 
 (* TODO: this operation needs to be faster, ideally a nop! *)
 let list_of_set s =

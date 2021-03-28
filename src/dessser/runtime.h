@@ -17,6 +17,7 @@
 #include "dessser/SlidingWindow.h"
 #include "dessser/TumblingWindow.h"
 #include "dessser/Sampling.h"
+#include "dessser/HashTable.h"
 #include "dessser/SList.h"
 #include "dessser/Pair.h"
 #include "dessser/Mask.h"

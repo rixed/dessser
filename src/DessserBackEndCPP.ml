@@ -1112,6 +1112,14 @@ struct
         ppi p.P.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
           tn res tn n1 ;
         res
+    | E.E1 (HashTable mn, e1) ->
+        let n1 = print emit p l e1 in
+        (* Cannot use emit since we want to select a specific type of set: *)
+        let tn = type_identifier p (Value mn) in
+        let res = gen_sym ?name "hash_table_" in
+        ppi p.P.def "HashTable<%s> *%s = new HashTable<%s>(%s);"
+          tn res tn n1 ;
+        res
     | E.E2 (Insert, e1, e2) ->
         let set = print emit p l e1 in
         let item = print emit p l e2 in

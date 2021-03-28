@@ -264,6 +264,8 @@ type e1 =
   | SlidingWindow of T.maybe_nullable (* Sliding window of the last N added items *)
   | TumblingWindow of T.maybe_nullable (* Tumbling window *)
   | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
+  (* A set with an O(1) implementation of Member, N is the initial size: *)
+  | HashTable of T.maybe_nullable
   | DataPtrOfBuffer
   | GetEnv
 
@@ -733,6 +735,8 @@ let string_of_e1 = function
       "tumbling-window "^ String.quote (T.string_of_maybe_nullable mn)
   | Sampling mn ->
       "sampling "^ String.quote (T.string_of_maybe_nullable mn)
+  | HashTable mn ->
+      "hash-table "^ String.quote (T.string_of_maybe_nullable mn)
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
   | GetEnv -> "getenv"
 
@@ -1314,6 +1318,8 @@ struct
         E1 (TumblingWindow (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "sampling" ; Str mn ; x ] ->
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
+    | Lst [ Sym "hash-table" ; Str mn ; x ] ->
+        E1 (HashTable (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
         E1 (DataPtrOfBuffer, e x)
     | Lst [ Sym "getenv" ; x ] ->
@@ -1829,7 +1835,8 @@ let rec type_of l e0 =
       T.mask
   | E1 (LabelOf, _) ->
       T.u16
-  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn), _) ->
+  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn |
+         HashTable mn), _) ->
       T.set mn
   | E2 (Insert, _, _) ->
       T.void
@@ -2344,8 +2351,8 @@ let rec type_check l e =
         check_eq l e1 T.Mask
     | E1 (LabelOf, e1) ->
         check_sum l e1
-    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _), e1) ->
-        check_integer l e1
+    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _), e1) ->
+        check_unsigned l e1
     | E2 (Insert, e1, e2) ->
         (match type_of l e1 |> T.develop_user_types with
         | T.Value { vtyp = T.Set mn ; nullable = false } ->
@@ -2862,6 +2869,7 @@ struct
   let sliding_window mn e1 = E1 (SlidingWindow mn, e1)
   let tumbling_window mn e1 = E1 (TumblingWindow mn, e1)
   let sampling mn e1 = E1 (Sampling mn, e1)
+  let hash_table mn e1 = E1 (HashTable mn, e1)
   let empty_set mn = E0 (EmptySet mn)
   let now = E0 Now
   let random_float = E0 RandomFloat
