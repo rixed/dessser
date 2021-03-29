@@ -319,7 +319,8 @@ type e2 =
   | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
-  (* Membership test for vectors, lists and sets; Not for CIDRs nor strings *)
+  (* Membership test for vectors, lists and sets; Not for CIDRs nor strings.
+   * Args are: item, container *)
   | Member
   | PeekWord of endianness
   | PeekDWord of endianness
@@ -3118,7 +3119,13 @@ struct
   let map e1 e2 = E2 (Map, e1, e2)
   let min_ e1 e2 = E2 (Min, e1, e2)
   let max_ e1 e2 = E2 (Max, e1, e2)
-  let mem e1 e2 = E2 (Member, e1, e2)
+  let member e1 e2 =
+    match e2 with
+    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _), _) ->
+        (* Those are created empty: *)
+        bool false
+    | e2 ->
+        E2 (Member, e1, e2)
   (* Avoid useless sequences: *)
   let seq = function
     (* `seq []` is already synonymous with void/nop *)
