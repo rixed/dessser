@@ -28,6 +28,10 @@ struct HashTable : public Set<T> {
     return h.size();
   }
 
+  bool member(T const &x) override {
+    return h.cend() != h.find(x);
+  }
+
   void iter(std::function<void(T &)> f) override {
     for (T &x : h) {
       f(x);

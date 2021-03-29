@@ -472,6 +472,9 @@ struct
   let last_update t =
     List.hd !t, []
 
+  let member t x =
+    List.mem x !t
+
   let fold t u f =
     List.rev !t |>
     List.fold_left f u
@@ -505,6 +508,14 @@ struct
   let last_update t =
     let i = pred t.num_inserts mod Array.length t.arr in
     t.arr.(i), t.last_rem
+
+  let member t x =
+    let len = min t.num_inserts (Array.length t.arr) in
+    let rec loop i =
+      if i >= len then false else
+      if t.arr.(i) = x then true else
+      loop (i + 1) in
+    loop 0
 
   let fold t u f =
     let len = min t.num_inserts (Array.length t.arr) in
@@ -556,6 +567,13 @@ struct
   let last_update t =
     t.last_update
 
+  let member t x =
+    let rec loop i =
+      if i >= t.cur_size then false else
+      if t.arr.(i) = x then true else
+      loop (i + 1) in
+    loop 0
+
   let fold t u f =
     let rec loop u i =
       if i >= t.cur_size then u else
@@ -586,6 +604,9 @@ struct
     | None -> failwith "HashTable.last_update: no items added"
     | Some x -> x, []
 
+  let member t x =
+    Hashtbl.mem t.h x
+
   let fold t u f =
     Hashtbl.fold (fun x () u -> f u x) t.h u
 end
@@ -596,14 +617,8 @@ type 'a set =
   { insert : 'a -> unit ;
     last_update : unit -> 'a * 'a list ;
     cardinality : unit -> Uint32.t ;
+    member : 'a -> bool ;
     fold : 'b. 'b -> ('b -> 'a -> 'b) -> 'b }
-
-let make_simple_set () =
-  let s = SimpleSet.make () in
-  { insert = SimpleSet.insert s ;
-    last_update = (fun () -> SimpleSet.last_update s) ;
-    cardinality = (fun () -> SimpleSet.length s) ;
-    fold = (fun u f -> SimpleSet.fold s u f) }
 
 (* When serializing with fold, the oldest value is written first.
  * When deserializing into an slist, the first value (the oldest) end up
@@ -613,13 +628,18 @@ let make_simple_set_of_slist sl =
   { insert = SimpleSet.insert s ;
     last_update = (fun () -> SimpleSet.last_update s) ;
     cardinality = (fun () -> SimpleSet.length s) ;
+    member = SimpleSet.member s ;
     fold = (fun u f -> SimpleSet.fold s u f) }
+
+let make_simple_set () =
+  make_simple_set_of_slist []
 
 let make_sliding_window def max_sz =
   let s = SlidingWindow.make def max_sz in
   { insert = SlidingWindow.insert s ;
     last_update = (fun () -> SlidingWindow.last_update s) ;
     cardinality = (fun () -> SlidingWindow.length s) ;
+    member = SlidingWindow.member s ;
     fold = (fun u f -> SlidingWindow.fold s u f) }
 
 let make_sampling def max_sz =
@@ -627,6 +647,7 @@ let make_sampling def max_sz =
   { insert = Sampling.insert s ;
     last_update = (fun () -> Sampling.last_update s) ;
     cardinality = (fun () -> Sampling.length s) ;
+    member = Sampling.member s ;
     fold = (fun u f -> Sampling.fold s u f) }
 
 let make_hash_table init_sz =
@@ -634,6 +655,7 @@ let make_hash_table init_sz =
   { insert = HashTable.insert s ;
     last_update = (fun () -> HashTable.last_update s) ;
     cardinality = (fun () -> HashTable.length s) ;
+    member = HashTable.member s ;
     fold = (fun u f -> HashTable.fold s u f) }
 
 (* TODO: this operation needs to be faster, ideally a nop! *)

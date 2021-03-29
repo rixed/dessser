@@ -24,6 +24,10 @@ struct Sampling : public Set<T> {
     return l.size();
   }
 
+  bool member(T const &x) override {
+    return l.cend() != std::find(l.cbegin(), l.cend(), x);
+  }
+
   void iter(std::function<void(T &)> f) override {
     for (T &x : l) {
       f(x);

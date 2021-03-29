@@ -11,6 +11,7 @@ struct Set {
   virtual void insert(T const &) = 0;
   virtual std::pair<T, std::list<T>> lastUpdate() const = 0;
   virtual uint32_t size() const = 0;
+  virtual bool member(T const &) = 0;
 
   /* iter's callback is allowed to modify its argument. Therefore iter itself
    * cannot be const. */

@@ -2085,11 +2085,11 @@ let rec type_check l e =
         check_numeric ~only_mac:true l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
-        (* FIXME: Also for sets *)
         (match type_of l e2 |> T.develop_user_types with
-        | Value { vtyp = (Vec (_, t) | Lst t) ; nullable = false } ->
+        | Value { vtyp = (Vec (_, t) | Lst t | Set t) ; nullable = false } ->
             check_eq l e1 (T.Value t)
-        | t -> raise (Type_error (e0, e, t, "be a vector or list")))
+        | t ->
+            raise (Type_error (e0, e, t, "be a vector or list")))
     | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
         check_integer l e1 ;
         check_same_types l e1 e2

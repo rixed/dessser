@@ -9,6 +9,8 @@ module P = DessserPrinter
 
 type T.backend_id += Cpp
 
+let cpp_std_version = 17
+
 module Config =
 struct
   let id = Cpp
@@ -27,9 +29,10 @@ struct
   let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
     let optim = cap 0 3 optim in
     Printf.sprintf2
-      "g++ -std=c++17 -g -O%d -W -Wall \
+      "g++ -std=c++%d -g -O%d -W -Wall \
            -Wno-unused-parameter -Wno-unused-variable \
            -Wno-shift-negative-value %a %s %s %S -o %S"
+      cpp_std_version
       optim
       (List.print ~first:"" ~last:"" ~sep:" " (fun oc path ->
         Printf.fprintf oc "-I %s" path)) extra_search_paths
@@ -66,8 +69,20 @@ struct
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier p (T.Value vt) in
         pp oc "%s%s %s;\n" p.P.indent typ_id (valid_identifier field_name)
-      ) mns
-    ) ;
+      ) mns ;
+      if cpp_std_version >= 20 then
+        pp oc "%sbool operator==(%s const &) const & = default;\n" p.P.indent id
+      else (
+        pp oc "%sbool operator==(%s const &other) const {\n" p.P.indent id ;
+        P.indent_more p (fun () ->
+          pp oc "%sreturn %a;\n"
+            p.P.indent
+            (Array.print ~first:"" ~last:"" ~sep:" && "
+              (fun oc (field_name, _) ->
+                let id = valid_identifier field_name in
+                Printf.fprintf oc "%s == other.%s" id id)) mns) ;
+        pp oc "%s}\n" p.P.indent
+      )) ;
     pp oc "%s};\n\n" p.P.indent
 
   and print_variant p oc id mns =

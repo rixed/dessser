@@ -1104,7 +1104,15 @@ struct
                   (List.print ~first:"" ~last:"" ~sep:" || "
                      (fun oc n -> Printf.fprintf oc "x_ = %s" n)) ns
               ))
-        | _ -> assert false (* because of type-checking *))
+        | set ->
+            let set_t = E.type_of l set in
+            let is_set =
+              match set_t with
+              | T.Value { nullable = false ; vtyp = T.Set _ } -> true
+              | _ -> false in
+            assert is_set (* because of type-checking *) ;
+            let n2 = print emit p l set in
+            emit ?name p l e (fun oc -> pp oc "%s.member %s" n2 n1))
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->

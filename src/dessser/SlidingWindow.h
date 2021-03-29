@@ -46,6 +46,10 @@ struct SlidingWindow : public Set<T> {
     return num_inserts <= length ? num_inserts : length;
   }
 
+  bool member(T const &x) override {
+    return arr.cend() != std::find(arr.cbegin(), arr.cend(), x);
+  }
+
   void iter(std::function<void(T &)> f) override
   {
     if (0 == num_inserts) return;
