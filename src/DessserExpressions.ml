@@ -1592,6 +1592,85 @@ struct
       (expr "(make-vec (u8 1) (u8 2))")
   *)
 
+  let rec eval e = match e with
+    | E3 (If, e1, e2, e3) ->
+      (match eval e1 with
+        | E0 (Bool true) -> eval e2
+        | E0 (Bool false) -> eval e3
+        | _ -> E3 (If, e1, eval e2, eval e3))
+    | E2 (Ge, e1, e2) ->
+      let to_bool e = if e then E0 (Bool true) else E0 (Bool false) in
+      let _e1 = eval e1 in
+      let _e2 = eval e2 in
+      (match _e1, _e2 with
+      | E0 Null _, E0 Null _
+      | E0 (EndOfList _), E0 (EndOfList _)
+      | E0 (EmptySet _), E0 (EmptySet _)
+      | E0 Unit, E0 Unit
+      | E0 CopyField, E0 CopyField
+      | E0 SkipField, E0 SkipField
+      | E0 SetFieldNull, E0 SetFieldNull ->
+          E0 (Bool true)
+      (* None other combination of those can be compared: *)
+      | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull),
+        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull) ->
+          E0 (Bool false)
+      (* Another easy case of practical importance: comparison of a null with
+       * a NotNull: *)
+      | E0 (Null _), E1 (NotNull, _)
+      | E1 (NotNull, _), E0 (Null _) ->
+          E0 (Bool false)
+      (* Peel away some common wrappers: *)
+      (* | E1 (NotNull, e1), E1 (NotNull, e2)
+       | E1 (Force, e1), E1 (Force, e2) ->
+          eq e1 e2*)
+      (* Compare numerical constant (only if of the same type (TODO)): *)
+      | E0 (Float v1), E0 (Float v2) -> to_bool (v1 >= v2)
+      | E0 (String v1), E0 (String v2) -> to_bool (v1 >= v2)
+      | E0 (Bool v1), E0 (Bool v2) -> to_bool (v1 >= v2)
+      | E0 (Char v1), E0 (Char v2) -> to_bool (v1 >= v2)
+      | E0 (U8 v1), E0 (U8 v2) -> to_bool (v1 >= v2)
+      | E0 (U16 v1), E0 (U16 v2) -> to_bool (v1 >= v2)
+      | E0 (U24 v1), E0 (U24 v2) -> to_bool (v1 >= v2)
+      | E0 (U32 v1), E0 (U32 v2) -> to_bool (v1 >= v2)
+      | E0 (U40 v1), E0 (U40 v2) -> to_bool (v1 >= v2)
+      | E0 (U48 v1), E0 (U48 v2) -> to_bool (v1 >= v2)
+      | E0 (U56 v1), E0 (U56 v2) -> to_bool (v1 >= v2)
+      | E0 (U64 v1), E0 (U64 v2) -> to_bool (v1 >= v2)
+      | E0 (U128 v1), E0 (U128 v2) -> to_bool (v1 >= v2)
+      | E0 (I8 v1), E0 (I8 v2) -> to_bool (v1 >= v2)
+      | E0 (I16 v1), E0 (I16 v2) -> to_bool (v1 >= v2)
+      | E0 (I24 v1), E0 (I24 v2) -> to_bool (v1 >= v2)
+      | E0 (I32 v1), E0 (I32 v2) -> to_bool (v1 >= v2)
+      | E0 (I40 v1), E0 (I40 v2) -> to_bool (v1 >= v2)
+      | E0 (I48 v1), E0 (I48 v2) -> to_bool (v1 >= v2)
+      | E0 (I56 v1), E0 (I56 v2) -> to_bool (v1 >= v2)
+      | E0 (I64 v1), E0 (I64 v2) -> to_bool (v1 >= v2)
+      | E0 (I128 v1), E0 (I128 v2) -> to_bool (v1 >= v2)
+      | E0 (Bit v1), E0 (Bit v2) -> to_bool (v1 >= v2)
+      | E0 (Size v1), E0 (Size v2) -> to_bool (v1 >= v2)
+      | E0 (Byte v1), E0 (Byte v2) -> to_bool (v1 >= v2)
+      | E0 (Word v1), E0 (Word v2) -> to_bool (v1 >= v2)
+      | E0 (DWord v1), E0 (DWord v2) -> to_bool (v1 >= v2)
+      | E0 (QWord v1), E0 (QWord v2) -> to_bool (v1 >= v2)
+      | E0 (OWord v1), E0 (OWord v2) -> to_bool (v1 >= v2)
+      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool (v1 >= v2)
+      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool (v1 >= v2)
+      | _ -> E2 (Ge, _e1, _e2))
+    | _ -> e
+
+  let expr_simp str =
+    (List.map (fun s -> eval (e s)) (sexpr_of_string str))
+
+  (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
+    [ Ops.(true_) ] \
+    (expr_simp "(ge (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+    (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
+  *)
+
   (*$>*)
 end
 
