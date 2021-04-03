@@ -2605,7 +2605,7 @@ let let_ ?(l=[]) ?name e f =
               | E0 (Identifier n') when n' = n -> c + 1
               | _ -> c
             ) body in
-          if use_count <= 1 then
+          if !optimize && use_count <= 1 then
             (* No need for the let: *)
             map l (fun _l -> function
               | E0 (Identifier n') when n' = n -> e
