@@ -2582,7 +2582,11 @@ let let_ ?(l=[]) ?name e f =
       f l e
   | _ ->
       let n = match name with Some n -> n | None -> gen_id () in
-      let l = (E0 (Identifier n), type_of l e) :: l in
+      (* Best effort, as sometime we cannot provide the environment but
+       * do not need it in the [body]: *)
+      let l =
+        try (E0 (Identifier n), type_of l e) :: l
+        with Unbound_identifier _ | Unbound_parameter _ -> l in
       (match f l (E0 (Identifier n)) with
       | E0 (Identifier n') when n' = n ->
           (* In that case the identifier is useless: *)
