@@ -3195,9 +3195,7 @@ struct
     | E0 (Size 0) when !optimize -> e1 (* return unmodified pointer *)
     | _ -> E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
-  let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
-  let get_vec e1 e2 = E2 (GetVec, e1, e2)
   let force = function
     | E1 (NotNull, e1) when !optimize ->
         e1
@@ -3268,6 +3266,26 @@ struct
     | _ ->
         (* Let the type checker deal with this: *)
         E2 (AllocLst, e1, e2)
+  let set_vec e1 e2 e3 =
+    match to_cst_int e1 with
+    | exception _ ->
+        E3 (SetVec, e1, e2, e3)
+    | i ->
+        (match e2 with
+        | E0S (MakeVec, es) when !optimize ->
+            List.mapi (fun j e -> if i = j then e3 else e) es |>
+            make_vec
+        | _ ->
+            E3 (SetVec, e1, e2, e3))
+  let get_vec e1 e2 =
+    match to_cst_int e1 with
+    | exception _ ->
+        E2 (GetVec, e1, e2)
+    | i ->
+        (match e2 with
+        | E0S (MakeVec, es) when !optimize ->
+            List.at es i
+        | _ -> E2 (GetVec, e1, e2))
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
