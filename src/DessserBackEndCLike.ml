@@ -257,6 +257,8 @@ struct
                 ) compunit.U.verbatim_definitions in
               U.environment U.{ compunit with identifiers ;
                                               verbatim_definitions } in
+            if debug then
+              pp stdout "Environment: %a\n" E.print_environment l ;
             printer p l ;
             let defined = name :: defined in
             loop true defined left_overs rest

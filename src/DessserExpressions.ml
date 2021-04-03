@@ -1906,9 +1906,10 @@ let rec fold u l f e =
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold u l f e1) u es
   | E1 (Function (id, ts), e1) ->
-      let l = Array.fold_lefti (fun l i t ->
-        (E0 (Param (id, i)), t) :: l
-      ) l ts in
+      let l =
+        Array.fold_lefti (fun l i t ->
+          (E0 (Param (id, i)), t) :: l
+        ) l ts in
       fold u l f e1
   | E1 (_, e1) ->
       fold u l f e1

@@ -244,7 +244,7 @@ let aggregator
    * - output_expr, that finalize the value and serialize it. *)
   let compunit = U.make () in
   let compunit, state_id, state_name =
-    U.add_identifier_of_expression compunit ~name:"compunit" init_expr in
+    U.add_identifier_of_expression compunit ~name:"init" init_expr in
   let input_expr =
     E.func1 ~l:(U.environment compunit) DataPtr (fun l src ->
       let v_src = apply to_value [ src ] in
