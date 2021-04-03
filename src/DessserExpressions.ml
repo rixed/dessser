@@ -3251,4 +3251,8 @@ struct
   let string_of_char_ = function
     | E0 (Char c) when !optimize -> string (String.of_char c)
     | e -> E1 (StringOfChar, e)
+  (* Helpers for ref-cells (implemented with 1 dimensional vectors): *)
+  let ref_ e = make_vec [ e ]
+  let get_ref e = get_vec (u8_of_int 0) e
+  let set_ref e x = set_vec (u8_of_int 0) e x
 end
