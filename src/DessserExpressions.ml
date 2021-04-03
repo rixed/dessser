@@ -3143,13 +3143,54 @@ struct
   let to_i128 e1 = E1 (ToI128, e1)
   let to_u128 e1 = E1 (ToU128, e1)
   let to_float e1 = E1 (ToFloat, e1)
-  let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
-  let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
+  (* Avoid useless sequences: *)
+  let seq = function
+    (* `seq []` is already synonymous with void/nop *)
+    | [ e ] when !optimize -> e
+    | es -> E0S (Seq, es)
+  let nop = seq []
+  let apply f es =
+    (* If [f] is constant we cannont proceed directly with variable
+     * substitutions unless each variable is used only once. We can
+     * turn the apply into a sequence of lets that will further
+     * substitute what can be substituted: *)
+    match f with
+    | E1 (Function (fid, _typs), body) when !optimize ->
+        if es = [] then body else
+        List.fold_lefti (fun body i e ->
+          let_ e (fun l e ->
+            map l (fun _ -> function
+              | E0 (Param (fid', i')) when fid' = fid && i' = i -> e
+              | e -> e
+            ) body)
+        ) body es
+    | _ ->
+        E1S (Apply, f, es)
+  let repeat ~from ~to_ ~body ~init =
+    match from, to_ with
+    | E0 (I32 f), E0 (I32 t) when !optimize ->
+        let c = Int32.compare f t in
+        if c > 0 then nop
+        else if c = 0 then apply body [ from ; init ]
+        else E4 (Repeat, from, to_, body, init)
+    | _ ->
+        E4 (Repeat, from, to_, body, init)
+  let loop_until ~body ~cond ~init =
+    match cond with
+    | E0 (Bool false) when !optimize ->
+        apply body [ init ]
+    | _ ->
+        E3 (LoopUntil, body, cond, init)
   let loop_while ~cond ~body ~init =
     match cond with
     | E0 (Bool false) when !optimize -> init
     | _ -> E3 (LoopWhile, cond, body, init)
-  let fold ~init ~body ~list = E3 (Fold, init, body, list)
+  let fold ~init ~body ~list =
+    match list with
+    | E0S ((MakeVec | MakeLst _), [ e ]) when !optimize ->
+        apply body [ e ; init ]
+    | _ ->
+        E3 (Fold, init, body, list)
   let string_of_bytes e1 = E1 (StringOfBytes, e1)
   let rem_size e1 = E1 (RemSize, e1)
   let neg e1 = E1 (Neg, e1)
@@ -3222,7 +3263,6 @@ struct
   let get_alt s e1 = E1 (GetAlt s, e1)
   let construct mns i e1 = E1 (Construct (mns, i), e1)
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
-  let map e1 e2 = E2 (Map, e1, e2)
   let min_ e1 e2 = E2 (Min, e1, e2)
   let max_ e1 e2 = E2 (Max, e1, e2)
   let member e1 e2 =
@@ -3232,11 +3272,6 @@ struct
         bool false
     | e2 ->
         E2 (Member, e1, e2)
-  (* Avoid useless sequences: *)
-  let seq = function
-    (* `seq []` is already synonymous with void/nop *)
-    | [ e ] when !optimize -> e
-    | es -> E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_lst mn es = E0S (MakeLst mn, es)
   let alloc_lst ~l ~len:e1 ~init:e2 =
@@ -3286,6 +3321,13 @@ struct
         | E0S (MakeVec, es) when !optimize ->
             List.at es i
         | _ -> E2 (GetVec, e1, e2))
+  let map_ lst f =
+    match lst with
+    | E0S (MakeVec, [ e ]) when !optimize ->
+        (* Unearth the MakeVec might makes further optimisations possible: *)
+        make_vec [ apply f [ e ] ]
+    | _ ->
+        E2 (Map, lst, f)
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
@@ -3333,7 +3375,6 @@ struct
   let byte_of_bool = byte_of_u8 % u8_of_bool
   let char_of_byte = char_of_u8 % u8_of_byte
   let byte_of_char = byte_of_u8 % u8_of_char
-  let nop = seq []
   let assert_ = function
     | E0 (Bool true) when !optimize -> nop
     | e -> E1 (Assert, e)
@@ -3342,7 +3383,6 @@ struct
   let copy_field = E0 CopyField
   let skip_field = E0 SkipField
   let set_field_null = E0 SetFieldNull
-  let apply f es = E1S (Apply, f, es)
   let getenv e = E1 (GetEnv, e)
   let string_of_char_ = function
     | E0 (Char c) when !optimize -> string (String.of_char c)
