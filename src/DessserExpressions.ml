@@ -1902,6 +1902,49 @@ let rec fold u l f e =
   | E4 (_, e1, e2, e3, e4) ->
       fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
 
+(* depth first expression transformation: *)
+let rec map l f e =
+  match e with
+  | E0 _ ->
+      f l e
+  | E0S (op, es) ->
+      let es = List.map (map l f) es in
+      f l (E0S (op, es))
+  | E1 (Function (id, ts), e1) ->
+      let l =
+        Array.fold_lefti (fun l i t ->
+          (E0 (Param (id, i)), t) :: l
+        ) l ts in
+      let e1 = map l f e1 in
+      f l (E1 (Function (id, ts), e1))
+  | E1 (op, e1) ->
+      let e1 = map l f e1 in
+      f l (E1 (op, e1))
+  | E1S (op, e1, es) ->
+      let e1 = map l f e1
+      and es = List.map (map l f) es in
+      f l (E1S (op, e1, es))
+  | E2 (Let s, e1, e2) ->
+      let e1 = map l f e1 in
+      let l = (E0 (Identifier s), type_of l e1) :: l in
+      let e2 = map l f e2 in
+      f l (E2 (Let s, e1, e2))
+  | E2 (op, e1, e2) ->
+      let e1 = map l f e1
+      and e2 = map l f e2 in
+      f l (E2 (op, e1, e2))
+  | E3 (op, e1, e2, e3) ->
+      let e1 = map l f e1
+      and e2 = map l f e2
+      and e3 = map l f e3 in
+      f l (E3 (op, e1, e2, e3))
+  | E4 (op, e1, e2, e3, e4) ->
+      let e1 = map l f e1
+      and e2 = map l f e2
+      and e3 = map l f e3
+      and e4 = map l f e4 in
+      f l (E4 (op, e1, e2, e3, e4))
+
 (* [l] is the stack of expr * type *)
 let rec type_check l e =
   fold () l (fun () l e0 ->
@@ -2521,7 +2564,32 @@ let let_ ?(l=[]) ?name e f =
           (* In that case the identifier is useless: *)
           e
       | body ->
-          E2 (Let n, e, body))
+          (* If the identifier is used only once in the body, then the optimizer will
+           * also prefer to have no let. This will further allow, for instance, to
+           * simplify:
+           *   (get-vec 0
+           *     (let (arr (make-vec 0))
+           *       (set-vec 0 arr 1)))
+           * into:
+           *   (get-vec 0
+           *     (set-vec 0 (make-vec 0) 1))
+           * then ultimately into:
+           *   1
+           *)
+          let use_count =
+            (* TODO: early exit *)
+            fold 0 l (fun c _l -> function
+              | E0 (Identifier n') when n' = n -> c + 1
+              | _ -> c
+            ) body in
+          if use_count <= 1 then
+            (* No need for the let: *)
+            map l (fun _l -> function
+              | E0 (Identifier n') when n' = n -> e
+              | e -> e
+            ) body
+          else
+            E2 (Let n, e, body))
 
 (* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
