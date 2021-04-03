@@ -334,6 +334,8 @@ type e2 =
   | SplitBy
   | SplitAt
   | Join
+  (* Parameters are size and item initial value *)
+  | AllocLst
 
 type e3 =
   | SetBit
@@ -794,6 +796,7 @@ let string_of_e2 = function
   | SplitBy -> "split-on"
   | SplitAt -> "split-at"
   | Join -> "join"
+  | AllocLst -> "alloc-lst"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1392,6 +1395,8 @@ struct
         E2 (SplitAt, e x1, e x2)
     | Lst [ Sym "join" ; x1 ; x2 ] ->
         E2 (Join, e x1, e x2)
+    | Lst [ Sym "alloc-lst" ; x1 ; x2 ] ->
+        E2 (AllocLst, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1847,6 +1852,15 @@ let rec type_of l e0 =
       T.tuple T.[| required (Mac String) ; required (Mac String) |]
   | E2 (Join, _, _) ->
       T.string
+  | E2 (AllocLst, _, e2) ->
+      let item_t =
+        match type_of l e2 with
+        | Value mn ->
+            mn
+        | t1 ->
+            raise (Type_error (
+              e0, e2, t1, "be a possibly nullable value type")) in
+      T.list item_t
 
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
@@ -2369,6 +2383,9 @@ let rec type_check l e =
         if item_t <> T.(required (Mac String)) then
           let msg = "be a list or vector of strings" in
           raise (Type_error (e0, e, T.Value item_t, msg))
+    | E2 (AllocLst, e1, e2) ->
+        check_unsigned l e1 ;
+        check_maybe_nullable l e2
   ) e
 
 (*$inject
@@ -3133,6 +3150,33 @@ struct
     | es -> E0S (Seq, es)
   let make_vec es = E0S (MakeVec, es)
   let make_lst mn es = E0S (MakeLst mn, es)
+  let alloc_lst ~l ~len:e1 ~init:e2 =
+    match type_of l e2 with
+    | T.Value mn ->
+        (match e1 with
+        | E0 (U8 n) when !optimize && Uint8.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U16 n) when !optimize && Uint16.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U24 n) when !optimize && Uint24.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U32 n) when !optimize && Uint32.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U40 n) when !optimize && Uint40.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U48 n) when !optimize && Uint48.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U56 n) when !optimize && Uint56.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U64 n) when !optimize && Uint64.(compare zero n) = 0 ->
+            make_lst mn []
+        | E0 (U128 n) when !optimize && Uint128.(compare zero n) = 0 ->
+            make_lst mn []
+        | _ ->
+            E2 (AllocLst, e1, e2))
+    | _ ->
+        (* Let the type checker deal with this: *)
+        E2 (AllocLst, e1, e2)
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)

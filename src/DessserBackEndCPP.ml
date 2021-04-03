@@ -1154,6 +1154,11 @@ struct
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_join(%s, %s)" n1 n2)
+    | E.E2 (AllocLst, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        (* Use the constructor inherited from std::vector: *)
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
