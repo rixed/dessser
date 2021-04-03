@@ -844,11 +844,14 @@ struct
     | E.E1 ((Lower | Upper as op), e1) ->
         (* FIXME: proper UTF-8 + use a lib for proper lower/upper casing *)
         let n1 = print emit p l e1 in
+        (* Beware that n1 is used twice below so we must "un-inlining" it: *)
+        let tmp1 = gen_sym ?name "str_" in
+        ppi p.P.def "std::string const &%s { %s };" tmp1 n1 ;
         let res = gen_sym ?name "case_str_" in
-        ppi p.P.def "std::string %s(%s.length(), ' ');" res n1 ;
+        ppi p.P.def "std::string %s(%s.length(), ' ');" res tmp1 ;
         let op = match op with Lower -> "tolower" | _ -> "toupper" in
-        ppi p.P.def "transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
-          n1 n1 res op ;
+        ppi p.P.def "std::transform(%s.cbegin(), %s.cend(), %s.begin(), ::%s);"
+          tmp1 tmp1 res op ;
         res
     | E.E1 (Hash, e1) ->
         let n1 = print emit p l e1 in
@@ -916,9 +919,12 @@ struct
     | E.E2 (Member, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
+        (* un-inline n2, used several times below: *)
+        let tmp2 = gen_sym ?name "set_" in
+        ppi p.P.def "auto const &%s { %s };" tmp2 n2 ;
         emit ?name p l e (fun oc ->
           pp oc "std::end(%s) != std::find(std::begin(%s), std::end(%s), %s)"
-            n2 n2 n2 n1)
+            tmp2 tmp2 tmp2 n1)
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->
