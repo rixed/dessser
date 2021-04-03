@@ -1183,8 +1183,6 @@ struct
     pp p.P.def "%sstatic %s %s_init()\n" p.P.indent tn n ;
     pp p.P.def "%s{\n" p.P.indent ;
     P.indent_more p (fun () ->
-      (* TODO: add other predefined globals in the environment: *)
-      let l = [] in
       let n = print emit p l e in
       print_return n p l e) ;
     pp p.P.def "%s}\n" p.P.indent ;
