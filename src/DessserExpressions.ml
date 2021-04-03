@@ -930,6 +930,29 @@ let to_pretty_string ?max_depth e =
   Format.fprintf fmt "@.    @[<hov 4>%a@]@." (pretty_print ?max_depth) e ;
   Buffer.contents buf
 
+let to_cst_int =
+  let m = max_int in
+  function
+  | E0 (U8 n) -> Uint8.to_int n
+  | E0 (U16 n) -> Uint16.to_int n
+  | E0 (U24 n) -> Uint24.to_int n
+  | E0 (U32 n) when Uint64.(compare (of_uint32 n) (of_int m) <= 0) -> Uint32.to_int n
+  | E0 (U40 n) when Uint64.(compare (of_uint40 n) (of_int m) <= 0) -> Uint40.to_int n
+  | E0 (U48 n) when Uint64.(compare (of_uint48 n) (of_int m) <= 0) -> Uint48.to_int n
+  | E0 (U56 n) when Uint64.(compare (of_uint56 n) (of_int m) <= 0) -> Uint56.to_int n
+  | E0 (U64 n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
+  | E0 (U128 n) when Uint128.(compare n (of_int m) <= 0) -> Uint128.to_int n
+  | E0 (I8 n) -> Int8.to_int n
+  | E0 (I16 n) -> Int16.to_int n
+  | E0 (I24 n) -> Int24.to_int n
+  | E0 (I32 n) when Int64.(compare (of_int32 n) (of_int m) <= 0) -> Int32.to_int n
+  | E0 (I40 n) when Int64.(compare (of_int40 n) (of_int m) <= 0) -> Int40.to_int n
+  | E0 (I48 n) when Int64.(compare (of_int48 n) (of_int m) <= 0) -> Int48.to_int n
+  | E0 (I56 n) when Int64.(compare (of_int56 n) (of_int m) <= 0) -> Int56.to_int n
+  | E0 (I64 n) when Int64.(compare n (of_int m) <= 0) -> Int64.to_int n
+  | E0 (I128 n) when Int128.(compare n (of_int m) <= 0) -> Int128.to_int n
+  | _ -> invalid_arg "to_cst_int"
+
 module Parser =
 struct
   (* String representation of expressions are mere s-expressions.
@@ -3034,31 +3057,31 @@ struct
     | E0 (String v1), E0 (String v2) when !optimize -> bool (v1 = v2)
     | E0 (Bool v1), E0 (Bool v2) when !optimize -> bool (v1 = v2)
     | E0 (Char v1), E0 (Char v2) when !optimize -> bool (v1 = v2)
-    | E0 (U8 v1), E0 (U8 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U16 v1), E0 (U16 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U24 v1), E0 (U24 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U32 v1), E0 (U32 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U40 v1), E0 (U40 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U48 v1), E0 (U48 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U56 v1), E0 (U56 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U64 v1), E0 (U64 v2) when !optimize -> bool (v1 = v2)
-    | E0 (U128 v1), E0 (U128 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I8 v1), E0 (I8 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I16 v1), E0 (I16 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I24 v1), E0 (I24 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I32 v1), E0 (I32 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I40 v1), E0 (I40 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I48 v1), E0 (I48 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I56 v1), E0 (I56 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I64 v1), E0 (I64 v2) when !optimize -> bool (v1 = v2)
-    | E0 (I128 v1), E0 (I128 v2) when !optimize -> bool (v1 = v2)
+    | E0 (U8 v1), E0 (U8 v2) when !optimize -> bool (Uint8.compare v1 v2 = 0)
+    | E0 (U16 v1), E0 (U16 v2) when !optimize -> bool (Uint16.compare v1 v2 = 0)
+    | E0 (U24 v1), E0 (U24 v2) when !optimize -> bool (Uint24.compare v1 v2 = 0)
+    | E0 (U32 v1), E0 (U32 v2) when !optimize -> bool (Uint32.compare v1 v2 = 0)
+    | E0 (U40 v1), E0 (U40 v2) when !optimize -> bool (Uint40.compare v1 v2 = 0)
+    | E0 (U48 v1), E0 (U48 v2) when !optimize -> bool (Uint48.compare v1 v2 = 0)
+    | E0 (U56 v1), E0 (U56 v2) when !optimize -> bool (Uint56.compare v1 v2 = 0)
+    | E0 (U64 v1), E0 (U64 v2) when !optimize -> bool (Uint64.compare v1 v2 = 0)
+    | E0 (U128 v1), E0 (U128 v2) when !optimize -> bool (Uint128.compare v1 v2 = 0)
+    | E0 (I8 v1), E0 (I8 v2) when !optimize -> bool (Int8.compare v1 v2 = 0)
+    | E0 (I16 v1), E0 (I16 v2) when !optimize -> bool (Int16.compare v1 v2 = 0)
+    | E0 (I24 v1), E0 (I24 v2) when !optimize -> bool (Int24.compare v1 v2 = 0)
+    | E0 (I32 v1), E0 (I32 v2) when !optimize -> bool (Int32.compare v1 v2 = 0)
+    | E0 (I40 v1), E0 (I40 v2) when !optimize -> bool (Int40.compare v1 v2 = 0)
+    | E0 (I48 v1), E0 (I48 v2) when !optimize -> bool (Int48.compare v1 v2 = 0)
+    | E0 (I56 v1), E0 (I56 v2) when !optimize -> bool (Int56.compare v1 v2 = 0)
+    | E0 (I64 v1), E0 (I64 v2) when !optimize -> bool (Int64.compare v1 v2 = 0)
+    | E0 (I128 v1), E0 (I128 v2) when !optimize -> bool (Int128.compare v1 v2 = 0)
     | E0 (Bit v1), E0 (Bit v2) when !optimize -> bool (v1 = v2)
     | E0 (Size v1), E0 (Size v2) when !optimize -> bool (v1 = v2)
-    | E0 (Byte v1), E0 (Byte v2) when !optimize -> bool (v1 = v2)
-    | E0 (Word v1), E0 (Word v2) when !optimize -> bool (v1 = v2)
-    | E0 (DWord v1), E0 (DWord v2) when !optimize -> bool (v1 = v2)
-    | E0 (QWord v1), E0 (QWord v2) when !optimize -> bool (v1 = v2)
-    | E0 (OWord v1), E0 (OWord v2) when !optimize -> bool (v1 = v2)
+    | E0 (Byte v1), E0 (Byte v2) when !optimize -> bool (Uint8.compare v1 v2 = 0)
+    | E0 (Word v1), E0 (Word v2) when !optimize -> bool (Uint16.compare v1 v2 = 0)
+    | E0 (DWord v1), E0 (DWord v2) when !optimize -> bool (Uint32.compare v1 v2 = 0)
+    | E0 (QWord v1), E0 (QWord v2) when !optimize -> bool (Uint64.compare v1 v2 = 0)
+    | E0 (OWord v1), E0 (OWord v2) when !optimize -> bool (Uint128.compare v1 v2 = 0)
     | E0 (Bytes v1), E0 (Bytes v2) when !optimize -> bool (v1 = v2)
     | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) when !optimize -> bool (v1 = v2)
     | _ -> E2 (Eq, e1, e2)
@@ -3272,29 +3295,16 @@ struct
           List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] es in
         E0S (MakeRec, es)
   let split_at e1 e2 =
-    let res s n =
-      make_tup [ string (String.sub s 0 n) ;
-                 string (String.sub s n (String.length s - n)) ] in
-    match e1, e2 with
-    | E0 (U8 n), E0 (String s) when !optimize -> res s (Uint8.to_int n)
-    | E0 (U16 n), E0 (String s) when !optimize -> res s (Uint16.to_int n)
-    | E0 (U24 n), E0 (String s) when !optimize -> res s (Uint24.to_int n)
-    | E0 (U32 n), E0 (String s) when !optimize -> res s (Uint32.to_int n)
-    | E0 (U40 n), E0 (String s) when !optimize -> res s (Uint40.to_int n)
-    | E0 (U48 n), E0 (String s) when !optimize -> res s (Uint48.to_int n)
-    | E0 (U56 n), E0 (String s) when !optimize -> res s (Uint56.to_int n)
-    | E0 (U64 n), E0 (String s) when !optimize -> res s (Uint64.to_int n)
-    | E0 (U128 n), E0 (String s) when !optimize -> res s (Uint128.to_int n)
-    | E0 (I8 n), E0 (String s) when !optimize -> res s (Int8.to_int n)
-    | E0 (I16 n), E0 (String s) when !optimize -> res s (Int16.to_int n)
-    | E0 (I24 n), E0 (String s) when !optimize -> res s (Int24.to_int n)
-    | E0 (I32 n), E0 (String s) when !optimize -> res s (Int32.to_int n)
-    | E0 (I40 n), E0 (String s) when !optimize -> res s (Int40.to_int n)
-    | E0 (I48 n), E0 (String s) when !optimize -> res s (Int48.to_int n)
-    | E0 (I56 n), E0 (String s) when !optimize -> res s (Int56.to_int n)
-    | E0 (I64 n), E0 (String s) when !optimize -> res s (Int64.to_int n)
-    | E0 (I128 n), E0 (String s) when !optimize -> res s (Int128.to_int n)
-    | _ -> E2 (SplitAt, e1, e2)
+    match to_cst_int e1 with
+    | exception _ ->
+        E2 (SplitAt, e1, e2)
+    | i ->
+        let res s =
+          make_tup [ string (String.sub s 0 i) ;
+                     string (String.sub s i (String.length s - i)) ] in
+        (match e2 with
+        | E0 (String s) when !optimize -> res s
+        | _ -> E2 (SplitAt, e1, e2))
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
   let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
   let append_string e1 e2 = E2 (AppendString, e1, e2)
