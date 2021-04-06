@@ -114,8 +114,8 @@ type e1 =
   | IsNull
   (* Turn e into a nullable: *)
   | NotNull
-  (* Turn e into a not-nullable (or fail): *)
-  | Force
+  (* Turn e into a not-nullable (or fail with the given message): *)
+  | Force of string
   (* Convert from/to string for all base value types: *)
   | StringOfFloat
   | StringOfChar
@@ -600,7 +600,7 @@ let string_of_e1 = function
   | Ignore -> "ignore"
   | IsNull -> "is-null"
   | NotNull -> "not-null"
-  | Force -> "force"
+  | Force what -> "force "^ String.quote what
   | StringOfFloat -> "string-of-float"
   | StringOfChar -> "string-of-char"
   | StringOfInt -> "string-of-int"
@@ -1202,7 +1202,7 @@ struct
     | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
     | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
     | Lst [ Sym "not-null" ; x ] -> E1 (NotNull, e x)
-    | Lst [ Sym "force" ; x ] -> E1 (Force, e x)
+    | Lst [ Sym "force" ; Str w ; x ] -> E1 (Force w, e x)
     | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
     | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
@@ -1575,7 +1575,7 @@ let rec type_of l e0 =
       T.to_nullable (type_of l e)
   | E1 (NotNull, e) ->
       T.to_nullable (type_of l e)
-  | E1 (Force, e) ->
+  | E1 (Force _, e) ->
       T.force (type_of l e)
   | E1 (IsNull, _) -> T.bool
   | E0 (Null vt) -> Value { vtyp = vt ; nullable = true }
@@ -2154,7 +2154,7 @@ let rec type_check l e =
         check_integer l e1
     | E1 (NotNull, e) ->
         check_nullable false l e
-    | E1 (Force, e) ->
+    | E1 (Force _, e) ->
         check_nullable true l e
     | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
         check_comparable l e1 ;
@@ -2852,7 +2852,7 @@ struct
     | e -> E1 (StringOfChar, e)
   let null vt = E0 (Null vt)
   let not_null = function
-    | E1 (Force, e1) when !optimize -> e1
+    | E1 (Force _, e1) when !optimize -> e1
     | e1 -> E1 (NotNull, e1)
   let or_null_ vt op conv s =
     try not_null (op (conv s)) with Invalid_argument _ -> null vt
@@ -3055,7 +3055,7 @@ struct
         false_
     (* Peel away some common wrappers: *)
     | E1 (NotNull, e1), E1 (NotNull, e2)
-    | E1 (Force, e1), E1 (Force, e2) when !optimize ->
+    | E1 (Force _, e1), E1 (Force _, e2) when !optimize ->
         eq e1 e2
     (* Compare numerical constant (only if of the same type (TODO)): *)
     | E0 (Float v1), E0 (Float v2) when !optimize -> bool (v1 = v2)
@@ -3242,15 +3242,15 @@ struct
     | _ -> E3 (BlitByte, e1, e2, e3)
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
-  let force = function
+  let force ?(what="") = function
     | E1 (NotNull, e1) when !optimize ->
         e1
     | E0 (Null _) as e when !optimize ->
         (* TODO: A special "fail of type" instruction translated into
          * "assert false" *)
-        E1 (Force, e)
+        E1 (Force what, e)
     | e ->
-        E1 (Force, e)
+        E1 (Force what, e)
   let find_substring e1 e2 e3 =
     match e2, e3 with
     | E0 (String s1), E0 (String s2) when !optimize ->

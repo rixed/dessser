@@ -363,8 +363,9 @@ struct
     | E.E1 (NotNull, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
-    | E.E1 (Force, e1) ->
+    | E.E1 (Force what, e1) ->
         let n1 = print emit p l e1 in
+        if what <> "" then ppi p.P.def "/* Force: %s */" what ;
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "std::nullopt")

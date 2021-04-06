@@ -127,7 +127,7 @@ struct
         CopyField | SkipField | SetFieldNull) ->
         true
     | E1 ((
-        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force | ToFloat |
+        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force _ | ToFloat |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
         ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
         CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |

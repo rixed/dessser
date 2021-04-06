@@ -109,9 +109,15 @@ struct
     | NotNull x ->
         (try NotNull (f x) with _ -> Null)
 
-  let get = function
-    | Null -> invalid_arg "Nullable.get"
-    | NotNull x -> x
+  let get ?what = function
+    | Null ->
+        let what =
+          match what with
+          | None -> ""
+          | Some msg -> " ("^ msg ^")" in
+        invalid_arg ("Nullable.get"^ what)
+    | NotNull x ->
+        x
 
   let (|!) a b =
     match a with Null -> b | NotNull a -> a

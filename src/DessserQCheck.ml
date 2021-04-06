@@ -286,7 +286,7 @@ let get_next_fid =
 (* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
-    E.[| Dump ; Ignore ; IsNull ; NotNull ; Force ; StringOfFloat ;
+    E.[| Dump ; Ignore ; IsNull ; NotNull ; Force "" ; StringOfFloat ;
          StringOfChar ; StringOfInt ; StringOfIp ; FloatOfString ; CharOfString
          ; U8OfString ; U16OfString ; U24OfString ; U32OfString ; U40OfString ;
          U48OfString ; U56OfString ; U64OfString ; U128OfString ; I8OfString ;

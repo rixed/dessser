@@ -35,7 +35,9 @@ let rec random_slist mn =
   let open E.Ops in
   let max_list_length = i32_of_int 8 in
   let from = i32_of_int 0
-  and to_ = force (rem (add (i32_of_int 1) random_i32) max_list_length)
+  and to_ =
+    force ~what:"random_slist rem"
+      (rem (add (i32_of_int 1) random_i32) max_list_length)
   and body =
     E.func2 T.i32 T.(SList (Value mn)) (fun _l _idx lst ->
       cons (random mn) lst)
@@ -72,7 +74,8 @@ and random mn =
       (* Just a random lowercase letter for now *)
       (char_of_u8
         (add (u8_of_char (char 'a'))
-             (force (rem (std_random T.(required (Mac U8)))
+             (force ~what:"random rem"
+                    (rem (std_random T.(required (Mac U8)))
                          (u8_of_int 26)))))
   | Mac U8 ->
       random_u8
