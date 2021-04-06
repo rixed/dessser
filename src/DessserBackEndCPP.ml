@@ -1170,7 +1170,7 @@ struct
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
         let pos = gen_sym ?name "pos_" in
-        ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) }"
+        ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) };"
           pos n1 n3 n2 n3 n2 ;
         emit ?name p l e (fun oc ->
           pp oc "%s != std::string::npos ? %s : std::nullopt" pos pos)
