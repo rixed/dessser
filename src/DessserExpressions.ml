@@ -1935,6 +1935,9 @@ let rec fold u l f e =
   | E4 (_, e1, e2, e3, e4) ->
       fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
 
+let iter l f e =
+  fold () l (fun () l e -> f l e) e
+
 (* depth first expression transformation: *)
 let rec map l f e =
   match e with
@@ -1978,9 +1981,26 @@ let rec map l f e =
       and e4 = map l f e4 in
       f l (E4 (op, e1, e2, e3, e4))
 
+let has_side_effect ?(l=[]) e =
+  try
+    iter l (fun _l e0 ->
+      match e0 with
+      | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
+             ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
+      | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
+             WriteQWord _ | WriteOWord _ | Insert | PartialSort), _, _)
+      | E3 (SetVec, _, _, _)
+      | E4 (ReadWhile, _, _, _, _)->
+          raise Exit
+      | _ -> ()
+    ) e ;
+    false
+  with Exit ->
+    true
+
 (* [l] is the stack of expr * type *)
 let rec type_check l e =
-  fold () l (fun () l e0 ->
+  iter l (fun l e0 ->
     let check_void l e =
       match type_of l e |> T.develop_user_types with
       | Void -> ()
@@ -3044,7 +3064,11 @@ struct
     | E0 (Bool true) when !optimize -> then_
     | E0 (Bool false) when !optimize -> else_
     | E1 (Not, e) when !optimize -> if_ ~cond:e ~then_:else_ ~else_:then_
-    | _-> E3 (If, cond, then_, else_)
+    | _->
+        if eq then_ else_ && !optimize && not (has_side_effect cond) then
+          then_
+        else
+          E3 (If, cond, then_, else_)
   let read_while ~cond ~reduce ~init ~pos =
     match cond with
     | E0 (Bool false) when !optimize -> pair init pos
