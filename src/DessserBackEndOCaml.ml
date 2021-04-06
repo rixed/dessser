@@ -520,44 +520,41 @@ struct
     | E.E2 ((Div | Rem as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        (match E.type_of l e1 |> T.develop_user_types with
-        | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                             |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-                   _ } as t ->
-            let op_name = match op with Div -> "div" | _ -> "rem" in
-            emit ?name p l e (fun oc ->
+        emit ?name p l e (fun oc ->
+          match E.type_of l e1 |> T.develop_user_types with
+          | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                               |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
+                     _ } as t ->
+              let op_name = match op with Div -> "div" | _ -> "rem" in
               pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
-                (mod_name t) op_name n1 n2)
-        | Value { vtyp = Mac Float ; _ } ->
-            let op_name = match op with Div -> "(/.)" | _ -> "(mod)" in
-            binary_op ("(Nullable.of_nan % "^ op_name ^")") e1 e2
-        | _ ->
-            assert false)
+                (mod_name t) op_name n1 n2
+          | Value { vtyp = Mac Float ; _ } ->
+              let op_name = match op with Div -> "(/.)" | _ -> "(mod)" in
+              pp oc "Nullable.of_nan (%s %s %s)" op_name n1 n2
+          | _ ->
+              assert false)
     | E.E2 (Pow, e1, e2) ->
-        (match E.type_of l e1 |> T.develop_user_types with
-        | Value { vtyp = Mac Float ; _ } ->
-            (* TODO: if e2 is constant and > 0 then do away with the
-             * Nullable.of_nan: *)
-            binary_op "(Nullable.of_nan % ( ** ))" e1 e2
-        | Value { vtyp = Mac (I32 | I64) ; _ } as t ->
-            let n1 = print emit p l e1
-            and n2 = print emit p l e2 in
-            emit ?name p l e (fun oc ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          match E.type_of l e1 |> T.develop_user_types with
+          | Value { vtyp = Mac Float ; _ } ->
+              (* TODO: if e2 is constant and > 0 then do away with the
+               * Nullable.of_nan: *)
+              pp oc "Nullable.of_nan (%s ** %s)" n1 n2
+          | Value { vtyp = Mac (I32 | I64) ; _ } as t ->
               pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
-                (mod_name t) n1 n2)
-        | Value {
-            vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                       |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
-            (* For through floats *)
-            let m = mod_name t in
-            let n1 = print emit p l e1
-            and n2 = print emit p l e2 in
-            emit ?name p l e (fun oc ->
+                (mod_name t) n1 n2
+          | Value {
+              vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                         |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
+              (* For through floats *)
+              let m = mod_name t in
               pp oc "Nullable.map %s.of_float \
                        (Nullable.of_nan (%s.to_float %s ** %s.to_float %s))"
-                m m n1 m n2)
-        | _ ->
-            assert false (* because of type-checking *))
+                m m n1 m n2
+          | _ ->
+              assert false (* because of type-checking *))
     | E.E2 (LogAnd, e1, e2) ->
         binary_mod_op "logand" e1 e2
     | E.E2 (LogOr, e1, e2) ->
@@ -953,11 +950,11 @@ struct
     | E.E1 (Sin, e1) ->
         unary_op "sin" e1
     | E.E1 (Tan, e1) ->
-        unary_op "(Nullable.of_nan tan)" e1
+        unary_op "(Nullable.of_nan % tan)" e1
     | E.E1 (ACos, e1) ->
-        unary_op "(Nullable.of_nan acos)" e1
+        unary_op "(Nullable.of_nan % acos)" e1
     | E.E1 (ASin, e1) ->
-        unary_op "(Nullable.of_nan asin)" e1
+        unary_op "(Nullable.of_nan % asin)" e1
     | E.E1 (ATan, e1) ->
         unary_op "atan" e1
     | E.E1 (CosH, e1) ->
