@@ -947,7 +947,7 @@ struct
     | E.E1 (Floor, e1) ->
         unary_op "floor" e1
     | E.E1 (Round, e1) ->
-        unary_op "Float.round" e1
+        unary_op "BatFloat.round" e1
     | E.E1 (Cos, e1) ->
         unary_op "cos" e1
     | E.E1 (Sin, e1) ->
