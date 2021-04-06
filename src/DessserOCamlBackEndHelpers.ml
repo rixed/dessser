@@ -670,6 +670,64 @@ let list_of_set s =
   List.rev |>
   Array.of_list
 
+(* Partial sort (inplace) of array at least indices [ks] of array [a], à la
+ * quick-sort: *)
+
+let partial_sort a ks =
+  (* Swap two values of [a]: *)
+  let swap i j =
+    let tmp = a.(i) in
+    a.(i) <- a.(j) ;
+    a.(j) <- tmp in
+  (* Partition a slice of [a] around a given pivot value [p],
+   * and return a position into the final array such that every
+   * items up to and including that position are <= pivot and
+   * every items after that are >= pivot. *)
+  let partition lo hi p =
+    let rec adv_i i j =
+      (* Everything that's <= i is <= p,
+       * everything that's >= j is >= p,
+       * i < j *)
+      let i = i + 1 in
+      if i >= j then i - 1
+      else if a.(i) < p then (adv_i [@tailcall]) i j
+      else (rec_j [@tailcall]) i j
+    and rec_j i j =
+      (* Everything that's < i is <= p, i is > p,
+       * everything that's >= j is >= p, j > i-1.
+       * If i = 0 we know we have the actual pivot value before to stop j
+       * from reading before the beginning of the array. *)
+      let j = j - 1 in
+      if a.(j) > p then (rec_j [@tailcall]) i j
+      else if j <= i then i - 1
+      else (
+        swap i j ;
+        (* we are back to adv_i precondition: *)
+        (adv_i [@tailcall]) i j
+      )
+    in
+    adv_i (lo - 1) (hi + 1) in
+  let rec loop count lo hi ks =
+    (* Add tot count and tot length in instrumentation ? *)
+    assert (count <= Array.length a) ;
+    if hi - lo > 0 && ks <> [] then (
+      (* We are going to use partition in that way:
+       * First, we take one random value as the pivot and put it in front.
+       * Then, we partition the rest of the array around
+       * that pivot value. The returned position is the last of the first
+       * partition. We can then put the pivot at the end of it, so we have
+       * "sorted" that value. *)
+      let pv = lo + (hi - lo) / 2 in (* not that random *)
+      swap lo pv ;
+      let m = a.(lo) in
+      let pv = partition (lo + 1) hi m in
+      swap lo pv ;
+      let ks_lo, ks_hi = List.partition (fun k -> k <= pv) ks in
+      let c = loop (count + 1) lo pv ks_lo in
+      loop c (pv + 1) hi ks_hi
+    ) else count in
+  loop 0 0 (Array.length a - 1) ks |> ignore
+
 (* Runtime Field Masks *)
 
 let mask_get ma i =

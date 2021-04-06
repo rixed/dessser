@@ -1348,6 +1348,11 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "Array.make (%s.to_int %s) %s"
             (mod_name (E.type_of l e1)) n1 n2)
+    | E.E2 (PartialSort, e1, e2) ->
+        let n1 = print ?name emit p l e1
+        and n2 = print emit p l e2 in
+        ppi p.P.def "partial_sort %s (Array.to_list %s) ;" n1 n2 ;
+        n1
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

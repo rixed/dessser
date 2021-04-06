@@ -336,6 +336,10 @@ type e2 =
   | Join
   (* Parameters are size and item initial value *)
   | AllocLst
+  (* Sort (inplace) the 1st parameter (vector or list) until the indices given
+   * in the 2sn parameter have reached their final location. Other part of the
+   * array might not be sorted. *)
+  | PartialSort
 
 type e3 =
   | SetBit
@@ -797,6 +801,7 @@ let string_of_e2 = function
   | SplitAt -> "split-at"
   | Join -> "join"
   | AllocLst -> "alloc-lst"
+  | PartialSort -> "partial-sort"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1420,6 +1425,8 @@ struct
         E2 (Join, e x1, e x2)
     | Lst [ Sym "alloc-lst" ; x1 ; x2 ] ->
         E2 (AllocLst, e x1, e x2)
+    | Lst [ Sym "partial-sort" ; x1 ; x2 ] ->
+        E2 (PartialSort, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1884,6 +1891,8 @@ let rec type_of l e0 =
             raise (Type_error (
               e0, e2, t1, "be a possibly nullable value type")) in
       T.list item_t
+  | E2 (PartialSort, _, _) ->
+      T.void
 
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
@@ -1981,16 +1990,21 @@ let rec type_check l e =
       | Value { nullable ; _ } when nullable = b -> ()
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
-    let check_comparable l e =
-      match type_of l e |> T.develop_user_types with
-      | Size | Byte | Word | DWord | QWord | OWord | Mask
+    let is_comparable = function
+      | T.Size | Byte | Word | DWord | QWord | OWord | Mask
       | Value {
           vtyp = Mac (
             Float | String | Char |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
-          nullable = false } -> ()
-      | t -> raise (Type_error (e0, e, t, "be comparable")) in
+          nullable = false } ->
+          true
+      | _ ->
+          false in
+    let check_comparable l e =
+      let t = type_of l e |> T.develop_user_types in
+      if not (is_comparable t) then
+        raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_mac=false) l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord when not only_mac ->
@@ -2010,13 +2024,18 @@ let rec type_check l e =
           I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
-    let check_unsigned l e =
-      match type_of l e |> T.develop_user_types with
-      | Size
+    let is_unsigned = function
+      | T.Size
       | Value { vtyp = Mac (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
-          nullable = false } -> ()
-      | t -> raise (Type_error (e0, e, t, "be an unsigned integer")) in
+          nullable = false } ->
+          true
+      | _ ->
+          false in
+    let check_unsigned l e =
+      let t = type_of l e |> T.develop_user_types in
+      if not (is_unsigned t) then
+        raise (Type_error (e0, e, t, "be an unsigned integer")) in
     let check_param fe n act exp =
       if not (T.eq act exp) then
         let expected = IO.to_string T.print act in
@@ -2453,6 +2472,15 @@ let rec type_check l e =
     | E2 (AllocLst, e1, e2) ->
         check_unsigned l e1 ;
         check_maybe_nullable l e2
+    | E2 (PartialSort, e1, e2) ->
+        let item_t1 = T.Value (get_item_type ~lst:true ~vec:true e0 l e1) in
+        if not (is_comparable item_t1) then
+          raise (Type_error (e0, e1, item_t1,
+                             "be a list or vector of comparable items")) ;
+        let item_t2 = T.Value (get_item_type ~lst:true ~vec:true e0 l e2) in
+        if not (is_unsigned item_t2) then
+          raise (Type_error (e0, e2, item_t2,
+                             "be a list or vector of unsigned integers"))
   ) e
 
 (*$inject
@@ -3306,6 +3334,15 @@ struct
     | _ ->
         (* Let the type checker deal with this: *)
         E2 (AllocLst, e1, e2)
+  let partial_sort e1 e2 =
+    match e1, e2 with
+    | _, E0S (MakeVec, [])
+    | _, E0S (MakeLst _, [])
+    | E0S (MakeVec, []), _
+    | E0S (MakeLst _, []), _ ->
+        e1
+    | _ ->
+        E2 (PartialSort, e1, e2)
   let set_vec e1 e2 e3 =
     match to_cst_int e1 with
     | exception _ ->
@@ -3396,4 +3433,5 @@ struct
   let ref_ e = make_vec [ e ]
   let get_ref e = get_vec (u8_of_int 0) e
   let set_ref e x = set_vec (u8_of_int 0) e x
+  let partial_sort vs ks = E2 (PartialSort, vs, ks)
 end
