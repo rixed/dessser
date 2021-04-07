@@ -708,7 +708,6 @@ let partial_sort a ks =
     in
     adv_i (lo - 1) (hi + 1) in
   let rec loop count lo hi ks =
-    (* Add tot count and tot length in instrumentation ? *)
     assert (count <= Array.length a) ;
     if hi - lo > 0 && ks <> [] then (
       (* We are going to use partition in that way:

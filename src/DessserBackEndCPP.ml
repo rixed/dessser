@@ -646,16 +646,9 @@ struct
         n
     | E.E1 (U8OfChar, e1) | E.E1 (CharOfU8, e1)
     | E.E1 (SizeOfU32, e1) | E.E1 (U32OfSize, e1)
-    | E.E1 (ToU8, e1) | E.E1 (ToI8, e1)
-    | E.E1 (ToU16, e1) | E.E1 (ToI16, e1)
-    | E.E1 (ToU24, e1) | E.E1 (ToI24, e1)
-    | E.E1 (ToU32, e1) | E.E1 (ToI32, e1)
-    | E.E1 (ToU40, e1) | E.E1 (ToI40, e1)
-    | E.E1 (ToU48, e1) | E.E1 (ToI48, e1)
-    | E.E1 (ToU56, e1) | E.E1 (ToI56, e1)
-    | E.E1 (ToU64, e1) | E.E1 (ToI64, e1)
-    | E.E1 (ToU128, e1) | E.E1 (ToI128, e1)
-    | E.E1 (ToFloat, e1)
+    | E.E1 ((ToU8 | ToI8 | ToU16 | ToI16 | ToU24 | ToI24 | ToU32 | ToI32 |
+             ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
+             ToU128 | ToI128 | ToFloat), e1)
     | E.E1 (U8OfBool, e1) | E.E1 (BoolOfU8, e1) ->
         let n = print emit p l e1 in
         let t = E.type_of l e in

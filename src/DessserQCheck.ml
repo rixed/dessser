@@ -565,7 +565,8 @@ let expression =
 (*$Q expression & ~count:20
   expression (fun e -> \
     match type_check [] e with \
-    | exception _ -> true \
+    | exception _ -> \
+        true \
     | () -> \
         type_of [] e = Void || can_be_compiled e)
 *)

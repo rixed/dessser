@@ -366,7 +366,15 @@ struct
       and n2 = print emit p l e2
       and m = mod_name (E.type_of l e) in
       emit ?name p l e (fun oc ->
-        pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2)
+        pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2) in
+    let conv_to_num e1 =
+      let t = E.type_of l e
+      and t1 = E.type_of l e1 in
+      if T.eq t t1 then
+        print emit p l e1
+      else
+        let op = mod_name t ^".of_"^ num_name t1 in
+        unary_op op e1
     in
     match e with
     | E.E1S (Apply, f, es) ->
@@ -722,60 +730,10 @@ struct
         unary_op "array_of_list_rev" e1
     | E.E1 (SetOfSList, e1) ->
         unary_op "make_simple_set_of_slist" e1
-    | E.E1 (ToU8, e1) ->
-        let op = "Uint8.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI8, e1) ->
-        let op = "Int8.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU16, e1) ->
-        let op = "Uint16.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI16, e1) ->
-        let op = "Int16.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU24, e1) ->
-        let op = "Uint24.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI24, e1) ->
-        let op = "Int24.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU32, e1) ->
-        let op = "Uint32.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI32, e1) ->
-        let op = "Int32.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU40, e1) ->
-        let op = "Uint40.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI40, e1) ->
-        let op = "Int40.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU48, e1) ->
-        let op = "Uint48.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI48, e1) ->
-        let op = "Int48.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU56, e1) ->
-        let op = "Uint56.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI56, e1) ->
-        let op = "Int56.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU64, e1) ->
-        let op = "Uint64.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI64, e1) ->
-        let op = "Int64.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToU128, e1) ->
-        let op = "Uint128.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
-    | E.E1 (ToI128, e1) ->
-        let op = "Int128.of_"^ num_name (E.type_of l e1) in
-        unary_op op e1
+    | E.E1 ((ToU8 | ToI8 | ToU16 | ToI16 | ToU24 | ToI24 | ToU32 | ToI32 |
+             ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
+             ToU128 | ToI128), e1) ->
+        conv_to_num e1
     | E.E1 (ToFloat, e1) ->
         let m = mod_name (E.type_of l e1) in
         if m = "Float" then print ?name emit p l e1
@@ -1261,8 +1219,9 @@ struct
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s.%s" n1 m (valid_identifier s))
     | E.E1 (GetAlt s, e1) ->
+        let t1 = E.type_of l e1 |> T.develop_user_types in
+        let m = module_of_type t1 in
         let n1 = print emit p l e1 in
-        let m = module_of_type (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           let cstr = cstr_name s in
           (* FIXME: figure out where to add this whether the expression is a

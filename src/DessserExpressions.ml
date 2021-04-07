@@ -104,7 +104,7 @@ type e1 =
   | Comment of string
   | GetItem of int (* for tuples *)
   | GetField of string (* For records *)
-  | GetAlt of string (* Destruct a sum type *)
+  | GetAlt of string (* Destruct a sum type (See LabelOf) *)
   | Construct of (string * T.maybe_nullable) array (* type of the resulting sum *)
                * int (* Which alternative is constructed *)
   | Dump
@@ -1539,7 +1539,8 @@ let rec type_of l e0 =
             raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
                                      string_of_int num_n ^" items)")) ;
           Value mns.(n)
-      | t -> raise (Type_error (e0, e1, t, "be a tuple")))
+      | t ->
+          raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Value { vtyp = Rec mns ; nullable = false } ->
@@ -1550,8 +1551,10 @@ let rec type_of l e0 =
                   name
                   (pretty_enum_print String.print) (Array.enum mns /@ fst) in
               raise (Struct_error (e0, msg))
-          | mn -> Value mn)
-      | t -> raise (Type_error (e0, e1, t, "be a record")))
+          | mn ->
+              Value mn)
+      | t ->
+          raise (Type_error (e0, e1, t, "be a record")))
   | E1 ((GetAlt name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Value { vtyp = Sum mns ; nullable = false } ->
@@ -2511,6 +2514,11 @@ let rec type_check l e =
     try type_check [] e ; true
     with _ -> false *)
 
+(*$T pass_type_check
+   not (pass_type_check "(get-item 2 (read-qword big-endian (u64 17)))")
+   not (pass_type_check "(get-alt \"pejh\" (random-float))")
+*)
+
 let size_of_expr l e =
   fold 0 l (fun n _l _e0 -> n + 1) e
 
@@ -3210,7 +3218,7 @@ struct
     | es -> E0S (Seq, es)
   let nop = seq []
   let apply f es =
-    (* If [f] is constant we cannont proceed directly with variable
+    (* If [f] is constant we cannot proceed directly with variable
      * substitutions unless each variable is used only once. We can
      * turn the apply into a sequence of lets that will further
      * substitute what can be substituted: *)

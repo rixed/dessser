@@ -338,14 +338,15 @@ struct
                 let subpath = T.path_append i path in
                 assert (i <= max_lbl) ;
                 let field, mn = mns.(i) in
+                let v' = get_alt field v in
                 if i = max_lbl then
                   seq [
                     assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-                    ser1 sstate mn0 subpath mn l (get_alt field v) ma dst ]
+                    ser1 sstate mn0 subpath mn l v' ma dst ]
                 else
                   if_
                     ~cond:(eq (u16 (Uint16.of_int i)) label)
-                    ~then_:(ser1 sstate mn0 subpath mn l (get_alt field v) ma dst)
+                    ~then_:(ser1 sstate mn0 subpath mn l v' ma dst)
                     ~else_:(choose_cstr (i + 1)) in
               choose_cstr 0)) in
     Ser.sum_cls sstate mn0 path l dst
