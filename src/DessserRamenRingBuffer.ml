@@ -271,12 +271,16 @@ struct
 
   type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
 
+  let with_debug p what write =
+    seq [ debug (string ("ser a "^ what ^" at ")) ;
+          debug (string_of_int_ (data_ptr_offset p)) ;
+          debug (char '\n') ;
+          write ]
+
   let sfloat () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun _l p ->
-      seq [ debug (string "ser a float at ") ;
-            debug (string_of_int_ (data_ptr_offset p)) ;
-            debug (char '\n') ;
-            write_qword LittleEndian p (qword_of_float v) ])
+      with_debug p "float"
+        (write_qword LittleEndian p (qword_of_float v)))
 
   let sstring () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
@@ -294,34 +298,37 @@ struct
 
   let sbool () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_byte p (byte_of_bool v) in
+      let p = with_debug p "bool" (write_byte p (byte_of_bool v)) in
       align_const l p 1)
 
   let schar () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_byte p (byte_of_u8 (u8_of_char v)) in
+      let p = with_debug p "char" (write_byte p (byte_of_u8 (u8_of_char v))) in
       align_const l p 1)
 
   let si8 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_byte p (byte_of_u8 (to_u8 v)) in
+      let p = with_debug p "i8" (write_byte p (byte_of_u8 (to_u8 v))) in
       align_const l p 1)
 
   let si16 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_word LittleEndian p (word_of_u16 (to_u16 v)) in
+      let p = with_debug p "i16"
+                (write_word LittleEndian p (word_of_u16 (to_u16 v))) in
       align_const l p 2)
 
   let si32 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_dword LittleEndian p (dword_of_u32 (to_u32 v)) in
+      let p = with_debug p "i24/32"
+                (write_dword LittleEndian p (dword_of_u32 (to_u32 v))) in
       align_const l p 4)
 
   let si24 = si32
 
   let si64 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_qword LittleEndian p (qword_of_u64 (to_u64 v)) in
+      let p = with_debug p "i40/48/56/64"
+                (write_qword LittleEndian p (qword_of_u64 (to_u64 v))) in
       align_const l p 8)
 
   let si40 = si64
@@ -332,29 +339,33 @@ struct
 
   let si128 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_oword LittleEndian p (oword_of_u128 (to_u128 v)) in
+      let p = with_debug p "i128"
+                (write_oword LittleEndian p (oword_of_u128 (to_u128 v))) in
       align_const l p 16)
 
   let su8 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_byte p (byte_of_u8 v) in
+      let p = with_debug p "u8" (write_byte p (byte_of_u8 v)) in
       align_const l p 1)
 
   let su16 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_word LittleEndian p (word_of_u16 v) in
+      let p = with_debug p "u16"
+                (write_word LittleEndian p (word_of_u16 v)) in
       align_const l p 2)
 
   let su32 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_dword LittleEndian p (dword_of_u32 v) in
+      let p = with_debug p "u24/32"
+                (write_dword LittleEndian p (dword_of_u32 v)) in
       align_const l p 4)
 
   let su24 () vt0 path l v p = su32 () vt0 path l (to_u32 v) p
 
   let su64 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_qword LittleEndian p (qword_of_u64 v) in
+      let p = with_debug p "u40/48/56/64"
+                (write_qword LittleEndian p (qword_of_u64 v)) in
       align_const l p 8)
 
   let su40 () vt0 path l v p = su64 () vt0 path l (to_u64 v) p
@@ -365,7 +376,8 @@ struct
 
   let su128 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = write_oword LittleEndian p (oword_of_u128 v) in
+      let p = with_debug p "u128"
+                (write_oword LittleEndian p (oword_of_u128 v)) in
       align_const l p 16)
 
   (* The given mns has all the types of the input structure, regardless of the
