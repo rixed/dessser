@@ -196,18 +196,24 @@ end
 let percentiles ~l vs ps =
   let open E.Ops in
   comment "Compute the indices of those percentiles" (
-    let ks =
-      map_ ps (E.func1 ~l T.float (fun _l p ->
-        seq [
-          assert_ (and_ (ge (to_float p) (float 0.))
-                        (le (to_float p) (float 100.))) ;
-          mul (mul (to_float p) (float 0.01))
-              (to_float (sub (cardinality vs) (u32_of_int 1))) |>
-          round |>
-          to_u32 ])) in
-    let_ ~name:"perc_ks" ~l ks (fun l ks ->
-      seq [
-        (* Sort vs: *)
-        partial_sort vs ks ;
-        map_ ks (E.func1 ~l T.u32 (fun _l k ->
-          get_vec k vs)) ]))
+    match E.get_item_type_err ~vec:true ~lst:true l ps with
+    | Error t ->
+        BatPrintf.sprintf2 "percentiles: coeficients must be a vector/list (not %a)"
+          T.print t |>
+        invalid_arg
+    | Ok p_t ->
+        let ks =
+          map_ ps (E.func1 ~l (T.Value p_t) (fun _l p ->
+            seq [
+              assert_ (and_ (ge (to_float p) (float 0.))
+                            (le (to_float p) (float 100.))) ;
+              mul (mul (to_float p) (float 0.01))
+                  (to_float (sub (cardinality vs) (u32_of_int 1))) |>
+              round |>
+              to_u32 ])) in
+        let_ ~name:"perc_ks" ~l ks (fun l ks ->
+          seq [
+            (* Sort vs: *)
+            partial_sort vs ks ;
+            map_ ks (E.func1 ~l T.u32 (fun _l k ->
+              get_vec k vs)) ]))

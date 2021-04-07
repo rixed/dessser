@@ -1891,13 +1891,18 @@ let rec type_of l e0 =
   | E2 (PartialSort, _, _) ->
       T.void
 
+and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
+  match type_of l e |> T.develop_user_types with
+  | Value { vtyp = Vec (_, t) ; nullable = false } when vec -> Ok t
+  | Value { vtyp = Lst t ; nullable = false } when lst -> Ok t
+  | Value { vtyp = Set t ; nullable = false } when set -> Ok t
+  | t -> Error t
+
 (* Return the element type or fail: *)
 and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
-  match type_of l e |> T.develop_user_types with
-  | Value { vtyp = Vec (_, t) ; nullable = false } when vec -> t
-  | Value { vtyp = Lst t ; nullable = false } when lst -> t
-  | Value { vtyp = Set t ; nullable = false } when set -> t
-  | t ->
+  match get_item_type_err ~vec ~lst ~set l e with
+  | Ok t -> t
+  | Error t ->
       let acceptable = if vec then [ "vector" ] else [] in
       let acceptable = if lst then "list" :: acceptable else acceptable in
       let acceptable = if set then "set" :: acceptable else acceptable in
