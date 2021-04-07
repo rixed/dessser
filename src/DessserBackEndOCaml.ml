@@ -1349,8 +1349,16 @@ struct
     | E.E2 (PartialSort, e1, e2) ->
         let n1 = print ?name emit p l e1
         and n2 = print emit p l e2 in
-        ppi p.P.def "partial_sort %s (Array.to_list %s) ;" n1 n2 ;
-        n1
+        let item2_t =
+          match E.type_of l e2 |> T.develop_user_types with
+          | Value { vtyp = (Vec (_, t) | Lst t) ; _ } -> t
+          | _ -> assert false (* because of type_check *) in
+        let m = mod_name (T.Value item2_t) in
+        ppi p.P.def "BatArray.enum %s |>" n2 ;
+        ppi p.P.def "BatEnum.map %s.to_int |>" m ;
+        ppi p.P.def "BatList.of_enum |>" ;
+        ppi p.P.def "partial_sort %s ;" n1 ;
+        "()"
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
