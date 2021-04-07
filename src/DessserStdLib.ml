@@ -160,23 +160,24 @@ struct
    * eventually): *)
   let add ~l sum_c x =
     let open E.Ops in
-    let sum = get_item 0 sum_c
-    and carry = get_item 1 sum_c in
-    let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
-      let carry' =
-        if_
-          ~cond:(ge (abs sum) (abs x))
-          ~then_:(add (sub sum s) x)
-          ~else_:(add (sub x s) sum) in
-      make_tup [ s ; add carry carry' ])
+    let_ ~name:"kahan_x" ~l (to_float x) (fun l x ->
+      let sum = get_item 0 sum_c
+      and carry = get_item 1 sum_c in
+      let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
+        let carry' =
+          if_
+            ~cond:(ge (abs sum) (abs x))
+            ~then_:(add (sub sum s) x)
+            ~else_:(add (sub x s) sum) in
+        make_tup [ s ; add carry carry' ]))
 
   (* In some rare cases we might want to scale the counter: *)
   let mul ~l sum_c x =
-    ignore l ;
     let open E.Ops in
-    let sum = get_item 0 sum_c
-    and carry = get_item 1 sum_c in
-    make_tup [ mul sum x ; mul carry x ]
+    let_ ~name:"kahan_x2" ~l (to_float x) (fun _l x ->
+      let sum = get_item 0 sum_c
+      and carry = get_item 1 sum_c in
+      make_tup [ mul sum x ; mul carry x ])
 
   let finalize ~l sum_c =
     ignore l ;
