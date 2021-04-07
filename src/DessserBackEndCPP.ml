@@ -347,8 +347,6 @@ struct
         let n = print emit p l e1 in
         ppi p.P.def "std::cout << %s;" n ;
         ""
-    | E.E1 (Debug, e1) ->
-        print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
     | E.E1 (IsNull, e1) ->
         if E.is_const_null e1 then
           (* Cannot call has_value on nullopt: *)

@@ -434,8 +434,6 @@ struct
           p.P.indent n ;
         ppi p.P.def "flush stdout ;" ;
         "()"
-    | E.E1 (Debug, e1) ->
-        print ?name emit p l (E1 ((if !E.dump_debug then Dump else Ignore), e1))
     | E.E1 (IsNull, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s = Null" n)

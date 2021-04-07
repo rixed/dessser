@@ -8,7 +8,7 @@ module T = DessserTypes
   open Stdint
   module T = DessserTypes *)
 
-(* Controls whether Debug translate into Dump or Ignore: *)
+(* Controls whether [debug] translates into Dump or Ignore: *)
 let dump_debug = ref false
 
 (* Controls whether optimisation is enabled: *)
@@ -108,7 +108,6 @@ type e1 =
   | Construct of (string * T.maybe_nullable) array (* type of the resulting sum *)
                * int (* Which alternative is constructed *)
   | Dump
-  | Debug
   | Identity  (* Useful as a default function *)
   | Ignore
   | IsNull
@@ -454,7 +453,7 @@ let rec can_precompute l i = function
       List.for_all (can_precompute l i) es
   | E1 (Function _, body) ->
       can_precompute l i body
-  | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
+  | E1 ((Dump | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
   | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
@@ -599,7 +598,6 @@ let string_of_e1 = function
       "construct "^ String.quote (IO.to_string T.print_value_type (Sum mns))
                   ^" "^ string_of_int i
   | Dump -> "dump"
-  | Debug -> "debug"
   | Identity -> "identity"
   | Ignore -> "ignore"
   | IsNull -> "is-null"
@@ -1202,7 +1200,6 @@ struct
             Printf.sprintf2 "Not a sum type: %S" mn |>
             failwith)
     | Lst [ Sym "dump" ; x ] -> E1 (Dump, e x)
-    | Lst [ Sym "debug" ; x ] -> E1 (Debug, e x)
     | Lst [ Sym "identity" ; x ] -> E1 (Identity, e x)
     | Lst [ Sym "ignore" ; x ] -> E1 (Ignore, e x)
     | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
@@ -1503,7 +1500,7 @@ let rec type_of l e0 =
     type_of l e |> T.to_maybe_nullable in
   match e0 with
   | E0S (Seq, [])
-  | E1 ((Dump | Debug | Ignore), _) ->
+  | E1 ((Dump | Ignore), _) ->
       T.void
   | E0S (Seq, es) ->
       type_of l (List.last es)
@@ -1985,7 +1982,7 @@ let has_side_effect ?(l=[]) e =
   try
     iter l (fun _l e0 ->
       match e0 with
-      | E1 ((Dump | Debug | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
+      | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | Insert | PartialSort), _, _)
@@ -2152,7 +2149,7 @@ let rec type_check l e =
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | Bytes _ | DataPtrOfString _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
-    | E1 ((Comment _ | Dump | Debug | Identity | Ignore | Function _
+    | E1 ((Comment _ | Dump | Identity | Ignore | Function _
           | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
@@ -2772,7 +2769,8 @@ struct
   let identity e1 = E1 (Identity, e1)
   let ignore_ e1 = E1 (Ignore, e1)
   let dump e1 = E1 (Dump, e1)
-  let debug e1 = E1 (Debug, e1)
+  let debug e1 =
+    E1 ((if !dump_debug then Dump else Ignore), e1)
   let debugs es = E0S (Seq, List.map debug es)
   let bool n = E0 (Bool n)
   let false_ = bool false
