@@ -2621,9 +2621,9 @@ let () =
 
 let gen_id =
   let seq = ref (-1) in
-  fun () ->
+  fun prefix ->
     incr seq ;
-    "gen"^ string_of_int !seq
+    prefix ^"_"^ string_of_int !seq
 
 let let_ ?(l=[]) ?name e f =
   match e with
@@ -2639,7 +2639,7 @@ let let_ ?(l=[]) ?name e f =
        | CopyField | SkipField | SetFieldNull)  ->
       f l e
   | _ ->
-      let n = match name with Some n -> n | None -> gen_id () in
+      let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
@@ -2679,7 +2679,7 @@ let let_ ?(l=[]) ?name e f =
 
 (* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
-  let pair_id = gen_id () ^"_"^ what in
+  let pair_id = gen_id "pair" ^"_"^ what in
   let n1 = pair_id ^"_fst"
   and n2 = pair_id ^"_snd" in
   let_ ~l ~name:pair_id e (fun l pair_ ->

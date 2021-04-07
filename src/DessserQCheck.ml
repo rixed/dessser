@@ -903,6 +903,8 @@ let sexpr mn =
   "1 (6)" (check_heapvalue cpp_be "U8[]?" "1 (6)")
   "2 (214 null)" (check_heapvalue ocaml_be "U8?{}" "2 (214 null)")
   "2 (214 null)" (check_heapvalue cpp_be "U8?{}" "2 (214 null)")
+  "((1 T) (0 null))" \
+    (check_heapvalue ocaml_be "(a U8? | b BOOL)[2]" "((1 T) (0 null))")
 *)
 (*$= check_ringbuffer & ~printer:BatPervasives.identity
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
