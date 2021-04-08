@@ -2738,6 +2738,12 @@ let func5 ?l t1 t2 t3 t4 t5 f =
     and p5 = E0 (Param (fid, 4)) in
     f l p1 p2 p3 p4 p5)
 
+let is_identity = function
+  | E1 (Function (fid, [| _ |]), E0 (Param (fid', 0))) when fid = fid' ->
+      true
+  | _ ->
+      false
+
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(BatIO.to_string T.print)
   (Pair (u24, DataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
@@ -3404,7 +3410,8 @@ struct
         (* Unearth the MakeVec might makes further optimisations possible: *)
         make_vec [ apply f [ e ] ]
     | _ ->
-        E2 (Map, lst, f)
+        if !optimize && is_identity f then lst
+        else E2 (Map, lst, f)
   let list_of_slist e1 = E1 (ListOfSList, e1)
   let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
   let set_of_slist e1 = E1 (SetOfSList, e1)
