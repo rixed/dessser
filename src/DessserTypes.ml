@@ -1120,47 +1120,87 @@ let type_of_parent mn path =
 (* Some short cuts for often used types: *)
 
 let bool = Value (required (Mac Bool))
+
 let char = Value (required (Mac Char))
+
 let nstring = Value (optional (Mac String))
+
 let string = Value (required (Mac String))
+
 let float = Value (required (Mac Float))
+
 let u8 = Value (required (Mac U8))
+
 let u16 = Value (required (Mac U16))
+
 let u24 = Value (required (Mac U24))
+
 let u32 = Value (required (Mac U32))
+
 let u40 = Value (required (Mac U40))
+
 let u48 = Value (required (Mac U48))
+
 let u56 = Value (required (Mac U56))
+
 let u64 = Value (required (Mac U64))
+
 let u128 = Value (required (Mac U128))
+
 let i8 = Value (required (Mac I8))
+
 let i16 = Value (required (Mac I16))
+
 let i24 = Value (required (Mac I24))
+
 let i32 = Value (required (Mac I32))
+
 let i40 = Value (required (Mac I40))
+
 let i48 = Value (required (Mac I48))
+
 let i56 = Value (required (Mac I56))
+
 let i64 = Value (required (Mac I64))
+
 let i128 = Value (required (Mac I128))
+
 let void = Void
+
 let unit = Value (required Unit)
+
 let bit = Bit
+
 let byte = Byte
+
 let size = Size
+
 let word = Word
+
 let dword = DWord
+
 let qword = QWord
+
 let oword = OWord
+
 let bytes = Bytes
+
 let mask = Mask
+
 let dataptr = DataPtr
+
 let pair t1 t2 = Pair (t1, t2)
+
 let slist t = SList t
+
 let list mn = Value (required (Lst mn))
+
 let tuple mns =
   match Array.length mns with
   | 0 -> invalid_arg "tuple"
   | 1 -> Value mns.(0)
   | _ -> Value (required (Tup mns))
+
 let set mn = Value (required (Set mn))
+
 let vector d mn = Value (required (Vec (d, mn)))

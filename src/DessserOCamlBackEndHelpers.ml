@@ -494,12 +494,12 @@ struct
       mutable num_inserts : int ;
       (* Last value that was removed (either 0 or 1, list type used as it
        * matches last_update's return type) *)
-      mutable last_rem : 'a list }
+      mutable last_removed : 'a list }
 
   let make def max_sz =
     { arr = Array.make max_sz def ;
       num_inserts = 0 ;
-      last_rem = [] }
+      last_removed = [] }
 
   let length t =
     min t.num_inserts (Array.length t.arr) |> Uint32.of_int
@@ -507,13 +507,13 @@ struct
   let insert t x =
     let i = t.num_inserts mod Array.length t.arr in
     if t.num_inserts >= Array.length t.arr then
-      t.last_rem <- [ t.arr.(i) ] ;
+      t.last_removed <- [ t.arr.(i) ] ;
     t.arr.(i) <- x ;
     t.num_inserts <- succ t.num_inserts
 
   let last_update t =
     let i = pred t.num_inserts mod Array.length t.arr in
-    t.arr.(i), t.last_rem
+    t.arr.(i), t.last_removed
 
   let member t x =
     let len = min t.num_inserts (Array.length t.arr) in
@@ -543,7 +543,7 @@ struct
       mutable cur_size : int ;
       (* Total number of items added: *)
       mutable count : int ;
-      (* Last value that was removed, if any: *)
+      (* Last value that was added and removed, if any: *)
       mutable last_update : 'a * 'a list }
 
   let make def max_sz =

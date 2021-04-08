@@ -15,7 +15,6 @@ struct HashTable : public Set<T> {
 
   void insert(T const &x) override {
     std::pair<typename std::unordered_set<T>::const_iterator, bool> ret = h.insert(x);
-    //auto ret = h.insert(x);
     last_added = ret.first;
   }
 
