@@ -160,31 +160,34 @@ struct
    * eventually): *)
   let add ~l sum_c x =
     let open E.Ops in
-    let_ ~name:"kahan_x" ~l (to_float x) (fun l x ->
-      let sum = get_item 0 sum_c
-      and carry = get_item 1 sum_c in
-      let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
-        let carry' =
-          if_
-            ~cond:(ge (abs sum) (abs x))
-            ~then_:(add (sub sum s) x)
-            ~else_:(add (sub x s) sum) in
-        make_tup [ s ; add carry carry' ]))
+    let_ ~name:"kahan_state" ~l sum_c (fun l sum_c ->
+      let_ ~name:"kahan_x" ~l (to_float x) (fun l x ->
+        let sum = get_item 0 sum_c
+        and carry = get_item 1 sum_c in
+        let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
+          let carry' =
+            if_
+              ~cond:(ge (abs sum) (abs x))
+              ~then_:(add (sub sum s) x)
+              ~else_:(add (sub x s) sum) in
+          make_tup [ s ; add carry carry' ])))
 
   (* In some rare cases we might want to scale the counter: *)
   let mul ~l sum_c x =
     let open E.Ops in
-    let_ ~name:"kahan_x2" ~l (to_float x) (fun _l x ->
-      let sum = get_item 0 sum_c
-      and carry = get_item 1 sum_c in
-      make_tup [ mul sum x ; mul carry x ])
+    let_ ~name:"kahan_state" ~l sum_c (fun l sum_c ->
+      let_ ~name:"kahan_x2" ~l (to_float x) (fun _l x ->
+        let sum = get_item 0 sum_c
+        and carry = get_item 1 sum_c in
+        make_tup [ mul sum x ; mul carry x ]))
 
   let finalize ~l sum_c =
     ignore l ;
     let open E.Ops in
-    let sum = get_item 0 sum_c
-    and carry = get_item 1 sum_c in
-    add sum carry
+    let_ ~name:"kahan_state" ~l sum_c (fun _l sum_c ->
+      let sum = get_item 0 sum_c
+      and carry = get_item 1 sum_c in
+      add sum carry)
 end
 
 (*
@@ -202,18 +205,19 @@ let percentiles ~l vs ps =
           T.print t |>
         invalid_arg
     | Ok p_t ->
-        let ks =
-          map_ ps (E.func1 ~l (T.Value p_t) (fun _l p ->
+        let_ ~name:"vs" ~l vs (fun l vs ->
+          let ks =
+            map_ ps (E.func1 ~l (T.Value p_t) (fun _l p ->
+              seq [
+                assert_ (and_ (ge (to_float p) (float 0.))
+                              (le (to_float p) (float 100.))) ;
+                mul (mul (to_float p) (float 0.01))
+                    (to_float (sub (cardinality vs) (u32_of_int 1))) |>
+                round |>
+                to_u32 ])) in
+          let_ ~name:"perc_ks" ~l ks (fun l ks ->
             seq [
-              assert_ (and_ (ge (to_float p) (float 0.))
-                            (le (to_float p) (float 100.))) ;
-              mul (mul (to_float p) (float 0.01))
-                  (to_float (sub (cardinality vs) (u32_of_int 1))) |>
-              round |>
-              to_u32 ])) in
-        let_ ~name:"perc_ks" ~l ks (fun l ks ->
-          seq [
-            (* Sort vs: *)
-            partial_sort vs ks ;
-            map_ ks (E.func1 ~l T.u32 (fun _l k ->
-              get_vec k vs)) ]))
+              (* Sort vs: *)
+              partial_sort vs ks ;
+              map_ ks (E.func1 ~l T.u32 (fun _l k ->
+                get_vec k vs)) ])))
