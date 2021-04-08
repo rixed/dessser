@@ -1157,6 +1157,10 @@ let dataptr = DataPtr
 let pair t1 t2 = Pair (t1, t2)
 let slist t = SList t
 let list mn = Value (required (Lst mn))
-let tuple mns = Value (required (Tup mns))
+let tuple mns =
+  match Array.length mns with
+  | 0 -> invalid_arg "tuple"
+  | 1 -> Value mns.(0)
+  | _ -> Value (required (Tup mns))
 let set mn = Value (required (Set mn))
 let vector d mn = Value (required (Vec (d, mn)))
