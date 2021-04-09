@@ -119,6 +119,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserBackEndCPP.ml \
 	src/DessserBackEndOCaml.ml \
 	src/DessserHeapValue.ml \
+	src/DessserLeftistHeap.ml \
 	src/DessserOCamlBackEndHelpers.ml \
 	src/DessserQCheck.ml
 
@@ -229,6 +230,7 @@ LINKED_FOR_TESTS = \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
 	src/DessserDSTools.ml \
+	src/DessserLeftistHeap.ml \
 	src/DessserOCamlBackEndHelpers.ml \
 	src/DessserBackEndCLike.ml \
 	src/DessserBackEndCPP.ml \

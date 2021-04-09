@@ -57,7 +57,10 @@ struct
         Printf.fprintf oc "-I %s" path)) extra_search_paths
       (if dev_mode then "-I src" else "")
       (if dev_mode then
-         " src/DessserFloatTools.cmx src/DessserOCamlBackEndHelpers.cmx"
+         " src/DessserFloatTools.cmx \
+           src/DessserTools.cmx \
+           src/DessserLeftistHeap.cmx \
+           src/DessserOCamlBackEndHelpers.cmx"
        else
          ",dessser")
       (match link with
@@ -1275,10 +1278,20 @@ struct
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "make_hash_table (%s.to_int %s)" m n1)
-    | E.E2 (Insert, e1, e2) ->
-        let set = print emit p l e1
-        and item = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s.insert %s" set item)
+    | E.E1 (Heap, cmp) ->
+        let n1 = print emit p l cmp in
+        emit ?name p l e (fun oc -> pp oc "make_heap %s" n1)
+    | E.E2 (Insert, set, x) ->
+        let set = print emit p l set
+        and x = print emit p l x in
+        (* Avoids using [emit] to not generate a binding for unit: *)
+        ppi p.P.def "%s.insert %s ;" set x ;
+        "()"
+    | E.E2 (DelMin, set, n) ->
+        let set = print emit p l set
+        and n = print emit p l n in
+        ppi p.P.def "%s.del_min %s ;" set n ;
+        "()"
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

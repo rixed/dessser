@@ -1133,10 +1133,26 @@ struct
         ppi p.P.def "HashTable<%s> *%s = new HashTable<%s>(%s);"
           tn res tn n1 ;
         res
-    | E.E2 (Insert, e1, e2) ->
-        let set = print emit p l e1 in
-        let item = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s->insert(%s)" set item)
+    | E.E1 (Heap, cmp) ->
+        let n1 = print emit p l cmp in
+        (* Cannot use emit since we want to select a specific type of set: *)
+        let item_t = E.get_compared_type l cmp in
+        let tn = type_identifier p (Value item_t) in
+        let res = gen_sym ?name "heap_" in
+        ppi p.P.def "Heap<%s> *%s = new Heap<%s>(%s);"
+          tn res tn n1 ;
+        res
+    | E.E2 (Insert, set, x) ->
+        let set = print emit p l set in
+        let x = print emit p l x in
+        (* Do not use [emit] to avoid generating more identifiers: *)
+        ppi p.P.def "%s->insert(%s);" set x ;
+        ""
+    | E.E2 (DelMin, set, n) ->
+        let set = print emit p l set in
+        let n = print emit p l n in
+        ppi p.P.def "%s->delMin(%s);" set n ;
+        ""
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

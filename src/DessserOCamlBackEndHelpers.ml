@@ -484,6 +484,9 @@ struct
   let fold t u f =
     List.rev !t |>
     List.fold_left f u
+
+  let del_min t n =
+    t := DessserTools.list_drop n !t
 end
 
 (* Sliding window based on number of items: *)
@@ -617,6 +620,44 @@ struct
     Hashtbl.fold (fun x () u -> f u x) t.h u
 end
 
+(* A Heap for ordering elements: *)
+module Heap =
+struct
+  module H = DessserLeftistHeap
+
+  type 'a t =
+    { mutable heap : 'a H.t ;
+      cmp : 'a -> 'a -> int ;
+      mutable length : int }
+
+  let make cmp =
+    { heap = H.empty ;
+      cmp ;
+      length = 0 }
+
+  let insert t x =
+    t.heap <- H.add t.cmp x t.heap ;
+    t.length <- t.length + 1
+
+  let last_update _ =
+    failwith "Not implemented: Heap.last_update"
+
+  let length t =
+    Uint32.of_int t.length
+
+  let member t x =
+    H.mem t.cmp x t.heap
+
+  let fold t u f =
+    H.fold_left t.cmp f u t.heap
+
+  let del_min t n =
+    let rec loop n h =
+      if n <= 0 then h else
+      loop (n - 1) (snd (H.pop_min t.cmp h)) in
+    t.heap <- loop n t.heap
+end
+
 (* Finally, the generic set type: *)
 
 type 'a set =
@@ -624,7 +665,9 @@ type 'a set =
     last_update : unit -> 'a * 'a list ;
     cardinality : unit -> Uint32.t ;
     member : 'a -> bool ;
-    fold : 'b. 'b -> ('b -> 'a -> 'b) -> 'b }
+    fold : 'b. 'b -> ('b -> 'a -> 'b) -> 'b ;
+    (* Remove N items: *)
+    del_min : int -> unit }
 
 (* When serializing with fold, the oldest value is written first.
  * When deserializing into an slist, the first value (the oldest) end up
@@ -635,7 +678,8 @@ let make_simple_set_of_slist sl =
     last_update = (fun () -> SimpleSet.last_update s) ;
     cardinality = (fun () -> SimpleSet.length s) ;
     member = SimpleSet.member s ;
-    fold = (fun u f -> SimpleSet.fold s u f) }
+    fold = (fun u f -> SimpleSet.fold s u f) ;
+    del_min = SimpleSet.del_min s }
 
 let make_simple_set () =
   make_simple_set_of_slist []
@@ -646,7 +690,8 @@ let make_sliding_window def max_sz =
     last_update = (fun () -> SlidingWindow.last_update s) ;
     cardinality = (fun () -> SlidingWindow.length s) ;
     member = SlidingWindow.member s ;
-    fold = (fun u f -> SlidingWindow.fold s u f) }
+    fold = (fun u f -> SlidingWindow.fold s u f) ;
+    del_min = (fun _ -> DessserTools.todo "SlidingWindow.del_min") }
 
 let make_sampling def max_sz =
   let s = Sampling.make def max_sz in
@@ -654,7 +699,8 @@ let make_sampling def max_sz =
     last_update = (fun () -> Sampling.last_update s) ;
     cardinality = (fun () -> Sampling.length s) ;
     member = Sampling.member s ;
-    fold = (fun u f -> Sampling.fold s u f) }
+    fold = (fun u f -> Sampling.fold s u f) ;
+    del_min = (fun _ -> DessserTools.todo "Sampling.del_min") }
 
 let make_hash_table init_sz =
   let s = HashTable.make init_sz in
@@ -662,7 +708,17 @@ let make_hash_table init_sz =
     last_update = (fun () -> HashTable.last_update s) ;
     cardinality = (fun () -> HashTable.length s) ;
     member = HashTable.member s ;
-    fold = (fun u f -> HashTable.fold s u f) }
+    fold = (fun u f -> HashTable.fold s u f) ;
+    del_min = (fun _ -> DessserTools.todo "HashTable.del_min") }
+
+let make_heap cmp =
+  let s = Heap.make cmp in
+  { insert = Heap.insert s ;
+    last_update = (fun () -> Heap.last_update s) ;
+    cardinality = (fun () -> Heap.length s) ;
+    member = Heap.member s ;
+    fold = (fun u f -> Heap.fold s u f) ;
+    del_min = Heap.del_min s }
 
 (* TODO: this operation needs to be faster, ideally a nop! *)
 let list_of_set s =

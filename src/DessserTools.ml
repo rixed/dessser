@@ -80,6 +80,12 @@ let list_drop_last lst =
 let list_rev_mapi f l =
   List.fold_lefti (fun r i x -> f i x :: r) [] l
 
+let list_drop n l =
+  let rec loop n l =
+    if n <= 0 || l = [] then l else
+    loop (n - 1) (List.tl l) in
+  loop n l
+
 let array_for_all2_no_exc f a b =
   try Array.for_all2 f a b
   with Invalid_argument _ -> false

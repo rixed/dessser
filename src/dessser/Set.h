@@ -2,6 +2,7 @@
 #define SET_H_201202
 #include <functional>
 #include <list>
+#include <ostream>
 #include <utility>
 
 /* Generic set (see more specific implementations Set*.h */
@@ -16,6 +17,12 @@ struct Set {
   /* iter's callback is allowed to modify its argument. Therefore iter itself
    * cannot be const. */
   virtual void iter(std::function<void(T &)>) = 0;
+
+  /* Not always implemented: */
+  virtual void delMin(size_t const n)
+  {
+    std::cerr << "delMin not implemented for this set\n" << std::endl;
+  }
 };
 
 #endif

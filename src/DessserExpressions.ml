@@ -265,6 +265,10 @@ type e1 =
   | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
   (* A set with an O(1) implementation of Member, N is the initial size: *)
   | HashTable of T.maybe_nullable
+  (* A set that order items according to a given comparison function
+   * (given as first and only argument, this function also provides the
+   * set elements' type): *)
+  | Heap
   | DataPtrOfBuffer
   | GetEnv
 
@@ -330,6 +334,8 @@ type e2 =
   | WriteQWord of endianness
   | WriteOWord of endianness
   | Insert (* args are: set, item *)
+  (* Not implemented for all types of sets. args are: set, how many. *)
+  | DelMin
   | SplitBy
   | SplitAt
   | Join
@@ -742,6 +748,8 @@ let string_of_e1 = function
       "sampling "^ String.quote (T.string_of_maybe_nullable mn)
   | HashTable mn ->
       "hash-table "^ String.quote (T.string_of_maybe_nullable mn)
+  | Heap ->
+      "heap"
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
   | GetEnv -> "getenv"
 
@@ -795,6 +803,7 @@ let string_of_e2 = function
   | WriteQWord en -> "write-qword "^ string_of_endianness en
   | WriteOWord en -> "write-oword "^ string_of_endianness en
   | Insert -> "insert"
+  | DelMin -> "del-min"
   | SplitBy -> "split-on"
   | SplitAt -> "split-at"
   | Join -> "join"
@@ -1349,6 +1358,8 @@ struct
         E1 (Sampling (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "hash-table" ; Str mn ; x ] ->
         E1 (HashTable (T.maybe_nullable_of_string mn), e x)
+    | Lst [ Sym "heap" ; x ] ->
+        E1 (Heap, e x)
     | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
         E1 (DataPtrOfBuffer, e x)
     | Lst [ Sym "getenv" ; x ] ->
@@ -1414,6 +1425,8 @@ struct
         E2 (WriteOWord (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "insert" ; x1 ; x2 ] ->
         E2 (Insert, e x1, e x2)
+    | Lst [ Sym "del-min" ; x1 ; x2 ] ->
+        E2 (DelMin, e x1, e x2)
     | Lst [ Sym "split-on" ; x1 ; x2 ] ->
         E2 (SplitBy, e x1, e x2)
     | Lst [ Sym "split-at" ; x1 ; x2 ] ->
@@ -1483,6 +1496,7 @@ exception Type_error_param of t * t * int * T.t * string
 exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
 exception Apply_error of t * string
+exception Comparator_error of t * T.t * string
 exception Unbound_identifier of t * bool * string * (t * T.t) list
 exception Unbound_parameter of t * param_id * (t * T.t) list
 exception Invalid_expression of t * string
@@ -1816,24 +1830,23 @@ let rec type_of l e0 =
       (match type_of l e2 |> T.develop_user_types with
       | Function (_, ot) -> ot
       | t2 -> raise (Type_error (e0, e2, t2, "be a function")))
-  | E2 (Map, e1, e2) ->
-      (match type_of l e2 |> T.develop_user_types with
-      | Function (_, ot) as t2 ->
-          let open T in
-          let map_mn f =
+  | E2 (Map, set, f) ->
+      (match type_of l f |> T.develop_user_types with
+      | Function (_, ot) as f_t ->
+          let map_mn g =
             match ot with
-            | Value mn -> Value (required (f mn))
+            | T.Value mn -> T.(Value (required (g mn)))
             | _ ->
                 let err = "be a function of a value type" in
-                raise (Type_error (e0, e2, t2, err)) in
-          (match type_of l e1 |> T.develop_user_types with
-          | Value { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
-          | Value { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
-          | Value { vtyp = Set _ ; _ } -> map_mn (fun mn -> Set mn)
-          | SList _ -> SList ot
-          | t1 -> raise (Type_error (e0, e1, t1, "be an iterable")))
-      | t2 ->
-          raise (Type_error (e0, e2, t2, "be a function")))
+                raise (Type_error (e0, f, f_t, err)) in
+          (match type_of l set |> T.develop_user_types with
+          | T.Value { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
+          | T.Value { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | T.Value { vtyp = Set _ ; _ } -> map_mn (fun mn -> Set mn)
+          | T.SList _ -> SList ot
+          | t -> raise (Type_error (e0, set, t, "be an iterable")))
+      | t ->
+          raise (Type_error (e0, f, t, "be a function")))
   | E2 ((Min | Max), e, _) ->
       type_of l e
   | E2 (Member, _, _) -> T.bool
@@ -1875,7 +1888,10 @@ let rec type_of l e0 =
   | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn |
          HashTable mn), _) ->
       T.set mn
-  | E2 (Insert, _, _) ->
+  | E1 (Heap, cmp) ->
+      let item_t = get_compared_type l cmp in
+      T.set item_t
+  | E2 ((Insert | DelMin), _, _) ->
       T.void
   | E2 (SplitBy, _, _) ->
       T.list T.(required (Mac String))
@@ -1911,6 +1927,14 @@ and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
       let acceptable = if lst then "list" :: acceptable else acceptable in
       let acceptable = if set then "set" :: acceptable else acceptable in
       raise (Type_error (e0, e, t, "be a "^ String.join " or " acceptable))
+
+and get_compared_type l cmp =
+  match type_of l cmp with
+  | Function ([| T.Value item_t ; _ |], _) ->
+      item_t
+  | cmp_t ->
+      let err = "should be a function of two values" in
+      raise (Comparator_error (cmp, cmp_t, err))
 
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
@@ -1994,7 +2018,7 @@ let has_side_effect ?(l=[]) e =
       | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
-             WriteQWord _ | WriteOWord _ | Insert | PartialSort), _, _)
+             WriteQWord _ | WriteOWord _ | Insert | DelMin | PartialSort), _, _)
       | E3 (SetVec, _, _, _)
       | E4 (ReadWhile, _, _, _, _)->
           raise Exit
@@ -2406,19 +2430,19 @@ let rec type_check l e =
             bad_arity 2 e2 t2
         | t2 ->
             raise (Type_error (e0, e2, t2, "be a function")))
-    | E2 (Map, e1, e2) ->
-        (match type_of l e2 |> T.develop_user_types with
-        | Function ([| it |], ot) as t2 ->
+    | E2 (Map, set, f) ->
+        (match type_of l f |> T.develop_user_types with
+        | Function ([| it |], ot) as f_t ->
             let check_fun_type_with t must_output_mn =
               if not (T.eq t it) then (
                 let err = "be a function of "^ T.to_string t in
-                raise (Type_error (e0, e2, t2, err))) ;
+                raise (Type_error (e0, f, f_t, err))) ;
               if must_output_mn then
                 match ot with T.Value _ -> ()
                 | _ ->
                     let err = "be a function returning a value type" in
-                    raise (Type_error (e0, e2, t2, err)) in
-            (match type_of l e1 |> T.develop_user_types with
+                    raise (Type_error (e0, f, f_t, err)) in
+            (match type_of l set |> T.develop_user_types with
             | T.(Value { vtyp = Vec (_, mn) ; nullable = false }) ->
                 check_fun_type_with (T.Value mn) true
             | T.(Value { vtyp = Lst mn ; nullable = false }) ->
@@ -2427,11 +2451,11 @@ let rec type_check l e =
                 check_fun_type_with (T.Value mn) true
             | T.SList t ->
                 check_fun_type_with t false
-            | t1 ->
-                raise (Type_error (e0, e1, t1, "be an iterable")))
-        | Function _ as t2 ->
-            raise (Type_error (e0, e2, t2, "be a function of one argument"))
-        | t -> raise (Type_error (e0, e, t, "be a function")))
+            | t ->
+                raise (Type_error (e0, set, t, "be an iterable")))
+        | Function _ as f_t ->
+            raise (Type_error (e0, f, f_t, "be a function of one argument"))
+        | t -> raise (Type_error (e0, f, t, "be a function")))
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
@@ -2480,12 +2504,32 @@ let rec type_check l e =
         check_sum l e1
     | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _), e1) ->
         check_unsigned l e1
-    | E2 (Insert, e1, e2) ->
-        (match type_of l e1 |> T.develop_user_types with
+    | E1 (Heap, cmp) ->
+        let cmp_t = type_of l cmp in
+        let err msg =
+          raise (Comparator_error (cmp, cmp_t, msg)) in
+        (match cmp_t with
+        | Function (ts, _) ->
+            let ts_len = Array.length ts in
+            if ts_len <> 2 then
+              err "be a comparison function with 2 parameters" ;
+            if not (T.eq ts.(0) ts.(1)) then
+              err "be a comparison function which parameters have the \
+                   same type" ;
+            if not (is_comparable ts.(0)) then
+              err "be a comparison function which parameters' \
+                   must be comparable"
+        | _ ->
+            err "be a comparison function")
+    | E2 (Insert, set, x) ->
+        (match type_of l set |> T.develop_user_types with
         | T.Value { vtyp = T.Set mn ; nullable = false } ->
-            check_eq l e2 (Value mn)
+            check_eq l x (Value mn)
         | t ->
-            raise (Type_error (e0, e1, t, "be a set")))
+            raise (Type_error (e0, set, t, "be a set")))
+    | E2 (DelMin, set, n) ->
+        check_set l set ;
+        check_unsigned l n
     | E2 (SplitAt, e1, e2) ->
         check_unsigned l e1 ;
         check_eq l e2 T.string
@@ -2586,6 +2630,15 @@ let () =
              %s"
             (to_pretty_string ~max_depth e0)
             s)
+    | Comparator_error (e0, t, s) ->
+        Some (
+          Printf.sprintf2
+            "Invalid comparator function: the function\
+             %s\
+             %s but has type %a"
+            (to_pretty_string ~max_depth e0)
+            s
+            T.print t)
     | Unbound_identifier (e0, ext, n, l) ->
         Some (
           let ext = if ext then "external " else "" in
@@ -2942,6 +2995,8 @@ struct
 
   let insert set x = E2 (Insert, set, x)
 
+  let del_min set n = E2 (DelMin, set, n)
+
   let join e1 e2 =
     match e1, e2 with
     | E0 (String s1), E0S (MakeVec, ss) when !optimize ->
@@ -3196,6 +3251,8 @@ struct
   let sampling mn e1 = E1 (Sampling mn, e1)
 
   let hash_table mn e1 = E1 (HashTable mn, e1)
+
+  let heap cmp = E1 (Heap, cmp)
 
   let empty_set mn = E0 (EmptySet mn)
 
@@ -3609,7 +3666,8 @@ struct
 
   let member e1 e2 =
     match e2 with
-    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _), _) ->
+    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
+           Heap), _) ->
         (* Those are created empty: *)
         bool false
     | e2 ->
