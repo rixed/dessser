@@ -301,7 +301,7 @@ struct
 
   let peekByte p at =
     check_input_length (p.start + at + 1) p.stop ;
-    let c = BatBytes.unsafe_get p.bytes (p.start + at) in
+    let c = Bytes.unsafe_get p.bytes (p.start + at) in
     if debug then
       Printf.eprintf "PeekByte 0x%02x at %d\n%!" (Char.code c) (p.start+at) ;
     Uint8.of_int (Char.code c)
