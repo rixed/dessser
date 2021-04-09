@@ -104,8 +104,17 @@ let char_is_printable c =
   let open Char in
   is_letter c || is_digit c || is_symbol c || is_missing_symbol c
 
+exception Not_implemented of string
+
 let todo what =
-  failwith ("Not implemented: "^ what)
+  raise (Not_implemented what)
+
+let () =
+  Printexc.register_printer (function
+    | Not_implemented what ->
+        Some ("Not implemented: "^ what)
+    | _ ->
+        None)
 
 (*
  * Print hex strings
