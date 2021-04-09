@@ -69,24 +69,24 @@ let mac_type_gen =
     | 1 -> T.String
     | 2 -> T.Bool
     | 3 -> T.Char
-    | 4 -> T.U8
-    | 5 -> T.U16
-    | 6 -> T.U24
-    | 7 -> T.U32
-    | 8 -> T.U40
-    | 9 -> T.U48
-    | 10 -> T.U56
-    | 11 -> T.U64
-    | 12 -> T.U128
-    | 13 -> T.I8
-    | 14 -> T.I16
-    | 15 -> T.I24
-    | 16 -> T.I32
-    | 17 -> T.I40
-    | 18 -> T.I48
-    | 19 -> T.I56
-    | 20 -> T.I64
-    | 21 -> T.I128
+    | 4 -> T.mac_u8
+    | 5 -> T.mac_u16
+    | 6 -> T.mac_u24
+    | 7 -> T.mac_u32
+    | 8 -> T.mac_u40
+    | 9 -> T.mac_u48
+    | 10 -> T.mac_u56
+    | 11 -> T.mac_u64
+    | 12 -> T.mac_u128
+    | 13 -> T.mac_i8
+    | 14 -> T.mac_i16
+    | 15 -> T.mac_i24
+    | 16 -> T.mac_i32
+    | 17 -> T.mac_i40
+    | 18 -> T.mac_i48
+    | 19 -> T.mac_i56
+    | 20 -> T.mac_i64
+    | 21 -> T.mac_i128
     | _ -> assert false)
 
 let user_type_gen =
@@ -161,8 +161,7 @@ and size_of_maybe_nullable mn =
 let shrink_mac_type mt =
   let to_simplest =
     T.[ String ; Float ;
-        I128 ; U128 ; I64 ; U64 ; I56 ; U56 ; I48 ; U48 ; I40 ; U40 ;
-        I32 ; U32 ; I24 ; U24 ; I16 ; U16 ; I8 ; U8 ; Char ; Bool ] in
+        mac_i32 ; mac_u32 ; mac_i24 ; mac_u24 ; mac_i16 ; mac_u16 ; mac_i8 ; mac_u8 ; Char ; Bool ] in
   let rec loop = function
     | [] -> Iter.empty
     | mt'::rest when T.mac_type_eq mt' mt ->
@@ -636,24 +635,24 @@ let rec sexpr_of_vtyp_gen vtyp =
       map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
   | T.Mac Bool ->
       map (function true -> "T" | false -> "F") bool
-  | T.Mac U8 -> int_string_gen 0L 255L
-  | T.Mac U16 -> int_string_gen 0L 65535L
-  | T.Mac U24 -> int_string_gen 0L 16777215L
-  | T.Mac U32 -> int_string_gen 0L 4294967295L
-  | T.Mac U40 -> int_string_gen 0L 1099511627775L
-  | T.Mac U48 -> int_string_gen 0L 281474976710655L
-  | T.Mac U56 -> int_string_gen 0L 72057594037927935L
-  | T.Mac U64 -> map Uint64.(to_string % of_int64) ui64
-  | T.Mac U128 -> map Uint128.to_string ui128_gen
-  | T.Mac I8 -> int_string_gen (-128L) 127L
-  | T.Mac I16 -> int_string_gen (-32768L) 32767L
-  | T.Mac I24 -> int_string_gen (-8388608L) 8388607L
-  | T.Mac I32 -> int_string_gen (-2147483648L) 2147483647L
-  | T.Mac I40 -> int_string_gen (-549755813888L) 549755813887L
-  | T.Mac I48 -> int_string_gen (-140737488355328L) 140737488355327L
-  | T.Mac I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
-  | T.Mac I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
-  | T.Mac I128 -> map Int128.to_string i128_gen
+  | T.Mac (Integer (T.S8, Unsigned)) -> int_string_gen 0L 255L
+  | T.Mac (Integer (T.S16, Unsigned)) -> int_string_gen 0L 65535L
+  | T.Mac (Integer (T.S24, Unsigned)) -> int_string_gen 0L 16777215L
+  | T.Mac (Integer (T.S32, Unsigned)) -> int_string_gen 0L 4294967295L
+  | T.Mac (Integer (T.S40, Unsigned)) -> int_string_gen 0L 1099511627775L
+  | T.Mac (Integer (T.S48, Unsigned)) -> int_string_gen 0L 281474976710655L
+  | T.Mac (Integer (T.S56, Unsigned)) -> int_string_gen 0L 72057594037927935L
+  | T.Mac (Integer (T.S64, Unsigned)) -> map Uint64.(to_string % of_int64) ui64
+  | T.Mac (Integer (T.S128, Unsigned)) -> map Uint128.to_string ui128_gen
+  | T.Mac (Integer (T.S8, Signed)) -> int_string_gen (-128L) 127L
+  | T.Mac (Integer (T.S16, Signed)) -> int_string_gen (-32768L) 32767L
+  | T.Mac (Integer (T.S24, Signed)) -> int_string_gen (-8388608L) 8388607L
+  | T.Mac (Integer (T.S32, Signed)) -> int_string_gen (-2147483648L) 2147483647L
+  | T.Mac (Integer (T.S40, Signed)) -> int_string_gen (-549755813888L) 549755813887L
+  | T.Mac (Integer (T.S48, Signed)) -> int_string_gen (-140737488355328L) 140737488355327L
+  | T.Mac (Integer (T.S56, Signed)) -> int_string_gen (-36028797018963968L) 36028797018963967L
+  | T.Mac (Integer (T.S64, Signed)) -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
+  | T.Mac (Integer (T.S128, Signed)) -> map Int128.to_string i128_gen
   | T.Usr ut -> sexpr_of_vtyp_gen ut.def
   | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr

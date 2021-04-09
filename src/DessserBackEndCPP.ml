@@ -108,24 +108,14 @@ struct
     | T.Value { vtyp = Mac String ; _ } -> "std::string"
     | T.Value { vtyp = Mac Bool ; _ } -> "bool"
     | T.Value { vtyp = Mac Char ; _ } -> "char"
-    | T.Value { vtyp = Mac I8 ; _ } -> "int8_t"
-    | T.Value { vtyp = Mac U8 ; _ } -> "uint8_t"
-    | T.Value { vtyp = Mac I16 ; _ } -> "int16_t"
-    | T.Value { vtyp = Mac U16 ; _ } -> "uint16_t"
-    | T.Value { vtyp = Mac I24 ; _ } -> "int32_t"
-    | T.Value { vtyp = Mac U24 ; _ } -> "uint32_t"
-    | T.Value { vtyp = Mac I32 ; _ } -> "int32_t"
-    | T.Value { vtyp = Mac U32 ; _ } -> "uint32_t"
-    | T.Value { vtyp = Mac I40 ; _ } -> "int64_t"
-    | T.Value { vtyp = Mac U40 ; _ } -> "uint64_t"
-    | T.Value { vtyp = Mac I48 ; _ } -> "int64_t"
-    | T.Value { vtyp = Mac U48 ; _ } -> "uint64_t"
-    | T.Value { vtyp = Mac I56 ; _ } -> "int64_t"
-    | T.Value { vtyp = Mac U56 ; _ } -> "uint64_t"
-    | T.Value { vtyp = Mac I64 ; _ } -> "int64_t"
-    | T.Value { vtyp = Mac U64 ; _ } -> "uint64_t"
-    | T.Value { vtyp = Mac I128 ; _ } -> "int128_t"
-    | T.Value { vtyp = Mac U128 ; _ } -> "uint128_t"
+    | T.Value { vtyp = Mac (Integer (size, signed)); _} ->
+        (match signed with | Signed -> "" | Unsigned -> "u") ^
+        (match size with
+         | S8 -> "int8_t"
+         | S16 -> "int16_t"
+         | S24 | S32 -> "int32_t"
+         | S40 | S48 | S56 | S64 -> "int64_t"
+         | S128 -> "int128_t")
     | T.Value { vtyp = Usr t ; _ } ->
         type_identifier p (Value { vtyp = t.def ; nullable = false })
     | T.Value { vtyp = Ext n ; _ } ->
@@ -446,8 +436,7 @@ struct
         and n2 = print emit p l e2 in
         let op_name = match op with Div -> "/" | _ -> "%" in
         (match E.type_of l e1 |> T.develop_user_types with
-        | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                             |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
+        | Value { vtyp = Mac (Integer _) ;
                    _ } ->
             emit ?name p l e (fun oc ->
               pp oc "%s == 0 ? std::nullopt : std::make_optional(%s %s %s)"
@@ -478,9 +467,9 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
         (match E.type_of l e1 |> T.develop_user_types with
-        | Value { vtyp = Mac U128 ; _ } ->
+        | Value { vtyp = Mac (Integer (S128, Unsigned)) ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
-        | Value { vtyp = Mac I128 ; _ } ->
+        | Value { vtyp = Mac (Integer (S128, Signed)) ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
@@ -491,12 +480,12 @@ struct
         ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
         let case_u mn n =
           match T.develop_maybe_nullable mn with
-          | T.{ vtyp = Mac U32 ; _ } ->
+          | T.{ vtyp = Mac (Integer (S32, Unsigned)); _ } ->
               (* Make sure we can take the address of that thing: *)
               ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
-          | T.{ vtyp = Mac U128 ; _ } ->
+          | T.{ vtyp = Mac (Integer (S128, Unsigned)); _ } ->
               ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;

@@ -137,24 +137,9 @@ struct
     | { vtyp = Mac String ; _ } -> "string"
     | { vtyp = Mac Bool ; _ } -> "bool"
     | { vtyp = Mac Float ; _ } -> "float"
-    | { vtyp = Mac U8 ; _ } -> "Uint8.t"
-    | { vtyp = Mac I8 ; _ } -> "Int8.t"
-    | { vtyp = Mac U16 ; _ } -> "Uint16.t"
-    | { vtyp = Mac I16 ; _ } -> "Int16.t"
-    | { vtyp = Mac U24 ; _ } -> "Uint24.t"
-    | { vtyp = Mac I24 ; _ } -> "Int24.t"
-    | { vtyp = Mac U32 ; _ } -> "Uint32.t"
-    | { vtyp = Mac I32 ; _ } -> "Int32.t"
-    | { vtyp = Mac U40 ; _ } -> "Uint40.t"
-    | { vtyp = Mac I40 ; _ } -> "Int40.t"
-    | { vtyp = Mac U48 ; _ } -> "Uint48.t"
-    | { vtyp = Mac I48 ; _ } -> "Int48.t"
-    | { vtyp = Mac U56 ; _ } -> "Uint56.t"
-    | { vtyp = Mac I56 ; _ } -> "Int56.t"
-    | { vtyp = Mac U64 ; _ } -> "Uint64.t"
-    | { vtyp = Mac I64 ; _ } -> "Int64.t"
-    | { vtyp = Mac U128 ; _ } -> "Uint128.t"
-    | { vtyp = Mac I128 ; _ } -> "Int128.t"
+    | { vtyp = Mac (Integer (size, signed))} ->
+        (match signed with | Signed -> "Int" | Unsigned -> "Uint") ^
+        T.string_of_integer_size size ^ ".t"
     | { vtyp = Usr t ; _ } ->
         value_type_identifier p { vtyp = t.def ; nullable = false }
     | { vtyp = Ext n ; _ } ->
@@ -209,24 +194,9 @@ struct
     | T.Value { vtyp = Mac String ; nullable = false } -> "String"
     | T.Value { vtyp = Mac Bool ; nullable = false } -> "Bool"
     | T.Value { vtyp = Mac Float ; nullable = false } -> "Float"
-    | T.Value { vtyp = Mac U8 ; nullable = false } -> "Uint8"
-    | T.Value { vtyp = Mac I8 ; nullable = false } -> "Int8"
-    | T.Value { vtyp = Mac U16 ; nullable = false } -> "Uint16"
-    | T.Value { vtyp = Mac I16 ; nullable = false } -> "Int16"
-    | T.Value { vtyp = Mac U24 ; nullable = false } -> "Uint24"
-    | T.Value { vtyp = Mac I24 ; nullable = false } -> "Int24"
-    | T.Value { vtyp = Mac U32 ; nullable = false } -> "Uint32"
-    | T.Value { vtyp = Mac I32 ; nullable = false } -> "Int32"
-    | T.Value { vtyp = Mac U40 ; nullable = false } -> "Uint40"
-    | T.Value { vtyp = Mac I40 ; nullable = false } -> "Int40"
-    | T.Value { vtyp = Mac U48 ; nullable = false } -> "Uint48"
-    | T.Value { vtyp = Mac I48 ; nullable = false } -> "Int48"
-    | T.Value { vtyp = Mac U56 ; nullable = false } -> "Uint56"
-    | T.Value { vtyp = Mac I56 ; nullable = false } -> "Int56"
-    | T.Value { vtyp = Mac U64 ; nullable = false } -> "Uint64"
-    | T.Value { vtyp = Mac I64 ; nullable = false } -> "Int64"
-    | T.Value { vtyp = Mac U128 ; nullable = false } -> "Uint128"
-    | T.Value { vtyp = Mac I128 ; nullable = false } -> "Int128"
+    | T.Value { vtyp = Mac (Integer (size, signed)); nullable = false } ->
+        (match signed with | Signed -> "Int" | Unsigned -> "Uint") ^
+        T.string_of_integer_size size
     | T.Value { vtyp = Usr t ; nullable = false } ->
         mod_name (Value { vtyp = t.def ; nullable = false })
     | T.DataPtr -> "Pointer"
@@ -244,9 +214,7 @@ struct
         invalid_arg
 
   let rec num_name = function
-    | T.Value { vtyp = Mac (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
-                            U40 | I40 | U48 | I48 | U56 | I56 | U64 | I64 |
-                            U128 | I128 | Float) ; nullable = false }
+    | T.Value { vtyp = Mac (Integer _ | Float) ; nullable = false }
     | T.(Byte | Word | DWord | QWord | OWord) as t ->
         String.lowercase (mod_name t)
     | T.Value { vtyp = Usr t ; nullable = false } ->
@@ -534,8 +502,7 @@ struct
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
-          | Value { vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                               |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
+          | Value { vtyp = Mac (Integer _) ;
                      _ } as t ->
               let op_name = match op with Div -> "div" | _ -> "rem" in
               pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
@@ -554,12 +521,11 @@ struct
               (* TODO: if e2 is constant and > 0 then do away with the
                * Nullable.of_nan: *)
               pp oc "Nullable.of_nan (%s ** %s)" n1 n2
-          | Value { vtyp = Mac (I32 | I64) ; _ } as t ->
+          | Value { vtyp = Mac (Integer (S32, Signed)| Integer (S64, Signed)) ; _ } as t ->
               pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
                 (mod_name t) n1 n2
           | Value {
-              vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                         |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
+              vtyp = Mac (Integer _) ; _ } as t ->
               (* For through floats *)
               let m = mod_name t in
               pp oc "Nullable.map %s.of_float \
@@ -586,9 +552,9 @@ struct
         let n1 = print emit p l e1 in
         let case_u mn n =
           match T.develop_maybe_nullable mn with
-          | T.{ vtyp = Mac U32 ; _ } ->
+          | T.{ vtyp = Mac (Integer (S32, Unsigned)); _ } ->
               ppi p.P.def "DessserIpTools.V4.to_string %s" n
-          | T.{ vtyp = Mac U128 ; _ } ->
+          | T.{ vtyp = Mac (Integer (S128, Unsigned)); _ } ->
               ppi p.P.def "DessserIpTools.V6.to_string %s" n
           | _ ->
               assert false (* because of type checking *)
