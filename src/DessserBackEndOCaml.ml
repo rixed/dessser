@@ -1331,6 +1331,14 @@ struct
         ppi p.P.def "BatList.of_enum |>" ;
         ppi p.P.def "partial_sort %s ;" n1 ;
         "()"
+    | E.E2 (ChopBegin, lst, len) ->
+        let lst = print ?name emit p l lst
+        and len = print emit p l len in
+        emit ?name p l e (fun oc -> pp oc "lst_lchop %s %s" lst len)
+    | E.E2 (ChopEnd, lst, len) ->
+        let lst = print ?name emit p l lst
+        and len = print emit p l len in
+        emit ?name p l e (fun oc -> pp oc "lst_rchop %s %s" lst len)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

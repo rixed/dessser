@@ -726,6 +726,14 @@ let lst_of_set s =
   List.rev |>
   Array.of_list
 
+let lst_lchop l n =
+  if n >= Array.length l then [||] else
+  Array.sub l n (Array.length l - n)
+
+let lst_rchop l n =
+  if n >= Array.length l then [||] else
+  Array.sub l 0 (Array.length l - n)
+
 (* Partial sort (inplace) of array at least indices [ks] of array [a], à la
  * quick-sort: *)
 

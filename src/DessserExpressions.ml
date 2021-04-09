@@ -345,6 +345,12 @@ type e2 =
    * in the 2sn parameter have reached their final location. Other part of the
    * array might not be sorted. *)
   | PartialSort
+  (* Remove the first items from a list (args are the list and the length to
+   * remove): *)
+  | ChopBegin
+  (* Truncate a list at the end (args are the list and the length to
+   * remove): *)
+  | ChopEnd
 
 type e3 =
   | SetBit
@@ -809,6 +815,8 @@ let string_of_e2 = function
   | Join -> "join"
   | AllocLst -> "alloc-lst"
   | PartialSort -> "partial-sort"
+  | ChopBegin -> "chop-begin"
+  | ChopEnd -> "chop-end"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1437,6 +1445,10 @@ struct
         E2 (AllocLst, e x1, e x2)
     | Lst [ Sym "partial-sort" ; x1 ; x2 ] ->
         E2 (PartialSort, e x1, e x2)
+    | Lst [ Sym "chop-begin" ; x1 ; x2 ] ->
+        E2 (ChopBegin, e x1, e x2)
+    | Lst [ Sym "chop-end" ; x1 ; x2 ] ->
+        E2 (ChopEnd, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1910,6 +1922,8 @@ let rec type_of l e0 =
       T.list item_t
   | E2 (PartialSort, _, _) ->
       T.void
+  | E2 ((ChopBegin | ChopEnd), lst, _) ->
+      type_of l lst
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
@@ -2109,6 +2123,8 @@ let rec type_check l e =
       ignore (get_item_type ~vec:true e0 l e) in
     let check_set l e =
       ignore (get_item_type ~set:true e0 l e) in
+    let check_list l e =
+      ignore (get_item_type ~lst:true e0 l e) in
     let check_list_or_vector l e =
       ignore (get_item_type ~lst:true ~vec:true e0 l e) in
     let check_list_or_vector_or_set l e =
@@ -2551,6 +2567,9 @@ let rec type_check l e =
         if not (is_unsigned item_t2) then
           raise (Type_error (e0, e2, item_t2,
                              "be a list or vector of unsigned integers"))
+    | E2 ((ChopBegin | ChopEnd), lst, len) ->
+        check_list l lst ;
+        check_unsigned l len
   ) e
 
 (*$inject
@@ -3839,4 +3858,38 @@ struct
 
   let set_ref e x = set_vec (u8_of_int 0) e x
 
+  let chop_begin lst n =
+    let def = E2 (ChopBegin, lst, n) in
+    match lst with
+    | E0S (MakeLst _, []) ->
+        lst (* Cannot be truncated further *)
+    | E0S (MakeLst mn, items) ->
+        (match to_cst_int n with
+        | exception _ -> def
+        | n -> E0S (MakeLst mn, List.drop n items))
+    | _ ->
+        (match to_cst_int n with
+        | exception _ -> def
+        | 0 -> lst
+        | _ -> def)
+
+  let chop_end lst n =
+    let def = E2 (ChopEnd, lst, n) in
+    match lst with
+    | E0S (MakeLst _, []) ->
+        lst (* Cannot be truncated further *)
+    | E0S (MakeLst mn, items) ->
+        (match to_cst_int n with
+        | exception _ -> def
+        | n ->
+            let l = List.length items in
+            if n >= l then
+              E0S (MakeLst mn, [])
+            else
+              E0S (MakeLst mn, List.take (l - n) items))
+    | _ ->
+        (match to_cst_int n with
+        | exception _ -> def
+        | 0 -> lst
+        | _ -> def)
 end

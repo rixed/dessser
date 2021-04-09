@@ -1178,6 +1178,9 @@ struct
         and n2 = print emit p l e2 in
         ppi p.P.def "%s.partial_sort(%s);" n1 n2 ;
         n1
+    | E.E2 ((ChopBegin | ChopEnd as op), lst, len) ->
+        let op = match op with ChopBegin -> "chopBegin" | _ -> "chopEnd" in
+        method_call lst op [ len ]
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

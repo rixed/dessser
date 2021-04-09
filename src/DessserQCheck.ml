@@ -318,7 +318,8 @@ let e2_of_int n =
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;
          And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member ; Insert ;
-         DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort |] in
+         DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
+         ChopBegin ; ChopEnd |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

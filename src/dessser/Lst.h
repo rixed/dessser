@@ -45,6 +45,18 @@ struct Lst : public std::vector<T> {
   {
     return std::vector<T>::size();
   }
+
+  Lst<T> chopBegin(size_t n)
+  {
+    if (n >= size()) return Lst<T>();
+    return Lst(this->cbegin() + n, this->cend());
+  }
+
+  Lst<T> chopEnd(size_t n)
+  {
+    if (n >= size()) return Lst<T>();
+    return Lst(this->cbegin(), this->cend() - n);
+  }
 };
 
 #endif
