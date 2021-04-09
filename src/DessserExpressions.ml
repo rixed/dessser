@@ -3705,15 +3705,15 @@ struct
         (* Let the type checker deal with this: *)
         E2 (AllocLst, e1, e2)
 
-  let partial_sort e1 e2 =
-    match e1, e2 with
+  let partial_sort vs ks =
+    match vs, ks with
     | _, E0S (MakeVec, [])
     | _, E0S (MakeLst _, [])
     | E0S (MakeVec, []), _
     | E0S (MakeLst _, []), _ ->
-        e1
+        vs
     | _ ->
-        E2 (PartialSort, e1, e2)
+        E2 (PartialSort, vs, ks)
 
   let set_vec e1 e2 e3 =
     match to_cst_int e1 with
@@ -3839,5 +3839,4 @@ struct
 
   let set_ref e x = set_vec (u8_of_int 0) e x
 
-  let partial_sort vs ks = E2 (PartialSort, vs, ks)
 end
