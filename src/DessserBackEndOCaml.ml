@@ -718,7 +718,7 @@ struct
         (* Those are NOPs *)
         print ?name emit p l e1
     | E.E1 (ListOfSet, e1) ->
-        unary_op "list_of_set" e1
+        unary_op "lst_of_set" e1
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1
     | E.E1 (CharOfU8, e1) ->

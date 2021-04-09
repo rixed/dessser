@@ -721,7 +721,7 @@ let make_heap cmp =
     del_min = Heap.del_min s }
 
 (* TODO: this operation needs to be faster, ideally a nop! *)
-let list_of_set s =
+let lst_of_set s =
   s.fold [] (fun lst x -> x :: lst) |>
   List.rev |>
   Array.of_list
