@@ -166,7 +166,7 @@ struct
       (mask_of_string "xxx")
     (Recurse \
       [| Copy ; \
-         Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac (Integer (S8, false)))))) ; Copy |] |]) \
+         Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac (Integer (S8, Unsigned)))))) ; Copy |] |]) \
       (mask_of_string "X(_{(null \"u8\")}X)")
     (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
       (mask_of_string "X(_NX)")
@@ -249,8 +249,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
-  (T.optional (Mac (Integer (S8, false)))) (* Do nothing case *) \
-    (project (T.optional (Mac (Integer (S8, false)))) Copy)
+  (T.optional (Mac (Integer (S8, Unsigned)))) (* Do nothing case *) \
+    (project (T.optional (Mac (Integer (S8, Unsigned)))) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \

@@ -403,7 +403,7 @@ let print_mac_type oc =
   | Char -> sp "CHAR"
   | Integer (size, sign) ->
     (match sign with
-     | Signed -> sp "S"
+     | Signed -> sp "I"
      | Unsigned -> sp "U") ;
       sp (string_of_integer_size size)
 
