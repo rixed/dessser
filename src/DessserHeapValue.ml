@@ -180,24 +180,24 @@ struct
       | T.Mac String -> Des.dstring
       | T.Mac Bool -> Des.dbool
       | T.Mac Char -> Des.dchar
-      | T.Mac I8 -> Des.di8
-      | T.Mac I16 -> Des.di16
-      | T.Mac I24 -> Des.di24
-      | T.Mac I32 -> Des.di32
-      | T.Mac I40 -> Des.di40
-      | T.Mac I48 -> Des.di48
-      | T.Mac I56 -> Des.di56
-      | T.Mac I64 -> Des.di64
-      | T.Mac I128 -> Des.di128
-      | T.Mac U8 -> Des.du8
-      | T.Mac U16 -> Des.du16
-      | T.Mac U24 -> Des.du24
-      | T.Mac U32 -> Des.du32
-      | T.Mac U40 -> Des.du40
-      | T.Mac U48 -> Des.du48
-      | T.Mac U56 -> Des.du56
-      | T.Mac U64 -> Des.du64
-      | T.Mac U128 -> Des.du128
+      | T.Mac (Integer (S8, true)) -> Des.di8
+      | T.Mac (Integer (S16, true)) -> Des.di16
+      | T.Mac (Integer (S24, true)) -> Des.di24
+      | T.Mac (Integer (S32, true)) -> Des.di32
+      | T.Mac (Integer (S40, true)) -> Des.di40
+      | T.Mac (Integer (S48, true)) -> Des.di48
+      | T.Mac (Integer (S56, true)) -> Des.di56
+      | T.Mac (Integer (S64, true)) -> Des.di64
+      | T.Mac (Integer (S128, true)) -> Des.di128
+      | T.Mac (Integer (S8, false)) -> Des.du8
+      | T.Mac (Integer (S16, false)) -> Des.du16
+      | T.Mac (Integer (S24, false)) -> Des.du24
+      | T.Mac (Integer (S32, false)) -> Des.du32
+      | T.Mac (Integer (S40, false)) -> Des.du40
+      | T.Mac (Integer (S48, false)) -> Des.du48
+      | T.Mac (Integer (S56, false)) -> Des.du56
+      | T.Mac (Integer (S64, false)) -> Des.du64
+      | T.Mac (Integer (S128, false)) -> Des.du128
       | T.Usr vt -> des_of_vt vt.def
       | T.Tup mns -> dtup mns
       | T.Rec mns -> drec mns
@@ -361,24 +361,24 @@ struct
       | T.Mac String -> Ser.sstring
       | T.Mac Bool -> Ser.sbool
       | T.Mac Char -> Ser.schar
-      | T.Mac I8 -> Ser.si8
-      | T.Mac I16 -> Ser.si16
-      | T.Mac I24 -> Ser.si24
-      | T.Mac I32 -> Ser.si32
-      | T.Mac I40 -> Ser.si40
-      | T.Mac I48 -> Ser.si48
-      | T.Mac I56 -> Ser.si56
-      | T.Mac I64 -> Ser.si64
-      | T.Mac I128 -> Ser.si128
-      | T.Mac U8 -> Ser.su8
-      | T.Mac U16 -> Ser.su16
-      | T.Mac U24 -> Ser.su24
-      | T.Mac U32 -> Ser.su32
-      | T.Mac U40 -> Ser.su40
-      | T.Mac U48 -> Ser.su48
-      | T.Mac U56 -> Ser.su56
-      | T.Mac U64 -> Ser.su64
-      | T.Mac U128 -> Ser.su128
+      | T.Mac (Integer (S8, true)) -> Ser.si8
+      | T.Mac (Integer (S16, true)) -> Ser.si16
+      | T.Mac (Integer (S24, true)) -> Ser.si24
+      | T.Mac (Integer (S32, true)) -> Ser.si32
+      | T.Mac (Integer (S40, true)) -> Ser.si40
+      | T.Mac (Integer (S48, true)) -> Ser.si48
+      | T.Mac (Integer (S56, true)) -> Ser.si56
+      | T.Mac (Integer (S64, true)) -> Ser.si64
+      | T.Mac (Integer (S128, true)) -> Ser.si128
+      | T.Mac (Integer (S8, false)) -> Ser.su8
+      | T.Mac (Integer (S16, false)) -> Ser.su16
+      | T.Mac (Integer (S24, false)) -> Ser.su24
+      | T.Mac (Integer (S32, false)) -> Ser.su32
+      | T.Mac (Integer (S40, false)) -> Ser.su40
+      | T.Mac (Integer (S48, false)) -> Ser.su48
+      | T.Mac (Integer (S56, false)) -> Ser.su56
+      | T.Mac (Integer (S64, false)) -> Ser.su64
+      | T.Mac (Integer (S128, false)) -> Ser.su128
       | T.Usr vt -> ser_of_vt vt.def
       | T.Tup mns -> stup mns ma
       | T.Rec mns -> srec mns ma
@@ -533,24 +533,24 @@ struct
       | T.Mac String -> to_dyn Ser.ssize_of_string
       | T.Mac Bool -> to_dyn Ser.ssize_of_bool
       | T.Mac Char -> to_dyn Ser.ssize_of_char
-      | T.Mac I8 -> to_dyn Ser.ssize_of_i8
-      | T.Mac I16 -> to_dyn Ser.ssize_of_i16
-      | T.Mac I24 -> to_dyn Ser.ssize_of_i24
-      | T.Mac I32 -> to_dyn Ser.ssize_of_i32
-      | T.Mac I40 -> to_dyn Ser.ssize_of_i40
-      | T.Mac I48 -> to_dyn Ser.ssize_of_i48
-      | T.Mac I56 -> to_dyn Ser.ssize_of_i56
-      | T.Mac I64 -> to_dyn Ser.ssize_of_i64
-      | T.Mac I128 -> to_dyn Ser.ssize_of_i128
-      | T.Mac U8 -> to_dyn Ser.ssize_of_u8
-      | T.Mac U16 -> to_dyn Ser.ssize_of_u16
-      | T.Mac U24 -> to_dyn Ser.ssize_of_u24
-      | T.Mac U32 -> to_dyn Ser.ssize_of_u32
-      | T.Mac U40 -> to_dyn Ser.ssize_of_u40
-      | T.Mac U48 -> to_dyn Ser.ssize_of_u48
-      | T.Mac U56 -> to_dyn Ser.ssize_of_u56
-      | T.Mac U64 -> to_dyn Ser.ssize_of_u64
-      | T.Mac U128 -> to_dyn Ser.ssize_of_u128
+      | T.Mac (Integer (S8, true)) -> to_dyn Ser.ssize_of_i8
+      | T.Mac (Integer (S16, true)) -> to_dyn Ser.ssize_of_i16
+      | T.Mac (Integer (S24, true)) -> to_dyn Ser.ssize_of_i24
+      | T.Mac (Integer (S32, true)) -> to_dyn Ser.ssize_of_i32
+      | T.Mac (Integer (S40, true)) -> to_dyn Ser.ssize_of_i40
+      | T.Mac (Integer (S48, true)) -> to_dyn Ser.ssize_of_i48
+      | T.Mac (Integer (S56, true)) -> to_dyn Ser.ssize_of_i56
+      | T.Mac (Integer (S64, true)) -> to_dyn Ser.ssize_of_i64
+      | T.Mac (Integer (S128, true)) -> to_dyn Ser.ssize_of_i128
+      | T.Mac (Integer (S8, false)) -> to_dyn Ser.ssize_of_u8
+      | T.Mac (Integer (S16, false)) -> to_dyn Ser.ssize_of_u16
+      | T.Mac (Integer (S24, false)) -> to_dyn Ser.ssize_of_u24
+      | T.Mac (Integer (S32, false)) -> to_dyn Ser.ssize_of_u32
+      | T.Mac (Integer (S40, false)) -> to_dyn Ser.ssize_of_u40
+      | T.Mac (Integer (S48, false)) -> to_dyn Ser.ssize_of_u48
+      | T.Mac (Integer (S56, false)) -> to_dyn Ser.ssize_of_u56
+      | T.Mac (Integer (S64, false)) -> to_dyn Ser.ssize_of_u64
+      | T.Mac (Integer (S128, false)) -> to_dyn Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
       | T.Vec (dim, mn) -> ssvec dim mn
       | T.Tup mns -> sstup mns ma

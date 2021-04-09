@@ -25,30 +25,30 @@ let () =
   and n x = T.{ vtyp = Mac x ; nullable = true } in
   let udp_typ =
     T.make (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
-      n U32 ; m U64 ; m U64 ; m U32 ; m U32 ; n U32 ; n String ; n U32 ;
-      n String ; n U32 ; n String ; m U16 ; m U16 ; m U8 ; m U8 ; n U32 ;
-      n U32 ; m U32 ; m String ; m U64 ; m U64 ; m U64 ; (* Should be U32 *)
-      m U64 ; (* Should be U32 *) m U64 ; m U64 ; n String
+      m String ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u8 ; m String ; m T.mac_u8 ; m String ; n T.mac_u32 ;
+      n T.mac_u32 ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u32 ; m T.mac_u32 ; n T.mac_u32 ; n String ; n T.mac_u32 ;
+      n String ; n T.mac_u32 ; n String ; m T.mac_u16 ; m T.mac_u16 ; m T.mac_u8 ; m T.mac_u8 ; n T.mac_u32 ;
+      n T.mac_u32 ; m T.mac_u32 ; m String ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u64 ; (* Should be T.mac_u32 *)
+      m T.mac_u64 ; (* Should be T.mac_u32 *) m T.mac_u64 ; m T.mac_u64 ; n String
     |])
   and _http_typ =
     T.make (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ;
-      n U32 ; n U32 ; m U64 ; m U64 ; m U32 ; m U32 ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      m U16 ; m U16 ; m U128 ; m U128 ; m U128 ; n U128 ;
-      m U8 ; m U8 ; m U8 ; n String ; n String ;
-      n String (* url *) ; n String ; m U8 ; m U8 ; m U8 ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      m U8 ; m U8 ; m U64 ; m U64 ; m U8 ; m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      n U64 ; n U64 ; n U32 ;
-      m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      m U32 ; m U32 ; m U16 ; m U16 ; m U16 ;
-      m U64 ; m U64 ; m U64 ; m Float ; m U8 ; m I64 ; m Float ;
-      m I64 ; m Float ; m I64 ; m Float ; m U32 |]) in
+      m String ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u8 ; m String ; m T.mac_u8 ; m String ;
+      n T.mac_u32 ; n T.mac_u32 ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u32 ; m T.mac_u32 ;
+      n T.mac_u32 ; T.optional (Vec (16, m Char)) ;
+      n T.mac_u32 ; T.optional (Vec (16, m Char)) ;
+      m T.mac_u16 ; m T.mac_u16 ; m T.mac_u128 ; m T.mac_u128 ; m T.mac_u128 ; n T.mac_u128 ;
+      m T.mac_u8 ; m T.mac_u8 ; m T.mac_u8 ; n String ; n String ;
+      n String (* url *) ; n String ; m T.mac_u8 ; m T.mac_u8 ; m T.mac_u8 ;
+      n T.mac_u32 ; T.optional (Vec (16, m Char)) ;
+      m T.mac_u8 ; m T.mac_u8 ; m T.mac_u64 ; m T.mac_u64 ; m T.mac_u8 ; m T.mac_u32 ; m T.mac_u32 ; m T.mac_u32 ;
+      n String ; m T.mac_u32 ; m T.mac_u8 ; n String ;
+      n T.mac_u64 ; n T.mac_u64 ; n T.mac_u32 ;
+      m T.mac_u32 ; m T.mac_u32 ; m T.mac_u32 ;
+      n String ; m T.mac_u32 ; m T.mac_u8 ; n String ;
+      m T.mac_u32 ; m T.mac_u32 ; m T.mac_u16 ; m T.mac_u16 ; m T.mac_u16 ;
+      m T.mac_u64 ; m T.mac_u64 ; m T.mac_u64 ; m Float ; m T.mac_u8 ; m T.mac_i64 ; m Float ;
+      m T.mac_i64 ; m Float ; m T.mac_i64 ; m Float ; m T.mac_u32 |]) in
   let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then

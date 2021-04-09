@@ -13,10 +13,23 @@ type backend_id = ..
 
 (* Basic scalar types that can be used to define more specialized user types *)
 
+type integer_size = S8 | S16 | S24 | S32 | S40 | S48 | S56 | S64 | S128
+
+let string_of_integer_size = function
+  | S8 -> "8"
+  | S16 -> "16"
+  | S24 -> "24"
+  | S32 -> "32"
+  | S40 -> "40"
+  | S48 -> "48"
+  | S56 -> "56"
+  | S64 -> "64"
+  | S128 -> "128"
+
+
 type mac_type =
-  | Float | String | Bool | Char
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
+  | Float | String | Bool | Char | Integer of integer_size * bool
+
 
 (* Machine-types are the basic types from which more specialized types can be
  * build. Those constructed types are called user-types.
@@ -76,6 +89,25 @@ let required = make ~nullable:false
 
 let optional = make ~nullable:true
 
+let mac_u8 = Integer (S8, false)
+let mac_u16 = Integer (S16, false)
+let mac_u24 = Integer (S24, false)
+let mac_u32 = Integer (S32, false)
+let mac_u40 = Integer (S40, false)
+let mac_u48 = Integer (S48, false)
+let mac_u56 = Integer (S56, false)
+let mac_u64 = Integer (S64, false)
+let mac_u128 = Integer (S128, false)
+
+let mac_i8 = Integer (S8, true)
+let mac_i16 = Integer (S16, true)
+let mac_i24 = Integer (S24, true)
+let mac_i32 = Integer (S32, true)
+let mac_i40 = Integer (S40, true)
+let mac_i48 = Integer (S48, true)
+let mac_i56 = Integer (S56, true)
+let mac_i64 = Integer (S64, true)
+let mac_i128 = Integer (S128, true)
 (* Consider user types opaque by default, so that it matches DessserQCheck
  * generators. *)
 let rec depth ?(opaque_user_type=true) = function
@@ -97,8 +129,8 @@ let rec depth ?(opaque_user_type=true) = function
       1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
 
 (*$= depth & ~printer:string_of_int
-  0 (depth (Mac U8))
-  2 (depth (Tup [| required (Mac U8) ; required (Lst (required (Mac U8))) |]))
+  0 (depth (Mac mac_u8))
+  2 (depth (Tup [| required (Mac mac_u8) ; required (Lst (required (Mac mac_u8))) |]))
   7 (depth (\
     Lst (required (\
       Vec (4, (required (\
@@ -111,18 +143,18 @@ let rec depth ?(opaque_user_type=true) = function
                   "gidf", required (\
                     Rec [| \
                       "qskv", optional (Mac Float) ; \
-                      "lefr", required (Mac I16) ; \
+                      "lefr", required (Mac mac_i16) ; \
                       "bdujmi", required (\
                         Vec (8, required (get_user_type "Cidr6"))) |]) ; \
-                  "cdwcv", required (Mac U64) ; \
+                  "cdwcv", required (Mac mac_u64) ; \
                   "jcdivs", required (\
                     Rec [| \
-                      "hgtixf", required (Lst (optional (Mac I128))) ; \
+                      "hgtixf", required (Lst (optional (Mac mac_i128))) ; \
                       "yuetd", required (Mac Char) ; \
-                      "bsbff", required (Mac U16) |]) |]) |]) ; \
+                      "bsbff", required (Mac mac_u16) |]) |]) |]) ; \
           "pudia", required (get_user_type "Cidr4") ; \
           "qngl", required (Mac Bool) ; \
-          "iajv", optional (Mac I128) |])))))))
+          "iajv", optional (Mac mac_i128) |])))))))
 *)
 
 (* In many occasions we want the items of a record to be deterministically
@@ -309,8 +341,7 @@ let check vt =
 
 let rec is_integer = function
   | Unknown -> invalid_arg "is_integer"
-  | Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128|
-         I8|I16|I24|I32|I40|I48|I56|I64|I128) -> true
+  | Mac (Integer _) -> true
   | Usr { def ; _ } ->
       is_integer def
   | _ -> false
@@ -323,15 +354,15 @@ let is_nullable = function
   | _ -> false
 
 let width_of_int = function
-  | Mac (U8 | I8) -> 8
-  | Mac (U16 | I16) -> 16
-  | Mac (U24 | I24) -> 24
-  | Mac (U32 | I32) -> 32
-  | Mac (U40 | I40) -> 40
-  | Mac (U48 | I48) -> 48
-  | Mac (U56 | I56) -> 56
-  | Mac (U64 | I64) -> 64
-  | Mac (U128 | I128) -> 128
+  | Mac (Integer (S8, _)) -> 8
+  | Mac (Integer (S16, _)) -> 16
+  | Mac (Integer (S24, _)) -> 24
+  | Mac (Integer (S32, _)) -> 32
+  | Mac (Integer (S40, _)) -> 40
+  | Mac (Integer (S48, _)) -> 48
+  | Mac (Integer (S56, _)) -> 56
+  | Mac (Integer (S64, _)) -> 64
+  | Mac (Integer (S128, _)) -> 128
   | _ ->
       invalid_arg "width_of_int"
 
@@ -368,24 +399,8 @@ let print_mac_type oc =
   | String -> sp "STRING"
   | Bool -> sp "BOOL"
   | Char -> sp "CHAR"
-  | U8 -> sp "U8"
-  | U16 -> sp "U16"
-  | U24 -> sp "U24"
-  | U32 -> sp "U32"
-  | U40 -> sp "U40"
-  | U48 -> sp "U48"
-  | U56 -> sp "U56"
-  | U64 -> sp "U64"
-  | U128 -> sp "U128"
-  | I8 -> sp "I8"
-  | I16 -> sp "I16"
-  | I24 -> sp "I24"
-  | I32 -> sp "I32"
-  | I40 -> sp "I40"
-  | I48 -> sp "I48"
-  | I56 -> sp "I56"
-  | I64 -> sp "I64"
-  | I128 -> sp "I128"
+  | Integer (size, signed) -> if signed then sp "S" else sp "U";
+      sp (string_of_integer_size size)
 
 let rec print_value_type ?(sorted=false) oc = function
   | Unknown ->
@@ -678,24 +693,24 @@ struct
       (st "bool" Bool) |<|
       (st "boolean" Bool) |<|
       (st "char" Char) |<|
-      (st "u8" U8) |<|
-      (st "u16" U16) |<|
-      (st "u24" U24) |<|
-      (st "u32" U32) |<|
-      (st "u40" U40) |<|
-      (st "u48" U48) |<|
-      (st "u56" U56) |<|
-      (st "u64" U64) |<|
-      (st "u128" U128) |<|
-      (st "i8" I8) |<|
-      (st "i16" I16) |<|
-      (st "i24" I24) |<|
-      (st "i32" I32) |<|
-      (st "i40" I40) |<|
-      (st "i48" I48) |<|
-      (st "i56" I56) |<|
-      (st "i64" I64) |<|
-      (st "i128" I128)
+      (st "u8" mac_u8) |<|
+      (st "u16" mac_u16) |<|
+      (st "u24" mac_u24) |<|
+      (st "u32" mac_u32) |<|
+      (st "u40" mac_u40) |<|
+      (st "u48" mac_u48) |<|
+      (st "u56" mac_u56) |<|
+      (st "u64" mac_u64) |<|
+      (st "u128" mac_u128) |<|
+      (st "i8" mac_i8) |<|
+      (st "i16" mac_i16) |<|
+      (st "i24" mac_i24) |<|
+      (st "i32" mac_i32) |<|
+      (st "i40" mac_i40) |<|
+      (st "i48" mac_i48) |<|
+      (st "i56" mac_i56) |<|
+      (st "i64" mac_i64) |<|
+      (st "i128" mac_i128)
     ) m
 
   and tuple_typ m =
@@ -815,29 +830,29 @@ struct
   *)
 
   (*$= maybe_nullable & ~printer:(test_printer print_maybe_nullable)
-    (Ok ((required (Mac U8)), (2,[]))) \
+    (Ok ((required (Mac mac_u8)), (2,[]))) \
        (test_p maybe_nullable "u8")
-    (Ok ((optional (Mac U8)), (3,[]))) \
+    (Ok ((optional (Mac mac_u8)), (3,[]))) \
        (test_p maybe_nullable "u8?")
-    (Ok ((required (Vec (3, (required (Mac U8))))), (5,[]))) \
+    (Ok ((required (Vec (3, (required (Mac mac_u8))))), (5,[]))) \
        (test_p maybe_nullable "u8[3]")
-    (Ok ((required (Vec (3, (optional (Mac U8))))), (6,[]))) \
+    (Ok ((required (Vec (3, (optional (Mac mac_u8))))), (6,[]))) \
        (test_p maybe_nullable "u8?[3]")
-    (Ok ((optional (Vec (3, (required (Mac U8))))), (6,[]))) \
+    (Ok ((optional (Vec (3, (required (Mac mac_u8))))), (6,[]))) \
        (test_p maybe_nullable "u8[3]?")
-    (Ok ((required (Vec (3, (optional (Lst (required (Mac U8))))))), (8,[]))) \
+    (Ok ((required (Vec (3, (optional (Lst (required (Mac mac_u8))))))), (8,[]))) \
        (test_p maybe_nullable "u8[]?[3]")
-    (Ok ((optional (Lst (required (Vec (3, (optional (Mac U8))))))), (9,[]))) \
+    (Ok ((optional (Lst (required (Vec (3, (optional (Mac mac_u8))))))), (9,[]))) \
        (test_p maybe_nullable "u8?[3][]?")
-    (Ok ((optional (Map ((required (Mac String)), (required (Mac U8))))), (11,[]))) \
+    (Ok ((optional (Map ((required (Mac String)), (required (Mac mac_u8))))), (11,[]))) \
        (test_p maybe_nullable "u8[string]?")
-    (Ok ((required (Map ((required (Map ((optional (Mac U8)), (optional (Mac String))))), (optional (Lst ((required (Tup [| (required (Mac U8)) ; (required (Map ((required (Mac String)), (required (Mac Bool))))) |])))))))), (35,[]))) \
+    (Ok ((required (Map ((required (Map ((optional (Mac mac_u8)), (optional (Mac String))))), (optional (Lst ((required (Tup [| (required (Mac mac_u8)) ; (required (Map ((required (Mac String)), (required (Mac Bool))))) |])))))))), (35,[]))) \
        (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
-    (Ok ((required (Rec [| "f1", required (Mac Bool) ; "f2", optional (Mac U8) |])), (19,[]))) \
+    (Ok ((required (Rec [| "f1", required (Mac Bool) ; "f2", optional (Mac mac_u8) |])), (19,[]))) \
       (test_p maybe_nullable "{f1: Bool; f2: U8?}")
-    (Ok ((required (Rec [| "f2", required (Mac Bool) ; "f1", optional (Mac U8) |])), (19,[]))) \
+    (Ok ((required (Rec [| "f2", required (Mac Bool) ; "f1", optional (Mac mac_u8) |])), (19,[]))) \
       (test_p maybe_nullable "{f2: Bool; f1: U8?}")
-    (Ok ((required (Sum [| "c1", required (Mac Bool) ; "c2", optional (Mac U8) |])), (18,[]))) \
+    (Ok ((required (Sum [| "c1", required (Mac Bool) ; "c2", optional (Mac mac_u8) |])), (18,[]))) \
       (test_p maybe_nullable "(c1 Bool | c2 U8?)")
     (Ok ((required (Vec (1, required (Mac Bool)))), (7,[]))) \
       (test_p maybe_nullable "Bool[1]")
@@ -914,34 +929,34 @@ struct
       let m = "Type name" :: m in
       (
         (* Look only for simple types, starting with numerics: *)
-        (iD "UInt8" >>: fun () -> required (Mac U8)) |<|
-        (iD "UInt16" >>: fun () -> required (Mac U16)) |<|
-        (iD "UInt32" >>: fun () -> required (Mac U32)) |<|
-        (iD "UInt64" >>: fun () -> required (Mac U64)) |<|
+        (iD "UInt8" >>: fun () -> required (Mac mac_u8)) |<|
+        (iD "UInt16" >>: fun () -> required (Mac mac_u16)) |<|
+        (iD "UInt32" >>: fun () -> required (Mac mac_u32)) |<|
+        (iD "UInt64" >>: fun () -> required (Mac mac_u64)) |<|
         ((iD "Int8" |<| iD "TINYINT") >>:
-          fun () -> required (Mac I8)) |<|
+          fun () -> required (Mac mac_i8)) |<|
         ((iD "Int16" |<| iD "SMALLINT") >>:
-          fun () -> required (Mac I16)) |<|
+          fun () -> required (Mac mac_i16)) |<|
         ((iD "Int32" |<| iD "INTEGER" |<| iD "INT") >>:
-          fun () -> required (Mac I32)) |<|
+          fun () -> required (Mac mac_i32)) |<|
         ((iD "Int64" |<| iD "BIGINT") >>:
-          fun () -> required (Mac I64)) |<|
+          fun () -> required (Mac mac_i64)) |<|
         ((iD "Float32" |<| iD "Float64" |<|
           iD "FLOAT" |<| iD "DOUBLE") >>:
           fun () -> required (Mac Float)) |<|
         (* Assuming UUIDs are just plain U128 with funny-printing: *)
-        (iD "UUID" >>: fun () -> required (Mac U128)) |<|
+        (iD "UUID" >>: fun () -> required (Mac mac_u128)) |<|
         (* Decimals: for now forget about the size of the decimal part,
          * just map into corresponding int type*)
-        (with_num_param "Decimal32" >>: fun _p -> required (Mac I32)) |<|
-        (with_num_param "Decimal64" >>: fun _p -> required (Mac I64)) |<|
-        (with_num_param "Decimal128" >>: fun _p -> required (Mac I128)) |<|
+        (with_num_param "Decimal32" >>: fun _p -> required (Mac mac_i32)) |<|
+        (with_num_param "Decimal64" >>: fun _p -> required (Mac mac_i64)) |<|
+        (with_num_param "Decimal128" >>: fun _p -> required (Mac mac_i128)) |<|
         (* TODO: actually do something with the size: *)
         ((with_2_num_params "Decimal" |<| with_2_num_params "DEC") >>:
-          fun (_n, _m)  -> required (Mac I128)) |<|
+          fun (_n, _m)  -> required (Mac mac_i128)) |<|
         ((iD "DateTime" |<| iD "TIMESTAMP") >>:
-          fun () -> required (Mac U32)) |<|
-        (iD "Date" >>: fun () -> required (Mac U16)) |<|
+          fun () -> required (Mac mac_u32)) |<|
+        (iD "Date" >>: fun () -> required (Mac mac_u16)) |<|
         ((iD "String" |<| iD "CHAR" |<| iD "VARCHAR" |<|
           iD "TEXT" |<| iD "TINYTEXT" |<| iD "MEDIUMTEXT" |<|
           iD "LONGTEXT" |<| iD "BLOB" |<| iD "TINYBLOB" |<|
@@ -969,10 +984,10 @@ struct
     ) m
 
   (*$= clickhouse_names_and_types & ~printer:(test_printer print)
-    (Ok (Value (required (Rec [| "thing", required (Mac U16) |])), (14,[]))) \
+    (Ok (Value (required (Rec [| "thing", required (Mac mac_u16) |])), (14,[]))) \
        (test_p clickhouse_names_and_types "`thing` UInt16")
 
-    (Ok (Value (required (Rec [| "thing", required (Lst (required (Mac U16))) |])), (21,[]))) \
+    (Ok (Value (required (Rec [| "thing", required (Lst (required (Mac mac_u16))) |])), (21,[]))) \
        (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
   *)
 
@@ -1027,18 +1042,18 @@ let is_user_type_registered n =
 (* Examples: *)
 let () =
   register_user_type "Date" (Mac Float) ;
-  register_user_type "Eth" (Mac U48) ;
-  register_user_type "Ip4" (Mac U32) ;
-  register_user_type "Ip6" (Mac U128) ;
+  register_user_type "Eth" (Mac mac_u48) ;
+  register_user_type "Ip4" (Mac mac_u32) ;
+  register_user_type "Ip6" (Mac mac_u128) ;
   register_user_type "Ip"
     (* Note: for simplicity, make sure all constructor names are unique.
      * Also, start by a lowercase or a "v_" will be prepended needlessly: *)
     (Sum [| "v4", required (get_user_type "Ip4") ;
             "v6", required (get_user_type "Ip6") |]) ;
   register_user_type "Cidr4" (Rec [| "ip", required (get_user_type "Ip4") ;
-                                     "mask", required (Mac U8) |]) ;
+                                     "mask", required (Mac mac_u8) |]) ;
   register_user_type "Cidr6" (Rec [| "ip", required (get_user_type "Ip6") ;
-                                     "mask", required (Mac U8) |]) ;
+                                     "mask", required (Mac mac_u8) |]) ;
   register_user_type "Cidr"
     (Sum [| "v4", required (get_user_type "Cidr4") ;
             "v6", required (get_user_type "Cidr6") |])
@@ -1104,14 +1119,14 @@ let type_of_parent mn path =
 
 (*$inject
   let test_t = required (Tup [|
-    required (Mac U8) ;
+    required (Mac mac_u8) ;
     optional (Mac String) ;
     optional (Vec (2, required (Mac Char))) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_maybe_nullable)
   test_t (type_of_path test_t [])
-  (required (Mac U8)) (type_of_path test_t [0])
+  (required (Mac mac_u8)) (type_of_path test_t [0])
   (optional (Mac String)) (type_of_path test_t [1])
   (optional (Vec (2, required (Mac Char)))) (type_of_path test_t [2])
   (required (Mac Char)) (type_of_path test_t [2; 0])
@@ -1128,42 +1143,41 @@ let nstring = Value (optional (Mac String))
 let string = Value (required (Mac String))
 
 let float = Value (required (Mac Float))
+let u8 = Value (required (Mac mac_u8))
 
-let u8 = Value (required (Mac U8))
+let u16 = Value (required (Mac mac_u16))
 
-let u16 = Value (required (Mac U16))
+let u24 = Value (required (Mac mac_u24))
 
-let u24 = Value (required (Mac U24))
+let u32 = Value (required (Mac mac_u32))
 
-let u32 = Value (required (Mac U32))
+let u40 = Value (required (Mac mac_u40))
 
-let u40 = Value (required (Mac U40))
+let u48 = Value (required (Mac mac_u48))
 
-let u48 = Value (required (Mac U48))
+let u56 = Value (required (Mac mac_u56))
 
-let u56 = Value (required (Mac U56))
+let u64 = Value (required (Mac mac_u64))
 
-let u64 = Value (required (Mac U64))
+let u128 = Value (required (Mac mac_u128))
 
-let u128 = Value (required (Mac U128))
+let i8 = Value (required (Mac mac_i8))
 
-let i8 = Value (required (Mac I8))
+let i16 = Value (required (Mac mac_i16))
 
-let i16 = Value (required (Mac I16))
+let i24 = Value (required (Mac mac_i24))
 
-let i24 = Value (required (Mac I24))
+let i32 = Value (required (Mac mac_i32))
 
-let i32 = Value (required (Mac I32))
+let i40 = Value (required (Mac mac_i40))
 
-let i40 = Value (required (Mac I40))
+let i48 = Value (required (Mac mac_i48))
 
-let i48 = Value (required (Mac I48))
+let i56 = Value (required (Mac mac_i56))
 
-let i56 = Value (required (Mac I56))
+let i64 = Value (required (Mac mac_i64))
 
-let i64 = Value (required (Mac I64))
-
-let i128 = Value (required (Mac I128))
+let i128 = Value (required (Mac mac_i128))
 
 let void = Void
 

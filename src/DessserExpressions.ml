@@ -513,41 +513,41 @@ let rec default_value ?(allow_null=true) = function
       E0 (Bool false)
   | { vtyp = Mac Char ; _ } ->
       E0 (Char '\000')
-  | { vtyp = Mac I8 ; _ } ->
+  | { vtyp = Mac (Integer (S8, true)); _ } ->
       E0 (I8 Int8.zero)
-  | { vtyp = Mac I16 ; _ } ->
+  | { vtyp = Mac (Integer (S16, true)); _ } ->
       E0 (I16 Int16.zero)
-  | { vtyp = Mac I24 ; _ } ->
+  | { vtyp = Mac (Integer (S24, true)); _ } ->
       E0 (I24 Int24.zero)
-  | { vtyp = Mac I32 ; _ } ->
+  | { vtyp = Mac (Integer (S32, true)); _ } ->
       E0 (I32 Int32.zero)
-  | { vtyp = Mac I40 ; _ } ->
+  | { vtyp = Mac (Integer (S40, true)); _ } ->
       E0 (I40 Int40.zero)
-  | { vtyp = Mac I48 ; _ } ->
+  | { vtyp = Mac (Integer (S48, true)); _ } ->
       E0 (I48 Int48.zero)
-  | { vtyp = Mac I56 ; _ } ->
+  | { vtyp = Mac (Integer (S56, true)); _ } ->
       E0 (I56 Int56.zero)
-  | { vtyp = Mac I64 ; _ } ->
+  | { vtyp = Mac (Integer (S64, true)); _ } ->
       E0 (I64 Int64.zero)
-  | { vtyp = Mac I128 ; _ } ->
+  | { vtyp = Mac (Integer (S128, true)); _ } ->
       E0 (I128 Int128.zero)
-  | { vtyp = Mac U8 ; _ } ->
+  | { vtyp = Mac (Integer (S8, false)); _ } ->
       E0 (U8 Uint8.zero)
-  | { vtyp = Mac U16 ; _ } ->
+  | { vtyp = Mac (Integer (S16, false)); _ } ->
       E0 (U16 Uint16.zero)
-  | { vtyp = Mac U24 ; _ } ->
+  | { vtyp = Mac (Integer (S24, false)); _ } ->
       E0 (U24 Uint24.zero)
-  | { vtyp = Mac U32 ; _ } ->
+  | { vtyp = Mac (Integer (S32, false)); _ } ->
       E0 (U32 Uint32.zero)
-  | { vtyp = Mac U40 ; _ } ->
+  | { vtyp = Mac (Integer (S40, false)); _ } ->
       E0 (U40 Uint40.zero)
-  | { vtyp = Mac U48 ; _ } ->
+  | { vtyp = Mac (Integer (S48, false)); _ } ->
       E0 (U48 Uint48.zero)
-  | { vtyp = Mac U56 ; _ } ->
+  | { vtyp = Mac (Integer (S56, false)); _ } ->
       E0 (U56 Uint56.zero)
-  | { vtyp = Mac U64 ; _ } ->
+  | { vtyp = Mac (Integer (S64, false)); _ } ->
       E0 (U64 Uint64.zero)
-  | { vtyp = Mac U128 ; _ } ->
+  | { vtyp = Mac (Integer (S128, false)); _ } ->
       E0 (U128 Uint128.zero)
   | { vtyp = Usr nn ; _ } ->
       default_value ~allow_null { vtyp = nn.def ; nullable = false }
@@ -1650,24 +1650,24 @@ let rec type_of l e0 =
   | E1 (StringOfIp, _) -> T.string
   | E1 (CharOfString, _) -> T.char
   | E1 (FloatOfString, _) -> T.(Value (optional (Mac Float)))
-  | E1 (U8OfString, _) -> T.(Value (optional (Mac U8)))
-  | E1 (U16OfString, _) -> T.(Value (optional (Mac U16)))
-  | E1 (U24OfString, _) -> T.(Value (optional (Mac U24)))
-  | E1 (U32OfString, _) -> T.(Value (optional (Mac U32)))
-  | E1 (U40OfString, _) -> T.(Value (optional (Mac U40)))
-  | E1 (U48OfString, _) -> T.(Value (optional (Mac U48)))
-  | E1 (U56OfString, _) -> T.(Value (optional (Mac U56)))
-  | E1 (U64OfString, _) -> T.(Value (optional (Mac U64)))
-  | E1 (U128OfString, _) -> T.(Value (optional (Mac U128)))
-  | E1 (I8OfString, _) -> T.(Value (optional (Mac I8)))
-  | E1 (I16OfString, _) -> T.(Value (optional (Mac I16)))
-  | E1 (I24OfString, _) -> T.(Value (optional (Mac I24)))
-  | E1 (I32OfString, _) -> T.(Value (optional (Mac I32)))
-  | E1 (I40OfString, _) -> T.(Value (optional (Mac I40)))
-  | E1 (I48OfString, _) -> T.(Value (optional (Mac I48)))
-  | E1 (I56OfString, _) -> T.(Value (optional (Mac I56)))
-  | E1 (I64OfString, _) -> T.(Value (optional (Mac I64)))
-  | E1 (I128OfString, _) -> T.(Value (optional (Mac I128)))
+  | E1 (U8OfString, _) -> T.(Value (optional (Mac (Integer (S8, false)))))
+  | E1 (U16OfString, _) -> T.(Value (optional (Mac mac_u16)))
+  | E1 (U24OfString, _) -> T.(Value (optional (Mac mac_u24)))
+  | E1 (U32OfString, _) -> T.(Value (optional (Mac mac_u32)))
+  | E1 (U40OfString, _) -> T.(Value (optional (Mac mac_u40)))
+  | E1 (U48OfString, _) -> T.(Value (optional (Mac mac_u48)))
+  | E1 (U56OfString, _) -> T.(Value (optional (Mac mac_u56)))
+  | E1 (U64OfString, _) -> T.(Value (optional (Mac mac_u64)))
+  | E1 (U128OfString, _) -> T.(Value (optional (Mac mac_u128)))
+  | E1 (I8OfString, _) -> T.(Value (optional (Mac mac_i8)))
+  | E1 (I16OfString, _) -> T.(Value (optional (Mac mac_i16)))
+  | E1 (I24OfString, _) -> T.(Value (optional (Mac mac_i24)))
+  | E1 (I32OfString, _) -> T.(Value (optional (Mac mac_i32)))
+  | E1 (I40OfString, _) -> T.(Value (optional (Mac mac_i40)))
+  | E1 (I48OfString, _) -> T.(Value (optional (Mac mac_i48)))
+  | E1 (I56OfString, _) -> T.(Value (optional (Mac mac_i56)))
+  | E1 (I64OfString, _) -> T.(Value (optional (Mac mac_i64)))
+  | E1 (I128OfString, _) -> T.(Value (optional (Mac mac_i128)))
   | E1 (CharOfPtr, _) -> T.pair T.char T.dataptr
   | E1 (FloatOfPtr, _) -> T.pair T.float T.dataptr
   | E1 (U8OfPtr, _) -> T.pair T.u8 T.dataptr
@@ -1742,7 +1742,7 @@ let rec type_of l e0 =
   | E1 (Cardinality, _) -> T.u32
   | E0 (DataPtrOfString _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
-  | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac U24)))
+  | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac mac_u24)))
   | E2 (GetBit, _, _) -> T.bit
   | E2 (GetVec, _, e1) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
@@ -2044,9 +2044,7 @@ let rec type_check l e =
       | T.Size | Byte | Word | DWord | QWord | OWord | Mask
       | Value {
           vtyp = Mac (
-            Float | String | Char |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+            Float | String | Char | Integer _) ;
           nullable = false } ->
           true
       | _ ->
@@ -2060,24 +2058,18 @@ let rec type_check l e =
       | Size | Byte | Word | DWord | QWord | OWord when not only_mac ->
           ()
       | Value {
-          vtyp = Mac (
-            Float |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+          vtyp = Mac (Float | Integer _) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord
-      | Value { vtyp = Mac (
-          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-          I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+      | Value { vtyp = Mac (Integer _) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
       | T.Size
-      | Value { vtyp = Mac (
-          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
+      | Value { vtyp = Mac (Integer (_, false)) ;
           nullable = false } ->
           true
       | _ ->
@@ -2168,7 +2160,7 @@ let rec type_check l e =
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
       match t |> T.develop_user_types with
-      | Value { vtyp = Mac (U32 | U128) ; nullable = false } ->
+      | Value { vtyp = Mac (Integer (S32, false)| Integer(S128, false)) ; nullable = false } ->
           ()
       | Value { vtyp = Sum mns ; nullable = false } when rec_ = false ->
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Value mn)) mns
@@ -3068,75 +3060,75 @@ struct
     | e -> E1 (FloatOfString, e)
 
   let u8_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U8) u8 Uint8.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u8) u8 Uint8.of_string s
     | e -> E1 (U8OfString, e)
 
   let u16_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U16) u16 Uint16.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u16) u16 Uint16.of_string s
     | e -> E1 (U16OfString, e)
 
   let u24_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U24) u24 Uint24.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u24) u24 Uint24.of_string s
     | e -> E1 (U24OfString, e)
 
   let u32_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U32) u32 Uint32.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u32) u32 Uint32.of_string s
     | e -> E1 (U32OfString, e)
 
   let u40_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U40) u40 Uint40.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u40) u40 Uint40.of_string s
     | e -> E1 (U40OfString, e)
 
   let u48_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U48) u48 Uint48.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u48) u48 Uint48.of_string s
     | e -> E1 (U48OfString, e)
 
   let u56_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U56) u56 Uint56.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u56) u56 Uint56.of_string s
     | e -> E1 (U56OfString, e)
 
   let u64_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U64) u64 Uint64.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u64) u64 Uint64.of_string s
     | e -> E1 (U64OfString, e)
 
   let u128_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U128) u128 Uint128.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_u128) u128 Uint128.of_string s
     | e -> E1 (U128OfString, e)
 
   let i8_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I8) i8 Int8.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i8) i8 Int8.of_string s
     | e -> E1 (I8OfString, e)
 
   let i16_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I16) i16 Int16.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i16) i16 Int16.of_string s
     | e -> E1 (I16OfString, e)
 
   let i24_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I24) i24 Int24.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i24) i24 Int24.of_string s
     | e -> E1 (I24OfString, e)
 
   let i32_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I32) i32 Int32.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i32) i32 Int32.of_string s
     | e -> E1 (I32OfString, e)
 
   let i40_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I40) i40 Int40.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i40) i40 Int40.of_string s
     | e -> E1 (I40OfString, e)
 
   let i48_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I48) i48 Int48.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i48) i48 Int48.of_string s
     | e -> E1 (I48OfString, e)
 
   let i56_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I56) i56 Int56.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i56) i56 Int56.of_string s
     | e -> E1 (I56OfString, e)
 
   let i64_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I64) i64 Int64.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i64) i64 Int64.of_string s
     | e -> E1 (I64OfString, e)
 
   let i128_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I128) i128 Int128.of_string s
+    | E0 (String s) when !optimize -> or_null_ (Mac T.mac_i128) i128 Int128.of_string s
     | e -> E1 (I128OfString, e)
 
   let float_of_ptr e1 = E1 (FloatOfPtr, e1)
@@ -3643,10 +3635,10 @@ struct
         (* Let if_ optimize away that condition if the bool is known: *)
         let then_ =
           try not_null (u24 (Uint24.of_int (String.find s2 s1)))
-          with Not_found -> null T.(Mac U24)
+          with Not_found -> null T.(Mac mac_u24)
         and else_ =
           try not_null (u24 (Uint24.of_int (String.rfind s2 s1)))
-          with Not_found -> null T.(Mac U24) in
+          with Not_found -> null T.(Mac mac_u24) in
         if_ ~cond:e1 ~then_ ~else_
     | _ -> E3 (FindSubstring, e1, e2, e3)
 
