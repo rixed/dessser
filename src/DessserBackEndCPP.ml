@@ -108,8 +108,8 @@ struct
     | T.Value { vtyp = Mac String ; _ } -> "std::string"
     | T.Value { vtyp = Mac Bool ; _ } -> "bool"
     | T.Value { vtyp = Mac Char ; _ } -> "char"
-    | T.Value { vtyp = Mac (Integer (size, signed))} ->
-        if signed then "" else "u" ^
+    | T.Value { vtyp = Mac (Integer (size, signed)); _} ->
+        (if signed then "" else "u") ^
         (match size with
          | S8 -> "int8_t"
          | S16 -> "int16_t"

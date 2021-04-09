@@ -635,24 +635,24 @@ let rec sexpr_of_vtyp_gen vtyp =
       map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
   | T.Mac Bool ->
       map (function true -> "T" | false -> "F") bool
-  | T.Mac (Integer (S8, false)) -> int_string_gen 0L 255L
-  | T.Mac (Integer (S16, false)) -> int_string_gen 0L 65535L
-  | T.Mac (Integer (S24, false)) -> int_string_gen 0L 16777215L
-  | T.Mac (Integer (S32, false)) -> int_string_gen 0L 4294967295L
-  | T.Mac (Integer (S40, false)) -> int_string_gen 0L 1099511627775L
-  | T.Mac (Integer (S48, false)) -> int_string_gen 0L 281474976710655L
-  | T.Mac (Integer (S56, false)) -> int_string_gen 0L 72057594037927935L
-  | T.Mac (Integer (S64, false)) -> map Uint64.(to_string % of_int64) ui64
-  | T.Mac (Integer (S128, false)) -> map Uint128.to_string ui128_gen
-  | T.Mac (Integer (S8, true)) -> int_string_gen (-128L) 127L
-  | T.Mac (Integer (S16, true)) -> int_string_gen (-32768L) 32767L
-  | T.Mac (Integer (S24, true)) -> int_string_gen (-8388608L) 8388607L
-  | T.Mac (Integer (S32, true)) -> int_string_gen (-2147483648L) 2147483647L
-  | T.Mac (Integer (S40, true)) -> int_string_gen (-549755813888L) 549755813887L
-  | T.Mac (Integer (S48, true)) -> int_string_gen (-140737488355328L) 140737488355327L
-  | T.Mac (Integer (S56, true)) -> int_string_gen (-36028797018963968L) 36028797018963967L
-  | T.Mac (Integer (S64, true)) -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
-  | T.Mac (Integer (S128, true)) -> map Int128.to_string i128_gen
+  | T.Mac (Integer (T.S8, false)) -> int_string_gen 0L 255L
+  | T.Mac (Integer (T.S16, false)) -> int_string_gen 0L 65535L
+  | T.Mac (Integer (T.S24, false)) -> int_string_gen 0L 16777215L
+  | T.Mac (Integer (T.S32, false)) -> int_string_gen 0L 4294967295L
+  | T.Mac (Integer (T.S40, false)) -> int_string_gen 0L 1099511627775L
+  | T.Mac (Integer (T.S48, false)) -> int_string_gen 0L 281474976710655L
+  | T.Mac (Integer (T.S56, false)) -> int_string_gen 0L 72057594037927935L
+  | T.Mac (Integer (T.S64, false)) -> map Uint64.(to_string % of_int64) ui64
+  | T.Mac (Integer (T.S128, false)) -> map Uint128.to_string ui128_gen
+  | T.Mac (Integer (T.S8, true)) -> int_string_gen (-128L) 127L
+  | T.Mac (Integer (T.S16, true)) -> int_string_gen (-32768L) 32767L
+  | T.Mac (Integer (T.S24, true)) -> int_string_gen (-8388608L) 8388607L
+  | T.Mac (Integer (T.S32, true)) -> int_string_gen (-2147483648L) 2147483647L
+  | T.Mac (Integer (T.S40, true)) -> int_string_gen (-549755813888L) 549755813887L
+  | T.Mac (Integer (T.S48, true)) -> int_string_gen (-140737488355328L) 140737488355327L
+  | T.Mac (Integer (T.S56, true)) -> int_string_gen (-36028797018963968L) 36028797018963967L
+  | T.Mac (Integer (T.S64, true)) -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
+  | T.Mac (Integer (T.S128, true)) -> map Int128.to_string i128_gen
   | T.Usr ut -> sexpr_of_vtyp_gen ut.def
   | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
