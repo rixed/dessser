@@ -109,7 +109,7 @@ struct
     | T.Value { vtyp = Mac Bool ; _ } -> "bool"
     | T.Value { vtyp = Mac Char ; _ } -> "char"
     | T.Value { vtyp = Mac (Integer (size, signed)); _} ->
-        (if signed then "" else "u") ^
+        (match signed with | Signed -> "" | Unsigned -> "u") ^
         (match size with
          | S8 -> "int8_t"
          | S16 -> "int16_t"
@@ -467,9 +467,9 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let n1 = print emit p l e1 in
         (match E.type_of l e1 |> T.develop_user_types with
-        | Value { vtyp = Mac (Integer (S128, false)) ; _ } ->
+        | Value { vtyp = Mac (Integer (S128, Unsigned)) ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
-        | Value { vtyp = Mac (Integer (S128, true)) ; _ } ->
+        | Value { vtyp = Mac (Integer (S128, Signed)) ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
@@ -480,12 +480,12 @@ struct
         ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
         let case_u mn n =
           match T.develop_maybe_nullable mn with
-          | T.{ vtyp = Mac (Integer (S32, false)); _ } ->
+          | T.{ vtyp = Mac (Integer (S32, Unsigned)); _ } ->
               (* Make sure we can take the address of that thing: *)
               ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
-          | T.{ vtyp = Mac (Integer (S128, false)); _ } ->
+          | T.{ vtyp = Mac (Integer (S128, Unsigned)); _ } ->
               ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;

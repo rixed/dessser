@@ -478,24 +478,24 @@ struct
     | T.Mac String -> dsstring
     | T.Mac Bool -> dsbool
     | T.Mac Char -> dschar
-    | T.Mac (Integer (S8, true)) -> dsi8
-    | T.Mac (Integer (S16, true)) -> dsi16
-    | T.Mac (Integer (S24, true)) -> dsi24
-    | T.Mac (Integer (S32, true)) -> dsi32
-    | T.Mac (Integer (S40, true)) -> dsi40
-    | T.Mac (Integer (S48, true)) -> dsi48
-    | T.Mac (Integer (S56, true)) -> dsi56
-    | T.Mac (Integer (S64, true)) -> dsi64
-    | T.Mac (Integer (S128, true)) -> dsi128
-    | T.Mac (Integer (S8, false)) -> dsu8
-    | T.Mac (Integer (S16, false)) -> dsu16
-    | T.Mac (Integer (S24, false)) -> dsu24
-    | T.Mac (Integer (S32, false)) -> dsu32
-    | T.Mac (Integer (S40, false)) -> dsu40
-    | T.Mac (Integer (S48, false)) -> dsu48
-    | T.Mac (Integer (S56, false)) -> dsu56
-    | T.Mac (Integer (S64, false)) -> dsu64
-    | T.Mac (Integer (S128, false)) -> dsu128
+    | T.Mac (Integer (S8, Signed)) -> dsi8
+    | T.Mac (Integer (S16, Signed)) -> dsi16
+    | T.Mac (Integer (S24, Signed)) -> dsi24
+    | T.Mac (Integer (S32, Signed)) -> dsi32
+    | T.Mac (Integer (S40, Signed)) -> dsi40
+    | T.Mac (Integer (S48, Signed)) -> dsi48
+    | T.Mac (Integer (S56, Signed)) -> dsi56
+    | T.Mac (Integer (S64, Signed)) -> dsi64
+    | T.Mac (Integer (S128, Signed)) -> dsi128
+    | T.Mac (Integer (S8, Unsigned)) -> dsu8
+    | T.Mac (Integer (S16, Unsigned)) -> dsu16
+    | T.Mac (Integer (S24, Unsigned)) -> dsu24
+    | T.Mac (Integer (S32, Unsigned)) -> dsu32
+    | T.Mac (Integer (S40, Unsigned)) -> dsu40
+    | T.Mac (Integer (S48, Unsigned)) -> dsu48
+    | T.Mac (Integer (S56, Unsigned)) -> dsu56
+    | T.Mac (Integer (S64, Unsigned)) -> dsu64
+    | T.Mac (Integer (S128, Unsigned)) -> dsu128
     | T.Usr vt -> desser_value_type vt.def
     | T.Tup mns -> dstup mns
     | T.Rec mns -> dsrec mns

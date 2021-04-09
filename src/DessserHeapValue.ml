@@ -180,24 +180,24 @@ struct
       | T.Mac String -> Des.dstring
       | T.Mac Bool -> Des.dbool
       | T.Mac Char -> Des.dchar
-      | T.Mac (Integer (S8, true)) -> Des.di8
-      | T.Mac (Integer (S16, true)) -> Des.di16
-      | T.Mac (Integer (S24, true)) -> Des.di24
-      | T.Mac (Integer (S32, true)) -> Des.di32
-      | T.Mac (Integer (S40, true)) -> Des.di40
-      | T.Mac (Integer (S48, true)) -> Des.di48
-      | T.Mac (Integer (S56, true)) -> Des.di56
-      | T.Mac (Integer (S64, true)) -> Des.di64
-      | T.Mac (Integer (S128, true)) -> Des.di128
-      | T.Mac (Integer (S8, false)) -> Des.du8
-      | T.Mac (Integer (S16, false)) -> Des.du16
-      | T.Mac (Integer (S24, false)) -> Des.du24
-      | T.Mac (Integer (S32, false)) -> Des.du32
-      | T.Mac (Integer (S40, false)) -> Des.du40
-      | T.Mac (Integer (S48, false)) -> Des.du48
-      | T.Mac (Integer (S56, false)) -> Des.du56
-      | T.Mac (Integer (S64, false)) -> Des.du64
-      | T.Mac (Integer (S128, false)) -> Des.du128
+      | T.Mac (Integer (S8, Signed)) -> Des.di8
+      | T.Mac (Integer (S16, Signed)) -> Des.di16
+      | T.Mac (Integer (S24, Signed)) -> Des.di24
+      | T.Mac (Integer (S32, Signed)) -> Des.di32
+      | T.Mac (Integer (S40, Signed)) -> Des.di40
+      | T.Mac (Integer (S48, Signed)) -> Des.di48
+      | T.Mac (Integer (S56, Signed)) -> Des.di56
+      | T.Mac (Integer (S64, Signed)) -> Des.di64
+      | T.Mac (Integer (S128, Signed)) -> Des.di128
+      | T.Mac (Integer (S8, Unsigned)) -> Des.du8
+      | T.Mac (Integer (S16, Unsigned)) -> Des.du16
+      | T.Mac (Integer (S24, Unsigned)) -> Des.du24
+      | T.Mac (Integer (S32, Unsigned)) -> Des.du32
+      | T.Mac (Integer (S40, Unsigned)) -> Des.du40
+      | T.Mac (Integer (S48, Unsigned)) -> Des.du48
+      | T.Mac (Integer (S56, Unsigned)) -> Des.du56
+      | T.Mac (Integer (S64, Unsigned)) -> Des.du64
+      | T.Mac (Integer (S128, Unsigned)) -> Des.du128
       | T.Usr vt -> des_of_vt vt.def
       | T.Tup mns -> dtup mns
       | T.Rec mns -> drec mns
@@ -361,24 +361,24 @@ struct
       | T.Mac String -> Ser.sstring
       | T.Mac Bool -> Ser.sbool
       | T.Mac Char -> Ser.schar
-      | T.Mac (Integer (S8, true)) -> Ser.si8
-      | T.Mac (Integer (S16, true)) -> Ser.si16
-      | T.Mac (Integer (S24, true)) -> Ser.si24
-      | T.Mac (Integer (S32, true)) -> Ser.si32
-      | T.Mac (Integer (S40, true)) -> Ser.si40
-      | T.Mac (Integer (S48, true)) -> Ser.si48
-      | T.Mac (Integer (S56, true)) -> Ser.si56
-      | T.Mac (Integer (S64, true)) -> Ser.si64
-      | T.Mac (Integer (S128, true)) -> Ser.si128
-      | T.Mac (Integer (S8, false)) -> Ser.su8
-      | T.Mac (Integer (S16, false)) -> Ser.su16
-      | T.Mac (Integer (S24, false)) -> Ser.su24
-      | T.Mac (Integer (S32, false)) -> Ser.su32
-      | T.Mac (Integer (S40, false)) -> Ser.su40
-      | T.Mac (Integer (S48, false)) -> Ser.su48
-      | T.Mac (Integer (S56, false)) -> Ser.su56
-      | T.Mac (Integer (S64, false)) -> Ser.su64
-      | T.Mac (Integer (S128, false)) -> Ser.su128
+      | T.Mac (Integer (S8, Signed)) -> Ser.si8
+      | T.Mac (Integer (S16, Signed)) -> Ser.si16
+      | T.Mac (Integer (S24, Signed)) -> Ser.si24
+      | T.Mac (Integer (S32, Signed)) -> Ser.si32
+      | T.Mac (Integer (S40, Signed)) -> Ser.si40
+      | T.Mac (Integer (S48, Signed)) -> Ser.si48
+      | T.Mac (Integer (S56, Signed)) -> Ser.si56
+      | T.Mac (Integer (S64, Signed)) -> Ser.si64
+      | T.Mac (Integer (S128, Signed)) -> Ser.si128
+      | T.Mac (Integer (S8, Unsigned)) -> Ser.su8
+      | T.Mac (Integer (S16, Unsigned)) -> Ser.su16
+      | T.Mac (Integer (S24, Unsigned)) -> Ser.su24
+      | T.Mac (Integer (S32, Unsigned)) -> Ser.su32
+      | T.Mac (Integer (S40, Unsigned)) -> Ser.su40
+      | T.Mac (Integer (S48, Unsigned)) -> Ser.su48
+      | T.Mac (Integer (S56, Unsigned)) -> Ser.su56
+      | T.Mac (Integer (S64, Unsigned)) -> Ser.su64
+      | T.Mac (Integer (S128, Unsigned)) -> Ser.su128
       | T.Usr vt -> ser_of_vt vt.def
       | T.Tup mns -> stup mns ma
       | T.Rec mns -> srec mns ma
@@ -533,24 +533,24 @@ struct
       | T.Mac String -> to_dyn Ser.ssize_of_string
       | T.Mac Bool -> to_dyn Ser.ssize_of_bool
       | T.Mac Char -> to_dyn Ser.ssize_of_char
-      | T.Mac (Integer (S8, true)) -> to_dyn Ser.ssize_of_i8
-      | T.Mac (Integer (S16, true)) -> to_dyn Ser.ssize_of_i16
-      | T.Mac (Integer (S24, true)) -> to_dyn Ser.ssize_of_i24
-      | T.Mac (Integer (S32, true)) -> to_dyn Ser.ssize_of_i32
-      | T.Mac (Integer (S40, true)) -> to_dyn Ser.ssize_of_i40
-      | T.Mac (Integer (S48, true)) -> to_dyn Ser.ssize_of_i48
-      | T.Mac (Integer (S56, true)) -> to_dyn Ser.ssize_of_i56
-      | T.Mac (Integer (S64, true)) -> to_dyn Ser.ssize_of_i64
-      | T.Mac (Integer (S128, true)) -> to_dyn Ser.ssize_of_i128
-      | T.Mac (Integer (S8, false)) -> to_dyn Ser.ssize_of_u8
-      | T.Mac (Integer (S16, false)) -> to_dyn Ser.ssize_of_u16
-      | T.Mac (Integer (S24, false)) -> to_dyn Ser.ssize_of_u24
-      | T.Mac (Integer (S32, false)) -> to_dyn Ser.ssize_of_u32
-      | T.Mac (Integer (S40, false)) -> to_dyn Ser.ssize_of_u40
-      | T.Mac (Integer (S48, false)) -> to_dyn Ser.ssize_of_u48
-      | T.Mac (Integer (S56, false)) -> to_dyn Ser.ssize_of_u56
-      | T.Mac (Integer (S64, false)) -> to_dyn Ser.ssize_of_u64
-      | T.Mac (Integer (S128, false)) -> to_dyn Ser.ssize_of_u128
+      | T.Mac (Integer (S8, Signed)) -> to_dyn Ser.ssize_of_i8
+      | T.Mac (Integer (S16, Signed)) -> to_dyn Ser.ssize_of_i16
+      | T.Mac (Integer (S24, Signed)) -> to_dyn Ser.ssize_of_i24
+      | T.Mac (Integer (S32, Signed)) -> to_dyn Ser.ssize_of_i32
+      | T.Mac (Integer (S40, Signed)) -> to_dyn Ser.ssize_of_i40
+      | T.Mac (Integer (S48, Signed)) -> to_dyn Ser.ssize_of_i48
+      | T.Mac (Integer (S56, Signed)) -> to_dyn Ser.ssize_of_i56
+      | T.Mac (Integer (S64, Signed)) -> to_dyn Ser.ssize_of_i64
+      | T.Mac (Integer (S128, Signed)) -> to_dyn Ser.ssize_of_i128
+      | T.Mac (Integer (S8, Unsigned)) -> to_dyn Ser.ssize_of_u8
+      | T.Mac (Integer (S16, Unsigned)) -> to_dyn Ser.ssize_of_u16
+      | T.Mac (Integer (S24, Unsigned)) -> to_dyn Ser.ssize_of_u24
+      | T.Mac (Integer (S32, Unsigned)) -> to_dyn Ser.ssize_of_u32
+      | T.Mac (Integer (S40, Unsigned)) -> to_dyn Ser.ssize_of_u40
+      | T.Mac (Integer (S48, Unsigned)) -> to_dyn Ser.ssize_of_u48
+      | T.Mac (Integer (S56, Unsigned)) -> to_dyn Ser.ssize_of_u56
+      | T.Mac (Integer (S64, Unsigned)) -> to_dyn Ser.ssize_of_u64
+      | T.Mac (Integer (S128, Unsigned)) -> to_dyn Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
       | T.Vec (dim, mn) -> ssvec dim mn
       | T.Tup mns -> sstup mns ma

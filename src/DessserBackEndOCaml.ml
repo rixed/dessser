@@ -137,7 +137,9 @@ struct
     | { vtyp = Mac String ; _ } -> "string"
     | { vtyp = Mac Bool ; _ } -> "bool"
     | { vtyp = Mac Float ; _ } -> "float"
-    | { vtyp = Mac (Integer (size, signed))} -> (if signed then "Int" else "Uint") ^ T.string_of_integer_size size ^ ".t"
+    | { vtyp = Mac (Integer (size, signed))} ->
+        (match signed with | Signed -> "Int" | Unsigned -> "Uint") ^
+        T.string_of_integer_size size ^ ".t"
     | { vtyp = Usr t ; _ } ->
         value_type_identifier p { vtyp = t.def ; nullable = false }
     | { vtyp = Ext n ; _ } ->
@@ -192,7 +194,9 @@ struct
     | T.Value { vtyp = Mac String ; nullable = false } -> "String"
     | T.Value { vtyp = Mac Bool ; nullable = false } -> "Bool"
     | T.Value { vtyp = Mac Float ; nullable = false } -> "Float"
-    | T.Value { vtyp = Mac (Integer (size, signed)); nullable = false } -> (if signed then "Int" else "Uint") ^ T.string_of_integer_size size
+    | T.Value { vtyp = Mac (Integer (size, signed)); nullable = false } ->
+        (match signed with | Signed -> "Int" | Unsigned -> "Uint") ^
+        T.string_of_integer_size size
     | T.Value { vtyp = Usr t ; nullable = false } ->
         mod_name (Value { vtyp = t.def ; nullable = false })
     | T.DataPtr -> "Pointer"
@@ -517,7 +521,7 @@ struct
               (* TODO: if e2 is constant and > 0 then do away with the
                * Nullable.of_nan: *)
               pp oc "Nullable.of_nan (%s ** %s)" n1 n2
-          | Value { vtyp = Mac (Integer (S32, true)| Integer (S64, true)) ; _ } as t ->
+          | Value { vtyp = Mac (Integer (S32, Signed)| Integer (S64, Signed)) ; _ } as t ->
               pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
                 (mod_name t) n1 n2
           | Value {
@@ -548,9 +552,9 @@ struct
         let n1 = print emit p l e1 in
         let case_u mn n =
           match T.develop_maybe_nullable mn with
-          | T.{ vtyp = Mac (Integer (S32, false)); _ } ->
+          | T.{ vtyp = Mac (Integer (S32, Unsigned)); _ } ->
               ppi p.P.def "DessserIpTools.V4.to_string %s" n
-          | T.{ vtyp = Mac (Integer (S128, false)); _ } ->
+          | T.{ vtyp = Mac (Integer (S128, Unsigned)); _ } ->
               ppi p.P.def "DessserIpTools.V6.to_string %s" n
           | _ ->
               assert false (* because of type checking *)

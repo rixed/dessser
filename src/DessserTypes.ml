@@ -15,6 +15,8 @@ type backend_id = ..
 
 type integer_size = S8 | S16 | S24 | S32 | S40 | S48 | S56 | S64 | S128
 
+type integer_sign = Signed | Unsigned
+
 let string_of_integer_size = function
   | S8 -> "8"
   | S16 -> "16"
@@ -28,7 +30,7 @@ let string_of_integer_size = function
 
 
 type mac_type =
-  | Float | String | Bool | Char | Integer of integer_size * bool
+  | Float | String | Bool | Char | Integer of integer_size * integer_sign
 
 
 (* Machine-types are the basic types from which more specialized types can be
@@ -89,25 +91,25 @@ let required = make ~nullable:false
 
 let optional = make ~nullable:true
 
-let mac_u8 = Integer (S8, false)
-let mac_u16 = Integer (S16, false)
-let mac_u24 = Integer (S24, false)
-let mac_u32 = Integer (S32, false)
-let mac_u40 = Integer (S40, false)
-let mac_u48 = Integer (S48, false)
-let mac_u56 = Integer (S56, false)
-let mac_u64 = Integer (S64, false)
-let mac_u128 = Integer (S128, false)
+let mac_u8 = Integer (S8, Unsigned)
+let mac_u16 = Integer (S16, Unsigned)
+let mac_u24 = Integer (S24, Unsigned)
+let mac_u32 = Integer (S32, Unsigned)
+let mac_u40 = Integer (S40, Unsigned)
+let mac_u48 = Integer (S48, Unsigned)
+let mac_u56 = Integer (S56, Unsigned)
+let mac_u64 = Integer (S64, Unsigned)
+let mac_u128 = Integer (S128, Unsigned)
 
-let mac_i8 = Integer (S8, true)
-let mac_i16 = Integer (S16, true)
-let mac_i24 = Integer (S24, true)
-let mac_i32 = Integer (S32, true)
-let mac_i40 = Integer (S40, true)
-let mac_i48 = Integer (S48, true)
-let mac_i56 = Integer (S56, true)
-let mac_i64 = Integer (S64, true)
-let mac_i128 = Integer (S128, true)
+let mac_i8 = Integer (S8, Signed)
+let mac_i16 = Integer (S16, Signed)
+let mac_i24 = Integer (S24, Signed)
+let mac_i32 = Integer (S32, Signed)
+let mac_i40 = Integer (S40, Signed)
+let mac_i48 = Integer (S48, Signed)
+let mac_i56 = Integer (S56, Signed)
+let mac_i64 = Integer (S64, Signed)
+let mac_i128 = Integer (S128, Signed)
 (* Consider user types opaque by default, so that it matches DessserQCheck
  * generators. *)
 let rec depth ?(opaque_user_type=true) = function
@@ -399,7 +401,10 @@ let print_mac_type oc =
   | String -> sp "STRING"
   | Bool -> sp "BOOL"
   | Char -> sp "CHAR"
-  | Integer (size, signed) -> if signed then sp "S" else sp "U";
+  | Integer (size, sign) ->
+    (match sign with
+     | Signed -> sp "S"
+     | Unsigned -> sp "U") ;
       sp (string_of_integer_size size)
 
 let rec print_value_type ?(sorted=false) oc = function

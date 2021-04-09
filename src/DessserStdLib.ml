@@ -77,41 +77,41 @@ and random mn =
              (force ~what:"random rem"
                     (rem (std_random T.(required (Mac mac_u8)))
                          (u8_of_int 26)))))
-  | Mac (Integer (S8, false)) ->
+  | Mac (Integer (S8, Unsigned)) ->
       random_u8
-  | Mac (Integer (S16, false)) ->
+  | Mac (Integer (S16, Unsigned)) ->
       to_u16 random_u32
-  | Mac (Integer (S24, false)) ->
+  | Mac (Integer (S24, Unsigned)) ->
       to_u24 random_u32
-  | Mac (Integer (S32, false)) ->
+  | Mac (Integer (S32, Unsigned)) ->
       random_u32
-  | Mac (Integer (S40, false)) ->
+  | Mac (Integer (S40, Unsigned)) ->
       to_u40 random_u64
-  | Mac (Integer (S48, false)) ->
+  | Mac (Integer (S48, Unsigned)) ->
       to_u48 random_u64
-  | Mac (Integer (S56, false)) ->
+  | Mac (Integer (S56, Unsigned)) ->
       to_u56 random_u64
-  | Mac (Integer (S64, false)) ->
+  | Mac (Integer (S64, Unsigned)) ->
       random_u64
-  | Mac (Integer (S128, false)) ->
+  | Mac (Integer (S128, Unsigned)) ->
       random_u128
-  | Mac (Integer (S8,  true)) ->
+  | Mac (Integer (S8,  Signed)) ->
       to_i8 random_u8
-  | Mac (Integer (S16, true)) ->
+  | Mac (Integer (S16, Signed)) ->
       to_i16 random_u32
-  | Mac (Integer (S24, true)) ->
+  | Mac (Integer (S24, Signed)) ->
       to_i24 random_u32
-  | Mac (Integer (S32, true)) ->
+  | Mac (Integer (S32, Signed)) ->
       to_i32 random_u32
-  | Mac (Integer (S40, true)) ->
+  | Mac (Integer (S40, Signed)) ->
       to_i40 random_u64
-  | Mac (Integer (S48, true)) ->
+  | Mac (Integer (S48, Signed)) ->
       to_i48 random_u64
-  | Mac (Integer (S56, true)) ->
+  | Mac (Integer (S56, Signed)) ->
       to_i56 random_u64
-  | Mac (Integer (S64, true)) ->
+  | Mac (Integer (S64, Signed)) ->
       to_i64 random_u64
-  | Mac (Integer (S128, true)) ->
+  | Mac (Integer (S128, Signed)) ->
       to_i128 random_u128
   | Usr ut ->
       std_random T.(required ut.def)

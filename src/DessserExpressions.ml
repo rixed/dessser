@@ -513,41 +513,41 @@ let rec default_value ?(allow_null=true) = function
       E0 (Bool false)
   | { vtyp = Mac Char ; _ } ->
       E0 (Char '\000')
-  | { vtyp = Mac (Integer (S8, true)); _ } ->
+  | { vtyp = Mac (Integer (S8, Signed)); _ } ->
       E0 (I8 Int8.zero)
-  | { vtyp = Mac (Integer (S16, true)); _ } ->
+  | { vtyp = Mac (Integer (S16, Signed)); _ } ->
       E0 (I16 Int16.zero)
-  | { vtyp = Mac (Integer (S24, true)); _ } ->
+  | { vtyp = Mac (Integer (S24, Signed)); _ } ->
       E0 (I24 Int24.zero)
-  | { vtyp = Mac (Integer (S32, true)); _ } ->
+  | { vtyp = Mac (Integer (S32, Signed)); _ } ->
       E0 (I32 Int32.zero)
-  | { vtyp = Mac (Integer (S40, true)); _ } ->
+  | { vtyp = Mac (Integer (S40, Signed)); _ } ->
       E0 (I40 Int40.zero)
-  | { vtyp = Mac (Integer (S48, true)); _ } ->
+  | { vtyp = Mac (Integer (S48, Signed)); _ } ->
       E0 (I48 Int48.zero)
-  | { vtyp = Mac (Integer (S56, true)); _ } ->
+  | { vtyp = Mac (Integer (S56, Signed)); _ } ->
       E0 (I56 Int56.zero)
-  | { vtyp = Mac (Integer (S64, true)); _ } ->
+  | { vtyp = Mac (Integer (S64, Signed)); _ } ->
       E0 (I64 Int64.zero)
-  | { vtyp = Mac (Integer (S128, true)); _ } ->
+  | { vtyp = Mac (Integer (S128, Signed)); _ } ->
       E0 (I128 Int128.zero)
-  | { vtyp = Mac (Integer (S8, false)); _ } ->
+  | { vtyp = Mac (Integer (S8, Unsigned)); _ } ->
       E0 (U8 Uint8.zero)
-  | { vtyp = Mac (Integer (S16, false)); _ } ->
+  | { vtyp = Mac (Integer (S16, Unsigned)); _ } ->
       E0 (U16 Uint16.zero)
-  | { vtyp = Mac (Integer (S24, false)); _ } ->
+  | { vtyp = Mac (Integer (S24, Unsigned)); _ } ->
       E0 (U24 Uint24.zero)
-  | { vtyp = Mac (Integer (S32, false)); _ } ->
+  | { vtyp = Mac (Integer (S32, Unsigned)); _ } ->
       E0 (U32 Uint32.zero)
-  | { vtyp = Mac (Integer (S40, false)); _ } ->
+  | { vtyp = Mac (Integer (S40, Unsigned)); _ } ->
       E0 (U40 Uint40.zero)
-  | { vtyp = Mac (Integer (S48, false)); _ } ->
+  | { vtyp = Mac (Integer (S48, Unsigned)); _ } ->
       E0 (U48 Uint48.zero)
-  | { vtyp = Mac (Integer (S56, false)); _ } ->
+  | { vtyp = Mac (Integer (S56, Unsigned)); _ } ->
       E0 (U56 Uint56.zero)
-  | { vtyp = Mac (Integer (S64, false)); _ } ->
+  | { vtyp = Mac (Integer (S64, Unsigned)); _ } ->
       E0 (U64 Uint64.zero)
-  | { vtyp = Mac (Integer (S128, false)); _ } ->
+  | { vtyp = Mac (Integer (S128, Unsigned)); _ } ->
       E0 (U128 Uint128.zero)
   | { vtyp = Usr nn ; _ } ->
       default_value ~allow_null { vtyp = nn.def ; nullable = false }
@@ -1650,7 +1650,7 @@ let rec type_of l e0 =
   | E1 (StringOfIp, _) -> T.string
   | E1 (CharOfString, _) -> T.char
   | E1 (FloatOfString, _) -> T.(Value (optional (Mac Float)))
-  | E1 (U8OfString, _) -> T.(Value (optional (Mac (Integer (S8, false)))))
+  | E1 (U8OfString, _) -> T.(Value (optional (Mac (Integer (S8, Unsigned)))))
   | E1 (U16OfString, _) -> T.(Value (optional (Mac mac_u16)))
   | E1 (U24OfString, _) -> T.(Value (optional (Mac mac_u24)))
   | E1 (U32OfString, _) -> T.(Value (optional (Mac mac_u32)))
@@ -2069,7 +2069,7 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
       | T.Size
-      | Value { vtyp = Mac (Integer (_, false)) ;
+      | Value { vtyp = Mac (Integer (_, Unsigned)) ;
           nullable = false } ->
           true
       | _ ->
@@ -2160,7 +2160,7 @@ let rec type_check l e =
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
       match t |> T.develop_user_types with
-      | Value { vtyp = Mac (Integer (S32, false)| Integer(S128, false)) ; nullable = false } ->
+      | Value { vtyp = Mac (Integer (S32, Unsigned)| Integer(S128, Unsigned)) ; nullable = false } ->
           ()
       | Value { vtyp = Sum mns ; nullable = false } when rec_ = false ->
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Value mn)) mns
