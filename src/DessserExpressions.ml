@@ -3464,44 +3464,153 @@ struct
 
   let ext_identifier n = E0 (ExtIdentifier n)
 
-  (* TODO: Those could also be executed at compile time with some benefit *)
-  let to_i8 e1 = E1 (ToI8, e1)
+  let to_i8 = function
+    | E0 (I8 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI8, e)
+        | i when !optimize -> E0 (I8 (Int8.of_int i))
+        | _ -> E1 (ToI8, e))
 
-  let to_u8 e1 = E1 (ToU8, e1)
+  let to_u8 = function
+    | E0 (U8 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU8, e)
+        | i when !optimize -> E0 (U8 (Uint8.of_int i))
+        | _ -> E1 (ToU8, e))
 
-  let to_i16 e1 = E1 (ToI16, e1)
+  let to_i16 = function
+    | E0 (I16 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI16, e)
+        | i when !optimize -> E0 (I16 (Int16.of_int i))
+        | _ -> E1 (ToI16, e))
 
-  let to_u16 e1 = E1 (ToU16, e1)
+  let to_u16 = function
+    | E0 (U16 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU16, e)
+        | i when !optimize -> E0 (U16 (Uint16.of_int i))
+        | _ -> E1 (ToU16, e))
 
-  let to_i24 e1 = E1 (ToI24, e1)
+  let to_i24 = function
+    | E0 (I24 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI24, e)
+        | i when !optimize -> E0 (I24 (Int24.of_int i))
+        | _ -> E1 (ToI24, e))
 
-  let to_u24 e1 = E1 (ToU24, e1)
+  let to_u24 = function
+    | E0 (U24 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU24, e)
+        | i when !optimize -> E0 (U24 (Uint24.of_int i))
+        | _ -> E1 (ToU24, e))
 
-  let to_i32 e1 = E1 (ToI32, e1)
+  let to_i32 = function
+    | E0 (I32 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI32, e)
+        | i when !optimize -> E0 (I32 (Int32.of_int i))
+        | _ -> E1 (ToI32, e))
 
-  let to_u32 e1 = E1 (ToU32, e1)
+  let to_u32 = function
+    | E0 (U32 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU32, e)
+        | i when !optimize -> E0 (U32 (Uint32.of_int i))
+        | _ -> E1 (ToU32, e))
 
-  let to_i40 e1 = E1 (ToI40, e1)
+  let to_i40 = function
+    | E0 (I40 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI40, e)
+        | i when !optimize -> E0 (I40 (Int40.of_int i))
+        | _ -> E1 (ToI40, e))
 
-  let to_u40 e1 = E1 (ToU40, e1)
+  let to_u40 = function
+    | E0 (U40 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU40, e)
+        | i when !optimize -> E0 (U40 (Uint40.of_int i))
+        | _ -> E1 (ToU40, e))
 
-  let to_i48 e1 = E1 (ToI48, e1)
+  let to_i48 = function
+    | E0 (I48 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI48, e)
+        | i when !optimize -> E0 (I48 (Int48.of_int i))
+        | _ -> E1 (ToI48, e))
 
-  let to_u48 e1 = E1 (ToU48, e1)
+  let to_u48 = function
+    | E0 (U48 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU48, e)
+        | i when !optimize -> E0 (U48 (Uint48.of_int i))
+        | _ -> E1 (ToU48, e))
 
-  let to_i56 e1 = E1 (ToI56, e1)
+  let to_i56 = function
+    | E0 (I56 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI56, e)
+        | i when !optimize -> E0 (I56 (Int56.of_int i))
+        | _ -> E1 (ToI56, e))
 
-  let to_u56 e1 = E1 (ToU56, e1)
+  let to_u56 = function
+    | E0 (U56 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU56, e)
+        | i when !optimize -> E0 (U56 (Uint56.of_int i))
+        | _ -> E1 (ToU56, e))
 
-  let to_i64 e1 = E1 (ToI64, e1)
+  let to_i64 = function
+    | E0 (I64 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI64, e)
+        | i when !optimize -> E0 (I64 (Int64.of_int i))
+        | _ -> E1 (ToI64, e))
 
-  let to_u64 e1 = E1 (ToU64, e1)
+  let to_u64 = function
+    | E0 (U64 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU64, e)
+        | i when !optimize -> E0 (U64 (Uint64.of_int i))
+        | _ -> E1 (ToU64, e))
 
-  let to_i128 e1 = E1 (ToI128, e1)
+  let to_i128 = function
+    | E0 (I128 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToI128, e)
+        | i when !optimize -> E0 (I128 (Int128.of_int i))
+        | _ -> E1 (ToI128, e))
 
-  let to_u128 e1 = E1 (ToU128, e1)
+  let to_u128 = function
+    | E0 (U128 _) as e when !optimize -> e
+    | e ->
+        (match to_cst_int e with
+        | exception _ -> E1 (ToU128, e)
+        | i when !optimize -> E0 (U128 (Uint128.of_int i))
+        | _ -> E1 (ToU128, e))
 
-  let to_float e1 = E1 (ToFloat, e1)
+  let to_float = function
+    | E0 (Float _) as e when !optimize -> e
+    | e -> E1 (ToFloat, e)
 
   (* Avoid useless sequences: *)
   let seq = function
