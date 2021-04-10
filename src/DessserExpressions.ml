@@ -2524,6 +2524,8 @@ let rec type_check l e =
         let cmp_t = type_of l cmp in
         let err msg =
           raise (Comparator_error (cmp, cmp_t, msg)) in
+        (* TODO: We could also accept a Null comparison function if the items
+         * are readily comparable (as in [is_comparable]). *)
         (match cmp_t with
         | Function (ts, _) ->
             let ts_len = Array.length ts in
@@ -2532,11 +2534,8 @@ let rec type_check l e =
             if not (T.eq ts.(0) ts.(1)) then
               err "be a comparison function which parameters have the \
                    same type" ;
-            if not (is_comparable ts.(0)) then
-              err "be a comparison function which parameters' \
-                   must be comparable"
         | _ ->
-            err "be a comparison function")
+            err "must be a function")
     | E2 (Insert, set, x) ->
         (match type_of l set |> T.develop_user_types with
         | T.Value { vtyp = T.Set mn ; nullable = false } ->
