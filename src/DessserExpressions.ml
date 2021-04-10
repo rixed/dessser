@@ -2530,10 +2530,9 @@ let rec type_check l e =
         | Function (ts, _) ->
             let ts_len = Array.length ts in
             if ts_len <> 2 then
-              err "be a comparison function with 2 parameters" ;
+              err "must have two parameters" ;
             if not (T.eq ts.(0) ts.(1)) then
-              err "be a comparison function which parameters have the \
-                   same type" ;
+              err "parameters must have the same type"
         | _ ->
             err "must be a function")
     | E2 (Insert, set, x) ->
@@ -2651,7 +2650,7 @@ let () =
     | Comparator_error (e0, t, s) ->
         Some (
           Printf.sprintf2
-            "Invalid comparator function: the function\
+            "Invalid comparator function:\
              %s\
              %s but has type %a"
             (to_pretty_string ~max_depth e0)
