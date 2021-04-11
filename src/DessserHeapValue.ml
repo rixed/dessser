@@ -204,7 +204,8 @@ struct
       | T.Sum mns -> dsum mns
       | T.Vec (dim, mn) -> dvec dim mn
       | T.Lst mn -> dlist mn
-      | T.Set mn -> dset mn
+      | T.Set (Simple, mn) -> dset mn
+      | T.Set _ -> todo "Materialization of non simple sets"
       | T.Map _ -> assert false (* No value of map type *)
     in
     let vt = mn.vtyp in
@@ -387,7 +388,7 @@ struct
       (* Thanks to cardinality and fold being generic, lists and sets are
        * serialized the same: *)
       | T.Lst mn -> slist_or_set mn
-      | T.Set mn -> slist_or_set mn
+      | T.Set (_, mn) -> slist_or_set mn
       | T.Map _ -> assert false (* No value of map type *)
     in
     if_ ~cond:(eq ma skip_field)
@@ -558,7 +559,7 @@ struct
       | T.Sum mns -> sssum mns
       | T.Lst mn -> sslist mn
       (* Sets are serialized like lists: *)
-      | T.Set mn -> sslist mn
+      | T.Set (_, mn) -> sslist mn
       | T.Map _ -> assert false (* No value of map type *)
     in
     if_ ~cond:(eq ma skip_field)

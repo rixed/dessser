@@ -58,7 +58,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with vtyp = def }
-  | Vec (_, mn') | Lst mn' | Set mn' ->
+  | Vec (_, mn') | Lst mn' | Set (_, mn') ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
   | Tup mns ->
       are_serializable (Array.enum mns)
@@ -84,7 +84,7 @@ let rec nullable_at_first mn =
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with vtyp = def }
-  | Vec (_, mn') | Lst mn' | Set mn' ->
+  | Vec (_, mn') | Lst mn' | Set (_, mn') ->
       nullable_at_first mn'
   | Tup mns ->
       nullable_at_first mns.(0)
@@ -122,7 +122,7 @@ let rec make_serializable mn =
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
         vtyp = Lst mn' }
-  | Set mn' ->
+  | Set (_, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
         vtyp = Lst mn' }

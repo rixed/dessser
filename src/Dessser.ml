@@ -503,7 +503,8 @@ struct
     | T.Vec (dim, mn) -> dsvec dim mn
     | T.Lst mn -> dslist mn
     (* Sets are serialized like lists (the last update is thus lost). *)
-    | T.Set mn -> dslist mn
+    | T.Set (Simple, mn) -> dslist mn
+    | T.Set _ -> todo "des/ser for non simple sets"
     | T.Map _ -> assert false (* No value of map type *)
 
   and desser_ transform sstate dstate mn0 path l src_dst =

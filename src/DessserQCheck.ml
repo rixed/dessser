@@ -110,7 +110,7 @@ let rec value_type_gen_of_depth depth =
     oneof
       [ map2 (fun dim mn -> T.Vec (dim, mn)) (int_range 1 10) mn_gen ;
         map (fun mn -> T.Lst mn) mn_gen ;
-        map (fun mn -> T.Set mn) mn_gen ;
+        map (fun mn -> T.Set (Simple, mn)) mn_gen ;
         map (fun mns -> T.Tup mns) (tiny_array mn_gen) ;
         map (fun fs -> T.Rec fs) (tiny_array (pair field_name_gen mn_gen)) ;
         map (fun fs -> T.Sum fs) (tiny_array (pair field_name_gen mn_gen)) ;
@@ -145,7 +145,7 @@ let maybe_nullable_gen =
 let rec size_of_value_type = function
   | T.Unknown | T.Ext _ -> invalid_arg "size_of_value_type"
   | T.Unit | T.Mac _ | T.Usr _ -> 1
-  | T.Vec (_, mn) | T.Lst mn | T.Set mn -> 1 + size_of_maybe_nullable mn
+  | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_maybe_nullable mn
   | T.Tup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
   | T.Rec mns ->
@@ -202,10 +202,10 @@ let rec shrink_value_type =
         shrink_maybe_nullable mn (fun mn ->
           f (T.Lst mn) ;
           f mn.vtyp))
-  | T.Set mn ->
+  | T.Set (st, mn) ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
-          f (T.Set mn) ;
+          f (T.Set (st, mn)) ;
           f mn.vtyp))
   | T.Tup mns ->
       (fun f ->
@@ -665,7 +665,7 @@ let rec sexpr_of_vtyp_gen vtyp =
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
-  | T.Set mn ->
+  | T.Set (_, mn) ->
       sexpr_of_vtyp_gen (Lst mn)
   | T.Tup mns ->
       tup_gen mns

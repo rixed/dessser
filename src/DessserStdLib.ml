@@ -123,9 +123,11 @@ and random mn =
   | Lst mn ->
       random_slist mn |>
       list_of_slist
-  | Set mn ->
+  | Set (Simple, mn) ->
       random_slist mn |>
       set_of_slist
+  | Set _ ->
+      todo "random for non simple sets"
   | Tup mns ->
       Array.map std_random mns |>
       Array.to_list |>

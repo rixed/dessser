@@ -581,8 +581,20 @@ let rec default_value ?(allow_null=true) = function
         List.init dim (fun _ -> default_value mn))
   | { vtyp = Lst mn ; _ } ->
       E0S (MakeLst mn, [])
-  | { vtyp = Set mn ; _ } ->
+  | { vtyp = Set (Simple, mn) ; _ } ->
       E0 (EmptySet mn)
+  | { vtyp = Set (Sliding, mn) ; _ } ->
+      E1 (SlidingWindow mn, E0 (U8 Uint8.zero))
+  | { vtyp = Set (Tumbling, mn) ; _ } ->
+      E1 (TumblingWindow mn, E0 (U8 Uint8.zero))
+  | { vtyp = Set (Sampling, mn) ; _ } ->
+      E1 (Sampling mn, E0 (U8 Uint8.zero))
+  | { vtyp = Set (HashTable, mn) ; _ } ->
+      E1 (HashTable mn, E0 (U8 Uint8.zero))
+  | { vtyp = Set (Heap, mn) ; _ } ->
+      let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param (0, 0)))) ;
+                            E1 (Ignore, (E0 (Param (0, 1)))) ]) in
+      E1 (Heap, E1 (Function (0, [| T.Value mn ; T.Value mn |]), cmp))
   | { vtyp = Map _ ; _ } ->
       assert false (* no value of map type *)
 
@@ -1616,7 +1628,7 @@ let rec type_of l e0 =
   | E1 (IsNull, _) -> T.bool
   | E0 (Null vt) -> Value { vtyp = vt ; nullable = true }
   | E0 (EndOfList t) -> SList t
-  | E0 (EmptySet mn) -> Value (T.make (T.Set mn))
+  | E0 (EmptySet mn) -> Value (T.make (T.Set (Simple, mn)))
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
   | E0 RandomU8 -> T.u8
@@ -1728,7 +1740,7 @@ let rec type_of l e0 =
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (SetOfSList, e) ->
       (match type_of l e |> T.develop_user_types with
-      | SList (Value mn) -> Value (T.make (Set mn))
+      | SList (Value mn) -> Value (T.make (Set (Simple, mn)))
       | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
@@ -1740,7 +1752,7 @@ let rec type_of l e0 =
           raise (Type_error (e0, e, t, "be a vec")))
   | E1 (ListOfSet, e) ->
       (match type_of l e |> T.develop_user_types with
-      | T.Value ({ vtyp = Set mn ; nullable = false }) ->
+      | T.Value ({ vtyp = Set (_, mn) ; nullable = false }) ->
           Value (T.make (Lst mn))
       | t ->
           raise (Type_error (e0, e, t, "be a set")))
@@ -1856,7 +1868,7 @@ let rec type_of l e0 =
           (match type_of l set |> T.develop_user_types with
           | T.Value { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
           | T.Value { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
-          | T.Value { vtyp = Set _ ; _ } -> map_mn (fun mn -> Set mn)
+          | T.Value { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
           | T.SList _ -> SList ot
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
       | t ->
@@ -1899,12 +1911,17 @@ let rec type_of l e0 =
       T.mask
   | E1 (LabelOf, _) ->
       T.u16
-  | E1 ((SlidingWindow mn | TumblingWindow mn | Sampling mn |
-         HashTable mn), _) ->
-      T.set mn
+  | E1 (SlidingWindow mn, _) ->
+      T.set Sliding mn
+  | E1 (TumblingWindow mn, _) ->
+      T.set Tumbling mn
+  | E1 (Sampling mn, _) ->
+      T.set Sampling mn
+  | E1 (HashTable mn, _) ->
+      T.set HashTable mn
   | E1 (Heap, cmp) ->
       let item_t = get_compared_type l cmp in
-      T.set item_t
+      T.set Heap item_t
   | E2 ((Insert | DelMin), _, _) ->
       T.void
   | E2 (SplitBy, _, _) ->
@@ -1931,7 +1948,7 @@ and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
   | Value { vtyp = Vec (_, t) ; nullable = false } when vec -> Ok t
   | Value { vtyp = Lst t ; nullable = false } when lst -> Ok t
-  | Value { vtyp = Set t ; nullable = false } when set -> Ok t
+  | Value { vtyp = Set (_, t) ; nullable = false } when set -> Ok t
   | t -> Error t
 
 (* Return the element type or fail: *)
@@ -2254,7 +2271,7 @@ let rec type_check l e =
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
         (match type_of l e2 |> T.develop_user_types with
-        | Value { vtyp = (Vec (_, t) | Lst t | Set t) ; nullable = false } ->
+        | Value { vtyp = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
             check_eq l e1 (T.Value t)
         | t ->
             raise (Type_error (e0, e, t, "be a vector or list")))
@@ -2465,7 +2482,7 @@ let rec type_check l e =
                 check_fun_type_with (T.Value mn) true
             | T.(Value { vtyp = Lst mn ; nullable = false }) ->
                 check_fun_type_with (T.Value mn) true
-            | T.(Value { vtyp = Set mn ; nullable = false }) ->
+            | T.(Value { vtyp = Set (_, mn) ; nullable = false }) ->
                 check_fun_type_with (T.Value mn) true
             | T.SList t ->
                 check_fun_type_with t false
@@ -2539,7 +2556,7 @@ let rec type_check l e =
             err "must be a function")
     | E2 (Insert, set, x) ->
         (match type_of l set |> T.develop_user_types with
-        | T.Value { vtyp = T.Set mn ; nullable = false } ->
+        | T.Value { vtyp = T.Set (_, mn) ; nullable = false } ->
             check_eq l x (Value mn)
         | t ->
             raise (Type_error (e0, set, t, "be a set")))

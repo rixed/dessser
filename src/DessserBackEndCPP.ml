@@ -144,8 +144,18 @@ struct
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Value typ))
     | T.Value { vtyp = Lst typ ; _ } ->
         Printf.sprintf "Lst<%s>" (type_identifier p (Value typ))
-    | T.Value { vtyp = Set typ ; _ } ->
+    | T.Value { vtyp = Set (Simple, typ) ; _ } ->
         Printf.sprintf "Set<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (Sliding, typ) ; _ } ->
+        Printf.sprintf "SlidingWindow<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (Tumbling, typ) ; _ } ->
+        Printf.sprintf "TumblingWindow<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (Sampling, typ) ; _ } ->
+        Printf.sprintf "Sampling<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (HashTable, typ) ; _ } ->
+        Printf.sprintf "HashTable<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (Heap, typ) ; _ } ->
+        Printf.sprintf "Heap<%s> *" (type_identifier p (Value typ))
     | T.Value { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
     | T.Pair (t1, t2) ->

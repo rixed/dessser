@@ -77,6 +77,21 @@ struct
   let cstr_name n =
     String.capitalize (valid_identifier n)
 
+  let mod_of_set_type = function
+    | T.Simple -> "SimpleSet"
+    | Sliding -> "SlidingWindow"
+    | Tumbling -> "TumblingWindow"
+    | Sampling -> "Sampling"
+    | HashTable -> "HashTable"
+    | Heap -> "Heap"
+
+ let mod_of_set_type_of_expr l set =
+   match E.type_of l set |> T.develop_user_types with
+   | Value { vtyp = Set (st, _) ; nullable = false } ->
+       mod_of_set_type st
+   | _ ->
+       invalid_arg "mod_of_set_type_of_expr"
+
   let rec print_record p oc id mns =
     let m = valid_module_name id in
     let id = valid_identifier id in
@@ -161,8 +176,9 @@ struct
         P.get_external_type p n OCaml
     | { vtyp = (Vec (_, t) | Lst t) ; _ } ->
         value_type_identifier p t ^" array"
-    | { vtyp = Set t ; _ } ->
-        value_type_identifier p t ^" set"
+    | { vtyp = Set (st, t) ; _ } ->
+        let m = mod_of_set_type st in
+        value_type_identifier p t ^" "^ m ^".t"
     | { vtyp = Tup mns ; _ } as mn ->
         let t = T.Value mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
@@ -718,7 +734,12 @@ struct
         (* Those are NOPs *)
         print ?name emit p l e1
     | E.E1 (ListOfSet, e1) ->
-        unary_op "lst_of_set" e1
+        let n1 = print emit p l e1 in
+        let m = mod_of_set_type_of_expr l e1 in
+        emit ?name p l e (fun oc ->
+          (* FIXME: this operation needs to be faster, ideally a nop! *)
+          pp oc "%s.fold [] (fun l_ x_ -> x_ :: l_) %s) |> \
+                 List.rev |> Array.of_list" m n1)
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1
     | E.E1 (CharOfU8, e1) ->
@@ -732,7 +753,7 @@ struct
     | E.E1 (ListOfSListRev, e1) ->
         unary_op "array_of_list_rev" e1
     | E.E1 (SetOfSList, e1) ->
-        unary_op "make_simple_set_of_slist" e1
+        unary_op "SimpleSet.of_list" e1
     | E.E1 ((ToU8 | ToI8 | ToU16 | ToI16 | ToU24 | ToI24 | ToU32 | ToI32 |
              ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
              ToU128 | ToI128), e1) ->
@@ -769,9 +790,10 @@ struct
             emit ?name p l e (fun oc -> pp oc "Uint32.of_int %d" d)
         | Value { vtyp = Lst _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
-        | Value { vtyp = Set _ ; _ } ->
+        | Value { vtyp = Set (st, _) ; _ } ->
             let n1 = print emit p l e1 in
-            emit ?name p l e (fun oc -> pp oc "%s.cardinality ()" n1)
+            let m = mod_of_set_type st in
+            emit ?name p l e (fun oc -> pp oc "%s.cardinality %s" m n1)
         | _ ->
             assert false (* Because type checking *))
     | E.E0 (DataPtrOfString s) ->
@@ -937,7 +959,7 @@ struct
     | E.E0 (EndOfList _) ->
         emit ?name p l e (fun oc -> pp oc "[]")
     | E.E0 (EmptySet _) ->
-        emit ?name p l e (fun oc -> pp oc "make_simple_set ()")
+        emit ?name p l e (fun oc -> pp oc "SimpleSet.make ()")
     | E.E0 Now ->
         emit ?name p l e (fun oc -> pp oc "Unix.gettimeofday ()")
     | E.E0 RandomFloat ->
@@ -1064,14 +1086,9 @@ struct
                      (fun oc n -> Printf.fprintf oc "x_ = %s" n)) ns
               ))
         | set ->
-            let set_t = E.type_of l set in
-            let is_set =
-              match set_t with
-              | T.Value { nullable = false ; vtyp = T.Set _ } -> true
-              | _ -> false in
-            assert is_set (* because of type-checking *) ;
             let n2 = print emit p l set in
-            emit ?name p l e (fun oc -> pp oc "%s.member %s" n2 n1))
+            let m = mod_of_set_type_of_expr l set in
+            emit ?name p l e (fun oc -> pp oc "%s.member %s %s" m n1 n2))
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->
@@ -1181,9 +1198,10 @@ struct
              * Array.fold_left will do in both cases: *)
             emit ?name p l e (fun oc ->
               pp oc "Array.fold_left %s %s %s" body init lst)
-        | Value { vtyp = Set _ ; _ } ->
+        | Value { vtyp = Set (st, _) ; _ } ->
+            let m = mod_of_set_type st in
             emit ?name p l e (fun oc ->
-              pp oc "%s.fold %s %s" lst init body)
+              pp oc "%s.fold %s %s %s" m lst init body)
         | _ ->
             assert false (* Because type checking *))
     | E.E4 (Repeat, e1, e2, e3, e4) ->
@@ -1260,24 +1278,24 @@ struct
         and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "make_sliding_window %s (%s.to_int %s)" def m n1)
+          pp oc "SlidingWindow.make %s (%s.to_int %s)" def m n1)
     | E.E1 (TumblingWindow mn, e1) ->
         let n1 = print emit p l e1
         and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "make_tumbling_window %s (%s.to_int %s)" def m n1)
+          pp oc "TumblingWindow.make %s (%s.to_int %s)" def m n1)
     | E.E1 (Sampling mn, e1) ->
         let n1 = print emit p l e1
         and def = print emit p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "make_sampling %s (%s.to_int %s)" def m n1)
+          pp oc "Sampling.make %s (%s.to_int %s)" def m n1)
     | E.E1 (HashTable _, e1) ->
         let n1 = print emit p l e1
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "make_hash_table (%s.to_int %s)" m n1)
+          pp oc "HashTable.make (%s.to_int %s)" m n1)
     | E.E1 (Heap, cmp) ->
         let n1 = print emit p l cmp in
         (* comparison function need to be adapted to return an int: *)
@@ -1287,12 +1305,13 @@ struct
           | _ -> assert false (* Because of [type_check] *) in
         let m = mod_name cmp_res_t in
         emit ?name p l e (fun oc ->
-          pp oc "make_heap (fun a_ b_ -> %s.to_int (%s a_ b_))" m n1)
+          pp oc "Heap.make (fun a_ b_ -> %s.to_int (%s a_ b_))" m n1)
     | E.E2 (Insert, set, x) ->
         let set = print emit p l set
-        and x = print emit p l x in
+        and x = print emit p l x
+        and m = mod_of_set_type_of_expr l set in
         (* Avoids using [emit] to not generate a binding for unit: *)
-        ppi p.P.def "%s.insert %s ;" set x ;
+        ppi p.P.def "%s.insert %s %s ;" m set x ;
         "()"
     | E.E2 (DelMin, set, n) ->
         let set = print emit p l set

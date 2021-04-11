@@ -442,24 +442,43 @@ struct
     { p with start ; stack }
 end
 
-(* Once a set is constructed only 2 operations are possible with it:
+(* Once a set is constructed few operations are possible with it:
  * - insert an item
  * - iterate over its items
+ * - compute the cardinality of the set
+ * - delete minimum items (for ordered sets)
  *
  * Backend code generator might want various kind of sets depending on the
  * use cases:
- * 1. kind of sizing:
- * - last added items limited in size;
- * - last added items limited by "age" (being defined by some expression);
- * - last added items reset after some size is reached;
- * - reservoir sampling to keep max number of items.
+ * - some sets automatically get rid of old data (based on cardinality, time,
+ *   weight...);
+ * - some sets order items and allow to retrieve/remove the smallest ones;
+ * - some sets keep only a random sample of the inserted items;
+ * - etc...
  *
- * Kind of insert API:
- * - should skip over NULLs or not;
- * - should keep entry sorted ;
- * - inserting an item returns nothing;
- * - inserting an item returns the updates performed (added item, removed item).
+ * All these sets share the same type "Set" (with a parameter indicating the
+ * actual type of set and the implementation to choose), and some of the
+ * operations (esp. Insert and Fold). The idea is that there should exist a
+ * generic way to perform operations incrementally on all those sets.
  *)
+
+module type SET =
+sig
+  type 'a t
+
+  val insert : 'a t -> 'a -> unit
+
+  val last_update : 'a t -> 'a * 'a list
+
+  val cardinality : 'a t -> Uint32.t
+
+  val member : 'a t -> 'a -> bool
+
+  val fold : 'a t -> 'b -> ('b -> 'a -> 'b) -> 'b
+
+  (* Remove N items: *)
+  val del_min : 'a t -> int -> unit
+end
 
 module SimpleSet =
 struct
@@ -467,9 +486,12 @@ struct
 
   let make () = ref []
 
+  (* When serializing with fold, the oldest value is written first.
+   * When deserializing into an slist, the first value (the oldest) end up
+   * at the end of the slist. *)
   let of_list l = ref l
 
-  let length t =
+  let cardinality t =
     List.length !t |> Uint32.of_int
 
   let insert t x =
@@ -489,6 +511,8 @@ struct
     t := DessserTools.list_drop n !t
 end
 
+module SimpleSetCheck : SET = SimpleSet
+
 (* Sliding window based on number of items: *)
 module SlidingWindow =
 struct
@@ -504,7 +528,7 @@ struct
       num_inserts = 0 ;
       last_removed = [] }
 
-  let length t =
+  let cardinality t =
     min t.num_inserts (Array.length t.arr) |> Uint32.of_int
 
   let insert t x =
@@ -533,7 +557,12 @@ struct
       let i = (t.num_inserts + n) mod Array.length t.arr in
       loop (f u t.arr.(i)) (n + 1) in
     loop u 0
+
+  let del_min _t =
+    DessserTools.todo "SlidingWindow.del_min"
 end
+
+module SlidingWindowCheck : SET = SlidingWindow
 
 (* Reservoir sampling: *)
 module Sampling =
@@ -553,7 +582,7 @@ struct
     { arr = Array.make max_sz def ;
       cur_size = 0 ; count = 0 ; last_update = def, [] }
 
-  let length t =
+  let cardinality t =
     t.cur_size |> Uint32.of_int
 
   let insert t x =
@@ -588,7 +617,12 @@ struct
       if i >= t.cur_size then u else
       loop (f u t.arr.(i)) (i + 1) in
     loop u 0
+
+  let del_min _t =
+    DessserTools.todo "Sampling.del_min"
 end
+
+module SamplingCheck : SET = Sampling
 
 (* A Hash table for quick Member tests: *)
 module HashTable =
@@ -601,7 +635,7 @@ struct
     { h = Hashtbl.create init_sz ;
       last_added = None }
 
-  let length t =
+  let cardinality t =
     Hashtbl.length t.h |> Uint32.of_int
 
   let insert t x =
@@ -618,7 +652,12 @@ struct
 
   let fold t u f =
     Hashtbl.fold (fun x () u -> f u x) t.h u
+
+  let del_min _t =
+    DessserTools.todo "HashTable.del_min"
 end
+
+module HashTableCheck : SET = HashTable
 
 (* A Heap for ordering elements: *)
 module Heap =
@@ -642,7 +681,7 @@ struct
   let last_update _ =
     failwith "Not implemented: Heap.last_update"
 
-  let length t =
+  let cardinality t =
     Uint32.of_int t.length
 
   let member t x =
@@ -664,73 +703,7 @@ struct
     )
 end
 
-(* Finally, the generic set type: *)
-
-type 'a set =
-  { insert : 'a -> unit ;
-    last_update : unit -> 'a * 'a list ;
-    cardinality : unit -> Uint32.t ;
-    member : 'a -> bool ;
-    fold : 'b. 'b -> ('b -> 'a -> 'b) -> 'b ;
-    (* Remove N items: *)
-    del_min : int -> unit }
-
-(* When serializing with fold, the oldest value is written first.
- * When deserializing into an slist, the first value (the oldest) end up
- * at the end of the slist. *)
-let make_simple_set_of_slist sl =
-  let s = SimpleSet.of_list sl in
-  { insert = SimpleSet.insert s ;
-    last_update = (fun () -> SimpleSet.last_update s) ;
-    cardinality = (fun () -> SimpleSet.length s) ;
-    member = SimpleSet.member s ;
-    fold = (fun u f -> SimpleSet.fold s u f) ;
-    del_min = SimpleSet.del_min s }
-
-let make_simple_set () =
-  make_simple_set_of_slist []
-
-let make_sliding_window def max_sz =
-  let s = SlidingWindow.make def max_sz in
-  { insert = SlidingWindow.insert s ;
-    last_update = (fun () -> SlidingWindow.last_update s) ;
-    cardinality = (fun () -> SlidingWindow.length s) ;
-    member = SlidingWindow.member s ;
-    fold = (fun u f -> SlidingWindow.fold s u f) ;
-    del_min = (fun _ -> DessserTools.todo "SlidingWindow.del_min") }
-
-let make_sampling def max_sz =
-  let s = Sampling.make def max_sz in
-  { insert = Sampling.insert s ;
-    last_update = (fun () -> Sampling.last_update s) ;
-    cardinality = (fun () -> Sampling.length s) ;
-    member = Sampling.member s ;
-    fold = (fun u f -> Sampling.fold s u f) ;
-    del_min = (fun _ -> DessserTools.todo "Sampling.del_min") }
-
-let make_hash_table init_sz =
-  let s = HashTable.make init_sz in
-  { insert = HashTable.insert s ;
-    last_update = (fun () -> HashTable.last_update s) ;
-    cardinality = (fun () -> HashTable.length s) ;
-    member = HashTable.member s ;
-    fold = (fun u f -> HashTable.fold s u f) ;
-    del_min = (fun _ -> DessserTools.todo "HashTable.del_min") }
-
-let make_heap cmp =
-  let s = Heap.make cmp in
-  { insert = Heap.insert s ;
-    last_update = (fun () -> Heap.last_update s) ;
-    cardinality = (fun () -> Heap.length s) ;
-    member = Heap.member s ;
-    fold = (fun u f -> Heap.fold s u f) ;
-    del_min = Heap.del_min s }
-
-(* TODO: this operation needs to be faster, ideally a nop! *)
-let lst_of_set s =
-  s.fold [] (fun lst x -> x :: lst) |>
-  List.rev |>
-  Array.of_list
+module HeapCheck : SET = Heap
 
 let lst_lchop l n =
   if n >= Array.length l then [||] else

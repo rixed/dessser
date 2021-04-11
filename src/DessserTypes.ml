@@ -47,11 +47,11 @@ and value_type =
   | Vec of int * maybe_nullable
   | Lst of maybe_nullable
   (* Special compound type amenable to incremental computation over sets.
-   * We might have different implementations with different APIs, depending on
-   * the use case (ie. the operator it is an operand of), for instance to
-   * optimise FIFO updates, to keep it sorted, to skip nulls, etc... But the
-   * backend will decide this on its own: *)
-  | Set of maybe_nullable
+   * There are different implementations with slightly different APIs,
+   * depending on the use case (ie. the operator it is an operand of), for
+   * instance to optimise FIFO updates, to keep it sorted, to skip nulls, etc.
+   * But the backend will decide this on its own: *)
+  | Set of set_type * maybe_nullable
   | Tup of maybe_nullable array
   (* Exact same as a tuple, but with field names that can be used as
    * accessors (also used to name actual fields in generated code): *)
@@ -69,12 +69,23 @@ and value_type =
 and maybe_nullable =
   { vtyp : value_type ; nullable : bool }
 
+and set_type =
+  | Simple | Sliding | Tumbling | Sampling | HashTable | Heap
+
 let make ?(nullable=false) vtyp =
   { vtyp ; nullable }
 
 let required = make ~nullable:false
 
 let optional = make ~nullable:true
+
+let string_of_set_type = function
+  | Simple -> ""
+  | Sliding -> "sliding"
+  | Tumbling -> "tumbling"
+  | Sampling -> "sampling"
+  | HashTable -> "hashtable"
+  | Heap -> "heap"
 
 (* Consider user types opaque by default, so that it matches DessserQCheck
  * generators. *)
@@ -83,7 +94,7 @@ let rec depth ?(opaque_user_type=true) = function
   | Unit | Mac _ | Ext _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | Vec (_, mn) | Lst mn | Set mn ->
+  | Vec (_, mn) | Lst mn | Set (_, mn) ->
       1 + depth ~opaque_user_type mn.vtyp
   | Tup mns ->
       1 + Array.fold_left (fun d mn ->
@@ -149,8 +160,10 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       n1 = n2
   | Vec (d1, mn1), Vec (d2, mn2) ->
       d1 = d2 && maybe_nullable_eq mn1 mn2
-  | Lst mn1, Lst mn2
-  | Set mn1, Set mn2 ->
+  | Lst mn1, Lst mn2 ->
+      maybe_nullable_eq mn1 mn2
+  | Set (st1, mn1), Set (st2, mn2) ->
+      st1 = st2 &&
       maybe_nullable_eq mn1 mn2
   | Tup mn1s, Tup mn2s ->
       Array.length mn1s = Array.length mn2s &&
@@ -235,8 +248,8 @@ let rec develop_value_type = function
       Vec (d, develop_maybe_nullable mn)
   | Lst mn ->
       Lst (develop_maybe_nullable mn)
-  | Set mn ->
-      Set (develop_maybe_nullable mn)
+  | Set (st, mn) ->
+      Set (st, develop_maybe_nullable mn)
   | Tup mns ->
       Tup (Array.map develop_maybe_nullable mns)
   | Rec mns ->
@@ -263,7 +276,7 @@ let rec fold_value_type u f vt =
       u
   | Usr { def ; _ } ->
       fold_value_type u f def
-  | Vec (_, mn) | Lst mn | Set mn ->
+  | Vec (_, mn) | Lst mn | Set (_, mn) ->
       fold_maybe_nullable u f mn
   | Tup mns ->
       Array.fold_left (fun u mn -> fold_maybe_nullable u f mn) u mns
@@ -406,8 +419,8 @@ let rec print_value_type ?(sorted=false) oc = function
       pp oc "%a[%d]" (print_maybe_nullable ~sorted) mn dim
   | Lst mn ->
       pp oc "%a[]" (print_maybe_nullable ~sorted) mn
-  | Set mn ->
-      pp oc "%a{}" (print_maybe_nullable ~sorted) mn
+  | Set (st, mn) ->
+      pp oc "%a{%s}" (print_maybe_nullable ~sorted) mn (string_of_set_type st)
   | Tup mns ->
       pp oc "%a"
         (Array.print ~first:"(" ~last:")" ~sep:"; "
@@ -595,18 +608,18 @@ struct
       String.of_list (c :: s)
 
   type key_type =
-    VecDim of int | ListDim | SetDim | MapKey of maybe_nullable
+    VecDim of int | ListDim | SetDim of set_type | MapKey of maybe_nullable
 
-  let rec reduce_dims t = function
-    | [] -> t
+  let rec reduce_dims mn = function
+    | [] -> mn
     | (VecDim d, nullable) :: rest ->
-        reduce_dims (make ~nullable (Vec (d, t))) rest
+        reduce_dims (make ~nullable (Vec (d, mn))) rest
     | (ListDim, nullable) :: rest ->
-        reduce_dims (make ~nullable (Lst t)) rest
-    | (SetDim, nullable) :: rest ->
-        reduce_dims (make ~nullable (Set t)) rest
+        reduce_dims (make ~nullable (Lst mn)) rest
+    | (SetDim st, nullable) :: rest ->
+        reduce_dims (make ~nullable (Set (st, mn))) rest
     | (MapKey k, nullable) :: rest ->
-        reduce_dims (make ~nullable (Map (k, t))) rest
+        reduce_dims (make ~nullable (Map (k, mn))) rest
 
   let rec key_type m =
     let vec_dim m =
@@ -619,22 +632,34 @@ struct
           if d <= 0 then
             raise (Reject "Vector must have strictly positive dimension") ;
           VecDim d, n
-      ) m
-    and list_dim m =
+      ) m in
+    let list_dim m =
       let m = "list type" :: m in
       (
         char '[' -- opt_blanks -- char ']' -+
         opt_question_mark >>: fun n ->
           ListDim, n
-      ) m
-    and set_dim m =
+      ) m in
+    let set_type m =
       let m = "set type" :: m in
       (
-        char '{' -- opt_blanks -- char '}' -+
-        opt_question_mark >>: fun n ->
-          SetDim, n
-      ) m
-    and map_key m =
+        (strinG "simple" >>: fun () -> Simple) |||
+        (strinG "sliding" >>: fun () -> Sliding) |||
+        (strinG "tumbling" >>: fun () -> Tumbling) |||
+        (strinG "sampling" >>: fun () -> Sampling) |||
+        (strinG "hashtable" >>: fun () -> HashTable) |||
+        (strinG "heap" >>: fun () -> Heap)
+      ) m in
+    let set_dim m =
+      let m = "set type" :: m in
+      (
+        char '{' --
+          opt_blanks -+ optional ~def:Simple set_type +- opt_blanks +-
+        char '}' ++
+        opt_question_mark >>: fun (st, n) ->
+          SetDim st, n
+      ) m in
+    let map_key m =
       let m = "map key" :: m in
       (
         char '[' -- opt_blanks -+
@@ -1081,7 +1106,7 @@ let type_and_name_of_path t path =
               loop (string_of_int i) mn path
           | Lst mn ->
               loop (string_of_int i) mn path
-          | Set mn ->
+          | Set (_, mn) ->
               loop (string_of_int i) mn path
           | Tup mns ->
               assert (i < Array.length mns) ;
@@ -1201,6 +1226,6 @@ let tuple mns =
   | 1 -> Value mns.(0)
   | _ -> Value (required (Tup mns))
 
-let set mn = Value (required (Set mn))
+let set st mn = Value (required (Set (st, mn)))
 
 let vector d mn = Value (required (Vec (d, mn)))

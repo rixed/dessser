@@ -365,8 +365,8 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 	     --input-enc csv --output-enc s-expr -o "$$f" \
 	     --language=$$be --schema="$$schema" \
 	     --init '(sliding-window "i32" (u8 3))' \
-	     --update '(fun 0 "i32{}" "i32" (insert (param 0 0) (param 0 1)))' \
-	     --finalize '(fun 0 "i32{}" (param 0 0))'; \
+	     --update '(fun 0 "i32{sliding}" "i32" (insert (param 0 0) (param 0 1)))' \
+	     --finalize '(fun 0 "i32{sliding}" (param 0 0))'; \
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='3 (8 9 10)'; \
 	   if test "$$out" = "$$exp"; then \
