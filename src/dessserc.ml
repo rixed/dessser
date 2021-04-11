@@ -190,7 +190,7 @@ let lmdb_load =
 let lmdb_query _ _ _ _ _ _ () =
   todo "lmdb_query"
 
-(* In dessser IL we have to explicitly describe the initial code, the update
+(* In dessser IL we have to explicitly describe the initial state, the update
  * function and the finalizer function. Ramen will have to keep working hard
  * to convert simple RaQL aggregation functions into DIL programs. *)
 let aggregator
@@ -205,7 +205,7 @@ let aggregator
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
     E.func1 DataPtr (fun l -> ToValue.make schema l) in
-  (* Check the function that creates the initial code that will be used by
+  (* Check the function that creates the initial state that will be used by
    * the update function: *)
   E.type_check [] init_expr ;
   let state_t = E.type_of [] init_expr in
@@ -215,7 +215,7 @@ let aggregator
   let update_t = E.type_of [] update_expr in
   if update_t <> T.Function ([| state_t ; Value schema |], T.void) then
     Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
-                     aggregation code and the input value and returning \
+                     aggregation state and the input value and returning \
                      nothing (not %a)"
                      (E.print ~max_depth:4) update_expr
                      T.print update_t |>
@@ -227,7 +227,7 @@ let aggregator
     | T.Function ([| a1 |], Value mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
-                         aggregation code (not %a)" T.print t |>
+                         aggregation state (not %a)" T.print t |>
         failwith in
   (* Finally, a function to convert the output value on the heap into stdout
    * in the given encoding: *)
