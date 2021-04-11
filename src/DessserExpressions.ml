@@ -334,7 +334,9 @@ type e2 =
   | WriteQWord of endianness
   | WriteOWord of endianness
   | Insert (* args are: set, item *)
-  (* Not implemented for all types of sets. args are: set, how many. *)
+  (* Not implemented for all types of sets. args are: set, how many.
+   * Will merely empty the set if number of deleted item is greater than
+   * cardinality. *)
   | DelMin
   | SplitBy
   | SplitAt

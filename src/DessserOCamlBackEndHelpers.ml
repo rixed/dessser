@@ -652,10 +652,16 @@ struct
     H.fold_left t.cmp f u t.heap
 
   let del_min t n =
-    let rec loop n h =
-      if n <= 0 then h else
-      loop (n - 1) (snd (H.pop_min t.cmp h)) in
-    t.heap <- loop n t.heap
+    if n >= t.length then (
+      t.heap <- H.empty ;
+      t.length <- 0
+    ) else (
+      let rec loop n h =
+        if n <= 0 then h else
+        loop (n - 1) (snd (H.pop_min t.cmp h)) in
+      t.heap <- loop n t.heap ;
+      t.length <- t.length - n
+    )
 end
 
 (* Finally, the generic set type: *)
