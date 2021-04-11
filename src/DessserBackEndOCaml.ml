@@ -1280,7 +1280,14 @@ struct
           pp oc "make_hash_table (%s.to_int %s)" m n1)
     | E.E1 (Heap, cmp) ->
         let n1 = print emit p l cmp in
-        emit ?name p l e (fun oc -> pp oc "make_heap %s" n1)
+        (* comparison function need to be adapted to return an int: *)
+        let cmp_res_t =
+          match E.type_of l cmp with
+          | T.Function (_, res_t) -> res_t
+          | _ -> assert false (* Because of [type_check] *) in
+        let m = mod_name cmp_res_t in
+        emit ?name p l e (fun oc ->
+          pp oc "make_heap (fun a_ b_ -> %s.to_int (%s a_ b_))" m n1)
     | E.E2 (Insert, set, x) ->
         let set = print emit p l set
         and x = print emit p l x in
@@ -1289,8 +1296,9 @@ struct
         "()"
     | E.E2 (DelMin, set, n) ->
         let set = print emit p l set
-        and n = print emit p l n in
-        ppi p.P.def "%s.del_min %s ;" set n ;
+        and n = print emit p l n
+        and m = mod_name (E.type_of l n) in
+        ppi p.P.def "%s.del_min (%s.to_int %s) ;" set m n ;
         "()"
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
