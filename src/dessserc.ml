@@ -215,11 +215,13 @@ let aggregator
   let update_t = E.type_of [] update_expr in
   if not (T.eq update_t (T.Function ([| state_t ; Value schema |], T.void)))
   then
-    Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
-                     aggregation state and the input value and returning \
-                     nothing (not %a)"
-                     (E.print ~max_depth:4) update_expr
-                     T.print update_t |>
+    Printf.sprintf2
+      "Aggregation updater (%a) must be a function of the aggregation state \
+       (%a) and the input value (%a) and returning nothing (not %a)"
+      (E.print ~max_depth:4) update_expr
+      T.print state_t
+      T.print_maybe_nullable schema
+      T.print update_t |>
     failwith ;
   (* Then check the finalizer: *)
   E.type_check [] finalize_expr ;
