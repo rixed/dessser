@@ -213,7 +213,8 @@ let aggregator
    * and the input_t: *)
   E.type_check [] update_expr ;
   let update_t = E.type_of [] update_expr in
-  if update_t <> T.Function ([| state_t ; Value schema |], T.void) then
+  if not (T.eq update_t (T.Function ([| state_t ; Value schema |], T.void)))
+  then
     Printf.sprintf2 "Aggregation updater (%a) must be a function of the \
                      aggregation state and the input value and returning \
                      nothing (not %a)"
