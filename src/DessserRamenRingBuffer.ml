@@ -43,17 +43,18 @@ let round_up_const_bits b =
   let n = bytes_of_const_bits b in
   round_up_const_bytes n
 
-(* Round up [sz] bytes to fill ringbuf words: *)
+(* Round up [sz] bytes to fill ringbuf words.
+ * [n] must be a size. Returns a size. *)
 let round_up_dyn_bytes n =
   let mask = size (word_size - 1) in
   log_and
     (add n mask)
     (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
 
-(* Same as above but [n] is given in bits: *)
+(* Same as above but [n] is given in bits, as a u32: *)
 let round_up_dyn_bits n =
-  let n = right_shift (add (size 7) n) (u8_of_int 8) in
-  round_up_dyn_bytes n
+  let n = right_shift (add (u32_of_int 7) n) (u8_of_int 8) in
+  round_up_dyn_bytes (size_of_u32 n)
 
 (* Realign the pointer on a multiple of [word_size].
  * [extra_bytes] modulo [word_size] gives the number of bytes
