@@ -476,6 +476,8 @@ sig
 
   val fold : 'a t -> 'b -> ('b -> 'a -> 'b) -> 'b
 
+  val get_min : 'a t -> 'a
+
   (* Remove N items: *)
   val del_min : 'a t -> int -> unit
 end
@@ -506,6 +508,9 @@ struct
   let fold t u f =
     List.rev !t |>
     List.fold_left f u
+
+  let get_min t =
+    DessserTools.list_last !t
 
   let del_min t n =
     t := DessserTools.list_drop n !t
@@ -557,6 +562,9 @@ struct
       let i = (t.num_inserts + n) mod Array.length t.arr in
       loop (f u t.arr.(i)) (n + 1) in
     loop u 0
+
+  let get_min _t =
+    DessserTools.todo "SlidingWindow.get_min"
 
   let del_min _t =
     DessserTools.todo "SlidingWindow.del_min"
@@ -618,6 +626,9 @@ struct
       loop (f u t.arr.(i)) (i + 1) in
     loop u 0
 
+  let get_min _t =
+    DessserTools.todo "Sampling.get_min"
+
   let del_min _t =
     DessserTools.todo "Sampling.del_min"
 end
@@ -652,6 +663,9 @@ struct
 
   let fold t u f =
     Hashtbl.fold (fun x () u -> f u x) t.h u
+
+  let get_min _t =
+    DessserTools.todo "HashTable.get_min"
 
   let del_min _t =
     DessserTools.todo "HashTable.del_min"
@@ -689,6 +703,9 @@ struct
 
   let fold t u f =
     H.fold_left t.cmp f u t.heap
+
+  let get_min t =
+    H.min t.heap
 
   let del_min t n =
     if n >= t.length then (

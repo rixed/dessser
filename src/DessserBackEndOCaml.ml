@@ -1316,9 +1316,15 @@ struct
     | E.E2 (DelMin, set, n) ->
         let set = print emit p l set
         and n = print emit p l n
-        and m = mod_name (E.type_of l n) in
-        ppi p.P.def "%s.del_min (%s.to_int %s) ;" set m n ;
+        and m = mod_name (E.type_of l n)
+        and ms = mod_of_set_type_of_expr l set in
+        ppi p.P.def "%s.del_min %s (%s.to_int %s) ;" ms set m n ;
         "()"
+    | E.E1 (GetMin, set) ->
+        let set = print emit p l set
+        and m = mod_of_set_type_of_expr l set in
+        emit ?name p l e (fun oc ->
+          pp oc "%s.get_min %s ;" m set)
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

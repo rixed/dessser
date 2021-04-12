@@ -23,6 +23,11 @@ struct Set {
   {
     std::cerr << "delMin not implemented for this set\n" << std::endl;
   }
+
+  virtual T const &getMin()
+  {
+    std::cerr << "getMin not implemented for this set\n" << std::endl;
+  }
 };
 
 #endif

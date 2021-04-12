@@ -49,6 +49,10 @@ struct Heap : public Set<T> {
       f(x);
     }
   }
+
+  T const &getMin() override {
+    return &(*h.cbegin());
+  }
 };
 
 #endif

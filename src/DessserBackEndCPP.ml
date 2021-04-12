@@ -1152,6 +1152,9 @@ struct
         ppi p.P.def "Heap<%s> *%s = new Heap<%s>(%s);"
           tn res tn n1 ;
         res
+    | E.E1 (GetMin, set) ->
+        let set = print emit p l set in
+        emit ?name p l e (fun oc -> pp oc "%s->getMin();" set)
     | E.E2 (Insert, set, x) ->
         let set = print emit p l set in
         let x = print emit p l x in

@@ -86,6 +86,11 @@ let list_drop n l =
     loop (n - 1) (List.tl l) in
   loop n l
 
+let rec list_last = function
+  | [] -> invalid_arg "list_last"
+  | x :: [] -> x
+  | _ :: rest -> list_last rest
+
 let array_for_all2_no_exc f a b =
   try Array.for_all2 f a b
   with Invalid_argument _ -> false

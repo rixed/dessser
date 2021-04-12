@@ -271,6 +271,8 @@ type e1 =
   | Heap
   | DataPtrOfBuffer
   | GetEnv
+  (* Get the minimal value of a set (heap): *)
+  | GetMin
 
 type e1s =
   | Apply
@@ -772,6 +774,7 @@ let string_of_e1 = function
       "heap"
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
   | GetEnv -> "getenv"
+  | GetMin -> "get-min"
 
 let string_of_e2 = function
   | Let s -> "let "^ String.quote s
@@ -1386,6 +1389,8 @@ struct
         E1 (DataPtrOfBuffer, e x)
     | Lst [ Sym "getenv" ; x ] ->
         E1 (GetEnv, e x)
+    | Lst [ Sym "get-min" ; x ] ->
+        E1 (GetMin, e x)
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
@@ -1832,6 +1837,10 @@ let rec type_of l e0 =
   | E1 (ToFloat, _) -> T.float
   | E1 (DataPtrOfBuffer, _) -> T.dataptr
   | E1 (GetEnv, _) -> T.(Value (optional (Mac String)))
+  | E1 (GetMin, e) ->
+      (match type_of l e |> T.develop_user_types with
+      | T.Value { vtyp = Set (Heap, mn) ; nullable = false } -> T.Value mn
+      | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (Pair, e1, e2) ->
@@ -2349,6 +2358,8 @@ let rec type_check l e =
         check_eq l e T.size
     | E1 (GetEnv, e) ->
         check_eq l e T.string
+    | E1 (GetMin, e) ->
+        check_set l e
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.byte
@@ -3032,6 +3043,8 @@ struct
   let insert set x = E2 (Insert, set, x)
 
   let del_min set n = E2 (DelMin, set, n)
+
+  let get_min set = E1 (GetMin, set)
 
   let join e1 e2 =
     match e1, e2 with
