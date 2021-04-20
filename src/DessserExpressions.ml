@@ -1543,7 +1543,11 @@ let field_name_of_expr = function
 (* FIXME: merge with type_check? *)
 let rec type_of l e0 =
   let maybe_nullable_of l e =
-    type_of l e |> T.to_maybe_nullable in
+    let t = type_of l e in
+    try
+      T.to_maybe_nullable t
+    with Invalid_argument _ ->
+      raise (Type_error (e0, e, t, "be a possibly nullable value type")) in
   match e0 with
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
@@ -2132,11 +2136,12 @@ let rec type_check l e =
       if not (T.eq act exp) then
         let expected = IO.to_string T.print act in
         raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
-    let check_eq l e exp =
-      let act = type_of l e in
+    let check_eq_type act exp =
       if not (T.eq act exp) then
         let expected = IO.to_string T.print exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
+    let check_eq l e exp =
+      check_eq_type (type_of l e) exp in
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
       check_eq l e2 t1 in
@@ -2191,6 +2196,7 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | Value { vtyp = Sum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
+    (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign l f ps =
       match type_of l f with
       | Function (ts, _) ->
@@ -3993,9 +3999,9 @@ struct
   (* Helpers for ref-cells (implemented with 1 dimensional vectors): *)
   let ref_ e = make_vec [ e ]
 
-  let get_ref e = get_vec (u8_of_int 0) e
+  let get_ref e = get_vec (u8 Uint8.zero) e
 
-  let set_ref e x = set_vec (u8_of_int 0) e x
+  let set_ref e x = set_vec (u8 Uint8.zero) e x
 
   let chop_begin lst n =
     let def = E2 (ChopBegin, lst, n) in

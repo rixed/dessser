@@ -1,6 +1,7 @@
 open Stdint
 
-include DessserFloatTools
+open DessserFloatTools
+open DessserTools
 
 let debug = false
 
@@ -510,10 +511,10 @@ struct
     List.fold_left f u
 
   let get_min t =
-    DessserTools.list_last !t
+    list_last !t
 
   let del_min t n =
-    t := DessserTools.list_drop n !t
+    t := list_drop n !t
 end
 
 module SimpleSetCheck : SET = SimpleSet
@@ -564,10 +565,10 @@ struct
     loop u 0
 
   let get_min _t =
-    DessserTools.todo "SlidingWindow.get_min"
+    todo "SlidingWindow.get_min"
 
   let del_min _t =
-    DessserTools.todo "SlidingWindow.del_min"
+    todo "SlidingWindow.del_min"
 end
 
 module SlidingWindowCheck : SET = SlidingWindow
@@ -627,10 +628,10 @@ struct
     loop u 0
 
   let get_min _t =
-    DessserTools.todo "Sampling.get_min"
+    todo "Sampling.get_min"
 
   let del_min _t =
-    DessserTools.todo "Sampling.del_min"
+    todo "Sampling.del_min"
 end
 
 module SamplingCheck : SET = Sampling
@@ -665,10 +666,10 @@ struct
     Hashtbl.fold (fun x () u -> f u x) t.h u
 
   let get_min _t =
-    DessserTools.todo "HashTable.get_min"
+    todo "HashTable.get_min"
 
   let del_min _t =
-    DessserTools.todo "HashTable.del_min"
+    todo "HashTable.del_min"
 end
 
 module HashTableCheck : SET = HashTable
