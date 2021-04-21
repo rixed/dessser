@@ -1207,6 +1207,13 @@ struct
           pp oc "%s != std::string::npos ? %s : std::nullopt" pos pos)
     | E.E3 (Top _, _, _, _) ->
         todo "C++ back-end for TOPs"
+    | E.E3 (InsertWeighted, set, w, x) ->
+        let set = print emit p l set
+        and w = print emit p l w
+        and x = print emit p l x in
+        (* Do not use [emit] to avoid generating more identifiers: *)
+        ppi p.P.def "%s->insertWeighted(%s, %s);" set w x ;
+        ""
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we

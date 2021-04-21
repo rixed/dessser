@@ -325,7 +325,7 @@ let e2_of_int n =
 let e3_of_int n =
   let e3s =
     E.[| SetBit ; SetVec ; BlitByte ; If ; LoopWhile ; LoopUntil ; Fold ;
-         FindSubstring |] in
+         FindSubstring ; InsertWeighted |] in
   e3s.(n mod Array.length e3s)
 
 let e4_of_int n =

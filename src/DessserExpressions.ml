@@ -378,6 +378,9 @@ type e3 =
    * for each item, and the downscale operators to decay old entries (first
    * inflate the weight in time, and periodically downscale the whole set) *)
   | Top of T.maybe_nullable
+  (* Insert with an explicit weight. Args are: the set, the weight and the
+   * value. *)
+  | InsertWeighted
 
 
 type e4 =
@@ -859,6 +862,7 @@ let string_of_e3 = function
   | DataPtrOfPtr -> "data-ptr-of-ptr"
   | FindSubstring -> "find-substring"
   | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
+  | InsertWeighted -> "insert-weighted"
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
@@ -1496,6 +1500,8 @@ struct
         E3 (FindSubstring, e x1, e x2, e x3)
     | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] ->
         E3 (Top (T.maybe_nullable_of_string mn), e x1, e x2, e x3)
+    | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
+        E3 (InsertWeighted, e x1, e x2, e x3)
     (* e4 *)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
@@ -1974,6 +1980,8 @@ let rec type_of l e0 =
       type_of l lst
   | E3 (Top mn, _, _, _) ->
       T.set Top mn
+  | E3 (InsertWeighted, _, _, _) ->
+      T.void
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
@@ -2083,7 +2091,7 @@ let has_side_effect ?(l=[]) e =
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | Insert | DelMin | PartialSort), _, _)
-      | E3 (SetVec, _, _, _)
+      | E3 ((SetVec | InsertWeighted), _, _, _)
       | E4 (ReadWhile, _, _, _, _)->
           raise Exit
       | _ -> ()
@@ -2626,6 +2634,13 @@ let rec type_check l e =
         check_unsigned l size ;
         check_unsigned l max_size ;
         check_numeric l sigmas
+    | E3 (InsertWeighted, set, w, x) ->
+        (match type_of l set |> T.develop_user_types with
+        | T.Value { vtyp = T.Set (_, mn) ; nullable = false } ->
+            check_eq l w T.float ;
+            check_eq l x (Value mn)
+        | t ->
+            raise (Type_error (e0, set, t, "be a set")))
   ) e
 
 (*$inject
@@ -3069,6 +3084,8 @@ struct
   let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
 
   let insert set x = E2 (Insert, set, x)
+
+  let insert_weighted set w x = E3 (InsertWeighted, set, w, x)
 
   let del_min set n = E2 (DelMin, set, n)
 

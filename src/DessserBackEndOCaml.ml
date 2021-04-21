@@ -1388,6 +1388,14 @@ struct
         and sigmas = print emit p l sigmas in
         emit ?name p l e (fun oc ->
           pp oc "Top.make %s %s %s" size max_size sigmas)
+    | E.E3 (InsertWeighted, set, w, x) ->
+        let set = print emit p l set
+        and w = print emit p l w
+        and x = print emit p l x
+        and m = mod_of_set_type_of_expr l set in
+        (* Avoids using [emit] to not generate a binding for unit: *)
+        ppi p.P.def "%s.insert_weighted %s %s %s ;" m set w x ;
+        "()"
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in
