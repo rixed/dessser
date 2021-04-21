@@ -373,6 +373,12 @@ type e3 =
   (* bool to indicate the search direction (true = from start), then the needle
    * and finally the haystack. *)
   | FindSubstring
+  (* Parameters are: size, max_size and sigmas.
+   * Tops can make use of the insert_weighted to specify the weight to be used
+   * for each item, and the downscale operators to decay old entries (first
+   * inflate the weight in time, and periodically downscale the whole set) *)
+  | Top of T.maybe_nullable
+
 
 type e4 =
   | ReadWhile
@@ -490,6 +496,8 @@ let rec can_precompute l i = function
       can_precompute l i e2
   | E3 ((LoopWhile | LoopUntil | Fold), _, _, _) ->
       false (* TODO *)
+  | E3 (Top _, _, _, _) ->
+      false
   | E3 (_, e1, e2, e3) ->
       can_precompute l i e1 &&
       can_precompute l i e2 &&
@@ -597,6 +605,11 @@ let rec default_value ?(allow_null=true) = function
       let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param (0, 0)))) ;
                             E1 (Ignore, (E0 (Param (0, 1)))) ]) in
       E1 (Heap, E1 (Function (0, [| T.Value mn ; T.Value mn |]), cmp))
+  | { vtyp = Set (Top, mn) ; _ } ->
+      let size = E0 (U8 Uint8.one) in
+      let max_size = size
+      and sigmas = E0 (Float 0.) in
+      E3 (Top mn, size, max_size, sigmas)
   | { vtyp = Map _ ; _ } ->
       assert false (* no value of map type *)
 
@@ -845,6 +858,7 @@ let string_of_e3 = function
   | Fold -> "fold"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
   | FindSubstring -> "find-substring"
+  | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
@@ -1480,6 +1494,8 @@ struct
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
     | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
         E3 (FindSubstring, e x1, e x2, e x3)
+    | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] ->
+        E3 (Top (T.maybe_nullable_of_string mn), e x1, e x2, e x3)
     (* e4 *)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
@@ -1956,6 +1972,8 @@ let rec type_of l e0 =
       T.void
   | E2 ((ChopBegin | ChopEnd), lst, _) ->
       type_of l lst
+  | E3 (Top mn, _, _, _) ->
+      T.set Top mn
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
@@ -2604,6 +2622,10 @@ let rec type_check l e =
     | E2 ((ChopBegin | ChopEnd), lst, len) ->
         check_list l lst ;
         check_unsigned l len
+    | E3 (Top _, size, max_size, sigmas) ->
+        check_unsigned l size ;
+        check_unsigned l max_size ;
+        check_numeric l sigmas
   ) e
 
 (*$inject
@@ -3310,6 +3332,8 @@ struct
   let heap cmp = E1 (Heap, cmp)
 
   let empty_set mn = E0 (EmptySet mn)
+
+  let top mn size max_size sigmas = E3 (Top mn, size, max_size, sigmas)
 
   let now = E0 Now
 

@@ -84,6 +84,7 @@ struct
     | Sampling -> "Sampling"
     | HashTable -> "HashTable"
     | Heap -> "Heap"
+    | Top -> "Top"
 
  let mod_of_set_type_of_expr l set =
    match E.type_of l set |> T.develop_user_types with
@@ -1381,6 +1382,12 @@ struct
                    ((if %s then string_find else string_rfind) %s %s))"
             n1 n3 n2 ;
           pp oc "with Not_found -> Null")
+    | E.E3 (Top _, size, max_size, sigmas) ->
+        let size = print emit p l size
+        and max_size = print emit p l max_size
+        and sigmas = print emit p l sigmas in
+        emit ?name p l e (fun oc ->
+          pp oc "Top.make %s %s %s" size max_size sigmas)
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

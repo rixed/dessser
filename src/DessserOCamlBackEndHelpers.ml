@@ -7,6 +7,9 @@ let debug = false
 
 let string_of_char c = String.make 1 c
 
+let print_dump oc x =
+  BatPervasives.dump x |> BatString.print oc
+
 (* Taken from BatString.find_from: *)
 let string_find str sub =
   let len = String.length str in
@@ -469,6 +472,8 @@ sig
 
   val insert : 'a t -> 'a -> unit
 
+  val insert_weighted : 'a t -> float -> 'a -> unit
+
   val last_update : 'a t -> 'a * 'a list
 
   val cardinality : 'a t -> Uint32.t
@@ -499,6 +504,9 @@ struct
 
   let insert t x =
     t := x :: !t
+
+  let insert_weighted t _w x =
+    insert t x
 
   let last_update t =
     List.hd !t, []
@@ -543,6 +551,9 @@ struct
       t.last_removed <- [ t.arr.(i) ] ;
     t.arr.(i) <- x ;
     t.num_inserts <- succ t.num_inserts
+
+  let insert_weighted t _w x =
+    insert t x
 
   let last_update t =
     let i = pred t.num_inserts mod Array.length t.arr in
@@ -611,6 +622,9 @@ struct
       )
     )
 
+  let insert_weighted t _w x =
+    insert t x
+
   let last_update t =
     t.last_update
 
@@ -654,6 +668,9 @@ struct
     Hashtbl.add t.h x () ;
     t.last_added <- Some x
 
+  let insert_weighted t _w x =
+    insert t x
+
   let last_update t =
     match t.last_added with
     | None -> failwith "HashTable.last_update: no items added"
@@ -693,6 +710,9 @@ struct
     t.heap <- H.add t.cmp x t.heap ;
     t.length <- t.length + 1
 
+  let insert_weighted t _w x =
+    insert t x
+
   let last_update _ =
     failwith "Not implemented: Heap.last_update"
 
@@ -722,6 +742,237 @@ struct
 end
 
 module HeapCheck : SET = Heap
+
+module Top =
+struct
+  let debug = false
+
+  (* Weight map: from weight to anything, ordered bigger weights first: *)
+  module WMap = BatMap.Make (struct
+    type t = float ref (* ref so we can downscale *)
+    let compare w1 w2 = Float.compare !w2 !w1
+  end)
+
+  type 'a t =
+    { size : int ;
+      max_size : int ;
+      mutable cur_size : int ;
+      (* Optionally, select only those outliers above that many sigmas: *)
+      sigmas : float ;
+      mutable sum_weight1 : Kahan.t ;
+      mutable sum_weight2 : Kahan.t ;
+      mutable count : int64 ;
+      (* value to weight and overestimation: *)
+      mutable w_of_x : ('a, float * float) BatMap.t ;
+      (* max weight to value to overestimation. Since we need iteration to go
+       * from bigger to smaller weight we need a custom map: *)
+      mutable xs_of_w : (('a, float) BatMap.t) WMap.t }
+
+  let make size max_size sigmas =
+    let size = Uint32.to_int size
+    and max_size = Uint32.to_int max_size
+    and sigmas = abs_float sigmas in
+    if size < 1 then invalid_arg "Top.make size" ;
+    { size ; max_size ; cur_size = 0 ; sigmas ;
+      sum_weight1 = Kahan.init ; sum_weight2 = Kahan.init ; count = 0L ;
+      w_of_x = BatMap.empty ; xs_of_w = WMap.empty }
+
+  (* Downscale all stored weight by [d].
+   * It is OK to modify the map keys because relative ordering is not going
+   * to change: *)
+  let downscale t d =
+    t.w_of_x <-
+      BatMap.map (fun (w, o) -> w *. d, o *. d) t.w_of_x ;
+    WMap.iter (fun w _xs -> w := !w *. d) t.xs_of_w ;
+    t.sum_weight1 <- Kahan.mul t.sum_weight1 d ;
+    t.sum_weight2 <- Kahan.mul t.sum_weight2 (d *. d)
+
+  let insert_weighted t w x =
+    let add_in_xs_of_w x w o m =
+      if debug then
+        Printf.printf "TOP: add entry %s of weight %f\n"
+          (BatPervasives.dump x) w ;
+      WMap.modify_opt (ref w) (function
+        | None -> Some (BatMap.singleton x o)
+        | Some xs ->
+            assert (not (BatMap.mem x xs)) ;
+            Some (BatMap.add x o xs)
+      ) m
+    and rem_from_xs_of_w x w m =
+      WMap.modify_opt (ref w) (function
+        | None -> assert false
+        | Some xs ->
+            (match BatMap.extract x xs with
+            | exception Not_found ->
+                BatPrintf.eprintf "xs_of_w for w=%f does not have x=%s (only %a)\n"
+                  w (BatPervasives.dump x)
+                  (BatMap.print print_dump BatFloat.print) xs ;
+                assert false
+            | _, xs ->
+                if BatMap.is_empty xs then None else Some xs)
+      ) m
+    in
+    (* Shortcut for the frequent case when w=0: *)
+    if w <> 0. then (
+      let victim_x = ref None in
+      t.w_of_x <-
+        BatMap.modify_opt x (function
+          | None ->
+              let victim_w = ref 0. in
+              if t.cur_size >= t.max_size then (
+                (* pick the victim and remove it from xs_of_w: *)
+                let victim_w', xs = WMap.max_binding t.xs_of_w in
+                let (victim_x', _victim_o), xs' = BatMap.pop xs in
+                victim_w := !victim_w' ;
+                victim_x := Some victim_x' ;
+                t.xs_of_w <-
+                  if BatMap.is_empty xs' then
+                    WMap.remove victim_w' t.xs_of_w
+                  else
+                    WMap.update victim_w' victim_w' xs' t.xs_of_w
+              ) else t.cur_size <- t.cur_size + 1 ;
+              let w = w +. !victim_w in
+              t.xs_of_w <- add_in_xs_of_w x w !victim_w t.xs_of_w ;
+              Some (w, !victim_w)
+          | Some (w', o) ->
+              let w = w +. w' in
+              t.xs_of_w <-
+                rem_from_xs_of_w x w' t.xs_of_w |>
+                add_in_xs_of_w x w o ;
+              Some (w, o)
+        ) t.w_of_x ;
+      BatOption.may (fun x ->
+        match BatMap.extract x t.w_of_x with
+        | exception Not_found ->
+            BatPrintf.eprintf "w_of_x does not have x=%s, only %a\n"
+              (BatPervasives.dump x)
+              (BatEnum.print print_dump) (BatMap.keys t.w_of_x |>
+               BatEnum.take 99) ;
+            assert false
+        | _, w_of_x ->
+            t.w_of_x <- w_of_x
+      ) !victim_x ;
+      (* Also compute the mean if sigmas is not null: *)
+      if t.sigmas > 0. then (
+        t.sum_weight1 <- Kahan.add t.sum_weight1 w ;
+        t.sum_weight2 <- Kahan.add t.sum_weight1 (w *. w) ;
+        t.count <- Int64.succ t.count
+      ) ;
+      assert (t.cur_size <= t.max_size) (*;
+      assert (BatMap.cardinal s.w_of_x = s.cur_size) ;
+      assert (WMap.cardinal s.xs_of_w <= s.cur_size)*)
+    ) (* w <> 0. *)
+
+  let insert _ _ =
+    todo "Top.insert"
+
+  let last_update _ =
+    todo "Top.last_update"
+
+  (* For each monitored item of rank k <= n, we must ask ourselves: could there
+   * be an item with rank k > n, or a non-monitored items, with more weight?  For
+   * this we must compare guaranteed weight of items with the max weight of item
+   * of rank n+1; but we don't know which item that is unless we order them. *)
+  (* FIXME: super slow, maintain the entries in increased max weight order. *)
+
+  (* Iter the entries in decreasing weight order.
+   * Note: BatMap iterates in increasing keys order despite de doc says it's
+   * unspecified, but since we reverse the comparison operator we fold from
+   * heaviest to lightest. *)
+  let fold_all t f u =
+    WMap.fold (fun w xs u ->
+      if debug then Printf.printf "TOP: folding over all entries of weight %f\n" !w ;
+      BatMap.foldi (fun x o u ->
+        if debug then Printf.printf "TOP:   ... %s\n" (BatPervasives.dump x) ;
+        f !w x o u
+      ) xs u
+    ) t.xs_of_w u
+
+  (* Iter over the top entries in order of weight, lightest first (so that it's
+   * easy to build the reverse list), ignoring those entries below the
+   * specified amount of sigmas: *)
+  let fold t u f =
+    let res = ref []
+    and cutoff = ref None in
+    let cutoff_fun () =
+      if t.sigmas > 0. then
+        let sum_weight1 = Kahan.finalize t.sum_weight1
+        and sum_weight2 = Kahan.finalize t.sum_weight2
+        and count = Int64.to_float t.count in
+        let mean = sum_weight1 /. count in
+        let sigma = sqrt (count *. sum_weight2 -. mean *. mean) /. count in
+        let cutoff_sigma = mean +. t.sigmas *. sigma in
+        match !cutoff with
+        | None ->
+            fun u (w, _min_w, x) ->
+              if w >= cutoff_sigma then f u x else u
+        | Some c ->
+            fun u (w, min_w, x) ->
+              if min_w >= c && w >= cutoff_sigma then f u x else u
+      else
+        match !cutoff with
+        | None ->
+            fun u (_w, _min_w, x) -> f u x
+        | Some c ->
+            fun u (_w, min_w, x) ->
+              if min_w >= c then f u x else u
+    in
+    (try
+      let _ =
+        fold_all t (fun w x o rank ->
+          (* We need item at rank n+1 to find top-n *)
+          if rank <= t.size then (
+            if debug then
+              Printf.printf "TOP rank=%d<=%d is %s, weight %f\n"
+                rank t.size (BatPervasives.dump x) w ;
+            (* May be filtered once we know the cutoff: *)
+            res := (w, (w -. o), x) :: !res ; (* res is lightest to heaviest *)
+            rank + 1
+          ) else (
+            assert (rank = t.size + 1) ;
+            if debug then
+              Printf.printf "TOP rank=%d>%d is %s, weight %f\n"
+                rank t.size (BatPervasives.dump x) w ;
+            cutoff := Some w ;
+            raise Exit
+          )
+        ) 1 in
+      (* We reach here when we had less entries than [size], in which case we
+       * do not need a cut-off since we know all the entries: *)
+      if debug then
+        Printf.printf "TOP: Couldn't reach rank %d, cur_size=%d\n" t.size t.cur_size ;
+    with Exit -> ()) ;
+    (* Now filter the entries if we have a cutoff, and build the result: *)
+    List.fold_left (cutoff_fun ()) u !res
+
+  let cardinality t =
+    fold t 0 (fun c _ -> c + 1) |>
+    Uint32.of_int
+
+  (* Tells the rank of a given value in the top, or None: *)
+  let rank t x =
+    let res = ref None in
+    (try
+      fold t 1 (fun k x' ->
+        if x = x' then (
+          res := Some k ;
+          raise Exit
+        ) else k + 1
+      ) |> ignore
+    with Exit -> ()) ;
+    !res
+
+  let member t x =
+    rank t x <> None
+
+  let get_min _ =
+    todo "Top.get_min"
+
+  let del_min _ _ =
+    todo "Top.del_min"
+end
+
+module TopCheck : SET = Top
 
 let lst_lchop l n =
   if n >= Array.length l then [||] else

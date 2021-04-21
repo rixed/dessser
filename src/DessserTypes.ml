@@ -70,7 +70,7 @@ and maybe_nullable =
   { vtyp : value_type ; nullable : bool }
 
 and set_type =
-  | Simple | Sliding | Tumbling | Sampling | HashTable | Heap
+  | Simple | Sliding | Tumbling | Sampling | HashTable | Heap | Top
 
 let make ?(nullable=false) vtyp =
   { vtyp ; nullable }
@@ -86,6 +86,7 @@ let string_of_set_type = function
   | Sampling -> "sampling"
   | HashTable -> "hashtable"
   | Heap -> "heap"
+  | Top -> "top"
 
 (* Consider user types opaque by default, so that it matches DessserQCheck
  * generators. *)
@@ -648,7 +649,8 @@ struct
         (strinG "tumbling" >>: fun () -> Tumbling) |||
         (strinG "sampling" >>: fun () -> Sampling) |||
         (strinG "hashtable" >>: fun () -> HashTable) |||
-        (strinG "heap" >>: fun () -> Heap)
+        (strinG "heap" >>: fun () -> Heap) |||
+        (strinG "top" >>: fun () -> Top)
       ) m in
     let set_dim m =
       let m = "set type" :: m in

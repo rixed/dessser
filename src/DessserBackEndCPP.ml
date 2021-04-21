@@ -156,6 +156,8 @@ struct
         Printf.sprintf "HashTable<%s> *" (type_identifier p (Value typ))
     | T.Value { vtyp = Set (Heap, typ) ; _ } ->
         Printf.sprintf "Heap<%s> *" (type_identifier p (Value typ))
+    | T.Value { vtyp = Set (Top, _) ; _ } ->
+        todo "C++ back-end for TOPs"
     | T.Value { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
     | T.Pair (t1, t2) ->
@@ -1203,6 +1205,8 @@ struct
           pos n1 n3 n2 n3 n2 ;
         emit ?name p l e (fun oc ->
           pp oc "%s != std::string::npos ? %s : std::nullopt" pos pos)
+    | E.E3 (Top _, _, _, _) ->
+        todo "C++ back-end for TOPs"
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
