@@ -722,7 +722,7 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "Uint64.of_int64 (BatInt64.bits_of_float %s)" n)
     | E.E1 (StringOfFloat, e1) ->
-        unary_op "hexstring_of_float" e1
+        unary_op "DessserFloatTools.hexstring_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         unary_op "string_of_char" e1
     | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)

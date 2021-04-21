@@ -1,5 +1,6 @@
 #ifndef SET_H_201202
 #define SET_H_201202
+#include <assert.h>
 #include <functional>
 #include <list>
 #include <ostream>
@@ -10,6 +11,7 @@ template<class T>
 struct Set {
   virtual ~Set() {};
   virtual void insert(T const &) = 0;
+  virtual void insertWeighted(double, T const &x) { insert(x); }
   virtual std::pair<T, std::list<T>> lastUpdate() const = 0;
   virtual uint32_t size() const = 0;
   virtual bool member(T const &) = 0;
@@ -27,6 +29,7 @@ struct Set {
   virtual T const &getMin()
   {
     std::cerr << "getMin not implemented for this set\n" << std::endl;
+    assert(!"Not Implemented");
   }
 };
 
