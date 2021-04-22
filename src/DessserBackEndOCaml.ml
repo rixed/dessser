@@ -1089,7 +1089,7 @@ struct
         | set ->
             let n2 = print emit p l set in
             let m = mod_of_set_type_of_expr l set in
-            emit ?name p l e (fun oc -> pp oc "%s.member %s %s" m n1 n2))
+            emit ?name p l e (fun oc -> pp oc "%s.member %s %s" m n2 n1))
     | E.E0 (Identifier s) ->
         (match name with
         | Some _ ->
