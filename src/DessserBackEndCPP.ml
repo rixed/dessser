@@ -1196,6 +1196,11 @@ struct
     | E.E2 ((ChopBegin | ChopEnd as op), lst, len) ->
         let op = match op with ChopBegin -> "chopBegin" | _ -> "chopEnd" in
         method_call lst op [ len ]
+    | E.E2 (ScaleWeights, set, d) ->
+        let set = print emit p l set in
+        let d = print emit p l d in
+        ppi p.P.def "%s->scale(%s);" set d ;
+        ""
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

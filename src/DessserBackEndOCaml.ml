@@ -1325,7 +1325,7 @@ struct
         let set = print emit p l set
         and m = mod_of_set_type_of_expr l set in
         emit ?name p l e (fun oc ->
-          pp oc "%s.get_min %s ;" m set)
+          pp oc "%s.get_min %s" m set)
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -1373,6 +1373,12 @@ struct
         let lst = print ?name emit p l lst
         and len = print emit p l len in
         emit ?name p l e (fun oc -> pp oc "lst_rchop %s %s" lst len)
+    | E.E2 (ScaleWeights, set, d) ->
+        let set = print emit p l set
+        and d = print emit p l d
+        and m = mod_of_set_type_of_expr l set in
+        ppi p.P.def "%s.scale %s %s ;" m set d ;
+        "()"
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

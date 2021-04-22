@@ -31,6 +31,12 @@ struct Set {
     std::cerr << "getMin not implemented for this set\n" << std::endl;
     assert(!"Not Implemented");
   }
+
+  virtual T const &scale()
+  {
+    std::cerr << "scale not implemented for this set\n" << std::endl;
+    assert(!"Not Implemented");
+  }
 };
 
 #endif

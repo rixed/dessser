@@ -355,6 +355,8 @@ type e2 =
   (* Truncate a list at the end (args are the list and the length to
    * remove): *)
   | ChopEnd
+  (* Scale the weight of a weighted set (ie. top) *)
+  | ScaleWeights
 
 type e3 =
   | SetBit
@@ -850,6 +852,7 @@ let string_of_e2 = function
   | PartialSort -> "partial-sort"
   | ChopBegin -> "chop-begin"
   | ChopEnd -> "chop-end"
+  | ScaleWeights -> "scale-weights"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1486,6 +1489,8 @@ struct
         E2 (ChopBegin, e x1, e x2)
     | Lst [ Sym "chop-end" ; x1 ; x2 ] ->
         E2 (ChopEnd, e x1, e x2)
+    | Lst [ Sym "scale-weights" ; set ; d ] ->
+        E2 (ScaleWeights, e set, e d)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1978,6 +1983,8 @@ let rec type_of l e0 =
       T.void
   | E2 ((ChopBegin | ChopEnd), lst, _) ->
       type_of l lst
+  | E2 (ScaleWeights, _, _) ->
+      T.void
   | E3 (Top mn, _, _, _) ->
       T.set Top mn
   | E3 (InsertWeighted, _, _, _) ->
@@ -2411,6 +2418,9 @@ let rec type_check l e =
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
         check_list_or_vector l e2
+    | E2 (ScaleWeights, set, d) ->
+        check_set l set ;
+        check_numeric l d
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
@@ -3090,6 +3100,8 @@ struct
   let del_min set n = E2 (DelMin, set, n)
 
   let get_min set = E1 (GetMin, set)
+
+  let scale_weights set d = E2 (ScaleWeights, set, d)
 
   let join e1 e2 =
     match e1, e2 with

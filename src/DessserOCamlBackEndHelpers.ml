@@ -777,10 +777,10 @@ struct
       sum_weight1 = Kahan.init ; sum_weight2 = Kahan.init ; count = 0L ;
       w_of_x = BatMap.empty ; xs_of_w = WMap.empty }
 
-  (* Downscale all stored weight by [d].
+  (* Scale all stored weight by [d].
    * It is OK to modify the map keys because relative ordering is not going
    * to change: *)
-  let downscale t d =
+  let scale t d =
     t.w_of_x <-
       BatMap.map (fun (w, o) -> w *. d, o *. d) t.w_of_x ;
     WMap.iter (fun w _xs -> w := !w *. d) t.xs_of_w ;
