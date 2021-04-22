@@ -739,7 +739,7 @@ struct
         let m = mod_of_set_type_of_expr l e1 in
         emit ?name p l e (fun oc ->
           (* FIXME: this operation needs to be faster, ideally a nop! *)
-          pp oc "%s.fold [] (fun l_ x_ -> x_ :: l_) %s) |> \
+          pp oc "%s.fold %s [] (fun l_ x_ -> x_ :: l_) |> \
                  List.rev |> Array.of_list" m n1)
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1
