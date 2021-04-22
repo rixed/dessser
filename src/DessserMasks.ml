@@ -67,19 +67,19 @@ let all_skip = Array.for_all ((=) Skip)
 let all_copy = Array.for_all ((=) Copy)
 
 let string_of_mask ma =
-  let rec loop top_level = function
+  let rec loop = function
     | Copy -> "X"
     | Skip -> "_"
     | SetNull -> "N"
     | Recurse m ->
         let s =
-          (Array.enum m /@ loop false) |>
+          (Array.enum m /@ loop) |>
           List.of_enum |>
           String.join "" in
-        if top_level then s else "("^ s ^")"
+        "("^ s ^")"
     | Replace e -> "["^ E.to_string e ^"]"
     | Insert e -> "{"^ E.to_string e ^"}" in
-  loop true ma
+  loop ma
 
 let print_mask oc m =
   String.print oc (string_of_mask m)
@@ -98,6 +98,15 @@ struct
   (* Return the next action and the next offset in [str] *)
   let rec action str i =
     assert (i < String.length str) ;
+    let to_array = Array.of_list % List.rev in
+    let rec loop prev i =
+      if i >= String.length str then to_array prev, i else
+      match action str i with
+      | exception Invalid_character i ->
+          to_array prev, i
+      | a, i ->
+          loop (a :: prev) i
+    in
     let e_of_toks toks =
       match E.Parser.expr_of_toks toks str with
       | [ e ] -> e
@@ -108,13 +117,14 @@ struct
     else if c = '_' || c = '-' then Skip, i + 1
     else if c = 'N' || c = 'n' then SetNull, i + 1
     else if c = '(' then
-      let m, i = mask str (i + 1) in
-      if i >= String.length str || str.[i] <> ')' then
-        raise (Missing_end_of_recurse i)
-      else match m with
-      | Recurse ms when all_skip ms -> Skip, i + 1
-      | Recurse ms when all_copy ms -> Copy, i + 1
-      | m -> m, i + 1
+      let ms, i = loop [] (i + 1) in
+      (
+        if i >= String.length str || str.[i] <> ')' then
+          raise (Missing_end_of_recurse i)
+        else if all_skip ms then Skip
+        else if all_copy ms then Copy
+        else Recurse ms
+      ), i + 1
     else if c = '[' then
       let toks, i = E.Parser.tok str [] (i + 1) in
       if i >= String.length str || str.[i] <> ']' then
@@ -130,22 +140,12 @@ struct
     else
       raise (Invalid_character i)
 
-  (* The outer mask is allowed not to be written within parentheses *)
-  and mask str i =
-    let to_array = Array.of_list % List.rev in
-    let rec loop prev i =
-      if i >= String.length str then to_array prev, i else
-      match action str i with
-      | exception Invalid_character i ->
-          to_array prev, i
-      | a, i ->
-          loop (a :: prev) i
-    in
-    let r, i = loop [] i in
-    (match r with
-    | [||] -> Copy
-    | [| m |] -> m
-    | ms -> Recurse ms), i
+  let mask str i =
+    try
+      action str i
+    with Invalid_character i ->
+      (* Empty mask, copy by default: *)
+      Copy, i
 
   let action_of_string str =
     let ma, i = action str 0 in
@@ -162,14 +162,16 @@ struct
       m
 
   (*$= mask_of_string & ~printer:string_of_mask
-    (Recurse [| Copy ; Copy ; Copy |]) \
-      (mask_of_string "xxx")
+    (Recurse [| Copy ; Skip ; Copy |]) \
+      (mask_of_string "(x_x)")
+    Copy \
+      (mask_of_string "(xxx)")
     (Recurse \
       [| Copy ; \
          Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy |] |]) \
-      (mask_of_string "X(_{(null \"u8\")}X)")
+      (mask_of_string "(X(_{(null \"u8\")}X))")
     (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
-      (mask_of_string "X(_NX)")
+      (mask_of_string "(X(_NX))")
   *)
 
   (*$>*)
