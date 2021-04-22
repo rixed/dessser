@@ -3766,35 +3766,35 @@ struct
 
   let exp e1 = E1 (Exp, e1)
 
-  let log e1 = E1 (Log, e1)
+  let log_ e1 = E1 (Log, e1)
 
-  let log10 e1 = E1 (Log10, e1)
+  let log10_ e1 = E1 (Log10, e1)
 
-  let sqrt e1 = E1 (Sqrt, e1)
+  let sqrt_ e1 = E1 (Sqrt, e1)
 
-  let ceil e1 = E1 (Ceil, e1)
+  let ceil_ e1 = E1 (Ceil, e1)
 
-  let floor e1 = E1 (Floor, e1)
+  let floor_ e1 = E1 (Floor, e1)
 
   let round e1 = E1 (Round, e1)
 
-  let cos e1 = E1 (Cos, e1)
+  let cos_ e1 = E1 (Cos, e1)
 
-  let sin e1 = E1 (Sin, e1)
+  let sin_ e1 = E1 (Sin, e1)
 
-  let tan e1 = E1 (Tan, e1)
+  let tan_ e1 = E1 (Tan, e1)
 
-  let acos e1 = E1 (ACos, e1)
+  let acos_ e1 = E1 (ACos, e1)
 
-  let asin e1 = E1 (ASin, e1)
+  let asin_ e1 = E1 (ASin, e1)
 
-  let atan e1 = E1 (ATan, e1)
+  let atan_ e1 = E1 (ATan, e1)
 
-  let cosh e1 = E1 (CosH, e1)
+  let cosh_ e1 = E1 (CosH, e1)
 
-  let sinh e1 = E1 (SinH, e1)
+  let sinh_ e1 = E1 (SinH, e1)
 
-  let tanh e1 = E1 (TanH, e1)
+  let tanh_ e1 = E1 (TanH, e1)
 
   let lower e1 = E1 (Lower, e1)
 
