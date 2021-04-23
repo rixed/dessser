@@ -2169,12 +2169,11 @@ let rec type_check l e =
       if not (T.eq act exp) then
         let expected = IO.to_string T.print act in
         raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
-    let check_eq_type act exp =
+    let check_eq l e exp =
+      let act = type_of l e in
       if not (T.eq act exp) then
         let expected = IO.to_string T.print exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
-    let check_eq l e exp =
-      check_eq_type (type_of l e) exp in
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
       check_eq l e2 t1 in
