@@ -1389,11 +1389,21 @@ struct
             n1 n3 n2 ;
           pp oc "with Not_found -> Null")
     | E.E3 (Top _, size, max_size, sigmas) ->
+        let m_size = mod_name (E.type_of l size)
+        and m_max_size = mod_name (E.type_of l max_size)
+        and m_sigmas = mod_name (E.type_of l sigmas) in
         let size = print emit p l size
         and max_size = print emit p l max_size
         and sigmas = print emit p l sigmas in
+        (* Avoids to call the undefined Float.to_float *)
+        let sigmas =
+          if m_sigmas = "Float" then sigmas
+          else "("^ m_sigmas ^".to_float "^ sigmas ^")" in
         emit ?name p l e (fun oc ->
-          pp oc "Top.make %s %s %s" size max_size sigmas)
+          pp oc "Top.make (%s.to_int %s) (%s.to_int %s) %s"
+            m_size size
+            m_max_size max_size
+            sigmas)
     | E.E3 (InsertWeighted, set, w, x) ->
         let set = print emit p l set
         and w = print emit p l w

@@ -769,9 +769,7 @@ struct
       mutable xs_of_w : (('a, float) BatMap.t) WMap.t }
 
   let make size max_size sigmas =
-    let size = Uint32.to_int size
-    and max_size = Uint32.to_int max_size
-    and sigmas = abs_float sigmas in
+    let sigmas = abs_float sigmas in
     if size < 1 then invalid_arg "Top.make size" ;
     { size ; max_size ; cur_size = 0 ; sigmas ;
       sum_weight1 = Kahan.init ; sum_weight2 = Kahan.init ; count = 0L ;
