@@ -1351,7 +1351,7 @@ struct
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           (* TODO: faster impl with a single string alloc: *)
-          pp oc "String.join %s (Array.to_list %s)" n1 n2)
+          pp oc "String.concat %s (Array.to_list %s)" n1 n2)
     | E.E2 (AllocLst, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in

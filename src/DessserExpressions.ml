@@ -342,6 +342,7 @@ type e2 =
   | DelMin
   | SplitBy
   | SplitAt
+  (* Parameters are separator and list/vector: *)
   | Join
   (* Parameters are size and item initial value *)
   | AllocLst
