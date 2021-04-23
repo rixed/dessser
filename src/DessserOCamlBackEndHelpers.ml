@@ -874,7 +874,7 @@ struct
   (* FIXME: super slow, maintain the entries in increased max weight order. *)
 
   (* Iter the entries in decreasing weight order.
-   * Note: BatMap iterates in increasing keys order despite de doc says it's
+   * Note: BatMap iterates in increasing keys order despite the doc says it's
    * unspecified, but since we reverse the comparison operator we fold from
    * heaviest to lightest. *)
   let fold_all t f u =
@@ -916,25 +916,24 @@ struct
               if min_w >= c then f u x else u
     in
     (try
-      let _ =
-        fold_all t (fun w x o rank ->
-          (* We need item at rank n+1 to find top-n *)
-          if rank <= t.size then (
-            if debug then
-              Printf.printf "TOP rank=%d<=%d is %s, weight %f\n"
-                rank t.size (BatPervasives.dump x) w ;
-            (* May be filtered once we know the cutoff: *)
-            res := (w, (w -. o), x) :: !res ; (* res is lightest to heaviest *)
-            rank + 1
-          ) else (
-            assert (rank = t.size + 1) ;
-            if debug then
-              Printf.printf "TOP rank=%d>%d is %s, weight %f\n"
-                rank t.size (BatPervasives.dump x) w ;
-            cutoff := Some w ;
-            raise Exit
-          )
-        ) 1 in
+      fold_all t (fun w x o rank ->
+        (* We need item at rank n+1 to find top-n *)
+        if rank <= t.size then (
+          if debug then
+            Printf.printf "TOP rank=%d<=%d is %s, weight %f\n"
+              rank t.size (BatPervasives.dump x) w ;
+          (* May be filtered once we know the cutoff: *)
+          res := (w, (w -. o), x) :: !res ; (* res is lightest to heaviest *)
+          rank + 1
+        ) else (
+          assert (rank = t.size + 1) ;
+          if debug then
+            Printf.printf "TOP rank=%d>%d is %s, weight %f\n"
+              rank t.size (BatPervasives.dump x) w ;
+          cutoff := Some w ;
+          raise Exit
+        )
+      ) 1 |> ignore ;
       (* We reach here when we had less entries than [size], in which case we
        * do not need a cut-off since we know all the entries: *)
       if debug then
