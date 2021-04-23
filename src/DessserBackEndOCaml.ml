@@ -740,7 +740,13 @@ struct
         emit ?name p l e (fun oc ->
           (* FIXME: this operation needs to be faster, ideally a nop! *)
           pp oc "%s.fold %s [] (fun l_ x_ -> x_ :: l_) |> \
-                 List.rev |> Array.of_list" m n1)
+                 %sArray.of_list"
+            m n1
+            (* Revert the direction of the list depending on the set type.
+             * Top already gives us the list in most important first (ie. 1st
+             * entry is the top 1, etc) while other fold functions iterate in
+             * ascending order: *)
+            (if m = "Top" then "" else "List.rev |> "))
     | E.E1 (U8OfChar, e1) ->
         unary_op "Uint8.of_int @@ Char.code" e1
     | E.E1 (CharOfU8, e1) ->
