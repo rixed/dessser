@@ -3826,7 +3826,7 @@ struct
 
   let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
 
-  let data_ptr_remsize e1 = E1 (DataPtrOffset, e1)
+  let data_ptr_remsize e1 = E1 (RemSize, e1)
 
   let string_length e1 = E1 (StringLength, e1)
 
