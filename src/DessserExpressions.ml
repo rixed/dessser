@@ -1664,7 +1664,7 @@ struct
       | E0 (OWord v1), E0 (OWord v2) -> to_bool2 op v1 v2
       | E0 (Bytes v1), E0 (Bytes v2) -> to_bool2 op v1 v2
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool2 op v1 v2
-      | _ -> E2 (Ge, _e1, _e2))
+      | _ -> E2 (op, _e1, _e2))
     | _ -> e
 
   let expr_simp str =
