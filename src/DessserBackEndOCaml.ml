@@ -859,21 +859,21 @@ struct
     | E.E2 (PeekByte, e1, e2) ->
         binary_op "Pointer.peekByte" e1 e2
     | E.E2 (PeekWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekWork ~big_endian:false" e1 e2
+        binary_op "Pointer.peekWord ~big_endian:false" e1 e2
     | E.E2 (PeekWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekWork ~big_endian:true" e1 e2
+        binary_op "Pointer.peekWord ~big_endian:true" e1 e2
     | E.E2 (PeekDWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekDWork ~big_endian:false" e1 e2
+        binary_op "Pointer.peekDWord ~big_endian:false" e1 e2
     | E.E2 (PeekDWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekDWork ~big_endian:true" e1 e2
+        binary_op "Pointer.peekDWord ~big_endian:true" e1 e2
     | E.E2 (PeekQWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekQWork ~big_endian:false" e1 e2
+        binary_op "Pointer.peekQWord ~big_endian:false" e1 e2
     | E.E2 (PeekQWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekQWork ~big_endian:true" e1 e2
+        binary_op "Pointer.peekQWord ~big_endian:true" e1 e2
     | E.E2 (PeekOWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekOWork ~big_endian:false" e1 e2
+        binary_op "Pointer.peekOWord ~big_endian:false" e1 e2
     | E.E2 (PeekOWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekOWork ~big_endian:true" e1 e2
+        binary_op "Pointer.peekOWord ~big_endian:true" e1 e2
     | E.E2 (WriteByte, e1, e2) ->
         binary_op "Pointer.writeByte" e1 e2
     | E.E2 (WriteWord LittleEndian, e1, e2) ->
