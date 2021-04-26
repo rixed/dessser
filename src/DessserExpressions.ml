@@ -1598,8 +1598,14 @@ struct
         | E0 (Bool true) -> eval e2
         | E0 (Bool false) -> eval e3
         | _ -> E3 (If, e1, eval e2, eval e3))
-    | E2 (Ge, e1, e2) ->
+    | E2 (op, e1, e2) ->
       let to_bool e = if e then E0 (Bool true) else E0 (Bool false) in
+      let to_bool2 op v1 v2 = match op with
+        | Ge -> to_bool (v1 >= v2)
+        | Eq -> to_bool (v1 = v2)
+        | Gt -> to_bool (v1 > v2)
+        | Ne -> to_bool (v1 != v2)
+        | _ -> raise (Invalid_argument "to_bool2 should be call with an operator.") in
       let _e1 = eval e1 in
       let _e2 = eval e2 in
       (match _e1, _e2 with
@@ -1627,37 +1633,37 @@ struct
        | E1 (Force, e1), E1 (Force, e2) ->
           eq e1 e2*)
       (* Compare numerical constant (only if of the same type (TODO)): *)
-      | E0 (Float v1), E0 (Float v2) -> to_bool (v1 >= v2)
-      | E0 (String v1), E0 (String v2) -> to_bool (v1 >= v2)
-      | E0 (Bool v1), E0 (Bool v2) -> to_bool (v1 >= v2)
-      | E0 (Char v1), E0 (Char v2) -> to_bool (v1 >= v2)
-      | E0 (U8 v1), E0 (U8 v2) -> to_bool (v1 >= v2)
-      | E0 (U16 v1), E0 (U16 v2) -> to_bool (v1 >= v2)
-      | E0 (U24 v1), E0 (U24 v2) -> to_bool (v1 >= v2)
-      | E0 (U32 v1), E0 (U32 v2) -> to_bool (v1 >= v2)
-      | E0 (U40 v1), E0 (U40 v2) -> to_bool (v1 >= v2)
-      | E0 (U48 v1), E0 (U48 v2) -> to_bool (v1 >= v2)
-      | E0 (U56 v1), E0 (U56 v2) -> to_bool (v1 >= v2)
-      | E0 (U64 v1), E0 (U64 v2) -> to_bool (v1 >= v2)
-      | E0 (U128 v1), E0 (U128 v2) -> to_bool (v1 >= v2)
-      | E0 (I8 v1), E0 (I8 v2) -> to_bool (v1 >= v2)
-      | E0 (I16 v1), E0 (I16 v2) -> to_bool (v1 >= v2)
-      | E0 (I24 v1), E0 (I24 v2) -> to_bool (v1 >= v2)
-      | E0 (I32 v1), E0 (I32 v2) -> to_bool (v1 >= v2)
-      | E0 (I40 v1), E0 (I40 v2) -> to_bool (v1 >= v2)
-      | E0 (I48 v1), E0 (I48 v2) -> to_bool (v1 >= v2)
-      | E0 (I56 v1), E0 (I56 v2) -> to_bool (v1 >= v2)
-      | E0 (I64 v1), E0 (I64 v2) -> to_bool (v1 >= v2)
-      | E0 (I128 v1), E0 (I128 v2) -> to_bool (v1 >= v2)
-      | E0 (Bit v1), E0 (Bit v2) -> to_bool (v1 >= v2)
-      | E0 (Size v1), E0 (Size v2) -> to_bool (v1 >= v2)
-      | E0 (Byte v1), E0 (Byte v2) -> to_bool (v1 >= v2)
-      | E0 (Word v1), E0 (Word v2) -> to_bool (v1 >= v2)
-      | E0 (DWord v1), E0 (DWord v2) -> to_bool (v1 >= v2)
-      | E0 (QWord v1), E0 (QWord v2) -> to_bool (v1 >= v2)
-      | E0 (OWord v1), E0 (OWord v2) -> to_bool (v1 >= v2)
-      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool (v1 >= v2)
-      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool (v1 >= v2)
+      | E0 (Float v1), E0 (Float v2) -> to_bool2 op v1 v2
+      | E0 (String v1), E0 (String v2) -> to_bool2 op v1 v2
+      | E0 (Bool v1), E0 (Bool v2) -> to_bool2 op v1 v2
+      | E0 (Char v1), E0 (Char v2) -> to_bool2 op v1 v2
+      | E0 (U8 v1), E0 (U8 v2) -> to_bool2 op v1 v2
+      | E0 (U16 v1), E0 (U16 v2) -> to_bool2 op v1 v2
+      | E0 (U24 v1), E0 (U24 v2) -> to_bool2 op v1 v2
+      | E0 (U32 v1), E0 (U32 v2) -> to_bool2 op v1 v2
+      | E0 (U40 v1), E0 (U40 v2) -> to_bool2 op v1 v2
+      | E0 (U48 v1), E0 (U48 v2) -> to_bool2 op v1 v2
+      | E0 (U56 v1), E0 (U56 v2) -> to_bool2 op v1 v2
+      | E0 (U64 v1), E0 (U64 v2) -> to_bool2 op v1 v2
+      | E0 (U128 v1), E0 (U128 v2) -> to_bool2 op v1 v2
+      | E0 (I8 v1), E0 (I8 v2) -> to_bool2 op v1 v2
+      | E0 (I16 v1), E0 (I16 v2) -> to_bool2 op v1 v2
+      | E0 (I24 v1), E0 (I24 v2) -> to_bool2 op v1 v2
+      | E0 (I32 v1), E0 (I32 v2) -> to_bool2 op v1 v2
+      | E0 (I40 v1), E0 (I40 v2) -> to_bool2 op v1 v2
+      | E0 (I48 v1), E0 (I48 v2) -> to_bool2 op v1 v2
+      | E0 (I56 v1), E0 (I56 v2) -> to_bool2 op v1 v2
+      | E0 (I64 v1), E0 (I64 v2) -> to_bool2 op v1 v2
+      | E0 (I128 v1), E0 (I128 v2) -> to_bool2 op v1 v2
+      | E0 (Bit v1), E0 (Bit v2) -> to_bool2 op v1 v2
+      | E0 (Size v1), E0 (Size v2) -> to_bool2 op v1 v2
+      | E0 (Byte v1), E0 (Byte v2) -> to_bool2 op v1 v2
+      | E0 (Word v1), E0 (Word v2) -> to_bool2 op v1 v2
+      | E0 (DWord v1), E0 (DWord v2) -> to_bool2 op v1 v2
+      | E0 (QWord v1), E0 (QWord v2) -> to_bool2 op v1 v2
+      | E0 (OWord v1), E0 (OWord v2) -> to_bool2 op v1 v2
+      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool2 op v1 v2
+      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool2 op v1 v2
       | _ -> E2 (Ge, _e1, _e2))
     | _ -> e
 
