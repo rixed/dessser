@@ -1592,13 +1592,23 @@ struct
       (expr "(make-vec (u8 1) (u8 2))")
   *)
 
-  let rec eval e = match e with
+  let rec eval e env ids = match e with
     | E3 (If, e1, e2, e3) ->
-      (match eval e1 with
-        | E0 (Bool true) -> eval e2
-        | E0 (Bool false) -> eval e3
-        | _ -> E3 (If, e1, eval e2, eval e3))
+      (match eval e1 env ids with
+        | E0 (Bool true) -> eval e2 env ids
+        | E0 (Bool false) -> eval e3 env ids
+        | _ -> E3 (If, e1, eval e2 env ids, eval e3 env ids))
+    | E2 (Let n, e1, e2) ->
+      eval e2 [(n, eval e1 env ids)] ids
+    | E0 (Identifier n) as e -> (
+      match List.assoc_opt n env with
+        | Some v -> v
+        | None -> e)
     | E2 (op, e1, e2) ->
+      let _e1 = eval e1 env ids in
+      let _e2 = eval e2 env ids in
+      (match op with
+        | Ge | Eq | Gt | Ne -> (
       let to_bool e = if e then E0 (Bool true) else E0 (Bool false) in
       let to_bool2 op v1 v2 = match op with
         | Ge -> to_bool (v1 >= v2)
@@ -1613,8 +1623,6 @@ struct
         | Ne -> E0 (Bool false)
         | _ -> raise (Invalid_argument "same_type should be call with an operator.") in
       let incompatible_type = E0 (Bool false) in
-      let _e1 = eval e1 in
-      let _e2 = eval e2 in
       (match _e1, _e2 with
       | E0 Null _, E0 Null _
       | E0 (EndOfList _), E0 (EndOfList _)
@@ -1671,17 +1679,30 @@ struct
       | E0 (OWord v1), E0 (OWord v2) -> to_bool2 op v1 v2
       | E0 (Bytes v1), E0 (Bytes v2) -> to_bool2 op v1 v2
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool2 op v1 v2
-      | _ -> E2 (op, _e1, _e2))
+      | _ -> E2 (op, _e1, _e2)))
+    | _ -> E2 (op, _e1, _e2))
+    | E1S (Apply, E1 (Function _, body), es) ->
+      eval body env es
+    | E0 (Param (fid, n)) as e -> (
+      match List.nth_opt ids n with
+        | Some e -> e
+        | None -> e)
     | _ -> e
 
   let expr_simp str =
-    (List.map (fun s -> eval (e s)) (sexpr_of_string str))
+    (List.map (fun s -> eval (e s) [] []) (sexpr_of_string str))
 
   (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
     [ Ops.(true_) ] \
     (expr_simp "(ge (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
     (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+    (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
+    [ Ops.(true_) ] \
+    (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
+    [ Ops.(u8 Uint8.one) ] \
+    (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
   *)
 
   (*$>*)
