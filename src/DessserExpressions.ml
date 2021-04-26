@@ -1598,6 +1598,18 @@ struct
         | E0 (Bool true) -> eval e2 env ids
         | E0 (Bool false) -> eval e3 env ids
         | _ -> E3 (If, e1, eval e2 env ids, eval e3 env ids))
+    | E2 (Add, e1, e2) ->(
+        let _e1 = eval e1 env ids in
+        let _e2 = eval e2 env ids in
+        match _e1, _e2 with
+          | E0 (U8 v1), E0 (U8 v2) -> E0 ( U8 (Uint8.(v1+v2)))
+          | _ -> e)
+    | E2 (Div, e1, e2) ->(
+        let _e1 = eval e1 env ids in
+        let _e2 = eval e2 env ids in
+        match _e1, _e2 with
+          | E0 (U8 v1), E0 (U8 v2) -> if v2 = Uint8.zero then E1 (Assert, E0 (Bool false)) else E0 ( U8 (Uint8.(v1/v2)))
+          | _ -> e)
     | E2 (Let n, e1, e2) ->
       eval e2 [(n, eval e1 env ids)] ids
     | E0 (Identifier n) as e -> (
@@ -1693,6 +1705,12 @@ struct
     (List.map (fun s -> eval (e s) [] []) (sexpr_of_string str))
 
   (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
+    [ Ops.(u8 Uint8.one) ] \
+    (expr_simp "(add (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+    (expr_simp "(div (u8 1) (u8 1))")
+    [ Ops.(assert_ false_) ] \
+    (expr_simp "(div (u8 1) (u8 0))")
     [ Ops.(true_) ] \
     (expr_simp "(ge (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
@@ -1701,7 +1719,7 @@ struct
     (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
     [ Ops.(true_) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
-    [ Ops.(u8 Uint8.one) ] \
+    [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
   *)
 
