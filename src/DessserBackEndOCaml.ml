@@ -770,11 +770,11 @@ struct
         if m = "Float" then print ?name emit p l e1
         else unary_op (m ^".to_float") e1
     | E.E1 (U8OfBool, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n)
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n1)
     | E.E1 (BoolOfU8, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.zero %s <> 0" n)
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.zero %s <> 0" n1)
     | E.E2 (AppendByte, e1, e2) ->
         binary_op "Slice.add" e1 e2
     | E.E2 (AppendBytes, e1, e2) ->
@@ -803,8 +803,9 @@ struct
             emit ?name p l e (fun oc -> pp oc "%s.cardinality %s" m n1)
         | _ ->
             assert false (* Because type checking *))
-    | E.E0 (DataPtrOfString s) ->
-        emit ?name p l e (fun oc -> pp oc "Pointer.of_string %S" s)
+    | E.E1 (DataPtrOfString, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "Pointer.of_string %s" n1)
     | E.E1 (DataPtrOfBuffer, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "Pointer.of_buffer %s" n1)

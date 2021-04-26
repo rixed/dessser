@@ -700,8 +700,9 @@ struct
     | E.E1 (BytesOfString, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
-    | E.E0 (DataPtrOfString s) ->
-        emit ?name p l e (fun oc -> pp oc "%S" s)
+    | E.E1 (DataPtrOfString, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (DataPtrOfBuffer, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)

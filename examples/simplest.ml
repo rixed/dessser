@@ -169,8 +169,8 @@ let test_desser () =
   let vtyp = T.{ vtyp = Tup [| { vtyp = Mac U8 ; nullable = false } ;
                                { vtyp = Mac Char ; nullable = false } |] ;
                  nullable = false } in
-  let src = data_ptr_of_string "\001X"
-  and dst = data_ptr_of_string "_____" in
+  let src = data_ptr_of_string (string "\001X")
+  and dst = data_ptr_of_string (string "_____") in
   E.Ops.let_ (TestDesSer.desser vtyp [] src dst) (fun _l e ->
     seq [ dump e ;
           dump (string "\n") ;

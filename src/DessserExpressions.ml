@@ -82,7 +82,6 @@ type e0 =
   | QWord of Uint64.t
   | OWord of Uint128.t
   | Bytes of Bytes.t
-  | DataPtrOfString of string
   (* Constant mask actions: *)
   | CopyField
   | SkipField
@@ -269,6 +268,7 @@ type e1 =
    * (given as first and only argument, this function also provides the
    * set elements' type): *)
   | Heap
+  | DataPtrOfString
   | DataPtrOfBuffer
   | GetEnv
   (* Get the minimal value of a set (heap): *)
@@ -470,8 +470,7 @@ let rec can_precompute l i = function
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-       | Bytes _ | DataPtrOfString _
-       | CopyField | SkipField | SetFieldNull) ->
+       | Bytes _ | CopyField | SkipField | SetFieldNull) ->
       true
   | E0 (Param (fid, _)) ->
       List.mem fid l
@@ -620,6 +619,54 @@ let rec default_value ?(allow_null=true) = function
       assert false (* no value of map type *)
 
 let string_of_path = IO.to_string T.print_path
+
+let string_of_e0 = function
+  | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
+  | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
+  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
+  | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
+  | Now -> "now"
+  | RandomFloat -> "random-float"
+  | RandomU8 -> "random-u8"
+  | RandomU32 -> "random-u32"
+  | RandomU64 -> "random-u64"
+  | RandomU128 -> "random-u128"
+  | Float f -> "float "^ hexstring_of_float f
+  | Unit -> "()"
+  | String s -> "string "^ String.quote s
+  | Bool b -> "bool "^ Bool.to_string b
+  | Char c -> "char "^ String.quote (String.of_char c)
+  | U8 n -> "u8 "^ Uint8.to_string n
+  | U16 n -> "u16 "^ Uint16.to_string n
+  | U24 n -> "u24 "^ Uint24.to_string n
+  | U32 n -> "u32 "^ Uint32.to_string n
+  | U40 n -> "u40 "^ Uint40.to_string n
+  | U48 n -> "u48 "^ Uint48.to_string n
+  | U56 n -> "u56 "^ Uint56.to_string n
+  | U64 n -> "u64 "^ Uint64.to_string n
+  | U128 n -> "u128 "^ Uint128.to_string n
+  | I8 n -> "i8 "^ Int8.to_string n
+  | I16 n -> "i16 "^ Int16.to_string n
+  | I24 n -> "i24 "^ Int24.to_string n
+  | I32 n -> "i32 "^ Int32.to_string n
+  | I40 n -> "i40 "^ Int40.to_string n
+  | I48 n -> "i48 "^ Int48.to_string n
+  | I56 n -> "i56 "^ Int56.to_string n
+  | I64 n -> "i64 "^ Int64.to_string n
+  | I128 n -> "i128 "^ Int128.to_string n
+  | Bit b -> "bit "^ Bool.to_string b
+  | Size n -> "size "^ string_of_int n
+  | Byte n -> "byte "^ Uint8.to_string n
+  | Word n -> "word "^ Uint16.to_string n
+  | DWord n -> "dword "^ Uint32.to_string n
+  | QWord n -> "qword "^ Uint64.to_string n
+  | OWord n -> "oword "^ Uint128.to_string n
+  | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
+  | Identifier s -> "identifier "^ String.quote s
+  | ExtIdentifier s -> "ext-identifier "^ String.quote s
+  | CopyField -> "copy-field"
+  | SkipField -> "skip-field"
+  | SetFieldNull -> "set-field-null"
 
 let string_of_e0s = function
   | Seq -> "seq"
@@ -791,6 +838,7 @@ let string_of_e1 = function
       "hash-table "^ String.quote (T.string_of_maybe_nullable mn)
   | Heap ->
       "heap"
+  | DataPtrOfString -> "data-ptr-of-string"
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
   | GetEnv -> "getenv"
   | GetMin -> "get-min"
@@ -874,57 +922,8 @@ let string_of_e4 = function
 
 let pp = Printf.fprintf
 
-let rec string_of_e0 = function
-  | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
-  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
-  | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
-  | Now -> "now"
-  | RandomFloat -> "random-float"
-  | RandomU8 -> "random-u8"
-  | RandomU32 -> "random-u32"
-  | RandomU64 -> "random-u64"
-  | RandomU128 -> "random-u128"
-  | Float f -> "float "^ hexstring_of_float f
-  | Unit -> "()"
-  | String s -> "string "^ String.quote s
-  | Bool b -> "bool "^ Bool.to_string b
-  | Char c -> "char "^ String.quote (String.of_char c)
-  | U8 n -> "u8 "^ Uint8.to_string n
-  | U16 n -> "u16 "^ Uint16.to_string n
-  | U24 n -> "u24 "^ Uint24.to_string n
-  | U32 n -> "u32 "^ Uint32.to_string n
-  | U40 n -> "u40 "^ Uint40.to_string n
-  | U48 n -> "u48 "^ Uint48.to_string n
-  | U56 n -> "u56 "^ Uint56.to_string n
-  | U64 n -> "u64 "^ Uint64.to_string n
-  | U128 n -> "u128 "^ Uint128.to_string n
-  | I8 n -> "i8 "^ Int8.to_string n
-  | I16 n -> "i16 "^ Int16.to_string n
-  | I24 n -> "i24 "^ Int24.to_string n
-  | I32 n -> "i32 "^ Int32.to_string n
-  | I40 n -> "i40 "^ Int40.to_string n
-  | I48 n -> "i48 "^ Int48.to_string n
-  | I56 n -> "i56 "^ Int56.to_string n
-  | I64 n -> "i64 "^ Int64.to_string n
-  | I128 n -> "i128 "^ Int128.to_string n
-  | Bit b -> "bit "^ Bool.to_string b
-  | Size n -> "size "^ string_of_int n
-  | Byte n -> "byte "^ Uint8.to_string n
-  | Word n -> "word "^ Uint16.to_string n
-  | DWord n -> "dword "^ Uint32.to_string n
-  | QWord n -> "qword "^ Uint64.to_string n
-  | OWord n -> "oword "^ Uint128.to_string n
-  | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
-  | DataPtrOfString s -> "data-ptr-of-string "^ String.quote s
-  | Identifier s -> "identifier "^ String.quote s
-  | ExtIdentifier s -> "ext-identifier "^ String.quote s
-  | CopyField -> "copy-field"
-  | SkipField -> "skip-field"
-  | SetFieldNull -> "set-field-null"
-
 (* Display in a single line to help with tests. *)
-and print ?max_depth oc e =
+let rec print ?max_depth oc e =
   if Option.map_default (fun m -> m <= 0) false max_depth then
     pp oc "…"
   else
@@ -1205,7 +1204,6 @@ struct
     | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
     | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
-    | Lst [ Sym "data-ptr-of-string" ; Str s ] -> E0 (DataPtrOfString s)
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
     | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier s)
     | Lst [ Sym "copy-field" ] -> E0 CopyField
@@ -1407,6 +1405,8 @@ struct
         E1 (HashTable (T.maybe_nullable_of_string mn), e x)
     | Lst [ Sym "heap" ; x ] ->
         E1 (Heap, e x)
+    | Lst [ Sym "data-ptr-of-string" ; x ] ->
+        E1 (DataPtrOfString, e x)
     | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
         E1 (DataPtrOfBuffer, e x)
     | Lst [ Sym "getenv" ; x ] ->
@@ -1803,7 +1803,6 @@ let rec type_of l e0 =
   | E1 (StringOfBytes, _) -> T.string
   | E1 (BytesOfString, _) -> T.bytes
   | E1 (Cardinality, _) -> T.u32
-  | E0 (DataPtrOfString _) -> T.dataptr
   | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
   | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac U24)))
   | E2 (GetBit, _, _) -> T.bit
@@ -1867,6 +1866,7 @@ let rec type_of l e0 =
   | E1 (ToU128, _) -> T.u128
   | E1 (ToI128, _) -> T.i128
   | E1 (ToFloat, _) -> T.float
+  | E1 (DataPtrOfString, _) -> T.dataptr
   | E1 (DataPtrOfBuffer, _) -> T.dataptr
   | E1 (GetEnv, _) -> T.(Value (optional (Mac String)))
   | E1 (GetMin, e) ->
@@ -2263,7 +2263,7 @@ let rec type_check l e =
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-         | Bytes _ | DataPtrOfString _ | Identifier _ | ExtIdentifier _
+         | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _
           | Hash), _)
@@ -2393,6 +2393,8 @@ let rec type_check l e =
         check_vector l e
     | E1 (ListOfSet, e) ->
         check_set l e
+    | E1 (DataPtrOfString, e) ->
+        check_eq l e T.string
     | E1 (DataPtrOfBuffer, e) ->
         check_eq l e T.size
     | E1 (GetEnv, e) ->
@@ -2900,7 +2902,8 @@ let is_identity = function
 
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(BatIO.to_string T.print)
-  (Pair (u24, DataPtr)) (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string "")))
+  (Pair (u24, DataPtr)) \
+    (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
 *)
 
 (* Users can define additional expressions, defined in terms of the above
@@ -3494,7 +3497,6 @@ struct
     | E0 (QWord v1), E0 (QWord v2) when !optimize -> bool (Uint64.compare v1 v2 = 0)
     | E0 (OWord v1), E0 (OWord v2) when !optimize -> bool (Uint128.compare v1 v2 = 0)
     | E0 (Bytes v1), E0 (Bytes v2) when !optimize -> bool (v1 = v2)
-    | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) when !optimize -> bool (v1 = v2)
     | _ -> E2 (Eq, e1, e2)
 
   let not_ = function
@@ -3818,7 +3820,7 @@ struct
 
   let data_ptr_pop e1 = E1 (DataPtrPop, e1)
 
-  let data_ptr_of_string s = E0 (DataPtrOfString s)
+  let data_ptr_of_string e1 = E1 (DataPtrOfString, e1)
 
   let data_ptr_of_buffer e1 = E1 (DataPtrOfBuffer, e1)
 

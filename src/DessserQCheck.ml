@@ -375,7 +375,6 @@ let rec e0_gen l depth =
     1, map (E.Ops.dword % Uint32.of_int32) ui32 ;
     1, map (E.Ops.qword % Uint64.of_int64) ui64 ;
     1, map oword ui128_gen ;
-    1, map data_ptr_of_string small_string ;
   ] in
   let lst =
     if depth > 0 then
@@ -456,6 +455,7 @@ and e1_gen l depth =
     1, map2 read_dword endianness_gen expr ;
     1, map2 read_qword endianness_gen expr ;
     1, map2 read_oword endianness_gen expr ;
+    1, map data_ptr_of_string expr ;
     10, map2 (fun n e -> E.E1 (e1_of_int n, e)) nat expr ]
 
 and e1s_gen l depth =
