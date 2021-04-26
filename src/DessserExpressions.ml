@@ -1606,6 +1606,13 @@ struct
         | Gt -> to_bool (v1 > v2)
         | Ne -> to_bool (v1 != v2)
         | _ -> raise (Invalid_argument "to_bool2 should be call with an operator.") in
+      let same_type = match op with
+        | Ge -> E0 (Bool true)
+        | Eq -> E0 (Bool true)
+        | Gt -> E0 (Bool false)
+        | Ne -> E0 (Bool false)
+        | _ -> raise (Invalid_argument "same_type should be call with an operator.") in
+      let incompatible_type = E0 (Bool false) in
       let _e1 = eval e1 in
       let _e2 = eval e2 in
       (match _e1, _e2 with
@@ -1616,18 +1623,18 @@ struct
       | E0 CopyField, E0 CopyField
       | E0 SkipField, E0 SkipField
       | E0 SetFieldNull, E0 SetFieldNull ->
-          E0 (Bool true)
+        same_type
       (* None other combination of those can be compared: *)
       | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
            | CopyField | SkipField | SetFieldNull),
         E0 (Null _ | EndOfList _ | EmptySet _ | Unit
            | CopyField | SkipField | SetFieldNull) ->
-          E0 (Bool false)
+           incompatible_type
       (* Another easy case of practical importance: comparison of a null with
        * a NotNull: *)
       | E0 (Null _), E1 (NotNull, _)
       | E1 (NotNull, _), E0 (Null _) ->
-          E0 (Bool false)
+        incompatible_type
       (* Peel away some common wrappers: *)
       (* | E1 (NotNull, e1), E1 (NotNull, e2)
        | E1 (Force, e1), E1 (Force, e2) ->
