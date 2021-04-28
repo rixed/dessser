@@ -20,7 +20,7 @@ let coalesce l es =
               if_
                 ~cond:(is_null d)
                 ~then_:(loop (i + 1) l es)
-                ~else_:(force d))
+                ~else_:(force ~what:"coalesce" d))
         | _ ->
             (* If [e] is not a nullable thing there is no point looking
              * further: *)

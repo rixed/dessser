@@ -46,7 +46,7 @@ struct
   | Executable -> ""
 
   let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
-    let optim = cap 2 3 optim in
+    let optim = clamp 2 3 optim in
     (* FIXME: path to src files! *)
     Printf.sprintf2
       "ocamlfind ocamlopt -g -annot -O%d -w -8-26 %a %s \

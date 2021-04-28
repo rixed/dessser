@@ -95,7 +95,7 @@ let array_for_all2_no_exc f a b =
   try Array.for_all2 f a b
   with Invalid_argument _ -> false
 
-let cap mi ma x =
+let clamp mi ma x =
   if x < mi then mi else if x > ma then ma else x
 
 let is_missing_symbol = function

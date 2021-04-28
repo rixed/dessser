@@ -27,7 +27,7 @@ struct
     | Executable -> ""
 
   let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
-    let optim = cap 0 3 optim in
+    let optim = clamp 0 3 optim in
     Printf.sprintf2
       "g++ -std=c++%d -g -O%d -W -Wall \
            -Wno-unused-parameter -Wno-unused-variable \
@@ -624,7 +624,7 @@ struct
         ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
           n n ;
         ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };" n n ;
-        ppi p.P.def "size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
+        ppi p.P.def "std::size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (I128OfPtr, e1) ->
         let n = print emit p l e1 in
@@ -634,7 +634,7 @@ struct
           n n ;
         ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
           n n ;
-        ppi p.P.def "size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
+        ppi p.P.def "std::size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
         emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
     | E.E1 (FloatOfQWord, e1) ->
         unary_func "float_of_qword" e1

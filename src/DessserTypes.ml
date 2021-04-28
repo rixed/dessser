@@ -23,9 +23,10 @@ type mac_type =
  * User types specialize machine types in several ways: they have their own
  * name, pretty-printer, parser, and of course an implementation as the
  * corresponding machine type.
- * Notice that user types cannot be parameterized (yet). So only scalar user
- * types are possible for now.
- * User expressions can restrict types to user types. *)
+ * Notice that user types cannot be parameterized (yet?)
+ * User expressions can restrict types to user types.
+ * Every operation that applies to the implementation of a user type also
+ * applies to the user type. *)
 
 and user_type =
   { name : string ;

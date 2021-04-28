@@ -70,17 +70,17 @@ inline std::string string_of_u128(uint128_t const u128)
     uint128_t const hi(u128 / P10_UINT64);
     uint64_t const lo(u128 % P10_UINT64);
     std::string const ss(std::to_string(lo));
-    size_t num_zeros(E10_UINT64 - ss.length());
+    std::size_t num_zeros(E10_UINT64 - ss.length());
     return string_of_u128(hi) + std::string(num_zeros, '0') + ss;
   }
 }
 
 inline uint128_t u128_of_string(std::string const &s)
 {
-  size_t const len = s.length();
+  std::size_t const len = s.length();
   assert(len > 0);
   if (len <= E10_UINT64) return std::stoull(s);
-  size_t const hi_len(len - E10_UINT64);
+  std::size_t const hi_len(len - E10_UINT64);
   uint128_t const hi(u128_of_string(s.substr(0, hi_len)));
   uint128_t const lo(u128_of_string(s.substr(hi_len, E10_UINT64)));
   return hi * P10_UINT64 + lo;
@@ -158,10 +158,10 @@ inline size_t u128_from_chars(char const *start, char const *stop, uint128_t *re
 inline Lst<std::string> string_split(std::string sep, std::string str)
 {
   Lst<std::string> res;
-  size_t const sep_len { sep.length() };
+  std::size_t const sep_len { sep.length() };
   if (0 == sep_len) return res;  /* TODO: rather a list of single chars? */
-  size_t last { 0 };
-  for (size_t p = str.find(sep, last); p != std::string::npos; last = p + sep_len) {
+  std::size_t last { 0 };
+  for (std::size_t p = str.find(sep, last); p != std::string::npos; last = p + sep_len) {
     res.push_back(str.substr(last, p - last));
   }
   res.push_back(str.substr(last));
