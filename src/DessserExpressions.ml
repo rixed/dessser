@@ -1714,7 +1714,7 @@ struct
       eval e2 [(n, eval e1 env ids)] ids
     | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
     | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 >= v2}
-    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false))  {to_bool =  fun v1 v2 -> v1 = v2}
+    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 = v2}
     | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 > v2}
     | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 != v2}
     | E1S (Apply, E1 (Function _, body), es) ->
