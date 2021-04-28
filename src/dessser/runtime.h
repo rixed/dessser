@@ -54,6 +54,14 @@ inline std::string hex_string_of_float(double f)
   return so.str();
 }
 
+inline std::size_t clamp_to_string_length(long p, std::size_t const l)
+{
+  if (0 == l) return 0;
+  if (p >= 0) return std::min((std::size_t)p, l);
+  while (p < 0) p += l;
+  return p;
+}
+
 /* Conversion from 128 bits wide integers to strings.
  * Adapted from Jonathan Leffler's answer at
  * https://stackoverflow.com/questions/11656241/how-to-print-uint128-t-number-using-gcc */
@@ -98,7 +106,7 @@ inline std::string string_of_i128(int128_t const i128)
     int128_t const hi(i128 / P10_INT64);
     int64_t const lo(i128 % P10_INT64);
     std::string const ss(std::to_string(std::abs(lo)));
-    size_t num_zeros(E10_INT64 - ss.length());
+    std::size_t num_zeros(E10_INT64 - ss.length());
     return string_of_i128(hi) + std::string(num_zeros, '0') + ss;
   }
 }
@@ -109,9 +117,9 @@ inline bool is_digit(char const x) { return x >= '0' && x <= '9'; }
 inline std::optional<int128_t> i128_of_string(std::string const &s)
 {
   // FIXME: do not split just after the leading minus sign!
-  size_t const len = s.length();
+  std::size_t const len = s.length();
   assert(len > 0);
-  size_t const max_len(E10_INT64 + (is_sign(s[0]) ? 1:0));
+  std::size_t const max_len(E10_INT64 + (is_sign(s[0]) ? 1:0));
   if (len <= max_len) {
     std::size_t pos;
     try {
@@ -122,7 +130,7 @@ inline std::optional<int128_t> i128_of_string(std::string const &s)
       return std::nullopt;
     }
   }
-  size_t const hi_len(len - E10_INT64);
+  std::size_t const hi_len(len - E10_INT64);
   std::optional<int128_t> const hi { i128_of_string(s.substr(0, hi_len)) };
   if (! hi) return std::nullopt;
   std::optional<int128_t> const lo { i128_of_string(s.substr(hi_len, E10_INT64)) };
@@ -131,10 +139,10 @@ inline std::optional<int128_t> i128_of_string(std::string const &s)
     *hi >= 0 ? *hi * P10_INT64 + *lo : *hi * P10_INT64 - *lo;
 }
 
-inline size_t i128_from_chars(char const *start, char const *stop, int128_t *res)
+inline std::size_t i128_from_chars(char const *start, char const *stop, int128_t *res)
 {
   assert(stop > start);
-  size_t count = is_sign(*start) ? 1 : 0;
+  std::size_t count = is_sign(*start) ? 1 : 0;
   for (; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };
@@ -143,10 +151,10 @@ inline size_t i128_from_chars(char const *start, char const *stop, int128_t *res
   return count;
 }
 
-inline size_t u128_from_chars(char const *start, char const *stop, uint128_t *res)
+inline std::size_t u128_from_chars(char const *start, char const *stop, uint128_t *res)
 {
   assert(stop > start);
-  size_t count = is_sign(*start) ? 1 : 0;
+  std::size_t count = is_sign(*start) ? 1 : 0;
   for (count = 0 ; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };

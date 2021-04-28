@@ -53,6 +53,15 @@ let string_rfind str sub =
         in loop ~str ~sub i 0
     in find ~str ~sub (len - sublen)
 
+let substring str start stop =
+  let l = String.length str in
+  let rec clamp x =
+    if x < 0 then clamp (x + l) else min x l in
+  let start, stop =
+    if l = 0 then 0, 0 else clamp start, clamp stop in
+  if start >= stop then "" else
+  String.sub str start (stop - start)
+
 let array_of_list_rev l =
   let a = Array.of_list l in
   let len = Array.length a in

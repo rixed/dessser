@@ -1220,6 +1220,20 @@ struct
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insertWeighted(%s, %s);" set w x ;
         ""
+    | E.E3 (Substring, str, start, stop) ->
+        let str = print emit p l str
+        and start = print emit p l start
+        and stop = print emit p l stop in
+        let len = gen_sym "len_" in
+        ppi p.P.def "std::size_t const %s { %s.size() };" len str ;
+        let clamp_start = gen_sym "start_" in
+        ppi p.P.def "std::size_t const %s { clamp_to_string_length(%s, %s) };"
+          clamp_start start len ;
+        let clamp_stop = gen_sym "stop_" in
+        ppi p.P.def "std::size_t const %s { clamp_to_string_length(%s, %s) };"
+          clamp_stop stop len ;
+        emit ?name p l e (fun oc ->
+          pp oc "%s, %s, (%s - %s)" str start stop start)
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we

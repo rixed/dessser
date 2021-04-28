@@ -1419,6 +1419,15 @@ struct
         (* Avoids using [emit] to not generate a binding for unit: *)
         ppi p.P.def "%s.insert_weighted %s %s %s ;" m set w x ;
         "()"
+    | E.E3 (Substring, str, start, stop) ->
+        let m_start = mod_name (E.type_of l start)
+        and m_stop = mod_name (E.type_of l stop) in
+        let str = print emit p l str
+        and start = print emit p l start
+        and stop = print emit p l stop in
+        emit ?name p l e (fun oc ->
+          pp oc "substring %s (%s.to_int %s) (%s.to_int %s)"
+            str m_start start m_stop stop)
 
   let print_binding_toplevel emit n p l e =
     let t = E.type_of l e in

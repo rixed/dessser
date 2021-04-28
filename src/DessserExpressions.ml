@@ -384,7 +384,10 @@ type e3 =
   (* Insert with an explicit weight. Args are: the set, the weight and the
    * value. *)
   | InsertWeighted
-
+  (* Extract a substring. Arguments are the string, the start and stop positions
+   * (counted from the end of the string if negative). Returns an empty string
+   * if nothing the selected part is outside the string bounds. *)
+  | Substring
 
 type e4 =
   | ReadWhile
@@ -915,6 +918,7 @@ let string_of_e3 = function
   | FindSubstring -> "find-substring"
   | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
   | InsertWeighted -> "insert-weighted"
+  | Substring -> "substring"
 
 let string_of_e4 = function
   | ReadWhile -> "read-while"
@@ -1508,6 +1512,8 @@ struct
         E3 (Top (T.maybe_nullable_of_string mn), e x1, e x2, e x3)
     | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
         E3 (InsertWeighted, e x1, e x2, e x3)
+    | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
+        E3 (Substring, e x1, e x2, e x3)
     (* e4 *)
     | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
         E4 (ReadWhile, e x1, e x2, e x3, e x4)
@@ -1990,6 +1996,8 @@ let rec type_of l e0 =
       T.set Top mn
   | E3 (InsertWeighted, _, _, _) ->
       T.void
+  | E3 (Substring, _, _, _) ->
+      T.string
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
@@ -2653,6 +2661,10 @@ let rec type_check l e =
             check_eq l x (Value mn)
         | t ->
             raise (Type_error (e0, set, t, "be a set")))
+    | E3 (Substring, str, start, stop) ->
+        check_eq l str T.string ;
+        check_integer l start ;
+        check_integer l stop
   ) e
 
 (*$inject
@@ -3099,6 +3111,8 @@ struct
   let insert set x = E2 (Insert, set, x)
 
   let insert_weighted set w x = E3 (InsertWeighted, set, w, x)
+
+  let substring str start stop = E3 (Substring, str, start, stop)
 
   let del_min set n = E2 (DelMin, set, n)
 
