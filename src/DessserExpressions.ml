@@ -1620,6 +1620,7 @@ struct
           | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
           | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
           | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
+          | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
           | _ -> e)
     | E2 (Div, e1, e2) ->(
         let _e1 = eval e1 env ids in
