@@ -1652,11 +1652,10 @@ struct
       match List.assoc_opt n env with
         | Some v -> v
         | None -> e)
-    | E2 (op, e1, e2) ->
+    | E2 (Ge as op, e1, e2) | E2 (Eq as op, e1, e2)
+    | E2 (Gt as op, e1, e2) | E2 (Ne as op, e1, e2) ->
       let _e1 = eval e1 env ids in
       let _e2 = eval e2 env ids in
-      (match op with
-        | Ge | Eq | Gt | Ne -> (
       let to_bool e = if e then E0 (Bool true) else E0 (Bool false) in
       let to_bool2 op v1 v2 = match op with
         | Ge -> to_bool (v1 >= v2)
@@ -1727,8 +1726,7 @@ struct
       | E0 (OWord v1), E0 (OWord v2) -> to_bool2 op v1 v2
       | E0 (Bytes v1), E0 (Bytes v2) -> to_bool2 op v1 v2
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool2 op v1 v2
-      | _ -> E2 (op, _e1, _e2)))
-    | _ -> E2 (op, _e1, _e2))
+      | _ -> E2 (op, _e1, _e2))
     | E1S (Apply, E1 (Function _, body), es) ->
       eval body env es
     | E0 (Param (fid, n)) as e -> (
