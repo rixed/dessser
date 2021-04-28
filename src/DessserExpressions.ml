@@ -1717,9 +1717,9 @@ struct
     | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 = v2}
     | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 > v2}
     | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 != v2}
-    | E1S (Apply, E1 (Function _, body), es) ->
-      eval body env es
-    | E0 (Param (fid, n)) as e -> Option.default e (List.nth_opt ids n)
+    | E1S (Apply, E1 (Function (fid, _), body), es) ->
+      eval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
+    | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
     | _ -> e
 
   let expr_simp str =
@@ -1740,6 +1740,8 @@ struct
     (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
     [ Ops.(true_) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
+    [ Ops.(ge (param 2 0) (param 2 0)) ] \
+    (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
     [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
   *)
