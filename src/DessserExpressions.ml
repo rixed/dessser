@@ -1626,7 +1626,7 @@ struct
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
         match _e1, _e2 with
-          | E0 (U8 v1), E0 (U8 v2) -> if v2 = Uint8.zero then E1 (Assert, E0 (Bool false)) else E0 ( U8 (Uint8.(v1/v2)))
+          | E0 (U8 v1), E0 (U8 v2) -> if v2 = Uint8.zero then E1 (Assert, E0 (Bool false)) else E0 (U8 (Uint8.(v1/v2)))
           | _ -> e)
     | E2 (Let n, e1, e2) ->
       eval e2 [(n, eval e1 env ids)] ids
