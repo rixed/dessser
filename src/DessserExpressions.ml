@@ -1657,6 +1657,9 @@ struct
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool v1 v2
       | _ -> E2 (op, e1, e2) in
   match e with
+    | E1 (GetItem i, E0S (MakeTup, es)) ->
+      (* we do not check array size as it checked with type checking *)
+      eval (List.nth es i) env ids
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1744,6 +1747,8 @@ struct
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
     [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
+    [ Ops.(u16 (Uint16.of_int 5))] \
+    (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
   *)
 
   (*$>*)
