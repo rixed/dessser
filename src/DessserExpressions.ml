@@ -1592,7 +1592,71 @@ struct
       (expr "(make-vec (u8 1) (u8 2))")
   *)
 
-  let rec eval e env ids = match e with
+  type eval_cmp = {to_bool: 'a . 'a -> 'a -> bool}
+
+  let rec eval e env ids =
+    let eval_cmp_op op e1 e2 same_type incompatible_type cmp =
+      let e1 = eval e1 env ids in
+      let e2 = eval e2 env ids in
+      let to_bool v1 v2 = if cmp.to_bool v1 v2 then E0 (Bool true) else E0 (Bool false) in
+      match e1, e2 with
+      | E0 Null _, E0 Null _
+      | E0 (EndOfList _), E0 (EndOfList _)
+      | E0 (EmptySet _), E0 (EmptySet _)
+      | E0 Unit, E0 Unit
+      | E0 CopyField, E0 CopyField
+      | E0 SkipField, E0 SkipField
+      | E0 SetFieldNull, E0 SetFieldNull ->
+        same_type
+      (* None other combination of those can be compared: *)
+      | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull),
+        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull) ->
+           incompatible_type
+      (* Another easy case of practical importance: comparison of a null with
+       * a NotNull: *)
+      | E0 (Null _), E1 (NotNull, _)
+      | E1 (NotNull, _), E0 (Null _) ->
+        incompatible_type
+      (* Peel away some common wrappers: *)
+      (* | E1 (NotNull, e1), E1 (NotNull, e2)
+       | E1 (Force, e1), E1 (Force, e2) ->
+          eq e1 e2*)
+      (* Compare numerical constant (only if of the same type (TODO)): *)
+      | E0 (Float v1), E0 (Float v2) -> to_bool v1 v2
+      | E0 (String v1), E0 (String v2) -> to_bool v1 v2
+      | E0 (Bool v1), E0 (Bool v2) -> to_bool v1 v2
+      | E0 (Char v1), E0 (Char v2) -> to_bool v1 v2
+      | E0 (U8 v1), E0 (U8 v2) -> to_bool v1 v2
+      | E0 (U16 v1), E0 (U16 v2) -> to_bool v1 v2
+      | E0 (U24 v1), E0 (U24 v2) -> to_bool v1 v2
+      | E0 (U32 v1), E0 (U32 v2) -> to_bool v1 v2
+      | E0 (U40 v1), E0 (U40 v2) -> to_bool v1 v2
+      | E0 (U48 v1), E0 (U48 v2) -> to_bool v1 v2
+      | E0 (U56 v1), E0 (U56 v2) -> to_bool v1 v2
+      | E0 (U64 v1), E0 (U64 v2) -> to_bool v1 v2
+      | E0 (U128 v1), E0 (U128 v2) -> to_bool v1 v2
+      | E0 (I8 v1), E0 (I8 v2) -> to_bool v1 v2
+      | E0 (I16 v1), E0 (I16 v2) -> to_bool v1 v2
+      | E0 (I24 v1), E0 (I24 v2) -> to_bool v1 v2
+      | E0 (I32 v1), E0 (I32 v2) -> to_bool v1 v2
+      | E0 (I40 v1), E0 (I40 v2) -> to_bool v1 v2
+      | E0 (I48 v1), E0 (I48 v2) -> to_bool v1 v2
+      | E0 (I56 v1), E0 (I56 v2) -> to_bool v1 v2
+      | E0 (I64 v1), E0 (I64 v2) -> to_bool v1 v2
+      | E0 (I128 v1), E0 (I128 v2) -> to_bool v1 v2
+      | E0 (Bit v1), E0 (Bit v2) -> to_bool v1 v2
+      | E0 (Size v1), E0 (Size v2) -> to_bool v1 v2
+      | E0 (Byte v1), E0 (Byte v2) -> to_bool v1 v2
+      | E0 (Word v1), E0 (Word v2) -> to_bool v1 v2
+      | E0 (DWord v1), E0 (DWord v2) -> to_bool v1 v2
+      | E0 (QWord v1), E0 (QWord v2) -> to_bool v1 v2
+      | E0 (OWord v1), E0 (OWord v2) -> to_bool v1 v2
+      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool v1 v2
+      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool v1 v2
+      | _ -> E2 (op, e1, e2) in
+  match e with
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1652,81 +1716,10 @@ struct
       match List.assoc_opt n env with
         | Some v -> v
         | None -> e)
-    | E2 (Ge as op, e1, e2) | E2 (Eq as op, e1, e2)
-    | E2 (Gt as op, e1, e2) | E2 (Ne as op, e1, e2) ->
-      let _e1 = eval e1 env ids in
-      let _e2 = eval e2 env ids in
-      let to_bool e = if e then E0 (Bool true) else E0 (Bool false) in
-      let to_bool2 op v1 v2 = match op with
-        | Ge -> to_bool (v1 >= v2)
-        | Eq -> to_bool (v1 = v2)
-        | Gt -> to_bool (v1 > v2)
-        | Ne -> to_bool (v1 != v2)
-        | _ -> raise (Invalid_argument "to_bool2 should be call with an operator.") in
-      let same_type = match op with
-        | Ge -> E0 (Bool true)
-        | Eq -> E0 (Bool true)
-        | Gt -> E0 (Bool false)
-        | Ne -> E0 (Bool false)
-        | _ -> raise (Invalid_argument "same_type should be call with an operator.") in
-      let incompatible_type = E0 (Bool false) in
-      (match _e1, _e2 with
-      | E0 Null _, E0 Null _
-      | E0 (EndOfList _), E0 (EndOfList _)
-      | E0 (EmptySet _), E0 (EmptySet _)
-      | E0 Unit, E0 Unit
-      | E0 CopyField, E0 CopyField
-      | E0 SkipField, E0 SkipField
-      | E0 SetFieldNull, E0 SetFieldNull ->
-        same_type
-      (* None other combination of those can be compared: *)
-      | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull),
-        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull) ->
-           incompatible_type
-      (* Another easy case of practical importance: comparison of a null with
-       * a NotNull: *)
-      | E0 (Null _), E1 (NotNull, _)
-      | E1 (NotNull, _), E0 (Null _) ->
-        incompatible_type
-      (* Peel away some common wrappers: *)
-      (* | E1 (NotNull, e1), E1 (NotNull, e2)
-       | E1 (Force, e1), E1 (Force, e2) ->
-          eq e1 e2*)
-      (* Compare numerical constant (only if of the same type (TODO)): *)
-      | E0 (Float v1), E0 (Float v2) -> to_bool2 op v1 v2
-      | E0 (String v1), E0 (String v2) -> to_bool2 op v1 v2
-      | E0 (Bool v1), E0 (Bool v2) -> to_bool2 op v1 v2
-      | E0 (Char v1), E0 (Char v2) -> to_bool2 op v1 v2
-      | E0 (U8 v1), E0 (U8 v2) -> to_bool2 op v1 v2
-      | E0 (U16 v1), E0 (U16 v2) -> to_bool2 op v1 v2
-      | E0 (U24 v1), E0 (U24 v2) -> to_bool2 op v1 v2
-      | E0 (U32 v1), E0 (U32 v2) -> to_bool2 op v1 v2
-      | E0 (U40 v1), E0 (U40 v2) -> to_bool2 op v1 v2
-      | E0 (U48 v1), E0 (U48 v2) -> to_bool2 op v1 v2
-      | E0 (U56 v1), E0 (U56 v2) -> to_bool2 op v1 v2
-      | E0 (U64 v1), E0 (U64 v2) -> to_bool2 op v1 v2
-      | E0 (U128 v1), E0 (U128 v2) -> to_bool2 op v1 v2
-      | E0 (I8 v1), E0 (I8 v2) -> to_bool2 op v1 v2
-      | E0 (I16 v1), E0 (I16 v2) -> to_bool2 op v1 v2
-      | E0 (I24 v1), E0 (I24 v2) -> to_bool2 op v1 v2
-      | E0 (I32 v1), E0 (I32 v2) -> to_bool2 op v1 v2
-      | E0 (I40 v1), E0 (I40 v2) -> to_bool2 op v1 v2
-      | E0 (I48 v1), E0 (I48 v2) -> to_bool2 op v1 v2
-      | E0 (I56 v1), E0 (I56 v2) -> to_bool2 op v1 v2
-      | E0 (I64 v1), E0 (I64 v2) -> to_bool2 op v1 v2
-      | E0 (I128 v1), E0 (I128 v2) -> to_bool2 op v1 v2
-      | E0 (Bit v1), E0 (Bit v2) -> to_bool2 op v1 v2
-      | E0 (Size v1), E0 (Size v2) -> to_bool2 op v1 v2
-      | E0 (Byte v1), E0 (Byte v2) -> to_bool2 op v1 v2
-      | E0 (Word v1), E0 (Word v2) -> to_bool2 op v1 v2
-      | E0 (DWord v1), E0 (DWord v2) -> to_bool2 op v1 v2
-      | E0 (QWord v1), E0 (QWord v2) -> to_bool2 op v1 v2
-      | E0 (OWord v1), E0 (OWord v2) -> to_bool2 op v1 v2
-      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool2 op v1 v2
-      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool2 op v1 v2
-      | _ -> E2 (op, _e1, _e2))
+    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 >= v2}
+    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false))  {to_bool =  fun v1 v2 -> v1 = v2}
+    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 > v2}
+    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 != v2}
     | E1S (Apply, E1 (Function _, body), es) ->
       eval body env es
     | E0 (Param (fid, n)) as e -> (
