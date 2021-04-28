@@ -3934,6 +3934,10 @@ struct
     | _ ->
         E2 (PartialSort, vs, ks)
 
+  let assert_ = function
+    | E0 (Bool true) when !optimize -> nop
+    | e -> E1 (Assert, e)
+
   let set_vec e1 e2 e3 =
     match to_cst_int e1 with
     | exception _ ->
@@ -3953,7 +3957,8 @@ struct
     | i ->
         (match e2 with
         | E0S (MakeVec, es) when !optimize ->
-            List.at es i
+            (try List.at es i
+            with Invalid_argument _ -> E2 (GetVec, e1, e2))
         | _ -> E2 (GetVec, e1, e2))
 
   let map_ lst f =
@@ -4030,10 +4035,6 @@ struct
   let char_of_byte = char_of_u8 % u8_of_byte
 
   let byte_of_char = byte_of_u8 % u8_of_char
-
-  let assert_ = function
-    | E0 (Bool true) when !optimize -> nop
-    | e -> E1 (Assert, e)
 
   let mask_get i m = E1 (MaskGet i, m)
 
