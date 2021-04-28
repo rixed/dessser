@@ -1602,7 +1602,24 @@ struct
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
         match _e1, _e2 with
-          | E0 (U8 v1), E0 (U8 v2) -> E0 ( U8 (Uint8.(v1+v2)))
+          | E0 (U8 v1), E0 (U8 v2) -> E0 (U8 (Uint8.(v1+v2)))
+          | E0 (U16 v1), E0 (U16 v2) -> E0 (U16 (Uint16.(v1+v2)))
+          | E0 (U24 v1), E0 (U24 v2) -> E0 (U24 (Uint24.(v1+v2)))
+          | E0 (U32 v1), E0 (U32 v2) -> E0 (U32 (Uint32.(v1+v2)))
+          | E0 (U40 v1), E0 (U40 v2) -> E0 (U40 (Uint40.(v1+v2)))
+          | E0 (U48 v1), E0 (U48 v2) -> E0 (U48 (Uint48.(v1+v2)))
+          | E0 (U56 v1), E0 (U56 v2) -> E0 (U56 (Uint56.(v1+v2)))
+          | E0 (U64 v1), E0 (U64 v2) -> E0 (U64 (Uint64.(v1+v2)))
+          | E0 (U128 v1), E0 (U128 v2) -> E0 (U128 (Uint128.(v1+v2)))
+          | E0 (I8 v1), E0 (I8 v2) -> E0 (I8 (Int8.(v1+v2)))
+          | E0 (I16 v1), E0 (I16 v2) -> E0 (I16 (Int16.(v1+v2)))
+          | E0 (I24 v1), E0 (I24 v2) -> E0 (I24 (Int24.(v1+v2)))
+          | E0 (I32 v1), E0 (I32 v2) -> E0 (I32 (Int32.(v1+v2)))
+          | E0 (I40 v1), E0 (I40 v2) -> E0 (I40 (Int40.(v1+v2)))
+          | E0 (I48 v1), E0 (I48 v2) -> E0 (I48 (Int48.(v1+v2)))
+          | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
+          | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
+          | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
           | _ -> e)
     | E2 (Div, e1, e2) ->(
         let _e1 = eval e1 env ids in
