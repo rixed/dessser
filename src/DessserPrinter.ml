@@ -65,5 +65,9 @@ let declared_type p t f =
   )
 
 let get_external_type p name backend_id =
-  let f = List.assoc name p.external_types in
-  f p backend_id
+  match List.assoc name p.external_types with
+  | exception (Not_found as e) ->
+      Printf.eprintf "Unknown external type %S!\n" name ;
+      raise e (* reraise *)
+  | f ->
+      f p backend_id
