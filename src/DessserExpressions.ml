@@ -1759,9 +1759,9 @@ struct
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
     [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
-    [ Ops.(u16 (Uint16.of_int 5))] \
+    [ Ops.(u16 (Uint16.of_int 5)) ] \
     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
-    [ Ops.(u16 (Uint16.of_int 5))] \
+    [ Ops.(u16 (Uint16.of_int 5)) ] \
     (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
   *)
 
