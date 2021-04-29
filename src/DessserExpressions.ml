@@ -1672,6 +1672,16 @@ struct
       (match name_found with
         | Some (_, Some v) -> v
         | _ -> E0S (MakeRec, e_es))
+    (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
+    | E1 (IsNull, e1) -> (
+      let e1_ = eval e1 env ids in
+      match e1_ with
+        | E0 (Null _) -> E0 (Bool true)
+        | E1 (NotNull, _) -> E0 (Bool false)
+        | E0 (U8 _) | E0 (U16 _) | E0 (U24 _) | E0 (U32 _) | E0 (U40 _) | E0 (U48 _) | E0 (U56 _) | E0 (U64 _) | E0 (U128 _)
+        | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
+        | E0 (Float _) -> E0 (Bool false)
+        | _ -> E1 (IsNull, e1_))
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1763,11 +1773,19 @@ struct
     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
     [ Ops.(u16 (Uint16.of_int 5)) ] \
     (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
+    [ Ops.(false_) ] \
+    (expr_simp "(is-null (u8 1))")
+    [ Ops.(true_) ] \
+    (expr_simp "(is-null (null \"u8\"))")
   *)
 
   (*$>*)
 end
 
+(*
+    [ Ops.(true_) ] \
+    (expr_simp "(get-alt \"c1\" (construct \"(c1 Bool | c2 u8)\" 1 (bool true)))")
+*)
 let of_string s =
   match Parser.expr s with
   | [ e ] -> e
