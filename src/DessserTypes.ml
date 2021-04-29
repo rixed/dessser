@@ -1232,3 +1232,5 @@ let tuple mns =
 let set st mn = Value (required (Set (st, mn)))
 
 let vector d mn = Value (required (Vec (d, mn)))
+
+let ext n = Value (required (Ext n))
