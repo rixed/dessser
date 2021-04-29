@@ -1684,14 +1684,8 @@ struct
             | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
             | E0 (Float _) -> E0 (Bool false)
             | _ -> E1 (IsNull, _e1))
-        | StringOfFloat, _ -> (
-          match _e1 with
-            | E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
-            | _ -> _e1)
-        | StringOfChar, _ -> (
-          match _e1 with
-            | E0 (Char c) -> E0 (String (String.of_char c))
-            | _ -> _e1)
+        | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
+        | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
