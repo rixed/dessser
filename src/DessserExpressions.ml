@@ -1686,6 +1686,24 @@ struct
             | _ -> E1 (IsNull, _e1))
         | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
         | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
+        | StringOfInt, E0 (U8 n) -> E0 (String (Uint8.to_string n))
+        | StringOfInt, E0 (U16 n) -> E0 (String (Uint16.to_string n))
+        | StringOfInt, E0 (U24 n) -> E0 (String (Uint24.to_string n))
+        | StringOfInt, E0 (U32 n) -> E0 (String (Uint32.to_string n))
+        | StringOfInt, E0 (U40 n) -> E0 (String (Uint40.to_string n))
+        | StringOfInt, E0 (U48 n) -> E0 (String (Uint48.to_string n))
+        | StringOfInt, E0 (U56 n) -> E0 (String (Uint56.to_string n))
+        | StringOfInt, E0 (U64 n) -> E0 (String (Uint64.to_string n))
+        | StringOfInt, E0 (U128 n) -> E0 (String (Uint128.to_string n))
+        | StringOfInt, E0 (I8 n) -> E0 (String (Int8.to_string n))
+        | StringOfInt, E0 (I16 n) -> E0 (String (Int16.to_string n))
+        | StringOfInt, E0 (I24 n) -> E0 (String (Int24.to_string n))
+        | StringOfInt, E0 (I32 n) -> E0 (String (Int32.to_string n))
+        | StringOfInt, E0 (I40 n) -> E0 (String (Int40.to_string n))
+        | StringOfInt, E0 (I48 n) -> E0 (String (Int48.to_string n))
+        | StringOfInt, E0 (I56 n) -> E0 (String (Int56.to_string n))
+        | StringOfInt, E0 (I64 n) -> E0 (String (Int64.to_string n))
+        | StringOfInt, E0 (I128 n) -> E0 (String (Int128.to_string n))
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
@@ -1787,6 +1805,8 @@ struct
     (expr_simp "(string-of-float (float 1))")
     [ Ops.(string "c")] \
     (expr_simp "(string-of-char (char \"c\"))")
+    [ Ops.(string "1")] \
+    (expr_simp "(string-of-int (u8 1))")
   *)
 
   (*$>*)
