@@ -91,6 +91,25 @@ let rec list_last = function
   | x :: [] -> x
   | _ :: rest -> list_last rest
 
+let assoc_merge l1 l2 =
+  let rec loop l = function
+    | [] -> l
+    | (k, _) as x :: rest ->
+        let l = if List.mem_assoc k l then l else x :: l in
+        loop l rest in
+  loop l1 l2
+
+(*$= assoc_merge & ~printer:(IO.to_string (List.print (Tuple2.print Int.print String.print)))
+  [ 3, "baz" ; 1, "foo" ; 2, "bar" ] \
+    (assoc_merge [ 1, "foo" ; 2, "bar" ] [ 3, "baz" ])
+  [ 3, "baz" ; 1, "foo" ; 2, "bar" ] \
+    (assoc_merge [ 1, "foo" ; 2, "bar" ] [ 1, "foo" ; 3, "baz" ])
+  [ 1, "foo" ; 2, "bar" ; 3, "baz" ] \
+    (assoc_merge [ 1, "foo" ; 2, "bar" ; 3, "baz" ] [])
+  [ 3, "baz" ; 2, "bar" ; 1, "foo" ] \
+    (assoc_merge [] [ 1, "foo" ; 2, "bar" ; 3, "baz" ])
+*)
+
 let array_for_all2_no_exc f a b =
   try Array.for_all2 f a b
   with Invalid_argument _ -> false

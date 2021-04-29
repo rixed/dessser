@@ -1,20 +1,22 @@
 open Batteries
+
+open DessserTools
 module T = DessserTypes
 
 type context = Declaration | Definition
 
 type t =
   { context : context ;
-    mutable decl : string IO.output ;
+    decl : string IO.output ;
     def : string IO.output ;
     mutable decls : string IO.output list ;
     mutable defs : string  IO.output list ;
     mutable indent : string ;
     mutable declared : Set.String.t ;
-    external_types : (string * (t -> T.backend_id -> string)) list ;
+    mutable external_types : (string * (t -> T.backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
-     * educated guesses at time names: *)
-    type_names : (T.value_type * string) list }
+     * educated guesses of type names: *)
+    mutable type_names : (T.value_type * string) list }
 
 let make ?(declared=Set.String.empty) context type_names external_types =
   { context ;
@@ -31,9 +33,11 @@ let new_top_level p f =
   let p' = make ~declared:p.declared p.context p.type_names p.external_types in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
-  p.defs <- p'.def :: p.defs ;
-  p.decls <- p'.decl :: p.decls ;
+  p.defs <- p'.def :: List.rev_append p'.defs p.defs ;
+  p.decls <- p'.decl :: List.rev_append p'.decls p.decls ;
   p.declared <- Set.String.union p.declared p'.declared ;
+  p.external_types <- assoc_merge p.external_types p'.external_types ;
+  p.type_names <- assoc_merge p.type_names p'.type_names ;
   res
 
 let indent_more p f =

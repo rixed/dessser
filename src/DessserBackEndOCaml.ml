@@ -1059,39 +1059,42 @@ struct
             let check_csts_n =
               (* Temporarily, enter new definitions at the top-level: *)
               P.new_top_level p (fun p ->
+                (* TODO: a printer function directly in DessserPrinter.t? *)
+                let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
                 let check_csts_n = gen_sym "check_csts_" in
-                pp p.P.def "let %s =" check_csts_n ;
+                ppi p.P.def "let %s x_ =" check_csts_n ;
                 P.indent_more p (fun () ->
                   let ns =
                     List.map (fun e ->
                       print emit p [] e
                     ) csts in
-                  ppi p.P.def "fun x_ ->" ;
-                  P.indent_more p (fun () ->
-                    if csts = [] then (
-                      String.print p.P.def "false"
-                    ) else if List.length csts < 6 (* guessed *) then (
-                      List.print ~first:"" ~last:"" ~sep:" || "
-                        (fun oc n -> Printf.fprintf oc "x_ = %s" n) p.P.def ns
-                    ) else (
-                      (* TODO: if the csts are nullable filter out the Null and
-                       * make this a list of non nullable values: *)
-                      ppi p.P.def "let h_ = Hashtbl.of_list %a in"
-                        (List.print String.print) ns ;
-                      ppi p.P.def "Hashtbl.mem h_ x_"
-                    )) ;
-                  check_csts_n)) in
+                  if csts = [] then (
+                    ppi p.P.def "false"
+                  ) else if List.length csts < 6 (* guessed *) then (
+                    ppi p.P.def "%a"
+                      (List.print ~first:"" ~last:"\n" ~sep:" || "
+                        (fun oc n -> Printf.fprintf oc "x_ = %s" n)) ns
+                  ) else (
+                    (* TODO: if the csts are nullable filter out the Null and
+                     * make this a list of non nullable values: *)
+                    ppi p.P.def "let h_ = Hashtbl.of_list %a in"
+                      (List.print String.print) ns ;
+                    ppi p.P.def "Hashtbl.mem h_ x_"
+                  )) ;
+                check_csts_n) in
             emit ?name p l e (fun oc ->
               if non_csts = [] then (
-                pp oc "%s x_" check_csts_n
+                pp oc "%s %s" check_csts_n n1
               ) else (
                 (* FIXME: nullability of non_csts *)
                 let ns = List.map (print emit p l) non_csts in
-                pp oc "let x_ = %s in" n1 ;
-                pp oc "%s x_ || %a"
+                let x_ = gen_sym "member_item_" in
+                pp oc "let %s = %s in" x_ n1 ;
+                pp oc "%s %s || %a"
                   check_csts_n
+                  x_
                   (List.print ~first:"" ~last:"" ~sep:" || "
-                     (fun oc n -> Printf.fprintf oc "x_ = %s" n)) ns
+                     (fun oc n -> Printf.fprintf oc "%s = %s" x_ n)) ns
               ))
         | set ->
             let n2 = print emit p l set in
