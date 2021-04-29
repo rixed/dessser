@@ -1687,6 +1687,11 @@ struct
       match e1_ with
         | E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
         | _ -> e1_)
+    | E1 (StringOfChar, e1) -> (
+      let e1_ = eval e1 env ids in
+      match e1_ with
+        | E0 (Char c) -> E0 (String (String.of_char c))
+        | _ -> e1_)
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1784,6 +1789,8 @@ struct
     (expr_simp "(is-null (null \"u8\"))")
     [ Ops.(string "0x1p+0")] \
     (expr_simp "(string-of-float (float 1))")
+    [ Ops.(string "c")] \
+    (expr_simp "(string-of-char (char \"c\"))")
   *)
 
   (*$>*)
