@@ -1657,9 +1657,21 @@ struct
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool v1 v2
       | _ -> E2 (op, e1, e2) in
   match e with
-    | E1 (GetItem i, E0S (MakeTup, es)) ->
+    | E1 (GetItem n, E0S (MakeTup, es)) ->
       (* we do not check array size as it checked with type checking *)
-      eval (List.nth es i) env ids
+      eval (List.nth es n) env ids
+    | E1 (GetField s, E0S (MakeRec, es)) ->
+      let name_found, e_es = List.fold_lefti (fun (prev_name, es) i e ->
+        let e_ = eval e env ids in
+        if i mod 2 = 0 then (
+          match e_ with
+          | E0 (String fn) as e -> if fn = s then (Some (s, None), e::es) else (prev_name, e::es)
+          | e -> (prev_name, e::es)
+        ) else if prev_name <> None then (Some (s, Some e_), es) else (prev_name, e_::es)
+      ) (None, []) es in
+      (match name_found with
+        | Some (_, Some v) -> v
+        | _ -> E0S (MakeRec, e_es))
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1749,6 +1761,8 @@ struct
     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
     [ Ops.(u16 (Uint16.of_int 5))] \
     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
+    [ Ops.(u16 (Uint16.of_int 5))] \
+    (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
   *)
 
   (*$>*)
