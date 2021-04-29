@@ -1657,41 +1657,43 @@ struct
       | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool v1 v2
       | _ -> E2 (op, e1, e2) in
   match e with
-    | E1 (GetItem n, E0S (MakeTup, es)) ->
-      (* we do not check array size as it checked with type checking *)
-      eval (List.nth es n) env ids
-    | E1 (GetField s, E0S (MakeRec, es)) ->
-      let name_found, e_es = List.fold_lefti (fun (prev_name, es) i e ->
-        let e_ = eval e env ids in
-        if i mod 2 = 0 then (
-          match e_ with
-          | E0 (String fn) as e -> if fn = s then (Some (s, None), e::es) else (prev_name, e::es)
-          | e -> (prev_name, e::es)
-        ) else if prev_name <> None then (Some (s, Some e_), es) else (prev_name, e_::es)
-      ) (None, []) es in
-      (match name_found with
-        | Some (_, Some v) -> v
-        | _ -> E0S (MakeRec, e_es))
-    (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
-    | E1 (IsNull, e1) -> (
-      let e1_ = eval e1 env ids in
-      match e1_ with
-        | E0 (Null _) -> E0 (Bool true)
-        | E1 (NotNull, _) -> E0 (Bool false)
-        | E0 (U8 _) | E0 (U16 _) | E0 (U24 _) | E0 (U32 _) | E0 (U40 _) | E0 (U48 _) | E0 (U56 _) | E0 (U64 _) | E0 (U128 _)
-        | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
-        | E0 (Float _) -> E0 (Bool false)
-        | _ -> E1 (IsNull, e1_))
-    | E1 (StringOfFloat, e1) -> (
-      let e1_ = eval e1 env ids in
-      match e1_ with
-        | E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
-        | _ -> e1_)
-    | E1 (StringOfChar, e1) -> (
-      let e1_ = eval e1 env ids in
-      match e1_ with
-        | E0 (Char c) -> E0 (String (String.of_char c))
-        | _ -> e1_)
+    | E1 (op, e1) -> (
+      let _e1 = eval e1 env ids in
+      match op, _e1 with
+        | GetItem n, E0S (MakeTup, es) ->
+          (* we do not check array size as it checked with type checking *)
+          eval (List.nth es n) env ids
+        | GetField s, E0S (MakeRec, es) ->
+          let name_found, e_es = List.fold_lefti (fun (prev_name, es) i e ->
+            let e_ = eval e env ids in
+            if i mod 2 = 0 then (
+              match e_ with
+              | E0 (String fn) as e -> if fn = s then (Some (s, None), e::es) else (prev_name, e::es)
+              | e -> (prev_name, e::es)
+            ) else if prev_name <> None then (Some (s, Some e_), es) else (prev_name, e_::es)
+          ) (None, []) es in
+          (match name_found with
+            | Some (_, Some v) -> v
+            | _ -> E0S (MakeRec, e_es))
+        (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
+        | IsNull, _ -> (
+          match _e1 with
+            | E0 (Null _) -> E0 (Bool true)
+            | E1 (NotNull, _) -> E0 (Bool false)
+            | E0 (U8 _) | E0 (U16 _) | E0 (U24 _) | E0 (U32 _) | E0 (U40 _) | E0 (U48 _) | E0 (U56 _) | E0 (U64 _) | E0 (U128 _)
+            | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
+            | E0 (Float _) -> E0 (Bool false)
+            | _ -> E1 (IsNull, _e1))
+        | StringOfFloat, _ -> (
+          match _e1 with
+            | E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
+            | _ -> _e1)
+        | StringOfChar, _ -> (
+          match _e1 with
+            | E0 (Char c) -> E0 (String (String.of_char c))
+            | _ -> _e1)
+        | _ -> E1 (op, _e1)
+    )
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
