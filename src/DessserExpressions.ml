@@ -1682,6 +1682,11 @@ struct
         | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
         | E0 (Float _) -> E0 (Bool false)
         | _ -> E1 (IsNull, e1_))
+    | E1 (StringOfFloat, e1) -> (
+      let e1_ = eval e1 env ids in
+      match e1_ with
+        | E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
+        | _ -> e1_)
     | E3 (If, e1, e2, e3) ->
       (match eval e1 env ids with
         | E0 (Bool true) -> eval e2 env ids
@@ -1777,6 +1782,8 @@ struct
     (expr_simp "(is-null (u8 1))")
     [ Ops.(true_) ] \
     (expr_simp "(is-null (null \"u8\"))")
+    [ Ops.(string "0x1p+0")] \
+    (expr_simp "(string-of-float (float 1))")
   *)
 
   (*$>*)
