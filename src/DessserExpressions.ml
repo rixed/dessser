@@ -4032,9 +4032,17 @@ struct
 
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
 
-  let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
+  let append_bytes e1 e2 =
+    match e1, e2 with
+    | E0 (Bytes b), _ when Bytes.length b = 0 && !optimize -> e2
+    | _, E0 (Bytes b) when Bytes.length b = 0 && !optimize -> e1
+    | _ -> E2 (AppendBytes, e1, e2)
 
-  let append_string e1 e2 = E2 (AppendString, e1, e2)
+  let append_string e1 e2 =
+    match e1, e2 with
+    | E0 (String ""), _ when !optimize -> e2
+    | _, E0 (String "") when !optimize -> e1
+    | _ -> E2 (AppendString, e1, e2)
 
   let starts_with e1 e2 = E2 (StartsWith, e1, e2)
 
