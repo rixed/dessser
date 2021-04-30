@@ -395,7 +395,7 @@ type e4 =
       (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
            Result ('a*ptr)
         Read whenever cond returns true, or the input stream is exhausted *)
-  | Repeat (* From * To * body (idx->'a->'a) * Init value *)
+  | Repeat (* From (incl.) * To (exlc.) * body (idx->'a->'a) * Init value *)
 
 type t =
   | E0 of e0
@@ -2596,6 +2596,7 @@ let rec type_check l e =
           check_eq l e1 ret ;
           check_param e2 1 p2 item_t)
     | E4 (Repeat, e1 (*from*), e2 (*to*), e3 (*idx->'a->'a*), e4 (*'a*)) ->
+        (* TODO: any integer for from/to and body index *)
         check_eq l e1 T.i32 ;
         check_eq l e2 T.i32 ;
         check_params2 l e3 (fun t1 t2 t3 ->
@@ -3759,8 +3760,9 @@ struct
     match from, to_ with
     | E0 (I32 f), E0 (I32 t) when !optimize ->
         let c = Int32.compare f t in
-        if c > 0 then nop
-        else if c = 0 then apply body [ from ; init ]
+        if c >= 0 then init
+        else if 0 = Int32.(compare t (succ f)) then
+          apply body [ from ; init ]
         else E4 (Repeat, from, to_, body, init)
     | _ ->
         E4 (Repeat, from, to_, body, init)

@@ -1070,7 +1070,7 @@ struct
         let res = gen_sym ?name "repeat_res_" in
         let t4 = E.type_of l e4 in
         ppi p.P.def "%s %s { %s };" (type_identifier p t4) res accum ;
-        ppi p.P.def "for (int32_t idx_ = %s; idx_ != %s; idx_++) {" from to_ ;
+        ppi p.P.def "for (int32_t idx_ = %s; idx_ < %s; idx_++) {" from to_ ;
         P.indent_more p (fun () ->
           ppi p.P.def "%s = %s(idx_, %s);" res body res) ;
         ppi p.P.def "}" ;
