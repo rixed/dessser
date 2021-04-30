@@ -708,7 +708,7 @@ struct
         let res = gen_sym "getenv_res_" in
         ppi p.P.def "char *%s { std::getenv(%s.c_str()) };" res n1 ;
         emit ?name p l e (fun oc ->
-          pp oc "%s == nullptr ? std::nullopt : %s" res res)
+          pp oc "%s == nullptr ? std::nullopt : std::make_optional(%s)" res res)
     | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1219,7 +1219,8 @@ struct
         ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) };"
           pos n1 n3 n2 n3 n2 ;
         emit ?name p l e (fun oc ->
-          pp oc "%s != std::string::npos ? %s : std::nullopt" pos pos)
+          pp oc "%s != std::string::npos ? \
+                  std::make_optional(%s) : std::nullopt" pos pos)
     | E.E3 (Top _, _, _, _) ->
         todo "C++ back-end for TOPs"
     | E.E3 (InsertWeighted, set, w, x) ->
