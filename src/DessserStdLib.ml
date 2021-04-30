@@ -4,12 +4,20 @@ module E = DessserExpressions
 module T = DessserTypes
 
 (* [coalesce es] build an expression that selects the first non null
- * expression in [rs]. *)
+ * expression in [rs].
+ * All items of [rs] must have the same value-type.
+ * If the last alternative is nullable then the result of the coalesce is still
+ * nullable.
+ * The first non-nullable alternative will be the last checked item obviously. *)
 let coalesce l es =
   let open E.Ops in
+  if es = [] then
+    invalid_arg "coalesce with no alternatives" ;
+  let last_e = BatList.last es in
+  let ret_nullable = T.is_nullable (E.type_of l last_e) in
   let rec loop i l = function
     | [] ->
-        assert false (* because of type checking *)
+        assert false (* because of the pre-condition *)
     | [ e ] ->
         e
     | e :: es ->
@@ -20,11 +28,13 @@ let coalesce l es =
               if_
                 ~cond:(is_null d)
                 ~then_:(loop (i + 1) l es)
-                ~else_:(force ~what:"coalesce" d))
+                ~else_:(
+                  if ret_nullable then d
+                  else force ~what:"coalesce" d))
         | _ ->
             (* If [e] is not a nullable thing there is no point looking
              * further: *)
-            e) in
+            if ret_nullable then not_null e else e) in
   loop 0 l es
 
 let random_i32 =
