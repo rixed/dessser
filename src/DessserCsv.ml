@@ -502,7 +502,9 @@ struct
         pair (char_of_byte b) p)
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
-        conf (char_of_string % string_of_bytes) l p
+        conf (fun e ->
+          force (char_of_string (u8_of_int 0) (string_of_bytes e))
+        ) l p
 
   let di8 _conf _ _ _ p = i8_of_ptr p
   let du8 _conf _ _ _ p = u8_of_ptr p

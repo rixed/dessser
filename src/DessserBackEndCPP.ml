@@ -534,9 +534,6 @@ struct
         | _ ->
             assert false (* because of type checking *)) ;
         emit ?name p l e (fun oc -> pp oc "%s" str)
-    | E.E1 (CharOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s[0]" n)
     | E.E1 (FloatOfString, e1) ->
         of_string e1 "float_of_string" "stod"
     | E.E1 (U8OfString, e1) ->
@@ -1202,6 +1199,18 @@ struct
         let d = print emit p l d in
         ppi p.P.def "%s->scale(%s);" set d ;
         ""
+    | E.E2 (CharOfString, idx, str) ->
+        let idx = print emit p l idx
+        and str = print emit p l str in
+        (* un-inline them: *)
+        let idx_ = gen_sym ?name "idx_"
+        and str_ = gen_sym ?name "str_" in
+        ppi p.P.def "auto const &%s { %s };" str_ str ;
+        ppi p.P.def "auto const %s { %s };" idx_ idx ;
+        emit ?name p l e (fun oc ->
+          pp oc "%s < %s.size() ? \
+                  std::make_optional(%s[%s]) : std::nullopt"
+            idx_ str_ str_ idx_)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

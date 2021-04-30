@@ -120,7 +120,6 @@ type e1 =
   | StringOfInt
   | StringOfIp
   | FloatOfString
-  | CharOfString
   | U8OfString
   | U16OfString
   | U24OfString
@@ -358,6 +357,8 @@ type e2 =
   | ChopEnd
   (* Scale the weight of a weighted set (ie. top) *)
   | ScaleWeights
+  (* Arguments are index and string (as in GetVec): *)
+  | CharOfString
 
 type e3 =
   | SetBit
@@ -705,7 +706,6 @@ let string_of_e1 = function
   | StringOfInt -> "string-of-int"
   | StringOfIp -> "string-of-ip"
   | FloatOfString -> "float-of-string"
-  | CharOfString -> "char-of-string"
   | U8OfString -> "u8-of-string"
   | U16OfString -> "u16-of-string"
   | U24OfString -> "u24-of-string"
@@ -905,6 +905,7 @@ let string_of_e2 = function
   | ChopBegin -> "chop-begin"
   | ChopEnd -> "chop-end"
   | ScaleWeights -> "scale-weights"
+  | CharOfString -> "char-of-string"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1268,7 +1269,6 @@ struct
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
     | Lst [ Sym "string-of-ip" ; x ] -> E1 (StringOfIp, e x)
     | Lst [ Sym "float-of-string" ; x ] -> E1 (FloatOfString, e x)
-    | Lst [ Sym "char-of-string" ; x ] -> E1 (CharOfString, e x)
     | Lst [ Sym "u8-of-string" ; x ] -> E1 (U8OfString, e x)
     | Lst [ Sym "u16-of-string" ; x ] -> E1 (U16OfString, e x)
     | Lst [ Sym "u24-of-string" ; x ] -> E1 (U24OfString, e x)
@@ -1496,6 +1496,8 @@ struct
         E2 (ChopEnd, e x1, e x2)
     | Lst [ Sym "scale-weights" ; set ; d ] ->
         E2 (ScaleWeights, e set, e d)
+    | Lst [ Sym "char-of-string" ; idx ; str ] ->
+        E2 (CharOfString, e idx, e str)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1717,7 +1719,6 @@ let rec type_of l e0 =
   | E1 (StringOfChar, _)
   | E1 (StringOfInt, _) -> T.string
   | E1 (StringOfIp, _) -> T.string
-  | E1 (CharOfString, _) -> T.char
   | E1 (FloatOfString, _) -> T.(Value (optional (Mac Float)))
   | E1 (U8OfString, _) -> T.(Value (optional (Mac U8)))
   | E1 (U16OfString, _) -> T.(Value (optional (Mac U16)))
@@ -1998,6 +1999,8 @@ let rec type_of l e0 =
       T.void
   | E3 (Substring, _, _, _) ->
       T.string
+  | E2 (CharOfString, _, _) ->
+      T.(Value (optional (Mac Char)))
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
@@ -2343,7 +2346,7 @@ let rec type_check l e =
         check_eq l e T.char
     | E1 (StringOfIp, e) ->
         check_ip l (type_of l e)
-    | E1 ((FloatOfString | CharOfString | U8OfString | U16OfString
+    | E1 ((FloatOfString | U8OfString | U16OfString
          | U24OfString | U32OfString | U40OfString | U48OfString
          | U56OfString | U64OfString | U128OfString | I8OfString
          | I16OfString | I24OfString | I32OfString | I40OfString
@@ -2431,6 +2434,9 @@ let rec type_check l e =
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
+    | E2 (CharOfString, idx, str) ->
+        check_unsigned l idx ;
+        check_eq l str T.string
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
@@ -3166,18 +3172,22 @@ struct
     | E0 (U128 n) when !optimize -> string (DessserIpTools.V6.to_string n)
     | e -> E1 (StringOfIp, e)
 
-  let char_of_string = function
+  let null vt = E0 (Null vt)
+
+  let char_of_string idx str =
+    match str with
     | E0 (String s) when !optimize ->
-        if String.length s = 1 then char s.[0]
-        else invalid_arg "char_of_string"
-    | e ->
-        E1 (CharOfString, e)
+        if String.length s = 0 then null (Mac Char)
+        else (match to_cst_int idx with
+        | exception _ -> E2 (CharOfString, idx, str)
+        | idx when idx < String.length s && !optimize -> char s.[idx]
+        | _ -> E2 (CharOfString, idx, str))
+    | _ ->
+        E2 (CharOfString, idx, str)
 
   let string_of_char = function
     | E0 (Char c) when !optimize -> string (String.of_char c)
     | e -> E1 (StringOfChar, e)
-
-  let null vt = E0 (Null vt)
 
   let not_null = function
     | E1 (Force _, e1) when !optimize -> e1

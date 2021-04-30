@@ -625,9 +625,6 @@ struct
               case_u mn n1
           | _ ->
               assert false (* because of type checking *))
-    | E.E1 (CharOfString, e1) ->
-        let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s.[0]" n)
     | E.E1 (FloatOfString, e1) ->
         unary_op_or_null "float_of_string" e1
     | E.E1 (U8OfString, e1)
@@ -1389,6 +1386,14 @@ struct
         and m = mod_of_set_type_of_expr l set in
         ppi p.P.def "%s.scale %s %s ;" m set d ;
         "()"
+    | E.E2 (CharOfString, idx, str) ->
+        let m_idx = mod_name (E.type_of l idx) in
+        let idx = print emit p l idx (* guaranteed to be unsigned *)
+        and str = print emit p l str in
+        emit ?name p l e (fun oc ->
+          pp oc "(let n_ = %s.to_int %s and s_ = %s in \
+                  if n_ < String.length s_ then NotNull s_.[n_] \
+                  else Null)" m_idx idx str)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2

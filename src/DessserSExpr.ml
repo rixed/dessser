@@ -284,7 +284,10 @@ struct
 
   let dstring _conf _ _ l p = dbytes string_of_bytes l p
   (* Chars are encoded as single char strings *)
-  let dchar _conf _ _ l p = dbytes (char_of_string % string_of_bytes) l p
+  let dchar _conf _ _ l p =
+    dbytes (fun e ->
+      force (char_of_string (u8_of_int 0) (string_of_bytes e))
+    ) l p
 
   let di8 _conf _ _ _ p = i8_of_ptr p
   let du8 _conf _ _ _ p = u8_of_ptr p
