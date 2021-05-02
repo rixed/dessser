@@ -1,4 +1,6 @@
 (* Some common expressions that might be useful in various programs *)
+open Stdint
+
 open DessserTools
 module E = DessserExpressions
 module T = DessserTypes
@@ -232,3 +234,184 @@ let percentiles ~l vs ps =
               partial_sort vs ks ;
               map_ ks (E.func1 ~l T.u32 (fun _l k ->
                 get_vec k vs)) ])))
+
+(* If [e] is not nullable, [to_nullable l e] is [not_null e].
+ * If [e] is nullable already then [to_nullable l e] is just [e]. *)
+let to_nullable l e =
+  let open E.Ops in
+  if T.is_nullable (E.type_of l e) then e
+  else not_null e
+
+(* Tells if a vector/list/set/slist/data_ptr is empty, dealing with nullable: *)
+let is_empty l e =
+  let open E.Ops in
+  let prop_null nullable e f =
+    if nullable then
+      if_null e
+        ~then_:(null T.(Mac Bool))
+        ~else_:(not_null (f (force e)))
+    else
+      f e in
+  match E.type_of l e with
+  | T.Value ({ vtyp = (Mac String) ; nullable }) ->
+      prop_null nullable e (fun e ->
+        eq (u32_of_int 0) (string_length e))
+  | T.Value ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
+      prop_null nullable e (fun e ->
+        eq (u32_of_int 0) (cardinality e))
+  | T.Value ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
+      prop_null nullable e (fun e ->
+        lt (get_field "mask" e) (u8_of_int 32))
+  | T.Value ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
+      prop_null nullable e (fun e ->
+        lt (get_field "mask" e) (u8_of_int 128))
+  | T.Value ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
+      prop_null nullable e (fun e ->
+        if_ (eq (label_of e) (u8_of_int 0))
+          ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
+          ~else_:(lt (get_field "mask" (get_alt "v6" e)) (u8_of_int 128)))
+  | DataPtr ->
+      eq (size 0) (rem_size e)
+  | SList t ->
+      eq e (eol t)
+  | t ->
+      BatPrintf.sprintf2 "is_empty for %a" T.print t |>
+      invalid_arg
+
+let exists ~l lst f =
+  let open E.Ops in
+  match E.get_item_type_err ~vec:true ~lst:true ~set:true l lst with
+  | Error t ->
+      BatPrintf.sprintf2 "exists: must pass a vector/list/set (not %a)"
+        T.print t |>
+      invalid_arg
+  | Ok item_t ->
+      (* FIXME: a way to exit the loop that iterates through a container *)
+      fold
+        ~init:(bool false)
+        ~body:(E.func2 ~l T.bool T.(Value item_t) (fun l res item ->
+          or_ res (f l item)))
+        ~list:lst
+
+let first_ip_of_cidr width all_ones cidr =
+  let open E.Ops in
+  let ip = get_field "ip" cidr in
+  let mask = get_field "mask" cidr in
+  let shf = sub (u8_of_int width) mask in
+  let nm = left_shift all_ones shf in
+  bit_and nm ip
+
+let first_ip_of_cidr4 cidr =
+  let open E.Ops in
+  first_ip_of_cidr 32 (u32 Uint32.(sub zero one)) cidr
+
+let first_ip_of_cidr6 cidr =
+  let open E.Ops in
+  first_ip_of_cidr 128 (u128 Uint128.(sub zero one)) cidr
+
+let last_ip_of_cidr width all_ones one cidr =
+  let open E.Ops in
+  let ip = get_field "ip" cidr in
+  let mask = get_field "mask" cidr in
+  let shf = sub (u8_of_int width) mask in
+  let nm = left_shift one shf in
+  (* Left-shifts of more than the int width are undefined: *)
+  if_ (eq (u8_of_int 0) mask)
+    ~then_:all_ones
+    ~else_:(sub (bit_or nm ip) one)
+
+let last_ip_of_cidr4 cidr =
+  let open E.Ops in
+  last_ip_of_cidr 32 (u32 Uint32.(sub zero one)) (u32_of_int 1) cidr
+
+let last_ip_of_cidr6 cidr =
+  let open E.Ops in
+  last_ip_of_cidr 128 (u128 Uint128.(sub zero one)) (u128_of_int 1) cidr
+
+(* Tells whether [e] is in the iterable/cidr [lst].
+ * Also works when [lst] is a set of sets (of sets...).
+ * Also handles the case where [lst] and/or [e] is null (note than null is known
+ * not to be in a (non-null) empty set).
+ * Return value is nullable whenever [item] or [lst] is. *)
+let rec is_in ?(l=[]) item lst =
+  let open E.Ops in
+  let_ ~l ~name:"lst" lst (fun l lst ->
+    let_ ~l ~name:"item" item (fun l item ->
+      let lst_t = E.type_of l lst
+      and item_t = E.type_of l item in
+      if T.is_nullable lst_t then
+        if_null lst
+          ~then_:(null T.(Mac Bool))
+          ~else_:(
+            to_nullable l (is_in ~l item (force ~what:"is_in(0)" lst)))
+      else
+        if_ (comment "is_in: Is List empty?"
+              (is_empty l lst))
+          ~then_:(
+            let ret = bool true in
+            if T.is_nullable item_t then not_null ret else ret)
+          ~else_:(
+            if T.is_nullable item_t then
+              if_null item
+                ~then_:(null T.(Mac Bool))
+                ~else_:(
+                  to_nullable l (is_in ~l (force ~what:"is_in(1)" item) lst))
+            else (
+              (* Now that neither lst nor item are nullable, let's deal with
+               * the actual question: *)
+              match item_t, lst_t with
+              (* Substring search: *)
+              | T.Value { vtyp = Mac String ; _ },
+                T.Value { vtyp = Mac String ; _ } ->
+                  not_ (is_null (find_substring (bool true) item lst))
+              (* In all other cases where [item] and [lst] are of the same type
+               * then [in_in item lst] is just a comparison: *)
+              | t1, t2 when T.eq t1 t2 ->
+                  eq item lst
+              (* Otherwise [lst] must be some kind of sub-set: *)
+              | T.Value { vtyp = Usr { name = "Ip4" ; _ } ; _ },
+                T.Value { vtyp = Usr { name = "Cidr4" ; _ } ; _ } ->
+                  and_ (ge item (first_ip_of_cidr4 lst))
+                       (le item (last_ip_of_cidr4 lst))
+              | T.Value { vtyp = Usr { name = "Ip6" ; _ } ; _ },
+                T.Value { vtyp = Usr { name = "Cidr6" ; _ } ; _ } ->
+                  and_ (ge item (first_ip_of_cidr6 lst))
+                       (le item (last_ip_of_cidr6 lst))
+              | T.Value { vtyp = Usr { name = "Ip" ; _ } ; _ },
+                T.Value { vtyp = Usr { name = "Cidr" ; _ } ; _ } ->
+                  if_ (eq (label_of item) (label_of lst))
+                    ~then_:(
+                      if_ (eq (label_of item) (u16_of_int 0))
+                        ~then_:(
+                          let_ ~l ~name:"ip" (get_alt "v4" item) (fun l ip ->
+                            let_ ~l ~name:"cidr" (get_alt "v4" lst) (fun l cidr ->
+                              is_in ~l ip cidr)))
+                        ~else_:(
+                          let_ ~l ~name:"ip" (get_alt "v6" item) (fun l ip ->
+                            let_ ~l ~name:"cidr" (get_alt "v6" lst) (fun l cidr ->
+                              is_in ~l ip cidr))))
+                    ~else_:(bool false)
+              | T.Value { vtyp = item_vtyp ; _ },
+                ( T.Value { vtyp = Vec (_, { vtyp = lst_vtyp ; nullable }) ; _ }
+                | T.Value { vtyp = Lst { vtyp = lst_vtyp ; nullable } ; _ }) ->
+                  (* If the set item type is the same as item type then perform
+                   * direct comparisons with [eq], otherwise call [is_in]
+                   * recursively.
+                   * [is_in] cannot be merely called recursively because of the
+                   * semantic with strings: "ba" is in "foobar" whereas it is
+                   * not in [ "foobar" ]! *)
+                  let op l =
+                    if T.value_type_eq item_vtyp lst_vtyp then eq
+                                                          else is_in ~l in
+                  exists ~l lst (fun l i ->
+                    if nullable then
+                      if_null i
+                        ~then_:(bool false)
+                        ~else_:(op l item (force ~what:"is_in(2)" i))
+                    else
+                      op l item i)
+              | _ ->
+                  BatPrintf.sprintf2 "is_in: invalid types (%a in %a?)"
+                    T.print item_t
+                    T.print lst_t |>
+                  invalid_arg))))
