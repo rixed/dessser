@@ -28,9 +28,9 @@ struct
             E.with_sploded_pair ~l "write_leb128" p_wlen (fun _l p wlen ->
               let b =
                 byte_of_u8 (
-                  if_ ~cond:(gt (u32 (Uint32.of_int 128)) wlen)
-                    ~then_:(log_and (to_u8 wlen) (u8 (Uint8.of_int 127)))
-                    ~else_:(log_or (to_u8 wlen) (u8 (Uint8.of_int 128)))) in
+                  if_ (gt (u32 (Uint32.of_int 128)) wlen)
+                    ~then_:(bit_and (to_u8 wlen) (u8 (Uint8.of_int 127)))
+                    ~else_:(bit_or (to_u8 wlen) (u8 (Uint8.of_int 128)))) in
               pair
                 (write_byte p b)
                 (right_shift wlen (u8 (Uint8.of_int 7)))))))
@@ -223,7 +223,7 @@ struct
           (E.func1 ~l T.byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
         ~reduce:(comment "Reducer for read_leb128"
           (E.func2 ~l t_u32_u8 T.byte (fun _l leb_shft b ->
-            let byte = log_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in
+            let byte = bit_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in
             let leb = first leb_shft
             and shft = secnd leb_shft in
             pair (add  (left_shift (to_u32 byte) shft) leb)

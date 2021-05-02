@@ -297,7 +297,7 @@ let e1_of_int n =
          I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
          ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
-         LogNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ; ByteOfU8 ; U16OfWord
+         BitNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ; ByteOfU8 ; U16OfWord
          ; WordOfU16 ; U32OfDWord ; DWordOfU32 ; U64OfQWord ; QWordOfU64 ;
          U128OfOWord ; OWordOfU128 ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
          U32OfSize ; BitOfBool ; BoolOfBit ; ListOfSList ; ListOfSListRev ;
@@ -313,7 +313,7 @@ let e1_of_int n =
 let e2_of_int n =
   let e2s =
     E.[| Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
-         Pow ; LogAnd ; LogOr ; LogXor ; LeftShift ; RightShift ; AppendBytes ;
+         Pow ; BitAnd ; BitOr ; BitXor ; LeftShift ; RightShift ; AppendBytes ;
          AppendString ; StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;

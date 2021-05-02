@@ -1234,3 +1234,9 @@ let set st mn = Value (required (Set (st, mn)))
 let vector d mn = Value (required (Vec (d, mn)))
 
 let ext n = Value (required (Ext n))
+
+let func ins out = Function (ins, out)
+let func1 i1 out = Function ([| i1 |], out)
+let func2 i1 i2 out = Function ([| i1 ; i2 |], out)
+let func3 i1 i2 i3 out = Function ([| i1 ; i2 ; i3 |], out)
+let func4 i1 i2 i3 i4 out = Function ([| i1 ; i2 ; i3 ; i4 |], out)

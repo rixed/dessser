@@ -475,13 +475,13 @@ struct
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc ->
             pp oc "std::pow(%s, %s)" n1 n2) oc) |> null_of_nan
-    | E.E2 (LogAnd, e1, e2) ->
+    | E.E2 (BitAnd, e1, e2) ->
         binary_infix_op e1 "&" e2
-    | E.E2 (LogOr, e1, e2) ->
+    | E.E2 (BitOr, e1, e2) ->
         binary_infix_op e1 "|" e2
-    | E.E2 (LogXor, e1, e2) ->
+    | E.E2 (BitXor, e1, e2) ->
         binary_infix_op e1 "^" e2
-    | E.E1 (LogNot, e1) ->
+    | E.E1 (BitNot, e1) ->
         unary_op "~" e1
     | E.E2 (LeftShift, e1, e2) ->
         binary_infix_op e1 "<<" e2
@@ -799,7 +799,7 @@ struct
         method_call e1 "pop" []
     | E.E1 (RemSize, e1) ->
         method_call e1 "remSize" []
-    | E.E1 (DataPtrOffset, e1) ->
+    | E.E1 (Offset, e1) ->
         method_call e1 "getOffset" []
     | E.E2 (And, e1, e2) ->
         shortcutting_binary_infix_op e1 e2 false

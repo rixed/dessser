@@ -249,8 +249,7 @@ struct
     | None ->
         p
     | Some c ->
-        if_
-          ~cond:(gt (rem_size p) (size 0))
+        if_ (gt (rem_size p) (size 0))
           ~then_:(skip_char c p)
           ~else_:p
 

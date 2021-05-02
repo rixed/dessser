@@ -70,7 +70,7 @@ struct
                 (E.func2 ~l T.i32 inits_src_t (fun l n inits_src ->
                   E.with_sploded_pair ~l "dlist2" inits_src (fun l inits src ->
                     let src =
-                      if_ ~cond:(eq n (i32 0l))
+                      if_ (eq n (i32 0l))
                         ~then_:src
                         ~else_:(Des.list_sep dstate mn0 path l src) in
                     let v_src = make1 dstate mn0 subpath mn l src in
@@ -95,7 +95,7 @@ struct
                 E.with_sploded_pair ~l "dlist5" fst_inits_src (fun l is_fst inits_src ->
                   E.with_sploded_pair ~l "dlist6" inits_src (fun l inits src ->
                     let src =
-                      if_ ~cond:is_fst
+                      if_ is_fst
                         ~then_:src
                         ~else_:(Des.list_sep dstate mn0 path l src) in
                     let v_src = make1 dstate mn0 subpath mn l src in
@@ -163,8 +163,7 @@ struct
             assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
             res () ]
         else
-          if_
-            ~cond:(eq (u16 (Uint16.of_int i)) cstr)
+          if_ (eq (u16 (Uint16.of_int i)) cstr)
             ~then_:(res ())
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
@@ -210,8 +209,7 @@ struct
     in
     let vt = mn.vtyp in
     if mn.nullable then (
-      let cond = Des.is_null dstate mn0 path l src in
-      if_ ~cond
+      if_ (Des.is_null dstate mn0 path l src)
         ~then_:(pair (null vt) (Des.dnull vt dstate mn0 path l src))
         ~else_:(
           let src = Des.dnotnull vt dstate mn0 path l src in
@@ -286,7 +284,7 @@ struct
                    (fun l dst_n x ->
             E.with_sploded_pair ~l "dst_n" dst_n (fun l dst n ->
               let_ ~name:"slist_dst" ~l (
-                if_ ~cond:(gt n (i32 0l))
+                if_ (gt n (i32 0l))
                     ~then_:(Ser.list_sep sstate mn0 subpath l dst)
                     ~else_:dst)
                 (fun l dst ->
@@ -345,8 +343,7 @@ struct
                     assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
                     ser1 sstate mn0 subpath mn l v' ma dst ]
                 else
-                  if_
-                    ~cond:(eq (u16 (Uint16.of_int i)) label)
+                  if_ (eq (u16 (Uint16.of_int i)) label)
                     ~then_:(ser1 sstate mn0 subpath mn l v' ma dst)
                     ~else_:(choose_cstr (i + 1)) in
               choose_cstr 0)) in
@@ -391,10 +388,10 @@ struct
       | T.Set (_, mn) -> slist_or_set mn
       | T.Map _ -> assert false (* No value of map type *)
     in
-    if_ ~cond:(eq ma skip_field)
+    if_ (eq ma skip_field)
       ~then_:dst
       ~else_:(
-        if_ ~cond:(eq ma set_field_null)
+        if_ (eq ma set_field_null)
           ~then_:(
             if mn.nullable then
               Ser.snull mn.vtyp sstate mn0 path l dst
@@ -405,8 +402,7 @@ struct
             (* Copy or Recurse are handled the same: *)
             let vt = mn.vtyp in
             if mn.nullable then
-              let cond = is_null v in
-              if_ ~cond
+              if_null v
                 ~then_:(Ser.snull vt sstate mn0 path l dst)
                 ~else_:(
                   let dst = Ser.snotnull vt sstate mn0 path l dst in
@@ -517,8 +513,7 @@ struct
               assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
               sersz1 mn mn0 subpath l v' copy_field sizes ]
           else
-            if_
-              ~cond:(eq (u16 (Uint16.of_int i)) label)
+            if_ (eq (u16 (Uint16.of_int i)) label)
               ~then_:(sersz1 mn mn0 subpath l v' copy_field sizes)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
@@ -562,10 +557,10 @@ struct
       | T.Set (_, mn) -> sslist mn
       | T.Map _ -> assert false (* No value of map type *)
     in
-    if_ ~cond:(eq ma skip_field)
+    if_ (eq ma skip_field)
       ~then_:sizes
       ~else_:(
-        if_ ~cond:(eq ma set_field_null)
+        if_ (eq ma set_field_null)
           ~then_:(
             if mn.nullable then
               add_size l sizes (Ser.ssize_of_null mn0 path)
@@ -575,7 +570,7 @@ struct
           ~else_:(
             let vt = mn.vtyp in
             if mn.nullable then
-              if_ ~cond:(is_null v)
+              if_null v
                 ~then_:(add_size l sizes (Ser.ssize_of_null mn0 path))
                 ~else_:(ssz_of_vt vt mn0 path l (force v) sizes)
             else

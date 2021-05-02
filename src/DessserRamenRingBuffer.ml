@@ -47,9 +47,9 @@ let round_up_const_bits b =
  * [n] must be a size. Returns a size. *)
 let round_up_dyn_bytes n =
   let mask = size (word_size - 1) in
-  log_and
+  bit_and
     (add n mask)
-    (log_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
+    (bit_xor mask (size_of_u32 (u32 (Uint32.of_int64 0xFFFF_FFFFL))))
 
 (* Same as above but [n] is given in bits, as a u32: *)
 let round_up_dyn_bits n =
@@ -69,8 +69,7 @@ let align_dyn l p extra_bytes =
                             (u32_of_size wsize))) in
   let padding_len = sub wsize extra_bytes in
   let_ ~name:"align_ptr" ~l p (fun _l p ->
-    if_
-      ~cond:(gt wsize padding_len)
+    if_ (gt wsize padding_len)
       ~then_:(data_ptr_add p padding_len)
       ~else_:p)
 
@@ -244,7 +243,7 @@ struct
       let stk = may_set_nullbit true mn0 path l stk in
       let new_frame = pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
-            debug (string_of_int_ (data_ptr_offset p)) ;
+            debug (string_of_int_ (offset p)) ;
             debug (string " with ") ;
             debug (string_of_int_ (to_expr nullmask_bits)) ;
             debug (string " nullbits\n") ;
@@ -274,7 +273,7 @@ struct
 
   let with_debug p what write =
     seq [ debug (string ("ser a "^ what ^" at ")) ;
-          debug (string_of_int_ (data_ptr_offset p)) ;
+          debug (string_of_int_ (offset p)) ;
           debug (char '\n') ;
           write ]
 
@@ -288,7 +287,7 @@ struct
       let len = string_length v in
       let p =
         seq [ debug (string "ser a string at ") ;
-              debug (string_of_int_ (data_ptr_offset p)) ;
+              debug (string_of_int_ (offset p)) ;
               debug (string " of length ") ;
               debug (string_of_int_ len) ;
               debug (char '\n') ;
@@ -621,7 +620,7 @@ struct
      * always use 8 since bit offset should not be used when not nullable. *)
     let new_frame = pair p (size (if has_nullmask then 8 else 0)) in
     seq [ debug (string "des: enter a new frame at ") ;
-          debug (string_of_int_ (data_ptr_offset p)) ;
+          debug (string_of_int_ (offset p)) ;
           debug (string "\n") ;
           let p =
             if has_nullmask then
@@ -654,7 +653,7 @@ struct
   let dfloat () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       seq [ debug (string "desser a float from ") ;
-            debug (string_of_int_ (data_ptr_offset p)) ;
+            debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
             E.with_sploded_pair ~l "dfloat" (read_qword LittleEndian p) (fun _l w p ->
               pair (float_of_qword w) p) ])
@@ -662,7 +661,7 @@ struct
   let dstring () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       seq [ debug (string "deser a string from ") ;
-            debug (string_of_int_ (data_ptr_offset p)) ;
+            debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
             E.with_sploded_pair ~l "dstring1" (read_dword LittleEndian p) (fun l len p ->
               let len = size_of_dword len in

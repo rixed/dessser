@@ -22,7 +22,7 @@ struct
     let b_src = read_byte src in
     E.with_sploded_pair ~l "from_byte" b_src (fun _l b src ->
       pair
-        (if_ ~cond:(bool_of_u8 (u8_of_byte b)) ~then_:v1 ~else_:v2)
+        (if_ (bool_of_u8 (u8_of_byte b)) ~then_:v1 ~else_:v2)
         src)
 
   let dfloat () = from_byte (float 1.) (float 0.)

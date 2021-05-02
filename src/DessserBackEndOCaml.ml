@@ -594,13 +594,13 @@ struct
                 m m n1 m n2
           | _ ->
               assert false (* because of type-checking *))
-    | E.E2 (LogAnd, e1, e2) ->
+    | E.E2 (BitAnd, e1, e2) ->
         binary_mod_op "logand" e1 e2
-    | E.E2 (LogOr, e1, e2) ->
+    | E.E2 (BitOr, e1, e2) ->
         binary_mod_op "logor" e1 e2
-    | E.E2 (LogXor, e1, e2) ->
+    | E.E2 (BitXor, e1, e2) ->
         binary_mod_op "logxor" e1 e2
-    | E.E1 (LogNot, e1) ->
+    | E.E1 (BitNot, e1) ->
         unary_mod_op "lognot" e1
     | E.E2 (LeftShift, e1, e2) ->
         binary_mod_op_2nd_u8 "shift_left" e1 e2
@@ -918,7 +918,7 @@ struct
         unary_op "Pointer.pop" e1
     | E.E1 (RemSize, e1) ->
         unary_op "Pointer.remSize" e1
-    | E.E1 (DataPtrOffset, e1) ->
+    | E.E1 (Offset, e1) ->
         unary_op "Pointer.offset" e1
     | E.E2 (And, e1, e2) ->
         shortcutting_binary_infix_op e1 "&&" e2

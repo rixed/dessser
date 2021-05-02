@@ -328,8 +328,7 @@ struct
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
                 desser_ transform sstate dstate mn0 subpath l src_dst ]
             else
-              if_
-                ~cond:(eq (u16 (Uint16.of_int i)) cstr)
+              if_ (eq (u16 (Uint16.of_int i)) cstr)
                 ~then_:(desser_ transform sstate dstate mn0 subpath l src_dst)
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0) in
@@ -356,8 +355,7 @@ struct
         ~body:(comment "Convert vector item"
           (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
             let src_dst =
-              if_
-                ~cond:(eq n (i32 0l))
+              if_ (eq n (i32 0l))
                 ~then_:src_dst
                 ~else_:(
                   E.with_sploded_pair ~l "dsvec2" src_dst (fun l src dst ->
@@ -428,8 +426,7 @@ struct
                   ~body:(comment "Convert a list item"
                     (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
                       let src_dst =
-                        if_
-                          ~cond:(eq n (i32 0l))
+                        if_ (eq n (i32 0l))
                           ~then_:src_dst
                           ~else_:(
                             E.with_sploded_pair ~l "dslist3" src_dst (fun l psrc pdst ->
@@ -452,8 +449,7 @@ struct
                     (E.func1 ~l t_fst_src_dst (fun l fst_src_dst ->
                       E.with_sploded_pair ~l "dslist4" fst_src_dst (fun l is_first src_dst ->
                         let src_dst =
-                          if_
-                            ~cond:is_first
+                          if_ is_first
                             ~then_:src_dst
                             ~else_:(
                               E.with_sploded_pair ~l "dslist5" src_dst (fun l psrc pdst ->
@@ -512,14 +508,13 @@ struct
     let mn = T.type_of_path mn0 path in
     if mn.nullable then (
       E.with_sploded_pair ~l "desser_" src_dst (fun l src dst ->
-        let cond = Des.is_null dstate mn0 path l src in
         (* Des can use [is_null] to prepare for a nullable, but Ser might also
          * have some work to do: *)
         let dst = Ser.nullable sstate mn0 path l dst in
         (* XXX WARNING XXX
          * if any of dnull/snull/snotnull/etc update the state, they will
          * do so in both branches of this alternative. *)
-        if_ ~cond
+        if_ (Des.is_null dstate mn0 path l src)
           ~then_:(dsnull mn.vtyp sstate dstate mn0 path l src dst)
           ~else_:(dsnotnull mn.vtyp sstate dstate mn0 path l src dst |>
                   desser_value_type mn.vtyp transform sstate dstate mn0 path l))

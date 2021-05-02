@@ -181,7 +181,7 @@ type e1 =
   | ToI64
   | ToI128
   | ToFloat
-  | LogNot
+  | BitNot
   | FloatOfQWord
   | QWordOfFloat
   | U8OfByte
@@ -216,7 +216,7 @@ type e1 =
   | DataPtrPush
   | DataPtrPop
   | RemSize
-  | DataPtrOffset
+  | Offset
   | Not
   | Abs
   | Neg
@@ -293,9 +293,9 @@ type e2 =
   | Div (* Fails with Null *)
   | Rem (* Fails with Null *)
   | Pow (* Fails with Null *)
-  | LogAnd
-  | LogOr
-  | LogXor
+  | BitAnd
+  | BitOr
+  | BitXor
   | LeftShift
   | RightShift
   | AppendByte
@@ -763,7 +763,7 @@ let string_of_e1 = function
   | ToI64 -> "to-i64"
   | ToI128 -> "to-i128"
   | ToFloat -> "to-float"
-  | LogNot -> "log-not"
+  | BitNot -> "bit-not"
   | FloatOfQWord -> "float-of-qword"
   | QWordOfFloat -> "qword-of-float"
   | U8OfByte -> "u8-of-byte"
@@ -797,7 +797,7 @@ let string_of_e1 = function
   | DataPtrPush -> "data-ptr-push"
   | DataPtrPop -> "data-ptr-pop"
   | RemSize -> "rem-size"
-  | DataPtrOffset -> "data-ptr-offset"
+  | Offset -> "offset"
   | Not -> "not"
   | Abs -> "abs"
   | Neg -> "neg"
@@ -859,9 +859,9 @@ let string_of_e2 = function
   | Div -> "div"
   | Rem -> "rem"
   | Pow -> "pow"
-  | LogAnd -> "log-and"
-  | LogOr -> "log-or"
-  | LogXor -> "log-xor"
+  | BitAnd -> "bit-and"
+  | BitOr -> "bit-or"
+  | BitXor -> "bit-xor"
   | LeftShift -> "left-shift"
   | RightShift -> "right-shift"
   | AppendByte -> "append-byte"
@@ -1326,7 +1326,7 @@ struct
     | Lst [ Sym "to-i64" ; x ] -> E1 (ToI64, e x)
     | Lst [ Sym "to-i128" ; x ] -> E1 (ToI128, e x)
     | Lst [ Sym "to-float" ; x ] -> E1 (ToFloat, e x)
-    | Lst [ Sym "log-not" ; x ] -> E1 (LogNot, e x)
+    | Lst [ Sym "bit-not" ; x ] -> E1 (BitNot, e x)
     | Lst [ Sym "float-of-qword" ; x ] -> E1 (FloatOfQWord, e x)
     | Lst [ Sym "qword-of-float" ; x ] -> E1 (QWordOfFloat, e x)
     | Lst [ Sym "u8-of-byte" ; x ] -> E1 (U8OfByte, e x)
@@ -1360,7 +1360,7 @@ struct
     | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
     | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
     | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
-    | Lst [ Sym "data-ptr-offset" ; x ] -> E1 (DataPtrOffset, e x)
+    | Lst [ Sym "offset" ; x ] -> E1 (Offset, e x)
     | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
     | Lst [ Sym "abs" ; x ] -> E1 (Abs, e x)
     | Lst [ Sym "neg" ; x ] -> E1 (Neg, e x)
@@ -1432,9 +1432,9 @@ struct
     | Lst [ Sym "div" ; x1 ; x2 ] -> E2 (Div, e x1, e x2)
     | Lst [ Sym "rem" ; x1 ; x2 ] -> E2 (Rem, e x1, e x2)
     | Lst [ Sym "pow" ; x1 ; x2 ] -> E2 (Pow, e x1, e x2)
-    | Lst [ Sym "log-and" ; x1 ; x2 ] -> E2 (LogAnd, e x1, e x2)
-    | Lst [ Sym "log-or" ; x1 ; x2 ] -> E2 (LogOr, e x1, e x2)
-    | Lst [ Sym "log-xor" ; x1 ; x2 ] -> E2 (LogXor, e x1, e x2)
+    | Lst [ Sym "bit-and" ; x1 ; x2 ] -> E2 (BitAnd, e x1, e x2)
+    | Lst [ Sym "bit-or" ; x1 ; x2 ] -> E2 (BitOr, e x1, e x2)
+    | Lst [ Sym "bit-xor" ; x1 ; x2 ] -> E2 (BitXor, e x1, e x2)
     | Lst [ Sym "left-shift" ; x1 ; x2 ] -> E2 (LeftShift, e x1, e x2)
     | Lst [ Sym "right-shift" ; x1 ; x2 ] -> E2 (RightShift, e x1, e x2)
     | Lst [ Sym "append-byte" ; x1 ; x2 ] -> E2 (AppendByte, e x1, e x2)
@@ -1657,10 +1657,10 @@ let rec type_of l e0 =
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
-  | E2 ((Add | Sub | Mul | LogAnd | LogOr | LogXor |
+  | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
          LeftShift | RightShift), e, _) ->
       type_of l e
-  | E1 (LogNot, e) ->
+  | E1 (BitNot, e) ->
       type_of l e
   | E2 ((Div | Rem | Pow), e, _) ->
       (* TODO: make it nullable only if it cannot be ascertained from e1 and e2
@@ -1840,7 +1840,7 @@ let rec type_of l e0 =
   | E1 (DataPtrPush, _) -> T.dataptr
   | E1 (DataPtrPop, _) -> T.dataptr
   | E1 (RemSize, _) -> T.size
-  | E1 (DataPtrOffset, _) -> T.size
+  | E1 (Offset, _) -> T.size
   | E2 (And, _, _) -> T.bool
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
@@ -2334,13 +2334,13 @@ let rec type_check l e =
             check_eq l e1 (T.Value t)
         | t ->
             raise (Type_error (e0, e, t, "be a vector or list")))
-    | E2 ((LogAnd | LogOr | LogXor), e1, e2) ->
+    | E2 ((BitAnd | BitOr | BitXor), e1, e2) ->
         check_integer l e1 ;
         check_same_types l e1 e2
     | E2 ((LeftShift | RightShift), e1, e2) ->
         check_integer l e1 ;
         check_eq l e2 T.u8
-    | E1 ((LogNot | StringOfInt), e) ->
+    | E1 ((BitNot | StringOfInt), e) ->
         check_integer l e
     | E1 ((StringOfChar | U8OfChar), e) ->
         check_eq l e T.char
@@ -2484,7 +2484,7 @@ let rec type_check l e =
         check_eq l e2 T.dataptr
     | E1 ((DataPtrPush | DataPtrPop), e1) ->
         check_eq l e1 T.dataptr
-    | E1 ((RemSize | DataPtrOffset), e) ->
+    | E1 ((RemSize | Offset), e) ->
         check_eq l e T.dataptr
     | E3 (DataPtrOfPtr, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
@@ -3432,16 +3432,19 @@ struct
 
   let byte_of_const_char c = byte_of_char (char c)
 
-  let rec if_ ~cond ~then_ ~else_ =
+  let rec if_ cond ~then_ ~else_ =
     match cond with
     | E0 (Bool true) when !optimize -> then_
     | E0 (Bool false) when !optimize -> else_
-    | E1 (Not, e) when !optimize -> if_ ~cond:e ~then_:else_ ~else_:then_
+    | E1 (Not, e) when !optimize -> if_ e ~then_:else_ ~else_:then_
     | _->
         if eq then_ else_ && !optimize && not (has_side_effect cond) then
           then_
         else
           E3 (If, cond, then_, else_)
+
+  let if_null d ~then_ ~else_ =
+    if_ (is_null d) ~then_ ~else_
 
   let read_while ~cond ~reduce ~init ~pos =
     match cond with
@@ -3552,11 +3555,11 @@ struct
 
   let right_shift e1 e2 = E2 (RightShift, e1, e2)
 
-  let log_and e1 e2 = E2 (LogAnd, e1, e2)
+  let bit_and e1 e2 = E2 (BitAnd, e1, e2)
 
-  let log_or e1 e2 = E2 (LogOr, e1, e2)
+  let bit_or e1 e2 = E2 (BitOr, e1, e2)
 
-  let log_xor e1 e2 = E2 (LogXor, e1, e2)
+  let bit_xor e1 e2 = E2 (BitXor, e1, e2)
 
   let and_ e1 e2 =
     match e1, e2 with
@@ -3790,6 +3793,8 @@ struct
 
   let rem_size e1 = E1 (RemSize, e1)
 
+  let offset e1 = E1 (Offset, e1)
+
   let neg e1 = E1 (Neg, e1)
 
   let exp e1 = E1 (Exp, e1)
@@ -3852,10 +3857,6 @@ struct
 
   let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
 
-  let data_ptr_offset e1 = E1 (DataPtrOffset, e1)
-
-  let data_ptr_remsize e1 = E1 (RemSize, e1)
-
   let string_length e1 = E1 (StringLength, e1)
 
   let cardinality = function
@@ -3882,8 +3883,8 @@ struct
     | e ->
         E1 (Force what, e)
 
-  let find_substring e1 e2 e3 =
-    match e2, e3 with
+  let find_substring from_start haystack needle =
+    match haystack, needle with
     | E0 (String s1), E0 (String s2) when !optimize ->
         (* Let if_ optimize away that condition if the bool is known: *)
         let then_ =
@@ -3892,8 +3893,8 @@ struct
         and else_ =
           try not_null (u24 (Uint24.of_int (String.rfind s2 s1)))
           with Not_found -> null T.(Mac U24) in
-        if_ ~cond:e1 ~then_ ~else_
-    | _ -> E3 (FindSubstring, e1, e2, e3)
+        if_ from_start ~then_ ~else_
+    | _ -> E3 (FindSubstring, from_start, haystack, needle)
 
   let get_item n e1 = E1 (GetItem n, e1)
 

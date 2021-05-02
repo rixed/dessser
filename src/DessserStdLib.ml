@@ -25,8 +25,7 @@ let coalesce l es =
         | T.Value { nullable = true ; _ } ->
             let name = "coalesced_"^ string_of_int i in
             let_ ~name ~l e (fun l d ->
-              if_
-                ~cond:(is_null d)
+              if_null d
                 ~then_:(loop (i + 1) l es)
                 ~else_:(
                   if ret_nullable then d
@@ -61,9 +60,9 @@ and random mn =
   let std_random = random in
   let open E.Ops in
   if mn.T.nullable then
-    if_ ~cond:(std_random T.(required (Mac Bool)))
-        ~then_:(null mn.vtyp)
-        ~else_:(not_null (std_random { mn with nullable = false }))
+    if_ (std_random T.(required (Mac Bool)))
+      ~then_:(null mn.vtyp)
+      ~else_:(not_null (std_random { mn with nullable = false }))
   else match mn.vtyp with
   | T.Unknown ->
       invalid_arg "random for unknown type"
@@ -72,7 +71,7 @@ and random mn =
   | Mac Float ->
       random_float
   | Mac Bool ->
-      eq (u32_of_int 0) (log_and random_u32 (u32_of_int 128))
+      eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
   | Mac String ->
       (* Just 5 random letters for now: *)
       repeat
@@ -178,8 +177,7 @@ struct
         and carry = get_item 1 sum_c in
         let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
           let carry' =
-            if_
-              ~cond:(ge (abs sum) (abs x))
+            if_ (ge (abs sum) (abs x))
               ~then_:(add (sub sum s) x)
               ~else_:(add (sub x s) sum) in
           make_tup [ s ; add carry carry' ])))
@@ -213,7 +211,8 @@ let percentiles ~l vs ps =
   comment "Compute the indices of those percentiles" (
     match E.get_item_type_err ~vec:true ~lst:true l ps with
     | Error t ->
-        BatPrintf.sprintf2 "percentiles: coeficients must be a vector/list (not %a)"
+        BatPrintf.sprintf2
+          "percentiles: coefficients must be a vector/list (not %a)"
           T.print t |>
         invalid_arg
     | Ok p_t ->
