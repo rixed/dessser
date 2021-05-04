@@ -9,7 +9,7 @@ let pp = Printf.fprintf
 
 (* Identifies the backend implementation: *)
 
-type backend_id = ..
+type backend_id = DIL | OCaml | Cpp
 
 (* Basic scalar types that can be used to define more specialized user types *)
 

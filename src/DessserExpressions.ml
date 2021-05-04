@@ -99,6 +99,9 @@ type e0s =
   | MakeRec
   (* Construct a value of some user type: *)
   | MakeUsr of string
+  (* The Dessser equivalent of the `asm` directive.
+   * The templates may use %1, %2 etc where the arguments should go. *)
+  | Verbatim of ((T.backend_id * string) list * (* output type: *) T.t)
 
 type e1 =
   | Function of (*function id*) int * (*args*) T.t array
@@ -637,6 +640,18 @@ let rec default_value ?(allow_null=true) = function
 
 let string_of_path = IO.to_string T.print_path
 
+let string_of_backend = function
+  | T.DIL -> "DIL"
+  | T.OCaml -> "OCaml"
+  | T.Cpp -> "C++"
+
+let backend_of_string s =
+  match String.lowercase s with
+  | "dil" -> T.DIL
+  | "ocaml" -> T.OCaml
+  | "c++" -> T.Cpp
+  | _ -> invalid_arg ("backend_of_string: "^ s)
+
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
@@ -692,6 +707,12 @@ let string_of_e0s = function
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
   | MakeUsr n -> "make-usr "^ String.quote n
+  (* Of course the actual definition cannot be expressed in DIL: *)
+  | Verbatim (temps, t) ->
+      Printf.sprintf2 "verbatim %a %S"
+        (List.print ~first:"(" ~sep:" " ~last:")" (fun oc (id, temp) ->
+          Printf.fprintf oc "(%s %S)" (string_of_backend id) temp)) temps
+        (T.to_string t)
 
 let string_of_e1s = function
   | Apply -> "apply"
@@ -1236,6 +1257,14 @@ struct
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
+    | Lst (Sym "verbatim" :: Lst temps :: Str t :: xs) ->
+        let temp_of_strings = function
+          | Lst [ Sym id ; Str temp ] -> backend_of_string id, temp
+          | x ->
+              Printf.sprintf2 "Cannot parse verbatim template %a" print_sexpr x |>
+              failwith in
+        let temps = List.map temp_of_strings temps in
+        E0S (Verbatim (temps, T.Parser.of_string t), List.map e xs)
     (* e1 *)
     | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
         (* Syntax for functions is:
@@ -1630,6 +1659,7 @@ let rec type_of l e0 =
       Value (T.make (Rec (Array.of_list mns)))
   | E0S (MakeUsr n, _) ->
       T.(Value (required (get_user_type n)))
+  | E0S (Verbatim (_, t), _) -> t
   | E1S (Apply, f, _) ->
       (match type_of l f with
       | Function (_, t) -> t
@@ -2129,6 +2159,20 @@ let apply_constructor e0 l name ins =
       | c ->
           E1S (Apply, c, ins))
 
+let expand_verbatim backend_id temps ins =
+  match List.assoc backend_id temps with
+  | exception Not_found ->
+      Printf.sprintf2 "No implementation provided for %s (only %a)"
+        (string_of_backend backend_id)
+        (pretty_list_print (fun oc (b, _) ->
+          String.print oc (string_of_backend b))) temps |>
+      failwith
+  | temp ->
+      List.fold_lefti (fun s i in_ ->
+        let sub = "%" ^ string_of_int (i + 1) in
+        String.nreplace ~str:s ~sub ~by:in_
+      ) temp ins
+
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
   let u = f u l e in
@@ -2364,6 +2408,7 @@ let rec type_check l e =
          | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
+    | E0S (Verbatim _, _)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _
           | Hash), _)
     | E2 ((Pair | Let _), _, _) ->
@@ -4093,6 +4138,9 @@ struct
 
   let make_usr name es =
     E0S (MakeUsr name, es)
+
+  let verbatim temps out_t ins =
+    E0S (Verbatim (temps, out_t), ins)
 
   let split_at e1 e2 =
     match to_cst_int e1 with

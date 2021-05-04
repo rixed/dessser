@@ -9,11 +9,9 @@ module P = DessserPrinter
 
 let debug = false
 
-type T.backend_id += OCaml
-
 module Config =
 struct
-  let id = OCaml
+  let id = T.OCaml
 
   let valid_identifier s =
     let keywords =
@@ -456,6 +454,10 @@ struct
     | E.E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
         print ?name emit p l e
+    | E.E0S (Verbatim (temps, _), ins) ->
+        let args = List.map (print emit p l) ins in
+        emit ?name p l e (fun oc ->
+          String.print oc (E.expand_verbatim id temps args))
     | E.E1 (Identity, e1) ->
         print ?name emit p l e1
     | E.E1 (Ignore, e1) ->

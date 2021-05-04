@@ -5,9 +5,7 @@ module E = DessserExpressions
 module T = DessserTypes
 module U = DessserCompilationUnit
 
-type T.backend_id += DIL
-
-let id = DIL
+let id = T.DIL
 
 (* The only place where we need explicit types in DIL are in strings for instance
  * in the null or list expressions. There, types are expressed in the syntax
