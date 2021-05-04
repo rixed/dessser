@@ -2289,7 +2289,7 @@ let rec type_check l e =
       | _ ->
           false in
     let check_comparable l e =
-      let t = type_of l e |> T.develop_user_types in
+      let t = type_of l e |> T.develop_user_types_rec in
       if not (is_comparable t) then
         raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_mac=false) l e =

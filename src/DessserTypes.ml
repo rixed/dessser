@@ -264,9 +264,17 @@ let rec develop_value_type = function
 and develop_maybe_nullable mn =
   { mn with vtyp = develop_value_type mn.vtyp }
 
-and develop_user_types = function
+and develop_user_types_rec = function
   | Value mn -> Value (develop_maybe_nullable mn)
   | t -> t
+
+(* This develop user types at first level (ie. excluding sub-branches but
+ * including when a user type is implemented with another): *)
+let rec develop_user_types = function
+  | Value { vtyp = Usr { def ; _ } ; nullable } ->
+      develop_user_types (Value { vtyp = def ; nullable })
+  | t ->
+      t
 
 (* Top-down folding of a value_type: *)
 (* FIXME: either consider Usr types as opaque and stop the recursion, or as
@@ -520,7 +528,7 @@ let string_of_maybe_nullable = IO.to_string print_maybe_nullable
 let to_string = IO.to_string print
 
 let uniq_id t =
-  IO.to_string print_sorted (develop_user_types t) |>
+  IO.to_string print_sorted (develop_user_types_rec t) |>
   Digest.string |>
   Digest.to_hex
 
