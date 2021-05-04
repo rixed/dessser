@@ -2442,7 +2442,7 @@ let rec type_check l e =
           else check_maybe_nullable l e
         ) es
     | E0S (MakeUsr name, es) ->
-      ignore (apply_constructor e0 l name es)
+        ignore (apply_constructor e0 l name es)
     | E1S (Apply, f, es) ->
         check_fun_sign l f (Array.of_list es)
     | E1 (IsNull, e) ->
@@ -3965,8 +3965,10 @@ struct
   let string_length e1 = E1 (StringLength, e1)
 
   let cardinality = function
-    | E0S ((MakeVec | MakeLst _), es) when !optimize -> u32_of_int (List.length es)
-    | e1 -> E1 (Cardinality, e1)
+    | E0S ((MakeVec | MakeLst _), es) when !optimize ->
+        u32_of_int (List.length es)
+    | e1 ->
+        E1 (Cardinality, e1)
 
   let blit_byte e1 e2 e3 =
     (* Do nothing if blitint nothing: *)

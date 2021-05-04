@@ -203,6 +203,7 @@ let force_maybe_nullable mn =
  * in values but are useful to manipulate them. *)
 type t =
   | Value of maybe_nullable
+  (* Used for functions without return values: *)
   | Void
   (* DataPtr are used to point into the stream of bytes that's being
    * serialized into / deserialized from. The type of the value that's
@@ -320,6 +321,7 @@ let is_defined vt =
 
 let check vt =
   iter_value_type (function
+    (* TODO: also field names in a record *)
     | Sum mns ->
         Array.fold_left (fun s (n, _) ->
           if Set.String.mem n s then
