@@ -267,7 +267,7 @@ let is_empty l e =
         lt (get_field "mask" e) (u8_of_int 128))
   | T.Value ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
-        if_ (eq (label_of e) (u8_of_int 0))
+        if_ (eq (label_of e) (u16_of_int 0))
           ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
           ~else_:(lt (get_field "mask" (get_alt "v6" e)) (u8_of_int 128)))
   | DataPtr ->
