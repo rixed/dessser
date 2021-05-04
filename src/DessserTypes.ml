@@ -1024,6 +1024,10 @@ let value_type_of_string ?what =
   let print = print_value_type in
   Parser.(string_parser ~print ?what value_type)
 
+(* This register a user type.
+ * Note that to actually create values of that type the constructor must
+ * be registered also (see DessserExpressions.register_user_constructor). *)
+
 let register_user_type
     name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
   if not (is_defined def) then invalid_arg "register_user_type" ;
@@ -1051,25 +1055,6 @@ let register_user_type
 let is_user_type_registered n =
   try ignore (get_user_type n) ; true
   with Not_found -> false
-
-(* Examples: *)
-let () =
-  register_user_type "Date" (Mac Float) ;
-  register_user_type "Eth" (Mac U48) ;
-  register_user_type "Ip4" (Mac U32) ;
-  register_user_type "Ip6" (Mac U128) ;
-  register_user_type "Ip"
-    (* Note: for simplicity, make sure all constructor names are unique.
-     * Also, start by a lowercase or a "v_" will be prepended needlessly: *)
-    (Sum [| "v4", required (get_user_type "Ip4") ;
-            "v6", required (get_user_type "Ip6") |]) ;
-  register_user_type "Cidr4" (Rec [| "ip", required (get_user_type "Ip4") ;
-                                     "mask", required (Mac U8) |]) ;
-  register_user_type "Cidr6" (Rec [| "ip", required (get_user_type "Ip6") ;
-                                     "mask", required (Mac U8) |]) ;
-  register_user_type "Cidr"
-    (Sum [| "v4", required (get_user_type "Cidr4") ;
-            "v6", required (get_user_type "Cidr6") |])
 
 (* Paths are used to locate subfield types within compound types.
  * Head of the list is the index of the considered type child, then

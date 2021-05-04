@@ -97,6 +97,8 @@ type e0s =
    * have an even number of arguments, the field names being forced to be
    * constant strings *)
   | MakeRec
+  (* Construct a value of some user type: *)
+  | MakeUsr of string
 
 type e1 =
   | Function of (*function id*) int * (*args*) T.t array
@@ -514,6 +516,17 @@ let rec can_precompute l i = function
   | E4 ((ReadWhile | Repeat), _, _, _, _) ->
       false
 
+(*
+ * User-defined constructors for user-defined types.
+ *
+ * The constructor expression must be a non empty list of functions, all
+ * returning the same type but with distinct signature.
+ * [make-usr "foo" x y] is like [apply foo_constr x y] matching the type for
+ * [x y] but returns the user type "foo" instead of the underlying type.
+ *)
+
+let user_constructors : (string, t list) Hashtbl.t = Hashtbl.create 50
+
 let is_const_null = function
   | E0 (Null _) -> true
   | _ -> false
@@ -678,6 +691,7 @@ let string_of_e0s = function
   | MakeLst mn -> "make-lst "^ String.quote (T.string_of_maybe_nullable mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
+  | MakeUsr n -> "make-usr "^ String.quote n
 
 let string_of_e1s = function
   | Apply -> "apply"
@@ -1221,6 +1235,7 @@ struct
         E0S (MakeLst (T.maybe_nullable_of_string mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
+    | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
     (* e1 *)
     | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
         (* Syntax for functions is:
@@ -1613,6 +1628,8 @@ let rec type_of l e0 =
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
       Value (T.make (Rec (Array.of_list mns)))
+  | E0S (MakeUsr n, _) ->
+      T.(Value (required (get_user_type n)))
   | E1S (Apply, f, _) ->
       (match type_of l f with
       | Function (_, t) -> t
@@ -2027,6 +2044,91 @@ and get_compared_type l cmp =
       let err = "should be a function of two values" in
       raise (Comparator_error (cmp, cmp_t, err))
 
+(* Registering the constructor also register the type: *)
+and register_user_constructor name out_vt ?print ?parse def =
+  (* Add identity to the passed definitions: *)
+  let out_t = T.(Value (required out_vt)) in
+  let id = E1 (Function (0, [| out_t |]), E0 (Param (0, 0))) in
+  let def = id :: def in
+  let _ =
+    List.fold_left (fun prev f ->
+      match type_of [] f with
+      | T.Function (ins, out_t') ->
+          if not (T.eq out_t' out_t) then
+            Printf.sprintf2 "register_user_constructor: constructors must \
+                             output type %a (not %a)"
+              T.print out_t
+              T.print out_t' |>
+            invalid_arg ;
+          (match prev with
+          | None ->
+              Some ([ ins ])
+          | Some prev_ins ->
+              let same_input_than ins' =
+                try Array.for_all2 T.eq ins ins'
+                with Invalid_argument _ -> false in
+              if List.exists same_input_than prev_ins then
+                Printf.sprintf2 "register_user_constructor: constructors \
+                                 signature %a appears more than once"
+                  (Array.print T.print) ins |>
+                invalid_arg ;
+              Some (ins :: prev_ins))
+      | t ->
+          Printf.sprintf2 "register_user_constructor: constructors must be \
+                           functions (not %a)"
+            T.print t |>
+          invalid_arg
+    ) None def in
+  T.register_user_type name ?print ?parse out_vt ;
+  Hashtbl.modify_opt name (function
+    | None ->
+        Some def
+    | Some _ ->
+        Printf.sprintf "register_user_constructor: name %S not unique"
+          name |>
+        invalid_arg
+  ) user_constructors
+
+and check_fun_sign e0 l f ps =
+  match type_of l f with
+  | Function (ts, _) ->
+      let lf = Array.length ts and lp = Array.length ps in
+      if lf <> lp then (
+        let err = string_of_int lp ^" parameter(s) but function expect "^
+                  string_of_int lf in
+        raise (Apply_error (e0, err))) ;
+      for i = 0 to lf - 1 do
+        let act = type_of l ps.(i) in
+        if not (T.eq act ts.(i)) then
+          let expected = IO.to_string T.print ts.(i) in
+          raise (Type_error (e0, ps.(i), act, "be a "^ expected))
+      done
+  | t ->
+      raise (Type_error (e0, f, t, "be a function"))
+
+let apply_constructor e0 l name ins =
+  match Hashtbl.find user_constructors name with
+  | exception Not_found ->
+      raise (Invalid_expression (e0, "unregistered user type "^
+                                       String.quote name))
+  | [ c ] ->
+      E1S (Apply, c, ins)
+  | cs ->
+      let ins' = Array.of_list ins in
+      (match
+        List.find (fun c ->
+          try check_fun_sign e0 l c ins' ; true
+          with _ -> false
+        ) cs with
+      | exception Not_found ->
+          let msg =
+            Printf.sprintf2 "none of the constructors (%a) match input types %a"
+              (List.print (fun oc e -> T.print oc (type_of l e))) cs
+              (List.print (fun oc e -> T.print oc (type_of l e))) ins in
+          raise (Invalid_expression (e0, msg))
+      | c ->
+          E1S (Apply, c, ins))
+
 (* depth last, pass the list of bound identifiers along the way: *)
 let rec fold u l f e =
   let u = f u l e in
@@ -2242,21 +2344,7 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign l f ps =
-      match type_of l f with
-      | Function (ts, _) ->
-          let lf = Array.length ts and lp = Array.length ps in
-          if lf <> lp then (
-            let err = string_of_int lp ^" parameter(s) but function expect "^
-                      string_of_int lf in
-            raise (Apply_error (e0, err))) ;
-          for i = 0 to lf - 1 do
-            let act = type_of l ps.(i) in
-            if not (T.eq act ts.(i)) then
-              let expected = IO.to_string T.print ts.(i) in
-              raise (Type_error (e0, ps.(i), act, "be a "^ expected))
-          done
-      | t ->
-          raise (Type_error (e0, f, t, "be a function")) in
+      check_fun_sign e0 l f ps in
     let rec check_ip ?(rec_=false) l t =
       (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
        * but do not allow recursion in the sum type because code generator
@@ -2308,6 +2396,8 @@ let rec type_check l e =
           if i mod 2 = 0 then ignore (field_name_of_expr e)
           else check_maybe_nullable l e
         ) es
+    | E0S (MakeUsr name, es) ->
+      ignore (apply_constructor e0 l name es)
     | E1S (Apply, f, es) ->
         check_fun_sign l f (Array.of_list es)
     | E1 (IsNull, e) ->
@@ -2924,36 +3014,6 @@ let is_identity = function
   (Pair (u24, DataPtr)) \
     (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
 *)
-
-(* Users can define additional expressions, defined in terms of the above
- * expressions with a specific name, type checker, pretty printer and
- * parser. *)
-
-type user_expr =
-  { name : string ;
-    def : t ;
-    type_check : (t * T.t) list -> unit ;
-    type_of : (t * T.t) list -> T.t ;
-    print : unit IO.output -> unit ;
-    (* parse *) }
-
-let user_expressions = Hashtbl.create 50
-
-let register_user_expr name ?check ?type_ ?printer def =
-  Hashtbl.modify_opt name (function
-    | None ->
-        let type_check = check |?
-          fun l -> type_check l def
-        and type_of =
-          Option.default_delayed (fun () ->
-            fun l -> type_of l def
-          ) type_
-        and printer = printer |?
-          fun oc -> print oc def in
-        Some { name ; def ; type_check ; type_of ; print = printer }
-    | Some _ ->
-        invalid_arg "register_user_expr"
-  ) user_expressions
 
 (*
  * Simplified notation:
@@ -4031,6 +4091,9 @@ struct
           List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] es in
         E0S (MakeRec, es)
 
+  let make_usr name es =
+    E0S (MakeUsr name, es)
+
   let split_at e1 e2 =
     match to_cst_int e1 with
     | exception _ ->
@@ -4129,3 +4192,32 @@ struct
         | 0 -> lst
         | _ -> def)
 end
+
+(* User constructors for the example user types: *)
+
+let () =
+  let open Ops in
+  register_user_constructor "Date" (Mac Float) [] ;
+  register_user_constructor "Eth" (Mac U48) [] ;
+  register_user_constructor "Ip4" (Mac U32) [] ;
+  register_user_constructor "Ip6" (Mac U128) [] ;
+  let ip4_t = T.required (T.get_user_type "Ip4")
+  and ip6_t = T.required (T.get_user_type "Ip6") in
+  let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
+  register_user_constructor "Ip" (Sum ip_mns)
+    [ func1 T.(Value ip4_t) (fun _l x -> construct ip_mns 0 x) ;
+      func1 T.(Value ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
+  register_user_constructor "Cidr4"
+    (Rec [| "ip", ip4_t ; "mask", T.required (Mac U8) |])
+    [ func2 T.(Value ip4_t) T.u8 (fun _l ip mask ->
+        make_rec [ "ip", ip ; "mask", mask ]) ] ;
+  register_user_constructor "Cidr6"
+    (Rec [| "ip", ip6_t ; "mask", T.required (Mac U8) |])
+    [ func2 T.(Value ip6_t) T.u8 (fun _l ip mask ->
+        make_rec [ "ip", ip ; "mask", mask ]) ] ;
+  let cidr4_t = T.required (T.get_user_type "Cidr4")
+  and cidr6_t = T.required (T.get_user_type "Cidr6") in
+  let cidr_mns = [| "v4", cidr4_t ; "v6", cidr6_t |] in
+  register_user_constructor "Cidr" (Sum cidr_mns)
+    [ func1 T.(Value cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
+      func1 T.(Value cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]

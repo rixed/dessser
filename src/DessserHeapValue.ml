@@ -197,7 +197,13 @@ struct
       | T.Mac U56 -> Des.du56
       | T.Mac U64 -> Des.du64
       | T.Mac U128 -> Des.du128
-      | T.Usr vt -> des_of_vt vt.def
+      | T.Usr vt ->
+          (* Deserialize according to vt.def, then make a new user value to
+           * keep the user type: *)
+          fun state mn path l ptr ->
+            let v_src = des_of_vt vt.def state mn path l ptr in
+            E.with_sploded_pair ~l "des_usr_type" v_src (fun _l v src ->
+              pair (make_usr vt.name [ v ]) src)
       | T.Tup mns -> dtup mns
       | T.Rec mns -> drec mns
       | T.Sum mns -> dsum mns
