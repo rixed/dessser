@@ -1654,7 +1654,6 @@ struct
       | E0 (QWord v1), E0 (QWord v2) -> to_bool v1 v2
       | E0 (OWord v1), E0 (OWord v2) -> to_bool v1 v2
       | E0 (Bytes v1), E0 (Bytes v2) -> to_bool v1 v2
-      | E0 (DataPtrOfString v1), E0 (DataPtrOfString v2) -> to_bool v1 v2
       | _ -> E2 (op, e1, e2) in
   match e with
     | E1 (op, e1) -> (
