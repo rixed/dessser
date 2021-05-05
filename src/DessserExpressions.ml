@@ -1706,6 +1706,7 @@ struct
         | StringOfIp, E0 (U32 n) -> E0 (String (DessserIpTools.V4.to_string n))
         | StringOfIp, E0 (U128 n) -> E0 (String (DessserIpTools.V6.to_string n))
         | FloatOfString, E0 (String s) -> E0 (Float (float_of_string s))
+        | U8OfString, E0 (String s) -> E0 (U8 (Uint8.of_string s))
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
@@ -1813,6 +1814,8 @@ struct
     (expr_simp "(string-of-ip (u32 0))")
     [ Ops.(float 3.2)] \
     (expr_simp "(float-of-string (string \"3.2\"))")
+    [ Ops.(u8 (Uint8.one))] \
+    (expr_simp "(u8-of-string (string \"1\")")
   *)
 
   (*$>*)
