@@ -573,7 +573,7 @@ struct
               pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
                 (mod_name t) op_name n1 n2
           | Value { vtyp = Mac Float ; _ } ->
-              let op_name = match op with Div -> "(/.)" | _ -> "(mod)" in
+              let op_name = match op with Div -> "(/.)" | _ -> "Float.rem" in
               pp oc "Nullable.of_nan (%s %s %s)" op_name n1 n2
           | _ ->
               assert false)
