@@ -1683,6 +1683,7 @@ struct
             | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
             | E0 (Float _) -> E0 (Bool false)
             | _ -> E1 (IsNull, _e1))
+        | Force _, E1 (NotNull, e) -> eval e env ids
         | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
         | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
         | StringOfInt, E0 (U8 n) -> E0 (String (Uint8.to_string n))
@@ -1833,6 +1834,8 @@ struct
     (expr_simp "(float-of-string (string \"3.2\"))")
     [ Ops.(u8 (Uint8.one))] \
     (expr_simp "(u8-of-string (string \"1\")")
+    [ Ops.(u8 (Uint8.one))] \
+    (expr_simp "(force \"toto\" (not-null (u8 1)))")
   *)
 
   (*$>*)
