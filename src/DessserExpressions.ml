@@ -1725,6 +1725,7 @@ struct
         | I56OfString, E0 (String s) -> E0 (I56 (Int56.of_string s))
         | I64OfString, E0 (String s) -> E0 (I64 (Int64.of_string s))
         | I128OfString, E0 (String s) -> E0 (I128 (Int128.of_string s))
+        | FloatOfPtr, E1 (DataPtrOfString, E0 (String s)) -> E0 (Float (float_of_string s))
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
@@ -1836,6 +1837,8 @@ struct
     (expr_simp "(u8-of-string (string \"1\")")
     [ Ops.(u8 (Uint8.one))] \
     (expr_simp "(force \"toto\" (not-null (u8 1)))")
+    [ Ops.(float 2.5)] \
+    (expr_simp "(float-of-ptr (data-ptr-of-string (string \"2.5\")))")
   *)
 
   (*$>*)
