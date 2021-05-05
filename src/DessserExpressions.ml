@@ -1664,17 +1664,17 @@ struct
           (* we do not check array size as it checked with type checking *)
           eval (List.nth es n) env ids
         | GetField s, E0S (MakeRec, es) ->
-          let name_found, e_es = List.fold_lefti (fun (prev_name, es) i e ->
+          let name_found = List.fold_lefti (fun prev_name i e ->
             let e_ = eval e env ids in
             if i mod 2 = 0 then (
               match e_ with
-              | E0 (String fn) as e -> if fn = s then (Some (s, None), e::es) else (prev_name, e::es)
-              | e -> (prev_name, e::es)
-            ) else if prev_name <> None then (Some (s, Some e_), es) else (prev_name, e_::es)
-          ) (None, []) es in
+              | E0 (String fn) -> if fn = s then Some (s, None) else prev_name
+              | _ -> prev_name
+            ) else if prev_name <> None then Some (s, Some e_) else prev_name
+          ) None es in
           (match name_found with
             | Some (_, Some v) -> v
-            | _ -> E0S (MakeRec, e_es))
+            | _ -> e)
         (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
         | IsNull, _ -> (
           match _e1 with
