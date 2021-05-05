@@ -2277,7 +2277,7 @@ let rec type_check l e =
       | Value { nullable ; _ } when nullable = b -> ()
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
-    let is_comparable = function
+    let rec is_comparable = function
       | T.Size | Byte | Word | DWord | QWord | OWord | Mask
       | Value {
           vtyp = Mac (
@@ -2286,6 +2286,10 @@ let rec type_check l e =
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } ->
           true
+      | Value { vtyp = Sum mns ; nullable = false } ->
+          Array.for_all (fun (_, mn) -> is_comparable (Value mn)) mns
+      | Value { nullable = true ; vtyp } ->
+          is_comparable (Value { nullable = false ; vtyp })
       | _ ->
           false in
     let check_comparable l e =
