@@ -2333,8 +2333,8 @@ and check_fun_sign e0 l f ps =
           | Add, None, Some 0 -> _e1
           | Add, Some 0, None -> _e2
           | Add, Some v1, Some v2 -> (
-              try check_same_int (v1+v2) (_e1, _e2) with
-              | Invalid_argument _->  E2 (Add, _e1, _e2))
+            try check_same_int (v1+v2) (_e1, _e2) with
+            | Invalid_argument _->  E2 (Add, _e1, _e2))
           | Add, _, _ -> (match _e1, _e2 with
             | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
             | _ -> E2 (Add, _e1, _e2))
@@ -2343,11 +2343,11 @@ and check_fun_sign e0 l f ps =
             | Value { vtyp = typ1; nullable = _} -> E0 (Null typ1)
             | _ -> E2 (Div, _e1, _e2))
           | Div, Some v1, Some v2 -> (match type_of [] _e1 |> T.develop_user_types , type_of [] _e2 |> T.develop_user_types with
-              | Value { vtyp = typ1; nullable = _}, Value { vtyp = typ2; nullable = _} when typ1 = typ2 -> check_same_int  (v1/v2) (_e1, _e2)
-              | _ -> E2 (Div, _e1, _e2))
+            | Value { vtyp = typ1; nullable = _}, Value { vtyp = typ2; nullable = _} when typ1 = typ2 -> check_same_int  (v1/v2) (_e1, _e2)
+            | _ -> E2 (Div, _e1, _e2))
           | Div, _, _ -> (match _e1, _e2 with
-          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
-          | _ -> e)
+            | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
+            | _ -> e)
           | Ge, _, _ -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
           | Eq, _, _ -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
           | Gt, _, _ -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
