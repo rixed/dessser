@@ -1749,10 +1749,11 @@ struct
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
-      (match eval e1 env ids with
+      let _e1 = eval e1 env ids in
+      (match _e1 with
         | E0 (Bool true) -> eval e2 env ids
         | E0 (Bool false) -> eval e3 env ids
-        | _ -> E3 (If, e1, eval e2 env ids, eval e3 env ids))
+        | _ -> E3 (If, _e1, eval e2 env ids, eval e3 env ids))
     | E2 (Add, e1, e2) ->(
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
