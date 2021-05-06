@@ -2287,7 +2287,7 @@ let rec type_check l e =
       | T.Size | Byte | Word | DWord | QWord | OWord | Mask
       | Value {
           vtyp = Mac (
-            Float | String | Char |
+            Float | String | Bool | Char |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } ->
