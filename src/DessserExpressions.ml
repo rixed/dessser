@@ -1803,7 +1803,7 @@ struct
           | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E1 (Assert, E0 (Bool false)) else E0 (Float (Float.(v1/.v2)))
           | _ -> e)
     | E2 (Let n, e1, e2) ->
-      eval e2 [(n, eval e1 env ids)] ids
+      eval e2 ((n, eval e1 env ids)::env) ids
     | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
     | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  (>=)}
     | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  (=)}
