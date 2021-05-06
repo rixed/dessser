@@ -1764,7 +1764,6 @@ struct
         match _n1, _n2 with
           | None, Some 0 -> _e1
           | Some 0, None -> _e2
-          | None, None -> E2 (Add, _e1, _e2)
           | Some _, Some _ -> (match _e1, _e2 with
             | E0 (U8 v1), E0 (U8 v2) -> E0 (U8 (Uint8.(v1+v2)))
             | E0 (U16 v1), E0 (U16 v2) -> E0 (U16 (Uint16.(v1+v2)))
@@ -1784,9 +1783,11 @@ struct
             | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
             | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
             | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
-            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
             | _ ->  E2 (Add, _e1, _e2))
-          | _, _ -> E2 (Add, _e1, _e2))
+          | _ -> (match _e1, _e2 with
+            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
+            | _ -> E2 (Add, _e1, _e2))
+          )
     | E2 (Div, e1, e2) ->(
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
