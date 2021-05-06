@@ -1804,10 +1804,10 @@ struct
     | E2 (Let n, e1, e2) ->
       eval e2 [(n, eval e1 env ids)] ids
     | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
-    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 >= v2}
-    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 = v2}
-    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 > v2}
-    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  fun v1 v2 -> v1 != v2}
+    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  (>=)}
+    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool =  (=)}
+    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  (>)}
+    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool =  (!=)}
     | E1S (Apply, E1 (Function (fid, _), body), es) ->
       eval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
     | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
@@ -1818,49 +1818,51 @@ struct
 
   (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
     [ Ops.(u8 Uint8.one) ] \
-    (expr_simp "(add (u8 1) (u8 0))")
+     (expr_simp "(add (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
-    (expr_simp "(div (u8 1) (u8 1))")
+     (expr_simp "(div (u8 1) (u8 1))")
     [ Ops.(assert_ false_) ] \
-    (expr_simp "(div (u8 1) (u8 0))")
+     (expr_simp "(div (u8 1) (u8 0))")
     [ Ops.(true_) ] \
-    (expr_simp "(ge (u8 1) (u8 0))")
+     (expr_simp "(ge (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
-    (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
+     (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
-    (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
+     (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
     [ Ops.(true_) ] \
-    (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
     [ Ops.(ge (param 2 0) (param 2 0)) ] \
-    (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
     [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
-    (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
     [ Ops.(u16 (Uint16.of_int 5)) ] \
-    (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
+     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
     [ Ops.(u16 (Uint16.of_int 5)) ] \
-    (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
+     (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
     [ Ops.(false_) ] \
-    (expr_simp "(is-null (u8 1))")
+     (expr_simp "(is-null (u8 1))")
     [ Ops.(true_) ] \
-    (expr_simp "(is-null (null \"u8\"))")
+     (expr_simp "(is-null (null \"u8\"))")
     [ Ops.(string "0x1p+0")] \
-    (expr_simp "(string-of-float (float 1))")
+     (expr_simp "(string-of-float (float 1))")
     [ Ops.(string "c")] \
-    (expr_simp "(string-of-char (char \"c\"))")
+     (expr_simp "(string-of-char (char \"c\"))")
     [ Ops.(string "1")] \
-    (expr_simp "(string-of-int (u8 1))")
+     (expr_simp "(string-of-int (u8 1))")
     [ Ops.(string "0.0.0.0")] \
-    (expr_simp "(string-of-ip (u32 0))")
+     (expr_simp "(string-of-ip (u32 0))")
     [ Ops.(float 3.2)] \
-    (expr_simp "(float-of-string (string \"3.2\"))")
+     (expr_simp "(float-of-string (string \"3.2\"))")
     [ Ops.(u8 (Uint8.one))] \
-    (expr_simp "(u8-of-string (string \"1\")")
+     (expr_simp "(u8-of-string (string \"1\")")
     [ Ops.(u8 (Uint8.one))] \
-    (expr_simp "(force \"toto\" (not-null (u8 1)))")
+     (expr_simp "(force \"toto\" (not-null (u8 1)))")
     [ Ops.(float 2.5)] \
-    (expr_simp "(float-of-ptr (data-ptr-of-string (string \"2.5\")))")
+     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"2.5\")))")
     [ Ops.(assert_ false_)] \
-    (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
+     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
+    [ Ops.(u8 (Uint8.one))] \
+    (expr_simp "(to-u8 (int 1))")
   *)
 
   (*$>*)
