@@ -2143,7 +2143,6 @@ and check_fun_sign e0 l f ps =
 
   let rec peval e env ids =
     let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
-    let check_zero n c e = if to_cst_int n = 0 then E0 (Null (Mac c)) else e() in
     let check_same_int n = function
       | E0 (U8 _), E0 (U8 _) -> E0 (U8 (Uint8.of_int n))
       | E0 (U16 _), E0 (U16 _) -> E0 (U16 (Uint16.of_int n))
@@ -2322,46 +2321,42 @@ and check_fun_sign e0 l f ps =
         | E0 (Bool true) -> peval e2 env ids
         | E0 (Bool false) -> peval e3 env ids
         | _ -> E3 (If, _e1, peval e2 env ids, peval e3 env ids))
-    | E2 (Add, e1, e2) ->(
-        let _e1 = peval e1 env ids in
-        let _e2 = peval e2 env ids in
-        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
-        let _n1 = safe_cst_to_int _e1 in
-        let _n2 = safe_cst_to_int _e2 in
-        match _n1, _n2 with
-          | None, Some 0 -> _e1
-          | Some 0, None -> _e2
-          | Some v1, Some v2 -> (
-              try check_same_int (v1+v2) (_e1, _e2) with
-              | Invalid_argument _->  E2 (Add, _e1, _e2))
-          | _ -> (match _e1, _e2 with
-            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
-            | _ -> E2 (Add, _e1, _e2))
-          )
-    | E2 (Div, e1, e2) ->(
-        let _e1 = peval e1 env ids in
-        let _e2 = peval e2 env ids in
-        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
-        let _n1 = safe_cst_to_int _e1 in
-        let _n2 = safe_cst_to_int _e2 in
-        match _n1, _n2 with
-          | _ , Some 0 -> (match type_of [] e1 |> T.develop_user_types with
-            | Value { vtyp = typ; nullable = _} -> E0 (Null typ)
-            | _ -> E2 (Div, _e1, _e2)
-          )
-          | Some v1, Some v2 -> (
-            try check_same_int (v1/v2) (_e1, _e2) with
-              | Invalid_argument _ -> E2 (Div, _e1, _e2))
-          | _, _ -> (match _e1, _e2 with
-          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
-          | _ -> e))
     | E2 (Let n, e1, e2) ->
       peval e2 ((n, peval e1 env ids)::env) ids
+    | E2 (op, e1, e2) -> (
+        let _e1 = peval e1 env ids in
+        let _e2 = peval e2 env ids in
+        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
+        let _n1 = safe_cst_to_int _e1 in
+        let _n2 = safe_cst_to_int _e2 in
+        match op with
+          | Add -> (match _n1, _n2 with
+              | None, Some 0 -> _e1
+              | Some 0, None -> _e2
+              | Some v1, Some v2 -> (
+                  try check_same_int (v1+v2) (_e1, _e2) with
+                  | Invalid_argument _->  E2 (Add, _e1, _e2))
+              | _ -> (match _e1, _e2 with
+                | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
+                | _ -> E2 (Add, _e1, _e2)))
+          | Div -> (match _n1, _n2 with
+              | _, Some v2 when v2 = 1 -> _e1
+              | _, Some v2 when v2 = 0 -> (match type_of [] _e1 |> T.develop_user_types with
+                | Value { vtyp = typ1; nullable = _} -> E0 (Null typ1)
+                | _ -> E2 (Div, _e1, _e2))
+              | Some v1, Some v2 -> (match type_of [] _e1 |> T.develop_user_types , type_of [] _e2 |> T.develop_user_types with
+                  | Value { vtyp = typ1; nullable = _}, Value { vtyp = typ2; nullable = _} when typ1 = typ2 -> check_same_int  (v1/v2) (_e1, _e2)
+                  | _ -> E2 (Div, _e1, _e2))
+              | _, _ -> (match _e1, _e2 with
+              | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
+              | _ -> e))
+          | Ge -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
+          | Eq -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
+          | Gt -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
+          | Ne -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (!=)}
+          | _ -> E2 (op, _e1, _e2)
+        )
     | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
-    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
-    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
-    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
-    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (!=)}
     | E1S (Apply, E1 (Function (fid, _), body), es) ->
       peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
     | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
@@ -2373,20 +2368,24 @@ and check_fun_sign e0 l f ps =
   (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(add (u8 1) (u8 0))")
+    [ Ops.(u128 (Uint128.of_int 24)) ] \
+     (expr_simp "(add (u128 1) (u128 23))")
+    [ Ops.(identifier "toto") ] \
+     (expr_simp "(add (identifier \"toto\") (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(div (u8 1) (u8 1))")
     [ Ops.(null (Mac U8)) ] \
      (expr_simp "(div (u8 1) (u8 0))")
     [ Ops.(null (Mac U128)) ] \
      (expr_simp "(div (u128 1) (u128 0))")
+    [ Ops.(identifier "toto") ] \
+     (expr_simp "(div (identifier \"toto\") (u8 1))")
     [ Ops.(true_) ] \
      (expr_simp "(ge (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
-    [ Ops.(identifier "toto") ] \
-     (expr_simp "(add (identifier \"toto\") (u8 0))")
     [ Ops.(true_) ] \
      (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
     [ Ops.(ge (param 2 0) (param 2 0)) ] \
