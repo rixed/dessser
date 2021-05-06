@@ -2345,7 +2345,10 @@ and check_fun_sign e0 l f ps =
         let _n1 = safe_cst_to_int _e1 in
         let _n2 = safe_cst_to_int _e2 in
         match _n1, _n2 with
-          | _ , Some 0 -> E0 (Null (Mac U8))
+          | _ , Some 0 -> (match type_of [] e1 |> T.develop_user_types with
+            | Value { vtyp = typ; nullable = _} -> E0 (Null typ)
+            | _ -> E2 (Div, _e1, _e2)
+          )
           | Some v1, Some v2 -> (
             try check_same_int (v1/v2) (_e1, _e2) with
               | Invalid_argument _ -> E2 (Div, _e1, _e2))
