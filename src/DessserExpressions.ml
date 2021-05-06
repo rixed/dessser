@@ -3585,9 +3585,9 @@ struct
 
   let gt e1 e2 = E2 (Gt, e1, e2)
 
-  let le e1 e2 = ge e2 e1
+  let le e1 e2 = gt e2 e1
 
-  let lt e1 e2 = gt e2 e1
+  let lt e1 e2 = ge e2 e1
 
   let rec eq e1 e2 =
     match e1, e2 with
