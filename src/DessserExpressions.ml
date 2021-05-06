@@ -1592,295 +1592,6 @@ struct
       (expr "(make-vec (u8 1) (u8 2))")
   *)
 
-  type eval_cmp = {to_bool: 'a . 'a -> 'a -> bool}
-
-  let rec eval e env ids =
-    let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
-    let check_zero n c e = if to_cst_int n = 0 then E0 (Null (Mac c)) else e() in
-    let eval_cmp_op op e1 e2 same_type incompatible_type cmp =
-      let e1 = eval e1 env ids in
-      let e2 = eval e2 env ids in
-      let to_bool v1 v2 = if cmp.to_bool v1 v2 then E0 (Bool true) else E0 (Bool false) in
-      match e1, e2 with
-      | E0 Null _, E0 Null _
-      | E0 (EndOfList _), E0 (EndOfList _)
-      | E0 (EmptySet _), E0 (EmptySet _)
-      | E0 Unit, E0 Unit
-      | E0 CopyField, E0 CopyField
-      | E0 SkipField, E0 SkipField
-      | E0 SetFieldNull, E0 SetFieldNull ->
-        same_type
-      (* None other combination of those can be compared: *)
-      | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull),
-        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull) ->
-           incompatible_type
-      (* Another easy case of practical importance: comparison of a null with
-       * a NotNull: *)
-      | E0 (Null _), E1 (NotNull, _)
-      | E1 (NotNull, _), E0 (Null _) ->
-        incompatible_type
-      (* Peel away some common wrappers: *)
-      (* | E1 (NotNull, e1), E1 (NotNull, e2)
-       | E1 (Force, e1), E1 (Force, e2) ->
-          eq e1 e2*)
-      (* Compare numerical constant (only if of the same type (TODO)): *)
-      | E0 (Float v1), E0 (Float v2) -> to_bool v1 v2
-      | E0 (String v1), E0 (String v2) -> to_bool v1 v2
-      | E0 (Bool v1), E0 (Bool v2) -> to_bool v1 v2
-      | E0 (Char v1), E0 (Char v2) -> to_bool v1 v2
-      | E0 (U8 v1), E0 (U8 v2) -> to_bool v1 v2
-      | E0 (U16 v1), E0 (U16 v2) -> to_bool v1 v2
-      | E0 (U24 v1), E0 (U24 v2) -> to_bool v1 v2
-      | E0 (U32 v1), E0 (U32 v2) -> to_bool v1 v2
-      | E0 (U40 v1), E0 (U40 v2) -> to_bool v1 v2
-      | E0 (U48 v1), E0 (U48 v2) -> to_bool v1 v2
-      | E0 (U56 v1), E0 (U56 v2) -> to_bool v1 v2
-      | E0 (U64 v1), E0 (U64 v2) -> to_bool v1 v2
-      | E0 (U128 v1), E0 (U128 v2) -> to_bool v1 v2
-      | E0 (I8 v1), E0 (I8 v2) -> to_bool v1 v2
-      | E0 (I16 v1), E0 (I16 v2) -> to_bool v1 v2
-      | E0 (I24 v1), E0 (I24 v2) -> to_bool v1 v2
-      | E0 (I32 v1), E0 (I32 v2) -> to_bool v1 v2
-      | E0 (I40 v1), E0 (I40 v2) -> to_bool v1 v2
-      | E0 (I48 v1), E0 (I48 v2) -> to_bool v1 v2
-      | E0 (I56 v1), E0 (I56 v2) -> to_bool v1 v2
-      | E0 (I64 v1), E0 (I64 v2) -> to_bool v1 v2
-      | E0 (I128 v1), E0 (I128 v2) -> to_bool v1 v2
-      | E0 (Bit v1), E0 (Bit v2) -> to_bool v1 v2
-      | E0 (Size v1), E0 (Size v2) -> to_bool v1 v2
-      | E0 (Byte v1), E0 (Byte v2) -> to_bool v1 v2
-      | E0 (Word v1), E0 (Word v2) -> to_bool v1 v2
-      | E0 (DWord v1), E0 (DWord v2) -> to_bool v1 v2
-      | E0 (QWord v1), E0 (QWord v2) -> to_bool v1 v2
-      | E0 (OWord v1), E0 (OWord v2) -> to_bool v1 v2
-      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool v1 v2
-      | _ -> E2 (op, e1, e2) in
-  match e with
-    | E1 (op, e1) -> (
-      let _e1 = eval e1 env ids in
-      match op, _e1 with
-        | GetItem n, E0S (MakeTup, es) ->
-          (* we do not check array size as it checked with type checking *)
-          eval (List.nth es n) env ids
-        | GetField s, E0S (MakeRec, es) ->
-          let name_found = List.fold_lefti (fun prev_name i e ->
-            let e_ = eval e env ids in
-            if i mod 2 = 0 then (
-              match e_ with
-              | E0 (String fn) -> if fn = s then Some (s, None) else prev_name
-              | _ -> prev_name
-            ) else if prev_name <> None then Some (s, Some e_) else prev_name
-          ) None es in
-          (match name_found with
-            | Some (_, Some v) -> v
-            | _ -> e)
-        (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
-        | IsNull, _ -> (
-          match _e1 with
-            | E0 (Null _) -> E0 (Bool true)
-            | E1 (NotNull, _) -> E0 (Bool false)
-            | E0 (U8 _) | E0 (U16 _) | E0 (U24 _) | E0 (U32 _) | E0 (U40 _) | E0 (U48 _) | E0 (U56 _) | E0 (U64 _) | E0 (U128 _)
-            | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
-            | E0 (Float _) -> E0 (Bool false)
-            | _ -> E1 (IsNull, _e1))
-        | Force _, E1 (NotNull, e) -> eval e env ids
-        | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
-        | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
-        | StringOfInt, E0 (U8 n) -> E0 (String (Uint8.to_string n))
-        | StringOfInt, E0 (U16 n) -> E0 (String (Uint16.to_string n))
-        | StringOfInt, E0 (U24 n) -> E0 (String (Uint24.to_string n))
-        | StringOfInt, E0 (U32 n) -> E0 (String (Uint32.to_string n))
-        | StringOfInt, E0 (U40 n) -> E0 (String (Uint40.to_string n))
-        | StringOfInt, E0 (U48 n) -> E0 (String (Uint48.to_string n))
-        | StringOfInt, E0 (U56 n) -> E0 (String (Uint56.to_string n))
-        | StringOfInt, E0 (U64 n) -> E0 (String (Uint64.to_string n))
-        | StringOfInt, E0 (U128 n) -> E0 (String (Uint128.to_string n))
-        | StringOfInt, E0 (I8 n) -> E0 (String (Int8.to_string n))
-        | StringOfInt, E0 (I16 n) -> E0 (String (Int16.to_string n))
-        | StringOfInt, E0 (I24 n) -> E0 (String (Int24.to_string n))
-        | StringOfInt, E0 (I32 n) -> E0 (String (Int32.to_string n))
-        | StringOfInt, E0 (I40 n) -> E0 (String (Int40.to_string n))
-        | StringOfInt, E0 (I48 n) -> E0 (String (Int48.to_string n))
-        | StringOfInt, E0 (I56 n) -> E0 (String (Int56.to_string n))
-        | StringOfInt, E0 (I64 n) -> E0 (String (Int64.to_string n))
-        | StringOfInt, E0 (I128 n) -> E0 (String (Int128.to_string n))
-        | StringOfIp, E0 (U32 n) -> E0 (String (DessserIpTools.V4.to_string n))
-        | StringOfIp, E0 (U128 n) -> E0 (String (DessserIpTools.V6.to_string n))
-        | FloatOfString, E0 (String s) -> check_string s (fun () -> E0 (Float (float_of_string s)))
-        | U8OfString, E0 (String s) -> check_string s (fun () -> E0 (U8 (Uint8.of_string s)))
-        | U16OfString, E0 (String s) -> check_string s (fun () -> E0 (U16 (Uint16.of_string s)))
-        | U24OfString, E0 (String s) -> check_string s (fun () -> E0 (U24 (Uint24.of_string s)))
-        | U32OfString, E0 (String s) -> check_string s (fun () -> E0 (U32 (Uint32.of_string s)))
-        | U40OfString, E0 (String s) -> check_string s (fun () -> E0 (U40 (Uint40.of_string s)))
-        | U48OfString, E0 (String s) -> check_string s (fun () -> E0 (U48 (Uint48.of_string s)))
-        | U56OfString, E0 (String s) -> check_string s (fun () -> E0 (U56 (Uint56.of_string s)))
-        | U64OfString, E0 (String s) -> check_string s (fun () -> E0 (U64 (Uint64.of_string s)))
-        | U128OfString, E0 (String s) -> check_string s (fun () -> E0 (U128 (Uint128.of_string s)))
-        | I8OfString, E0 (String s) -> check_string s (fun () -> E0 (I8 (Int8.of_string s)))
-        | I16OfString, E0 (String s) -> check_string s (fun () -> E0 (I16 (Int16.of_string s)))
-        | I24OfString, E0 (String s) -> check_string s (fun () -> E0 (I24 (Int24.of_string s)))
-        | I32OfString, E0 (String s) -> check_string s (fun () -> E0 (I32 (Int32.of_string s)))
-        | I40OfString, E0 (String s) -> check_string s (fun () -> E0 (I40 (Int40.of_string s)))
-        | I48OfString, E0 (String s) -> check_string s (fun () -> E0 (I48 (Int48.of_string s)))
-        | I56OfString, E0 (String s) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
-        | I64OfString, E0 (String s) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
-        | I128OfString, E0 (String s) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
-        | FloatOfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (Float (float_of_string s)))
-        | CharOfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (Char (s.[0])))
-        | U8OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U8 (Uint8.of_string s)))
-        | U16OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U16 (Uint16.of_string s)))
-        | U24OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U24 (Uint24.of_string s)))
-        | U32OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U32 (Uint32.of_string s)))
-        | U40OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U40 (Uint40.of_string s)))
-        | U48OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U48 (Uint48.of_string s)))
-        | U56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U56 (Uint56.of_string s)))
-        | U64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U64 (Uint64.of_string s)))
-        | U128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U128 (Uint128.of_string s)))
-        | I8OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I8 (Int8.of_string s)))
-        | I16OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I16 (Int16.of_string s)))
-        | I24OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I24 (Int24.of_string s)))
-        | I32OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I32 (Int32.of_string s)))
-        | I40OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I40 (Int40.of_string s)))
-        | I48OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I48 (Int48.of_string s)))
-        | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
-        | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
-        | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
-        | _ -> E1 (op, _e1)
-    )
-    | E3 (If, e1, e2, e3) ->
-      let _e1 = eval e1 env ids in
-      (match _e1 with
-        | E0 (Bool true) -> eval e2 env ids
-        | E0 (Bool false) -> eval e3 env ids
-        | _ -> E3 (If, _e1, eval e2 env ids, eval e3 env ids))
-    | E2 (Add, e1, e2) ->(
-        let _e1 = eval e1 env ids in
-        let _e2 = eval e2 env ids in
-        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
-        let _n1 = safe_cst_to_int _e1 in
-        let _n2 = safe_cst_to_int _e2 in
-        match _n1, _n2 with
-          | None, Some 0 -> _e1
-          | Some 0, None -> _e2
-          | Some _, Some _ -> (match _e1, _e2 with
-            | E0 (U8 v1), E0 (U8 v2) -> E0 (U8 (Uint8.(v1+v2)))
-            | E0 (U16 v1), E0 (U16 v2) -> E0 (U16 (Uint16.(v1+v2)))
-            | E0 (U24 v1), E0 (U24 v2) -> E0 (U24 (Uint24.(v1+v2)))
-            | E0 (U32 v1), E0 (U32 v2) -> E0 (U32 (Uint32.(v1+v2)))
-            | E0 (U40 v1), E0 (U40 v2) -> E0 (U40 (Uint40.(v1+v2)))
-            | E0 (U48 v1), E0 (U48 v2) -> E0 (U48 (Uint48.(v1+v2)))
-            | E0 (U56 v1), E0 (U56 v2) -> E0 (U56 (Uint56.(v1+v2)))
-            | E0 (U64 v1), E0 (U64 v2) -> E0 (U64 (Uint64.(v1+v2)))
-            | E0 (U128 v1), E0 (U128 v2) -> E0 (U128 (Uint128.(v1+v2)))
-            | E0 (I8 v1), E0 (I8 v2) -> E0 (I8 (Int8.(v1+v2)))
-            | E0 (I16 v1), E0 (I16 v2) -> E0 (I16 (Int16.(v1+v2)))
-            | E0 (I24 v1), E0 (I24 v2) -> E0 (I24 (Int24.(v1+v2)))
-            | E0 (I32 v1), E0 (I32 v2) -> E0 (I32 (Int32.(v1+v2)))
-            | E0 (I40 v1), E0 (I40 v2) -> E0 (I40 (Int40.(v1+v2)))
-            | E0 (I48 v1), E0 (I48 v2) -> E0 (I48 (Int48.(v1+v2)))
-            | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
-            | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
-            | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
-            | _ ->  E2 (Add, _e1, _e2))
-          | _ -> (match _e1, _e2 with
-            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
-            | _ -> E2 (Add, _e1, _e2))
-          )
-    | E2 (Div, e1, e2) ->(
-        let _e1 = eval e1 env ids in
-        let _e2 = eval e2 env ids in
-        match _e1, _e2 with
-          | E0 (U8 v1), E0 (U8 v2) -> check_zero _e2 U8 (fun () -> E0 (U8 (Uint8.(v1/v2))))
-          | E0 (U16 v1), E0 (U16 v2) -> check_zero _e2 U16 (fun () -> E0 (U16 (Uint16.(v1/v2))))
-          | E0 (U24 v1), E0 (U24 v2) -> check_zero _e2 U24 (fun () -> E0 (U24 (Uint24.(v1/v2))))
-          | E0 (U32 v1), E0 (U32 v2) -> check_zero _e2 U32 (fun () -> E0 (U32 (Uint32.(v1/v2))))
-          | E0 (U40 v1), E0 (U40 v2) -> check_zero _e2 U40 (fun () -> E0 (U40 (Uint40.(v1/v2))))
-          | E0 (U48 v1), E0 (U48 v2) -> check_zero _e2 U48 (fun () -> E0 (U48 (Uint48.(v1/v2))))
-          | E0 (U56 v1), E0 (U56 v2) -> check_zero _e2 U56 (fun () -> E0 (U56 (Uint56.(v1/v2))))
-          | E0 (U64 v1), E0 (U64 v2) -> check_zero _e2 U64 (fun () -> E0 (U64 (Uint64.(v1/v2))))
-          | E0 (U128 v1), E0 (U128 v2) -> check_zero _e2 U128 (fun () -> E0 (U128 (Uint128.(v1/v2))))
-          | E0 (I8 v1), E0 (I8 v2) -> check_zero _e2 I8 (fun () -> E0 (I8 (Int8.(v1/v2))))
-          | E0 (I16 v1), E0 (I16 v2) -> check_zero _e2 I16 (fun () -> E0 (I16 (Int16.(v1/v2))))
-          | E0 (I24 v1), E0 (I24 v2) -> check_zero _e2 I24 (fun () -> E0 (I24 (Int24.(v1/v2))))
-          | E0 (I32 v1), E0 (I32 v2) -> check_zero _e2 I32 (fun () -> E0 (I32 (Int32.(v1/v2))))
-          | E0 (I40 v1), E0 (I40 v2) -> check_zero _e2 I40 (fun () -> E0 (I40 (Int40.(v1/v2))))
-          | E0 (I48 v1), E0 (I48 v2) -> check_zero _e2 I48 (fun () -> E0 (I48 (Int48.(v1/v2))))
-          | E0 (I56 v1), E0 (I56 v2) -> check_zero _e2 I56 (fun () -> E0 (I56 (Int56.(v1/v2))))
-          | E0 (I64 v1), E0 (I64 v2) -> check_zero _e2 I64 (fun () -> E0 (I64 (Int64.(v1/v2))))
-          | E0 (I128 v1), E0 (I128 v2) -> check_zero _e2 I128 (fun () -> E0 (I128 (Int128.(v1/v2))))
-          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
-          | _ -> e)
-    | E2 (Let n, e1, e2) ->
-      eval e2 ((n, eval e1 env ids)::env) ids
-    | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
-    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
-    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
-    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
-    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (!=)}
-    | E1S (Apply, E1 (Function (fid, _), body), es) ->
-      eval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
-    | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
-    | _ -> e
-
-  let expr_simp str =
-    (List.map (fun s -> eval (e s) [] []) (sexpr_of_string str))
-
-  (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
-    [ Ops.(u8 Uint8.one) ] \
-     (expr_simp "(add (u8 1) (u8 0))")
-    [ Ops.(u8 Uint8.one) ] \
-     (expr_simp "(div (u8 1) (u8 1))")
-    [ Ops.(null (Mac U8)) ] \
-     (expr_simp "(div (u8 1) (u8 0))")
-    [ Ops.(null (Mac U128)) ] \
-     (expr_simp "(div (u128 1) (u128 0))")
-    [ Ops.(true_) ] \
-     (expr_simp "(ge (u8 1) (u8 0))")
-    [ Ops.(u8 Uint8.one) ] \
-     (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
-    [ Ops.(u8 Uint8.one) ] \
-     (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
-    [ Ops.(identifier "toto") ] \
-     (expr_simp "(add (identifier \"toto\") (u8 0))")
-    [ Ops.(true_) ] \
-     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
-    [ Ops.(ge (param 2 0) (param 2 0)) ] \
-     (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
-    [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
-     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
-    [ Ops.(u16 (Uint16.of_int 5)) ] \
-     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
-    [ Ops.(u16 (Uint16.of_int 5)) ] \
-     (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
-    [ Ops.(false_) ] \
-     (expr_simp "(is-null (u8 1))")
-    [ Ops.(true_) ] \
-     (expr_simp "(is-null (null \"u8\"))")
-    [ Ops.(string "0x1p+0")] \
-     (expr_simp "(string-of-float (float 1))")
-    [ Ops.(string "c")] \
-     (expr_simp "(string-of-char (char \"c\"))")
-    [ Ops.(string "1")] \
-     (expr_simp "(string-of-int (u8 1))")
-    [ Ops.(string "0.0.0.0")] \
-     (expr_simp "(string-of-ip (u32 0))")
-    [ Ops.(float 3.2)] \
-     (expr_simp "(float-of-string (string \"3.2\"))")
-    [ Ops.(u8 (Uint8.one))] \
-     (expr_simp "(u8-of-string (string \"1\")")
-    [ Ops.(u8 (Uint8.one))] \
-     (expr_simp "(force \"toto\" (not-null (u8 1)))")
-    [ Ops.(float 2.5)] \
-     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"2.5\")))")
-    [ Ops.(assert_ false_)] \
-     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
-    [ Ops.(u8 (Uint8.one))] \
-    (expr_simp "(to-u8 (u128 1))")
-  *)
-
-  (*$>*)
 end
 
 (*
@@ -2427,6 +2138,289 @@ and check_fun_sign e0 l f ps =
       done
   | t ->
       raise (Type_error (e0, f, t, "be a function"))
+
+  type eval_cmp = {to_bool: 'a . 'a -> 'a -> bool}
+
+  let rec eval e env ids =
+    let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
+    let check_zero n c e = if to_cst_int n = 0 then E0 (Null (Mac c)) else e() in
+    let check_same_int n = function
+      | E0 (U8 _), E0 (U8 _) -> E0 (U8 (Uint8.of_int n))
+      | E0 (U16 _), E0 (U16 _) -> E0 (U16 (Uint16.of_int n))
+      | E0 (U24 _), E0 (U24 _) -> E0 (U24 (Uint24.of_int n))
+      | E0 (U32 _), E0 (U32 _) -> E0 (U32 (Uint32.of_int n))
+      | E0 (U40 _), E0 (U40 _) -> E0 (U40 (Uint40.of_int n))
+      | E0 (U48 _), E0 (U48 _) -> E0 (U48 (Uint48.of_int n))
+      | E0 (U56 _), E0 (U56 _) -> E0 (U56 (Uint56.of_int n))
+      | E0 (U64 _), E0 (U64 _) -> E0 (U64 (Uint64.of_int n))
+      | E0 (U128 _), E0 (U128 _) -> E0 (U128 (Uint128.of_int n))
+      | E0 (I8 _), E0 (I8 _) -> E0 (I8 (Int8.of_int n))
+      | E0 (I16 _), E0 (I16 _) -> E0 (I16 (Int16.of_int n))
+      | E0 (I24 _), E0 (I24 _) -> E0 (I24 (Int24.of_int n))
+      | E0 (I32 _), E0 (I32 _) -> E0 (I32 (Int32.of_int n))
+      | E0 (I40 _), E0 (I40 _) -> E0 (I40 (Int40.of_int n))
+      | E0 (I48 _), E0 (I48 _) -> E0 (I48 (Int48.of_int n))
+      | E0 (I56 _), E0 (I56 _) -> E0 (I56 (Int56.of_int n))
+      | E0 (I64 _), E0 (I64 _) -> E0 (I64 (Int64.of_int n))
+      | E0 (I128 _), E0 (I128 _) -> E0 (I128 (Int128.of_int n))
+      | _ -> invalid_arg "check_same_int" in
+    let eval_cmp_op op e1 e2 same_type incompatible_type cmp =
+      let e1 = eval e1 env ids in
+      let e2 = eval e2 env ids in
+      let to_bool v1 v2 = if cmp.to_bool v1 v2 then E0 (Bool true) else E0 (Bool false) in
+      match e1, e2 with
+      | E0 Null _, E0 Null _
+      | E0 (EndOfList _), E0 (EndOfList _)
+      | E0 (EmptySet _), E0 (EmptySet _)
+      | E0 Unit, E0 Unit
+      | E0 CopyField, E0 CopyField
+      | E0 SkipField, E0 SkipField
+      | E0 SetFieldNull, E0 SetFieldNull ->
+        same_type
+      (* None other combination of those can be compared: *)
+      | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull),
+        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
+           | CopyField | SkipField | SetFieldNull) ->
+           incompatible_type
+      (* Another easy case of practical importance: comparison of a null with
+       * a NotNull: *)
+      | E0 (Null _), E1 (NotNull, _)
+      | E1 (NotNull, _), E0 (Null _) ->
+        incompatible_type
+      (* Peel away some common wrappers: *)
+      (* | E1 (NotNull, e1), E1 (NotNull, e2)
+       | E1 (Force, e1), E1 (Force, e2) ->
+          eq e1 e2*)
+      (* Compare numerical constant (only if of the same type (TODO)): *)
+      | E0 (Float v1), E0 (Float v2) -> to_bool v1 v2
+      | E0 (String v1), E0 (String v2) -> to_bool v1 v2
+      | E0 (Bool v1), E0 (Bool v2) -> to_bool v1 v2
+      | E0 (Char v1), E0 (Char v2) -> to_bool v1 v2
+      | E0 (U8 v1), E0 (U8 v2) -> to_bool v1 v2
+      | E0 (U16 v1), E0 (U16 v2) -> to_bool v1 v2
+      | E0 (U24 v1), E0 (U24 v2) -> to_bool v1 v2
+      | E0 (U32 v1), E0 (U32 v2) -> to_bool v1 v2
+      | E0 (U40 v1), E0 (U40 v2) -> to_bool v1 v2
+      | E0 (U48 v1), E0 (U48 v2) -> to_bool v1 v2
+      | E0 (U56 v1), E0 (U56 v2) -> to_bool v1 v2
+      | E0 (U64 v1), E0 (U64 v2) -> to_bool v1 v2
+      | E0 (U128 v1), E0 (U128 v2) -> to_bool v1 v2
+      | E0 (I8 v1), E0 (I8 v2) -> to_bool v1 v2
+      | E0 (I16 v1), E0 (I16 v2) -> to_bool v1 v2
+      | E0 (I24 v1), E0 (I24 v2) -> to_bool v1 v2
+      | E0 (I32 v1), E0 (I32 v2) -> to_bool v1 v2
+      | E0 (I40 v1), E0 (I40 v2) -> to_bool v1 v2
+      | E0 (I48 v1), E0 (I48 v2) -> to_bool v1 v2
+      | E0 (I56 v1), E0 (I56 v2) -> to_bool v1 v2
+      | E0 (I64 v1), E0 (I64 v2) -> to_bool v1 v2
+      | E0 (I128 v1), E0 (I128 v2) -> to_bool v1 v2
+      | E0 (Bit v1), E0 (Bit v2) -> to_bool v1 v2
+      | E0 (Size v1), E0 (Size v2) -> to_bool v1 v2
+      | E0 (Byte v1), E0 (Byte v2) -> to_bool v1 v2
+      | E0 (Word v1), E0 (Word v2) -> to_bool v1 v2
+      | E0 (DWord v1), E0 (DWord v2) -> to_bool v1 v2
+      | E0 (QWord v1), E0 (QWord v2) -> to_bool v1 v2
+      | E0 (OWord v1), E0 (OWord v2) -> to_bool v1 v2
+      | E0 (Bytes v1), E0 (Bytes v2) -> to_bool v1 v2
+      | _ -> E2 (op, e1, e2) in
+  match e with
+    | E1 (op, e1) -> (
+      let _e1 = eval e1 env ids in
+      match op, _e1 with
+        | GetItem n, E0S (MakeTup, es) ->
+          (* we do not check array size as it checked with type checking *)
+          eval (List.nth es n) env ids
+        | GetField s, E0S (MakeRec, es) ->
+          let name_found = List.fold_lefti (fun prev_name i e ->
+            let e_ = eval e env ids in
+            if i mod 2 = 0 then (
+              match e_ with
+              | E0 (String fn) -> if fn = s then Some (s, None) else prev_name
+              | _ -> prev_name
+            ) else if prev_name <> None then Some (s, Some e_) else prev_name
+          ) None es in
+          (match name_found with
+            | Some (_, Some v) -> v
+            | _ -> e)
+        (*| E1 (GetAlt s, E1 (Construct (mms, n), v)) ->*)
+        | IsNull, _ -> (
+          match _e1 with
+            | E0 (Null _) -> E0 (Bool true)
+            | E1 (NotNull, _) -> E0 (Bool false)
+            | E0 (U8 _) | E0 (U16 _) | E0 (U24 _) | E0 (U32 _) | E0 (U40 _) | E0 (U48 _) | E0 (U56 _) | E0 (U64 _) | E0 (U128 _)
+            | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
+            | E0 (Float _) -> E0 (Bool false)
+            | _ -> E1 (IsNull, _e1))
+        | Force _, E1 (NotNull, e) -> eval e env ids
+        | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
+        | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
+        | StringOfInt, E0 (U8 n) -> E0 (String (Uint8.to_string n))
+        | StringOfInt, E0 (U16 n) -> E0 (String (Uint16.to_string n))
+        | StringOfInt, E0 (U24 n) -> E0 (String (Uint24.to_string n))
+        | StringOfInt, E0 (U32 n) -> E0 (String (Uint32.to_string n))
+        | StringOfInt, E0 (U40 n) -> E0 (String (Uint40.to_string n))
+        | StringOfInt, E0 (U48 n) -> E0 (String (Uint48.to_string n))
+        | StringOfInt, E0 (U56 n) -> E0 (String (Uint56.to_string n))
+        | StringOfInt, E0 (U64 n) -> E0 (String (Uint64.to_string n))
+        | StringOfInt, E0 (U128 n) -> E0 (String (Uint128.to_string n))
+        | StringOfInt, E0 (I8 n) -> E0 (String (Int8.to_string n))
+        | StringOfInt, E0 (I16 n) -> E0 (String (Int16.to_string n))
+        | StringOfInt, E0 (I24 n) -> E0 (String (Int24.to_string n))
+        | StringOfInt, E0 (I32 n) -> E0 (String (Int32.to_string n))
+        | StringOfInt, E0 (I40 n) -> E0 (String (Int40.to_string n))
+        | StringOfInt, E0 (I48 n) -> E0 (String (Int48.to_string n))
+        | StringOfInt, E0 (I56 n) -> E0 (String (Int56.to_string n))
+        | StringOfInt, E0 (I64 n) -> E0 (String (Int64.to_string n))
+        | StringOfInt, E0 (I128 n) -> E0 (String (Int128.to_string n))
+        | StringOfIp, E0 (U32 n) -> E0 (String (DessserIpTools.V4.to_string n))
+        | StringOfIp, E0 (U128 n) -> E0 (String (DessserIpTools.V6.to_string n))
+        | FloatOfString, E0 (String s) -> check_string s (fun () -> E0 (Float (float_of_string s)))
+        | U8OfString, E0 (String s) -> check_string s (fun () -> E0 (U8 (Uint8.of_string s)))
+        | U16OfString, E0 (String s) -> check_string s (fun () -> E0 (U16 (Uint16.of_string s)))
+        | U24OfString, E0 (String s) -> check_string s (fun () -> E0 (U24 (Uint24.of_string s)))
+        | U32OfString, E0 (String s) -> check_string s (fun () -> E0 (U32 (Uint32.of_string s)))
+        | U40OfString, E0 (String s) -> check_string s (fun () -> E0 (U40 (Uint40.of_string s)))
+        | U48OfString, E0 (String s) -> check_string s (fun () -> E0 (U48 (Uint48.of_string s)))
+        | U56OfString, E0 (String s) -> check_string s (fun () -> E0 (U56 (Uint56.of_string s)))
+        | U64OfString, E0 (String s) -> check_string s (fun () -> E0 (U64 (Uint64.of_string s)))
+        | U128OfString, E0 (String s) -> check_string s (fun () -> E0 (U128 (Uint128.of_string s)))
+        | I8OfString, E0 (String s) -> check_string s (fun () -> E0 (I8 (Int8.of_string s)))
+        | I16OfString, E0 (String s) -> check_string s (fun () -> E0 (I16 (Int16.of_string s)))
+        | I24OfString, E0 (String s) -> check_string s (fun () -> E0 (I24 (Int24.of_string s)))
+        | I32OfString, E0 (String s) -> check_string s (fun () -> E0 (I32 (Int32.of_string s)))
+        | I40OfString, E0 (String s) -> check_string s (fun () -> E0 (I40 (Int40.of_string s)))
+        | I48OfString, E0 (String s) -> check_string s (fun () -> E0 (I48 (Int48.of_string s)))
+        | I56OfString, E0 (String s) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
+        | I64OfString, E0 (String s) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
+        | I128OfString, E0 (String s) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
+        | FloatOfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (Float (float_of_string s)))
+        | CharOfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (Char (s.[0])))
+        | U8OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U8 (Uint8.of_string s)))
+        | U16OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U16 (Uint16.of_string s)))
+        | U24OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U24 (Uint24.of_string s)))
+        | U32OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U32 (Uint32.of_string s)))
+        | U40OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U40 (Uint40.of_string s)))
+        | U48OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U48 (Uint48.of_string s)))
+        | U56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U56 (Uint56.of_string s)))
+        | U64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U64 (Uint64.of_string s)))
+        | U128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (U128 (Uint128.of_string s)))
+        | I8OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I8 (Int8.of_string s)))
+        | I16OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I16 (Int16.of_string s)))
+        | I24OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I24 (Int24.of_string s)))
+        | I32OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I32 (Int32.of_string s)))
+        | I40OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I40 (Int40.of_string s)))
+        | I48OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I48 (Int48.of_string s)))
+        | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
+        | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
+        | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
+        | _ -> E1 (op, _e1)
+    )
+    | E3 (If, e1, e2, e3) ->
+      let _e1 = eval e1 env ids in
+      (match _e1 with
+        | E0 (Bool true) -> eval e2 env ids
+        | E0 (Bool false) -> eval e3 env ids
+        | _ -> E3 (If, _e1, eval e2 env ids, eval e3 env ids))
+    | E2 (Add, e1, e2) ->(
+        let _e1 = eval e1 env ids in
+        let _e2 = eval e2 env ids in
+        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
+        let _n1 = safe_cst_to_int _e1 in
+        let _n2 = safe_cst_to_int _e2 in
+        match _n1, _n2 with
+          | None, Some 0 -> _e1
+          | Some 0, None -> _e2
+          | Some v1, Some v2 -> (
+              try check_same_int (v1+v2) (_e1, _e2) with
+              | Invalid_argument _->  E2 (Add, _e1, _e2))
+          | _ -> (match _e1, _e2 with
+            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
+            | _ -> E2 (Add, _e1, _e2))
+          )
+    | E2 (Div, e1, e2) ->(
+        let _e1 = eval e1 env ids in
+        let _e2 = eval e2 env ids in
+        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
+        let _n1 = safe_cst_to_int _e1 in
+        let _n2 = safe_cst_to_int _e2 in
+        match _n1, _n2 with
+          | _ , Some 0 -> E0 (Null (Mac U8))
+          | Some v1, Some v2 -> (
+            try check_same_int (v1/v2) (_e1, _e2) with
+              | Invalid_argument _ -> E2 (Div, _e1, _e2))
+          | _, _ -> (match _e1, _e2 with
+          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
+          | _ -> e))
+    | E2 (Let n, e1, e2) ->
+      eval e2 ((n, eval e1 env ids)::env) ids
+    | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
+    | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
+    | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
+    | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
+    | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (!=)}
+    | E1S (Apply, E1 (Function (fid, _), body), es) ->
+      eval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
+    | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
+    | _ -> e
+
+  let expr_simp str =
+    (List.map (fun s -> eval (Parser.e s) [] []) (Parser.sexpr_of_string str))
+
+  (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
+    [ Ops.(u8 Uint8.one) ] \
+     (expr_simp "(add (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+     (expr_simp "(div (u8 1) (u8 1))")
+    [ Ops.(null (Mac U8)) ] \
+     (expr_simp "(div (u8 1) (u8 0))")
+    [ Ops.(null (Mac U128)) ] \
+     (expr_simp "(div (u128 1) (u128 0))")
+    [ Ops.(true_) ] \
+     (expr_simp "(ge (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+     (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
+    [ Ops.(u8 Uint8.one) ] \
+     (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
+    [ Ops.(identifier "toto") ] \
+     (expr_simp "(add (identifier \"toto\") (u8 0))")
+    [ Ops.(true_) ] \
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
+    [ Ops.(ge (param 2 0) (param 2 0)) ] \
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 2 0) (param 2 0))) (u8 1))")
+    [ Ops.(ge (u8 Uint8.one) (param 1 2)) ] \
+     (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 2))) (u8 1))")
+    [ Ops.(u16 (Uint16.of_int 5)) ] \
+     (expr_simp "(get-item 1 (make-tup (u16 1) (add (u16 3) (u16 2)))")
+    [ Ops.(u16 (Uint16.of_int 5)) ] \
+     (expr_simp "(get-field \"toto\" (make-rec (string \"toto\") (u16 1) (string \"tata\") (add (u16 3) (u16 2))))")
+    [ Ops.(false_) ] \
+     (expr_simp "(is-null (u8 1))")
+    [ Ops.(true_) ] \
+     (expr_simp "(is-null (null \"u8\"))")
+    [ Ops.(string "0x1p+0")] \
+     (expr_simp "(string-of-float (float 1))")
+    [ Ops.(string "c")] \
+     (expr_simp "(string-of-char (char \"c\"))")
+    [ Ops.(string "1")] \
+     (expr_simp "(string-of-int (u8 1))")
+    [ Ops.(string "0.0.0.0")] \
+     (expr_simp "(string-of-ip (u32 0))")
+    [ Ops.(float 3.2)] \
+     (expr_simp "(float-of-string (string \"3.2\"))")
+    [ Ops.(u8 (Uint8.one))] \
+     (expr_simp "(u8-of-string (string \"1\")")
+    [ Ops.(u8 (Uint8.one))] \
+     (expr_simp "(force \"toto\" (not-null (u8 1)))")
+    [ Ops.(float 2.5)] \
+     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"2.5\")))")
+    [ Ops.(assert_ false_)] \
+     (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
+    [ Ops.(u8 (Uint8.one))] \
+    (expr_simp "(to-u8 (u128 1))")
+  *)
+
+  (*$>*)
 
 let apply_constructor e0 l name ins =
   match Hashtbl.find user_constructors name with
