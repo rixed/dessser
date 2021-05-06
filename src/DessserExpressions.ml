@@ -2141,7 +2141,7 @@ and check_fun_sign e0 l f ps =
 
   type eval_cmp = {to_bool: 'a . 'a -> 'a -> bool}
 
-  let rec eval e env ids =
+  let rec peval e env ids =
     let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
     let check_zero n c e = if to_cst_int n = 0 then E0 (Null (Mac c)) else e() in
     let check_same_int n = function
@@ -2165,8 +2165,8 @@ and check_fun_sign e0 l f ps =
       | E0 (I128 _), E0 (I128 _) -> E0 (I128 (Int128.of_int n))
       | _ -> invalid_arg "check_same_int" in
     let eval_cmp_op op e1 e2 same_type incompatible_type cmp =
-      let e1 = eval e1 env ids in
-      let e2 = eval e2 env ids in
+      let e1 = peval e1 env ids in
+      let e2 = peval e2 env ids in
       let to_bool v1 v2 = if cmp.to_bool v1 v2 then E0 (Bool true) else E0 (Bool false) in
       match e1, e2 with
       | E0 Null _, E0 Null _
@@ -2226,14 +2226,14 @@ and check_fun_sign e0 l f ps =
       | _ -> E2 (op, e1, e2) in
   match e with
     | E1 (op, e1) -> (
-      let _e1 = eval e1 env ids in
+      let _e1 = peval e1 env ids in
       match op, _e1 with
         | GetItem n, E0S (MakeTup, es) ->
           (* we do not check array size as it checked with type checking *)
-          eval (List.nth es n) env ids
+          peval (List.nth es n) env ids
         | GetField s, E0S (MakeRec, es) ->
           let name_found = List.fold_lefti (fun prev_name i e ->
-            let e_ = eval e env ids in
+            let e_ = peval e env ids in
             if i mod 2 = 0 then (
               match e_ with
               | E0 (String fn) -> if fn = s then Some (s, None) else prev_name
@@ -2252,7 +2252,7 @@ and check_fun_sign e0 l f ps =
             | E0 (I8 _) | E0 (I16 _) | E0 (I24 _) | E0 (I32 _) | E0 (I40 _) | E0 (I48 _) | E0 (I56 _) | E0 (I64 _) | E0 (I128 _)
             | E0 (Float _) -> E0 (Bool false)
             | _ -> E1 (IsNull, _e1))
-        | Force _, E1 (NotNull, e) -> eval e env ids
+        | Force _, E1 (NotNull, e) -> peval e env ids
         | StringOfFloat, E0 (Float f) -> E0 (String (DessserFloatTools.hexstring_of_float f))
         | StringOfChar, E0 (Char c) -> E0 (String (String.of_char c))
         | StringOfInt, E0 (U8 n) -> E0 (String (Uint8.to_string n))
@@ -2317,14 +2317,14 @@ and check_fun_sign e0 l f ps =
         | _ -> E1 (op, _e1)
     )
     | E3 (If, e1, e2, e3) ->
-      let _e1 = eval e1 env ids in
+      let _e1 = peval e1 env ids in
       (match _e1 with
-        | E0 (Bool true) -> eval e2 env ids
-        | E0 (Bool false) -> eval e3 env ids
-        | _ -> E3 (If, _e1, eval e2 env ids, eval e3 env ids))
+        | E0 (Bool true) -> peval e2 env ids
+        | E0 (Bool false) -> peval e3 env ids
+        | _ -> E3 (If, _e1, peval e2 env ids, peval e3 env ids))
     | E2 (Add, e1, e2) ->(
-        let _e1 = eval e1 env ids in
-        let _e2 = eval e2 env ids in
+        let _e1 = peval e1 env ids in
+        let _e2 = peval e2 env ids in
         let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
         let _n1 = safe_cst_to_int _e1 in
         let _n2 = safe_cst_to_int _e2 in
@@ -2339,8 +2339,8 @@ and check_fun_sign e0 l f ps =
             | _ -> E2 (Add, _e1, _e2))
           )
     | E2 (Div, e1, e2) ->(
-        let _e1 = eval e1 env ids in
-        let _e2 = eval e2 env ids in
+        let _e1 = peval e1 env ids in
+        let _e2 = peval e2 env ids in
         let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
         let _n1 = safe_cst_to_int _e1 in
         let _n2 = safe_cst_to_int _e2 in
@@ -2353,19 +2353,19 @@ and check_fun_sign e0 l f ps =
           | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
           | _ -> e))
     | E2 (Let n, e1, e2) ->
-      eval e2 ((n, eval e1 env ids)::env) ids
+      peval e2 ((n, peval e1 env ids)::env) ids
     | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
     | E2 (Ge as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (>=)}
     | E2 (Eq as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool true)) (E0 (Bool false)) {to_bool = (=)}
     | E2 (Gt as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (>)}
     | E2 (Ne as op, e1, e2) -> eval_cmp_op op e1 e2 (E0 (Bool false)) (E0 (Bool false)) {to_bool = (!=)}
     | E1S (Apply, E1 (Function (fid, _), body), es) ->
-      eval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
+      peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
     | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
     | _ -> e
 
   let expr_simp str =
-    (List.map (fun s -> eval (Parser.e s) [] []) (Parser.sexpr_of_string str))
+    (List.map (fun s -> peval (Parser.e s) [] []) (Parser.sexpr_of_string str))
 
   (*$= expr_simp & ~printer:(BatIO.to_string (BatList.print print))
     [ Ops.(u8 Uint8.one) ] \
