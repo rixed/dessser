@@ -1758,27 +1758,35 @@ struct
     | E2 (Add, e1, e2) ->(
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
-        match _e1, _e2 with
-          | E0 (U8 v1), E0 (U8 v2) -> E0 (U8 (Uint8.(v1+v2)))
-          | E0 (U16 v1), E0 (U16 v2) -> E0 (U16 (Uint16.(v1+v2)))
-          | E0 (U24 v1), E0 (U24 v2) -> E0 (U24 (Uint24.(v1+v2)))
-          | E0 (U32 v1), E0 (U32 v2) -> E0 (U32 (Uint32.(v1+v2)))
-          | E0 (U40 v1), E0 (U40 v2) -> E0 (U40 (Uint40.(v1+v2)))
-          | E0 (U48 v1), E0 (U48 v2) -> E0 (U48 (Uint48.(v1+v2)))
-          | E0 (U56 v1), E0 (U56 v2) -> E0 (U56 (Uint56.(v1+v2)))
-          | E0 (U64 v1), E0 (U64 v2) -> E0 (U64 (Uint64.(v1+v2)))
-          | E0 (U128 v1), E0 (U128 v2) -> E0 (U128 (Uint128.(v1+v2)))
-          | E0 (I8 v1), E0 (I8 v2) -> E0 (I8 (Int8.(v1+v2)))
-          | E0 (I16 v1), E0 (I16 v2) -> E0 (I16 (Int16.(v1+v2)))
-          | E0 (I24 v1), E0 (I24 v2) -> E0 (I24 (Int24.(v1+v2)))
-          | E0 (I32 v1), E0 (I32 v2) -> E0 (I32 (Int32.(v1+v2)))
-          | E0 (I40 v1), E0 (I40 v2) -> E0 (I40 (Int40.(v1+v2)))
-          | E0 (I48 v1), E0 (I48 v2) -> E0 (I48 (Int48.(v1+v2)))
-          | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
-          | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
-          | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
-          | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
-          | _ -> e)
+        let safe_cst_to_int e = try Some (to_cst_int e) with Invalid_argument _ -> None in
+        let _n1 = safe_cst_to_int _e1 in
+        let _n2 = safe_cst_to_int _e2 in
+        match _n1, _n2 with
+          | None, Some 0 -> _e1
+          | Some 0, None -> _e2
+          | None, None -> E2 (Add, _e1, _e2)
+          | Some _, Some _ -> (match _e1, _e2 with
+            | E0 (U8 v1), E0 (U8 v2) -> E0 (U8 (Uint8.(v1+v2)))
+            | E0 (U16 v1), E0 (U16 v2) -> E0 (U16 (Uint16.(v1+v2)))
+            | E0 (U24 v1), E0 (U24 v2) -> E0 (U24 (Uint24.(v1+v2)))
+            | E0 (U32 v1), E0 (U32 v2) -> E0 (U32 (Uint32.(v1+v2)))
+            | E0 (U40 v1), E0 (U40 v2) -> E0 (U40 (Uint40.(v1+v2)))
+            | E0 (U48 v1), E0 (U48 v2) -> E0 (U48 (Uint48.(v1+v2)))
+            | E0 (U56 v1), E0 (U56 v2) -> E0 (U56 (Uint56.(v1+v2)))
+            | E0 (U64 v1), E0 (U64 v2) -> E0 (U64 (Uint64.(v1+v2)))
+            | E0 (U128 v1), E0 (U128 v2) -> E0 (U128 (Uint128.(v1+v2)))
+            | E0 (I8 v1), E0 (I8 v2) -> E0 (I8 (Int8.(v1+v2)))
+            | E0 (I16 v1), E0 (I16 v2) -> E0 (I16 (Int16.(v1+v2)))
+            | E0 (I24 v1), E0 (I24 v2) -> E0 (I24 (Int24.(v1+v2)))
+            | E0 (I32 v1), E0 (I32 v2) -> E0 (I32 (Int32.(v1+v2)))
+            | E0 (I40 v1), E0 (I40 v2) -> E0 (I40 (Int40.(v1+v2)))
+            | E0 (I48 v1), E0 (I48 v2) -> E0 (I48 (Int48.(v1+v2)))
+            | E0 (I56 v1), E0 (I56 v2) -> E0 (I56 (Int56.(v1+v2)))
+            | E0 (I64 v1), E0 (I64 v2) -> E0 (I64 (Int64.(v1+v2)))
+            | E0 (I128 v1), E0 (I128 v2) -> E0 (I128 (Int128.(v1+v2)))
+            | E0 (Float v1), E0 (Float v2) -> E0 (Float (Float.(v1+v2)))
+            | _ ->  E2 (Add, _e1, _e2))
+          | _, _ -> E2 (Add, _e1, _e2))
     | E2 (Div, e1, e2) ->(
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
@@ -1833,6 +1841,8 @@ struct
      (expr_simp "(if (ge (u8 1) (u8 0)) (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(let \"toto\" (u8 1) (if (ge (identifier \"toto\") (u8 0)) (u8 1) (u8 0)))")
+    [ Ops.(identifier "toto") ] \
+     (expr_simp "(add (identifier \"toto\") (u8 0))")
     [ Ops.(true_) ] \
      (expr_simp "(apply (fun 1 \"u8\" (ge (param 1 0) (param 1 0))) (u8 1))")
     [ Ops.(ge (param 2 0) (param 2 0)) ] \
