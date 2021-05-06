@@ -1216,6 +1216,16 @@ struct
           pp oc "%s < %s.size() ? \
                   std::make_optional(%s[%s]) : std::nullopt"
             idx_ str_ str_ idx_)
+    | E.E2 (Strftime, fmt, time) ->
+        let fmt = print emit p l fmt
+        and time = print emit p l time
+        and buf = gen_sym ?name "buf" in
+        (* 256 bytes should be enough for every dates *)
+        ppi p.P.def "char %s[256];" buf ;
+        emit ?name p l e (fun oc ->
+          pp oc "0 == std::strftime(%s, sizeof(%s), %s, %s) ? \
+            \"date too long\" : %s"
+          buf buf fmt time buf)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1275,6 +1285,7 @@ struct
      #include <chrono>\n\
      #include <cmath>\n\
      #include <cstdlib>\n\
+     #include <ctime>\n\
      #include <exception>\n\
      #include <fstream>\n\
      #include <functional>\n\

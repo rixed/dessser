@@ -402,7 +402,14 @@ struct
         print emit p l e1
       else
         let op = mod_name t ^".of_"^ num_name t1 in
-        unary_op op e1
+        unary_op op e1 in
+    let to_float ?name emit p l e =
+      let m = mod_name (E.type_of l e) in
+      if m = "Float" then
+        print ?name emit p l e
+      else
+        let n = print emit p l e in
+        "("^ m ^".to_float "^ n ^")"
     in
     match e with
     | E.E1S (Apply, f, es) ->
@@ -778,9 +785,7 @@ struct
              ToU128 | ToI128), e1) ->
         conv_to_num e1
     | E.E1 (ToFloat, e1) ->
-        let m = mod_name (E.type_of l e1) in
-        if m = "Float" then print ?name emit p l e1
-        else unary_op (m ^".to_float") e1
+        to_float ?name emit p l e1
     | E.E1 (U8OfBool, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n1)
@@ -1409,6 +1414,11 @@ struct
           pp oc "(let n_ = %s.to_int %s and s_ = %s in \
                   if n_ < String.length s_ then NotNull s_.[n_] \
                   else Null)" m_idx idx str)
+    | E.E2 (Strftime, fmt, time) ->
+        let fmt = print emit p l fmt
+        and time = to_float emit p l time in
+        emit ?name p l e (fun oc ->
+          pp oc "strftime %s %s" fmt time)
     | E.E3 (FindSubstring, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1420,15 +1430,10 @@ struct
           pp oc "with Not_found -> Null")
     | E.E3 (Top _, size, max_size, sigmas) ->
         let m_size = mod_name (E.type_of l size)
-        and m_max_size = mod_name (E.type_of l max_size)
-        and m_sigmas = mod_name (E.type_of l sigmas) in
+        and m_max_size = mod_name (E.type_of l max_size) in
         let size = print emit p l size
         and max_size = print emit p l max_size
-        and sigmas = print emit p l sigmas in
-        (* Avoids to call the undefined Float.to_float *)
-        let sigmas =
-          if m_sigmas = "Float" then sigmas
-          else "("^ m_sigmas ^".to_float "^ sigmas ^")" in
+        and sigmas = to_float emit p l sigmas in
         emit ?name p l e (fun oc ->
           pp oc "Top.make (%s.to_int %s) (%s.to_int %s) %s"
             m_size size

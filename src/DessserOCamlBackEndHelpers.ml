@@ -62,6 +62,48 @@ let substring str start stop =
   if start >= stop then "" else
   String.sub str start (stop - start)
 
+let strftime ?(gmt=false) str tim =
+  let open Unix in
+  let name_of_month m =
+    [| "January" ; "February" ; "March" ; "April" ; "May" ; "June" ;
+       "July" ; "August" ; "September" ; "October" ; "November" ;
+       "December" |].(m) in
+  let abbr_of_month m =
+    String.sub (name_of_month m) 0 3 in
+  let name_of_day d =
+    [| "Sunday" ; "Monday" ; "Tuesday" ; "Wednesday" ; "Thursday" ; "Friday" ;
+       "Saturday" |].(d) in
+  let abbr_of_day d =
+    String.sub (name_of_day d) 0 3 in
+  let tm = (if gmt then gmtime else localtime) tim in
+  let replacements =
+    [| "%%", "%" ; "%n", "\n" ; "%t", "\t" ;
+       "%y", Printf.sprintf "%02d" ((tm.tm_year + 1900) mod 100) ;
+       "%Y", string_of_int (tm.tm_year + 1900) ;
+       "%C", Printf.sprintf "%02d" (((tm.tm_year + 1900) / 100) mod 100) ;
+       "%b", abbr_of_month tm.tm_mon ;
+       "%h", abbr_of_month tm.tm_mon ;
+       "%B", name_of_month tm.tm_mon ;
+       "%m", Printf.sprintf "%02d" (tm.tm_mon + 1) ;
+       "%j", string_of_int tm.tm_yday ;
+       "%d", Printf.sprintf "%02d" tm.tm_mday ;
+       "%e", Printf.sprintf "%2d" tm.tm_mday ;
+       "%a", abbr_of_day tm.tm_wday ;
+       "%A", name_of_day tm.tm_wday ;
+       "%w", string_of_int tm.tm_wday ;
+       "%u", string_of_int (tm.tm_wday + 1) ;
+       "%H", Printf.sprintf "%02d" tm.tm_hour ;
+       "%I", Printf.sprintf "%02d" (tm.tm_hour mod 12) ;
+       "%M", Printf.sprintf "%02d" tm.tm_min ;
+       "%S", Printf.sprintf "%02d" tm.tm_sec ;
+       "%XS", Printf.sprintf "%05.2f"
+               (float_of_int tm.tm_sec +. mod_float tim 1.) ;
+       "%p", if tm.tm_hour < 12 then "a.m." else "p.m." ;
+       "%Xs", string_of_float tim |] in
+  Array.fold_left (fun str (sub, by) ->
+    BatString.nreplace ~str ~sub ~by
+  ) str replacements
+
 let array_of_list_rev l =
   let a = Array.of_list l in
   let len = Array.length a in

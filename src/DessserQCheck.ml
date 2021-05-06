@@ -319,7 +319,7 @@ let e2_of_int n =
          DataPtrAdd ; DataPtrSub ;
          And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
-         ChopBegin ; ChopEnd ; CharOfString |] in
+         ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

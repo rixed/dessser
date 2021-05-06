@@ -364,6 +364,8 @@ type e2 =
   | ScaleWeights
   (* Arguments are index and string (as in GetVec): *)
   | CharOfString
+  (* Arguments are format string and time (in seconds from UNIX epoch): *)
+  | Strftime
 
 type e3 =
   | SetBit
@@ -941,6 +943,7 @@ let string_of_e2 = function
   | ChopEnd -> "chop-end"
   | ScaleWeights -> "scale-weights"
   | CharOfString -> "char-of-string"
+  | Strftime -> "strftime"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1542,6 +1545,8 @@ struct
         E2 (ScaleWeights, e set, e d)
     | Lst [ Sym "char-of-string" ; idx ; str ] ->
         E2 (CharOfString, e idx, e str)
+    | Lst [ Sym "strftime" ; fmt ; time ] ->
+        E2 (Strftime, e fmt, e time)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -2044,7 +2049,8 @@ let rec type_of l e0 =
       T.set Top mn
   | E3 (InsertWeighted, _, _, _) ->
       T.void
-  | E3 (Substring, _, _, _) ->
+  | E3 (Substring, _, _, _)
+  | E2 (Strftime, _, _) ->
       T.string
   | E2 (CharOfString, _, _) ->
       T.(Value (optional (Mac Char)))
@@ -2576,6 +2582,9 @@ let rec type_check l e =
     | E2 (CharOfString, idx, str) ->
         check_unsigned l idx ;
         check_eq l str T.string
+    | E2 (Strftime, fmt, time) ->
+        check_eq l fmt T.string ;
+        check_numeric l time
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.dataptr ;
         check_eq l e2 T.size ;
@@ -3294,6 +3303,8 @@ struct
         | _ -> E2 (CharOfString, idx, str))
     | _ ->
         E2 (CharOfString, idx, str)
+
+  let strftime fmt time = E2 (Strftime, fmt, time)
 
   let string_of_char = function
     | E0 (Char c) when !optimize -> string (String.of_char c)
