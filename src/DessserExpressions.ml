@@ -1596,6 +1596,7 @@ struct
 
   let rec eval e env ids =
     let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
+    let check_zero n c e = if to_cst_int n = 0 then E0 (Null (Mac c)) else e() in
     let eval_cmp_op op e1 e2 same_type incompatible_type cmp =
       let e1 = eval e1 env ids in
       let e2 = eval e2 env ids in
@@ -1782,25 +1783,25 @@ struct
         let _e1 = eval e1 env ids in
         let _e2 = eval e2 env ids in
         match _e1, _e2 with
-          | E0 (U8 v1), E0 (U8 v2) -> if v2 = Uint8.zero then E1 (Assert, E0 (Bool false)) else E0 (U8 (Uint8.(v1/v2)))
-          | E0 (U16 v1), E0 (U16 v2) -> if v2 = Uint16.zero then E1 (Assert, E0 (Bool false)) else E0 (U16 (Uint16.(v1/v2)))
-          | E0 (U24 v1), E0 (U24 v2) -> if v2 = Uint24.zero then E1 (Assert, E0 (Bool false)) else E0 (U24 (Uint24.(v1/v2)))
-          | E0 (U32 v1), E0 (U32 v2) -> if v2 = Uint32.zero then E1 (Assert, E0 (Bool false)) else E0 (U32 (Uint32.(v1/v2)))
-          | E0 (U40 v1), E0 (U40 v2) -> if v2 = Uint40.zero then E1 (Assert, E0 (Bool false)) else E0 (U40 (Uint40.(v1/v2)))
-          | E0 (U48 v1), E0 (U48 v2) -> if v2 = Uint48.zero then E1 (Assert, E0 (Bool false)) else E0 (U48 (Uint48.(v1/v2)))
-          | E0 (U56 v1), E0 (U56 v2) -> if v2 = Uint56.zero then E1 (Assert, E0 (Bool false)) else E0 (U56 (Uint56.(v1/v2)))
-          | E0 (U64 v1), E0 (U64 v2) -> if v2 = Uint64.zero then E1 (Assert, E0 (Bool false)) else E0 (U64 (Uint64.(v1/v2)))
-          | E0 (U128 v1), E0 (U128 v2) -> if v2 = Uint128.zero then E1 (Assert, E0 (Bool false)) else E0 (U128 (Uint128.(v1/v2)))
-          | E0 (I8 v1), E0 (I8 v2) -> if v2 = Int8.zero then E1 (Assert, E0 (Bool false)) else E0 (I8 (Int8.(v1/v2)))
-          | E0 (I16 v1), E0 (I16 v2) -> if v2 = Int16.zero then E1 (Assert, E0 (Bool false)) else E0 (I16 (Int16.(v1/v2)))
-          | E0 (I24 v1), E0 (I24 v2) -> if v2 = Int24.zero then E1 (Assert, E0 (Bool false)) else E0 (I24 (Int24.(v1/v2)))
-          | E0 (I32 v1), E0 (I32 v2) -> if v2 = Int32.zero then E1 (Assert, E0 (Bool false)) else E0 (I32 (Int32.(v1/v2)))
-          | E0 (I40 v1), E0 (I40 v2) -> if v2 = Int40.zero then E1 (Assert, E0 (Bool false)) else E0 (I40 (Int40.(v1/v2)))
-          | E0 (I48 v1), E0 (I48 v2) -> if v2 = Int48.zero then E1 (Assert, E0 (Bool false)) else E0 (I48 (Int48.(v1/v2)))
-          | E0 (I56 v1), E0 (I56 v2) -> if v2 = Int56.zero then E1 (Assert, E0 (Bool false)) else E0 (I56 (Int56.(v1/v2)))
-          | E0 (I64 v1), E0 (I64 v2) -> if v2 = Int64.zero then E1 (Assert, E0 (Bool false)) else E0 (I64 (Int64.(v1/v2)))
-          | E0 (I128 v1), E0 (I128 v2) -> if v2 = Int128.zero then E1 (Assert, E0 (Bool false)) else E0 (I128 (Int128.(v1/v2)))
-          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E1 (Assert, E0 (Bool false)) else E0 (Float (Float.(v1/.v2)))
+          | E0 (U8 v1), E0 (U8 v2) -> check_zero _e2 U8 (fun () -> E0 (U8 (Uint8.(v1/v2))))
+          | E0 (U16 v1), E0 (U16 v2) -> check_zero _e2 U16 (fun () -> E0 (U16 (Uint16.(v1/v2))))
+          | E0 (U24 v1), E0 (U24 v2) -> check_zero _e2 U24 (fun () -> E0 (U24 (Uint24.(v1/v2))))
+          | E0 (U32 v1), E0 (U32 v2) -> check_zero _e2 U32 (fun () -> E0 (U32 (Uint32.(v1/v2))))
+          | E0 (U40 v1), E0 (U40 v2) -> check_zero _e2 U40 (fun () -> E0 (U40 (Uint40.(v1/v2))))
+          | E0 (U48 v1), E0 (U48 v2) -> check_zero _e2 U48 (fun () -> E0 (U48 (Uint48.(v1/v2))))
+          | E0 (U56 v1), E0 (U56 v2) -> check_zero _e2 U56 (fun () -> E0 (U56 (Uint56.(v1/v2))))
+          | E0 (U64 v1), E0 (U64 v2) -> check_zero _e2 U64 (fun () -> E0 (U64 (Uint64.(v1/v2))))
+          | E0 (U128 v1), E0 (U128 v2) -> check_zero _e2 U128 (fun () -> E0 (U128 (Uint128.(v1/v2))))
+          | E0 (I8 v1), E0 (I8 v2) -> check_zero _e2 I8 (fun () -> E0 (I8 (Int8.(v1/v2))))
+          | E0 (I16 v1), E0 (I16 v2) -> check_zero _e2 I16 (fun () -> E0 (I16 (Int16.(v1/v2))))
+          | E0 (I24 v1), E0 (I24 v2) -> check_zero _e2 I24 (fun () -> E0 (I24 (Int24.(v1/v2))))
+          | E0 (I32 v1), E0 (I32 v2) -> check_zero _e2 I32 (fun () -> E0 (I32 (Int32.(v1/v2))))
+          | E0 (I40 v1), E0 (I40 v2) -> check_zero _e2 I40 (fun () -> E0 (I40 (Int40.(v1/v2))))
+          | E0 (I48 v1), E0 (I48 v2) -> check_zero _e2 I48 (fun () -> E0 (I48 (Int48.(v1/v2))))
+          | E0 (I56 v1), E0 (I56 v2) -> check_zero _e2 I56 (fun () -> E0 (I56 (Int56.(v1/v2))))
+          | E0 (I64 v1), E0 (I64 v2) -> check_zero _e2 I64 (fun () -> E0 (I64 (Int64.(v1/v2))))
+          | E0 (I128 v1), E0 (I128 v2) -> check_zero _e2 I128 (fun () -> E0 (I128 (Int128.(v1/v2))))
+          | E0 (Float v1), E0 (Float v2) -> if v2 = 0.0 then E0 (Null (Mac Float)) else E0 (Float (Float.(v1/.v2)))
           | _ -> e)
     | E2 (Let n, e1, e2) ->
       eval e2 ((n, eval e1 env ids)::env) ids
@@ -1822,8 +1823,10 @@ struct
      (expr_simp "(add (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
      (expr_simp "(div (u8 1) (u8 1))")
-    [ Ops.(assert_ false_) ] \
+    [ Ops.(null (Mac U8)) ] \
      (expr_simp "(div (u8 1) (u8 0))")
+    [ Ops.(null (Mac U128)) ] \
+     (expr_simp "(div (u128 1) (u128 0))")
     [ Ops.(true_) ] \
      (expr_simp "(ge (u8 1) (u8 0))")
     [ Ops.(u8 Uint8.one) ] \
@@ -1863,7 +1866,7 @@ struct
     [ Ops.(assert_ false_)] \
      (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
     [ Ops.(u8 (Uint8.one))] \
-    (expr_simp "(to-u8 (int 1))")
+    (expr_simp "(to-u8 (u128 1))")
   *)
 
   (*$>*)
