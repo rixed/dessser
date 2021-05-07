@@ -2152,7 +2152,8 @@ and check_fun_sign e0 l f ps =
       | E0 (U48 n) -> Uint48.to_uint128 n
       | E0 (U56 n) -> Uint56.to_uint128 n
       | E0 (U64 n) -> Uint64.to_uint128 n
-      | E0 (U128 n) -> Uint128.to_uint128 n in
+      | E0 (U128 n) -> Uint128.to_uint128 n
+      | _ -> failwith "conv_to_u128" in
     let from_u128 t n = match t with
       | ToU8 -> E0 (U8 (Uint8.of_uint128 n))
       | ToU16 -> E0 (U16 (Uint16.of_uint128 n))
@@ -2162,7 +2163,8 @@ and check_fun_sign e0 l f ps =
       | ToU48 -> E0 (U48 (Uint48.of_uint128 n))
       | ToU56 -> E0 (U56 (Uint56.of_uint128 n))
       | ToU64 -> E0 (U64 (Uint64.of_uint128 n))
-      | ToU128 -> E0 (U128 (Uint128.of_uint128 n)) in
+      | ToU128 -> E0 (U128 (Uint128.of_uint128 n))
+      | _ -> failwith "from_u128" in
     let conv_to_num t e1 = from_u128 t (conv_to_u128 e1) in
     match e with
       | E1 (op, e1) -> (
@@ -2254,8 +2256,7 @@ and check_fun_sign e0 l f ps =
           | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
           | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
           | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
-          | ToU8, _ -> conv_to_num ToU8 _e1
-          | ToU16, _ -> conv_to_num ToU16 _e1
+          | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num op _e1
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
