@@ -2233,6 +2233,7 @@ and check_fun_sign e0 l f ps =
           | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
           | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
           | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
+          | ToU8, E0 (U128 n) -> E0 (U8 (Uint8.of_uint128 n))
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
