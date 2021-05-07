@@ -2,6 +2,7 @@
 open Stdint
 
 open DessserTools
+module C = DessserConversions
 module E = DessserExpressions
 module T = DessserTypes
 
@@ -346,7 +347,11 @@ let rec is_in ?(l=[]) item lst =
             to_nullable l (is_in ~l item (force ~what:"is_in(0)" lst)))
       else
         if_ (comment "is_in: Is List empty?"
-              (is_empty l lst))
+              ((* It makes that code simpler to allow `scalar is_in scalar` and
+                  treat it as meaning `scalar = scalar`, so we must accept non
+                  containers as never empty: *)
+                try is_empty l lst
+                with Invalid_argument _ -> bool false))
           ~then_:(
             let ret = bool true in
             if T.is_nullable item_t then not_null ret else ret)
@@ -357,6 +362,11 @@ let rec is_in ?(l=[]) item lst =
                 ~else_:(
                   to_nullable l (is_in ~l (force ~what:"is_in(1)" item) lst))
             else (
+              let err () =
+                BatPrintf.sprintf2 "is_in: invalid types (%a in %a)"
+                  T.print item_t
+                  T.print lst_t |>
+                invalid_arg in
               (* Now that neither lst nor item are nullable, let's deal with
                * the actual question: *)
               match item_t, lst_t with
@@ -410,8 +420,13 @@ let rec is_in ?(l=[]) item lst =
                         ~else_:(op l item (force ~what:"is_in(2)" i))
                     else
                       op l item i)
+              | _, T.Value lst_mn ->
+                  (* If we can convert item into lst (which at this point is
+                   * known not to be a list) then we can try equality: *)
+                  (match C.conv_maybe_nullable ~to_:lst_mn l item with
+                  | exception _ ->
+                      err ()
+                  | item' ->
+                      eq item' lst)
               | _ ->
-                  BatPrintf.sprintf2 "is_in: invalid types (%a in %a?)"
-                    T.print item_t
-                    T.print lst_t |>
-                  invalid_arg))))
+                  err ()))))
