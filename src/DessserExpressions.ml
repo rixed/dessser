@@ -2311,7 +2311,7 @@ and check_fun_sign e0 l f ps =
           | _ -> E1 (op, _e1)
       )
       | E1S (Apply, E1 (Function (fid, _), body), es) ->
-        peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
+        peval body env ((List.fold_lefti (fun acc i e -> ((fid, i), e)::acc) [] es) @ ids)
       | E2 (Let n, e1, e2) ->
         peval e2 ((n, peval e1 env ids)::env) ids
       | E2 (op, e1, e2) -> (
