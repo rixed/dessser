@@ -2164,7 +2164,7 @@ and check_fun_sign e0 l f ps =
       | ToI56 -> E0 (I56 (Int56.of_int128 n))
       | ToI64 -> E0 (I64 (Int64.of_int128 n))
       | ToI128 -> E0 (I128 (Int128.of_int128 n))
-      | _ -> failwith "from_u128" in
+      | _ -> failwith "from_i128" in
     let conv_to_num_signed t e1 = from_i128 t (conv_to_i128 e1) in
     let conv_to_u128 = function
       | E0 (U8 n) -> Uint8.to_uint128 n
