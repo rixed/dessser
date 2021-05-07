@@ -2153,7 +2153,7 @@ and check_fun_sign e0 l f ps =
       | E0 (I56 n) -> Int56.to_int128 n
       | E0 (I64 n) -> Int64.to_int128 n
       | E0 (I128 n) -> Int128.to_int128 n
-      | _ -> failwith "conv_to_i128" in
+      | x -> Printf.sprintf2 "conv_to_i128 %a" (print ?max_depth:None) x |> failwith in
     let from_i128 t n = match t with
       | ToI8 -> E0 (I8 (Int8.of_int128 n))
       | ToI16 -> E0 (I16 (Int16.of_int128 n))
@@ -2164,7 +2164,7 @@ and check_fun_sign e0 l f ps =
       | ToI56 -> E0 (I56 (Int56.of_int128 n))
       | ToI64 -> E0 (I64 (Int64.of_int128 n))
       | ToI128 -> E0 (I128 (Int128.of_int128 n))
-      | _ -> failwith "from_i128" in
+      | x -> Printf.sprintf2 "from_i128 %s" (string_of_e1 x) |> failwith in
     let conv_to_num_signed t e1 = from_i128 t (conv_to_i128 e1) in
     let conv_to_u128 = function
       | E0 (U8 n) -> Uint8.to_uint128 n
@@ -2176,7 +2176,7 @@ and check_fun_sign e0 l f ps =
       | E0 (U56 n) -> Uint56.to_uint128 n
       | E0 (U64 n) -> Uint64.to_uint128 n
       | E0 (U128 n) -> Uint128.to_uint128 n
-      | _ -> failwith "conv_to_u128" in
+      | x -> Printf.sprintf2 "conv_to_u128 %a" (print ?max_depth:None) x |> failwith in
     let from_u128 t n = match t with
       | ToU8 -> E0 (U8 (Uint8.of_uint128 n))
       | ToU16 -> E0 (U16 (Uint16.of_uint128 n))
@@ -2187,7 +2187,7 @@ and check_fun_sign e0 l f ps =
       | ToU56 -> E0 (U56 (Uint56.of_uint128 n))
       | ToU64 -> E0 (U64 (Uint64.of_uint128 n))
       | ToU128 -> E0 (U128 (Uint128.of_uint128 n))
-      | _ -> failwith "from_u128" in
+      | x -> Printf.sprintf2 "from_u128 %s" (string_of_e1 x) |> failwith in
     let conv_to_num_unsigned t e1 = from_u128 t (conv_to_u128 e1) in
     let conv_to_float e1 = E0 (Float (conv_to_u128 e1 |> Uint128.to_float)) in
     let is_int = function
@@ -2428,7 +2428,10 @@ and check_fun_sign e0 l f ps =
         match op, _e1, _e2, _e3 with
           | If, E0 (Bool true), _, _ -> _e2
           | If, E0 (Bool false), _, _ -> _e3
-          | _ -> E3 (op, _e1, _e2, _e3))
+          | Substring, E0 (String s), _, _ ->
+              E0 (String (String.sub s (Uint128.to_int(conv_to_u128 _e2)) (Uint128.to_int (conv_to_u128 _e3))))
+          | _ -> E3 (op, _e1, _e2, _e3)
+        )
       | _ -> e
 
   let expr_simp str =
@@ -2495,6 +2498,8 @@ and check_fun_sign e0 l f ps =
      (expr_simp "(to-float (u32 1))")
     [ Ops.(u64 (Uint64.of_int(-4)))] \
      (expr_simp "(bit-not (u64 3))")
+    [ Ops.(string "test")] \
+      (expr_simp "(substring (string \"1234test1234\") (u8 4) (u8 4))")
   *)
 
   (*$>*)
