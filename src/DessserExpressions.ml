@@ -2421,12 +2421,14 @@ and check_fun_sign e0 l f ps =
               | Ge, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1>=_e2))
               | Ne, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1!=_e2))
               | _ -> E2 (op, _e1, _e2))
-      | E3 (If, e1, e2, e3) ->
+      | E3 (op, e1, e2, e3) -> (
         let _e1 = peval e1 env ids in
-        (match _e1 with
-          | E0 (Bool true) -> peval e2 env ids
-          | E0 (Bool false) -> peval e3 env ids
-          | _ -> E3 (If, _e1, peval e2 env ids, peval e3 env ids))
+        let _e2 = peval e2 env ids in
+        let _e3 = peval e3 env ids in
+        match op, _e1, _e2, _e3 with
+          | If, E0 (Bool true), _, _ -> _e2
+          | If, E0 (Bool false), _, _ -> _e2
+          | _ -> E3 (op, _e1, _e2, _e3))
       | _ -> e
 
   let expr_simp str =
