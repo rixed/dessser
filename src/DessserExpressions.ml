@@ -2143,6 +2143,29 @@ and check_fun_sign e0 l f ps =
 
   let rec peval e env ids =
     let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
+    let conv_to_i128 = function
+      | E0 (I8 n) -> Int8.to_int128 n
+      | E0 (I16 n) -> Int16.to_int128 n
+      | E0 (I24 n) -> Int24.to_int128 n
+      | E0 (I32 n) -> Int32.to_int128 n
+      | E0 (I40 n) -> Int40.to_int128 n
+      | E0 (I48 n) -> Int48.to_int128 n
+      | E0 (I56 n) -> Int56.to_int128 n
+      | E0 (I64 n) -> Int64.to_int128 n
+      | E0 (I128 n) -> Int128.to_int128 n
+      | _ -> failwith "conv_to_i128" in
+    let from_i128 t n = match t with
+      | ToI8 -> E0 (I8 (Int8.of_int128 n))
+      | ToI16 -> E0 (I16 (Int16.of_int128 n))
+      | ToI24 -> E0 (I24 (Int24.of_int128 n))
+      | ToI32 -> E0 (I32 (Int32.of_int128 n))
+      | ToI40 -> E0 (I40 (Int40.of_int128 n))
+      | ToI48 -> E0 (I48 (Int48.of_int128 n))
+      | ToI56 -> E0 (I56 (Int56.of_int128 n))
+      | ToI64 -> E0 (I64 (Int64.of_int128 n))
+      | ToI128 -> E0 (I128 (Int128.of_int128 n))
+      | _ -> failwith "from_u128" in
+    let conv_to_num_signed t e1 = from_i128 t (conv_to_i128 e1) in
     let conv_to_u128 = function
       | E0 (U8 n) -> Uint8.to_uint128 n
       | E0 (U16 n) -> Uint16.to_uint128 n
@@ -2165,7 +2188,7 @@ and check_fun_sign e0 l f ps =
       | ToU64 -> E0 (U64 (Uint64.of_uint128 n))
       | ToU128 -> E0 (U128 (Uint128.of_uint128 n))
       | _ -> failwith "from_u128" in
-    let conv_to_num t e1 = from_u128 t (conv_to_u128 e1) in
+    let conv_to_num_unsigned t e1 = from_u128 t (conv_to_u128 e1) in
     match e with
       | E1 (op, e1) -> (
         let _e1 = peval e1 env ids in
@@ -2256,7 +2279,8 @@ and check_fun_sign e0 l f ps =
           | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
           | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
           | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
-          | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num op _e1
+          | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num_unsigned op _e1
+          | (ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128), _ -> conv_to_num_signed op _e1
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
