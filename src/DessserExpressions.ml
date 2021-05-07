@@ -2143,6 +2143,27 @@ and check_fun_sign e0 l f ps =
 
   let rec peval e env ids =
     let check_string s e = if s = "" then E1 (Assert, E0 (Bool false)) else e() in
+    let conv_to_u128 = function
+      | E0 (U8 n) -> Uint8.to_uint128 n
+      | E0 (U16 n) -> Uint16.to_uint128 n
+      | E0 (U24 n) -> Uint24.to_uint128 n
+      | E0 (U32 n) -> Uint32.to_uint128 n
+      | E0 (U40 n) -> Uint40.to_uint128 n
+      | E0 (U48 n) -> Uint48.to_uint128 n
+      | E0 (U56 n) -> Uint56.to_uint128 n
+      | E0 (U64 n) -> Uint64.to_uint128 n
+      | E0 (U128 n) -> Uint128.to_uint128 n in
+    let from_u128 t n = match t with
+      | ToU8 -> E0 (U8 (Uint8.of_uint128 n))
+      | ToU16 -> E0 (U16 (Uint16.of_uint128 n))
+      | ToU24 -> E0 (U24 (Uint24.of_uint128 n))
+      | ToU32 -> E0 (U32 (Uint32.of_uint128 n))
+      | ToU40 -> E0 (U40 (Uint40.of_uint128 n))
+      | ToU48 -> E0 (U48 (Uint48.of_uint128 n))
+      | ToU56 -> E0 (U56 (Uint56.of_uint128 n))
+      | ToU64 -> E0 (U64 (Uint64.of_uint128 n))
+      | ToU128 -> E0 (U128 (Uint128.of_uint128 n)) in
+    let conv_to_num t e1 = from_u128 t (conv_to_u128 e1) in
     match e with
       | E1 (op, e1) -> (
         let _e1 = peval e1 env ids in
@@ -2233,8 +2254,8 @@ and check_fun_sign e0 l f ps =
           | I56OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I56 (Int56.of_string s)))
           | I64OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I64 (Int64.of_string s)))
           | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
-          | ToU8, E0 (U8 n) -> E0 (U8 (Uint8.of_uint8 n))
-          | ToU8, E0 (U128 n) -> E0 (U8 (Uint8.of_uint128 n))
+          | ToU8, _ -> conv_to_num ToU8 _e1
+          | ToU16, _ -> conv_to_num ToU16 _e1
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
@@ -2422,6 +2443,8 @@ and check_fun_sign e0 l f ps =
      (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
     [ Ops.(u8 (Uint8.one))] \
     (expr_simp "(to-u8 (u128 1))")
+    [ Ops.(u16 (Uint16.one))] \
+    (expr_simp "(to-u16 (u128 1))")
   *)
 
   (*$>*)
