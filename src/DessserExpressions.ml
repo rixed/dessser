@@ -2342,14 +2342,15 @@ and check_fun_sign e0 l f ps =
               | Add, _, E0 (Float 0.0) -> _e1
               | Sub, _, _ when is_int _e1 && to_cst_int _e1 = 0 -> _e2
               | Sub, _, _ when is_int _e2 && to_cst_int _e2 = 0 -> _e1
-              (*| Sub, E0 (Float 0.0), e -> e*)
-              | Sub, _, E0 (Float 0.0) -> _e2
+              | Sub, E0 (Float 0.0), _ -> E1 (Neg, _e2)
+              | Sub, _, E0 (Float 0.0) -> _e1
               | Mul, _, _ when is_int _e1 && to_cst_int _e1 = 1 -> _e2
               | Mul, _, _ when is_int _e2 && to_cst_int _e2 = 1 -> _e1
               | Mul, E0 (Float 1.0), _ -> _e2
               | Mul, _, E0 (Float 1.0) -> _e1
               | Div, _, _ when is_int _e2 && to_cst_int _e2 = 1 -> _e1
               | Div, _, E0 (Float 1.0) -> _e1
+            (* orderable operators *)
               | Eq, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1=_e2))
               | Gt, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1>_e2))
               | Ge, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1>=_e2))
