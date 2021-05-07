@@ -2197,6 +2197,8 @@ and check_fun_sign e0 l f ps =
       | E0 (I56  _) | E0 (I64  _) | E0 (I128  _) -> true
       | _ -> false in
     match e with
+      | E0 (Identifier n) -> Option.default e (List.assoc_opt n env)
+      | E0 (Param (fid, n)) -> Option.default e (List.assoc_opt (fid, n) ids)
       | E1 (op, e1) -> (
         let _e1 = peval e1 env ids in
         match op, _e1 with
@@ -2308,12 +2310,6 @@ and check_fun_sign e0 l f ps =
           | BitNot, E0 (I64 n) -> E0 (I64 (Int64.lognot n))
           | _ -> E1 (op, _e1)
       )
-      | E3 (If, e1, e2, e3) ->
-        let _e1 = peval e1 env ids in
-        (match _e1 with
-          | E0 (Bool true) -> peval e2 env ids
-          | E0 (Bool false) -> peval e3 env ids
-          | _ -> E3 (If, _e1, peval e2 env ids, peval e3 env ids))
       | E2 (Let n, e1, e2) ->
         peval e2 ((n, peval e1 env ids)::env) ids
       | E2 (op, e1, e2) -> (
@@ -2423,10 +2419,14 @@ and check_fun_sign e0 l f ps =
               | Ge, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1>=_e2))
               | Ne, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1!=_e2))
               | _ -> E2 (op, _e1, _e2))
-      | E0 (Identifier n) as e -> Option.default e (List.assoc_opt n env)
       | E1S (Apply, E1 (Function (fid, _), body), es) ->
         peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
-      | E0 (Param (fid, n)) as e -> Option.default e (List.assoc_opt (fid, n) ids)
+      | E3 (If, e1, e2, e3) ->
+        let _e1 = peval e1 env ids in
+        (match _e1 with
+          | E0 (Bool true) -> peval e2 env ids
+          | E0 (Bool false) -> peval e3 env ids
+          | _ -> E3 (If, _e1, peval e2 env ids, peval e3 env ids))
       | _ -> e
 
   let expr_simp str =
