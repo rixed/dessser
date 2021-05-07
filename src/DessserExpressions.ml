@@ -2467,9 +2467,9 @@ and check_fun_sign e0 l f ps =
     [ Ops.(assert_ false_)] \
      (expr_simp "(float-of-ptr (data-ptr-of-string (string \"\")))")
     [ Ops.(u8 (Uint8.one))] \
-    (expr_simp "(to-u8 (u128 1))")
+     (expr_simp "(to-u8 (u128 1))")
     [ Ops.(u16 (Uint16.one))] \
-    (expr_simp "(to-u16 (u128 1))")
+     (expr_simp "(to-u16 (u128 1))")
   *)
 
   (*$>*)
