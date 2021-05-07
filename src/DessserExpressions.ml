@@ -2427,7 +2427,7 @@ and check_fun_sign e0 l f ps =
         let _e3 = peval e3 env ids in
         match op, _e1, _e2, _e3 with
           | If, E0 (Bool true), _, _ -> _e2
-          | If, E0 (Bool false), _, _ -> _e2
+          | If, E0 (Bool false), _, _ -> _e3
           | _ -> E3 (op, _e1, _e2, _e3))
       | _ -> e
 
