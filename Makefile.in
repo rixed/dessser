@@ -101,6 +101,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserCompilConfig.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserConversions.ml \
 	src/DessserStdLib.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \

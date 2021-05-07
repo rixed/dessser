@@ -534,6 +534,10 @@ let uniq_id t =
   Digest.string |>
   Digest.to_hex
 
+let mn_of_t = function
+  | Value mn -> mn
+  | t -> invalid_arg ("mn_of_t for type "^ to_string t)
+
 let to_nullable = function
   | Value { vtyp ; nullable = false } ->
       Value { vtyp ; nullable = true }
