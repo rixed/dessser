@@ -2289,6 +2289,22 @@ and check_fun_sign e0 l f ps =
           | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num_unsigned op _e1
           | (ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128), _ -> conv_to_num_signed op _e1
           | ToFloat, _ when is_int _e1 -> conv_to_float _e1
+          | BitNot, E0 (U8 n) -> E0 (U8 (Uint8.lognot n))
+          | BitNot, E0 (U16 n) -> E0 (U16 (Uint16.lognot n))
+          | BitNot, E0 (U24 n) -> E0 (U24 (Uint24.lognot n))
+          | BitNot, E0 (U32 n) -> E0 (U32 (Uint32.lognot n))
+          | BitNot, E0 (U40 n) -> E0 (U40 (Uint40.lognot n))
+          | BitNot, E0 (U48 n) -> E0 (U48 (Uint48.lognot n))
+          | BitNot, E0 (U56 n) -> E0 (U56 (Uint56.lognot n))
+          | BitNot, E0 (U64 n) -> E0 (U64 (Uint64.lognot n))
+          | BitNot, E0 (I8 n) -> E0 (I8 (Int8.lognot n))
+          | BitNot, E0 (I16 n) -> E0 (I16 (Int16.lognot n))
+          | BitNot, E0 (I24 n) -> E0 (I24 (Int24.lognot n))
+          | BitNot, E0 (I32 n) -> E0 (I32 (Int32.lognot n))
+          | BitNot, E0 (I40 n) -> E0 (I40 (Int40.lognot n))
+          | BitNot, E0 (I48 n) -> E0 (I48 (Int48.lognot n))
+          | BitNot, E0 (I56 n) -> E0 (I56 (Int56.lognot n))
+          | BitNot, E0 (I64 n) -> E0 (I64 (Int64.lognot n))
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
@@ -2474,6 +2490,8 @@ and check_fun_sign e0 l f ps =
      (expr_simp "(to-u16 (u128 1))")
     [ Ops.(float 1.0)] \
      (expr_simp "(to-float (u32 1))")
+    [ Ops.(u64 (Uint64.of_int(-4)))] \
+     (expr_simp "(bit-not (u64 3))")
   *)
 
   (*$>*)
