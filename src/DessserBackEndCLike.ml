@@ -31,7 +31,8 @@ type emitter =
 let valid_identifier s =
   let s =
     String.map (function
-      | '-' | '+' | '|' | '&' | '.' | '*' | '/' -> '_'
+      | '-' | '+' | '|' | '&' | '.' | '*' | '/'
+      | '[' | ']' | '(' | ')' | '"' -> '_'
       | c -> c
     ) s in
   if s = "" then "v" else
