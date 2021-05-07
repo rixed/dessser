@@ -594,7 +594,8 @@ struct
                * Nullable.of_nan: *)
               pp oc "Nullable.of_nan (%s ** %s)" n1 n2
           | Value { vtyp = Mac (I32 | I64) ; _ } as t ->
-              pp oc "try NotNullable %s.pow %s %s with Invalid_arg _ -> Null"
+              pp oc "try NotNull (Bat%s.pow %s %s) \
+                     with Invalid_argument _ -> Null"
                 (mod_name t) n1 n2
           | Value {
               vtyp = Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128
