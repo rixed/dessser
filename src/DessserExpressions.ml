@@ -2310,6 +2310,8 @@ and check_fun_sign e0 l f ps =
           | BitNot, E0 (I64 n) -> E0 (I64 (Int64.lognot n))
           | _ -> E1 (op, _e1)
       )
+      | E1S (Apply, E1 (Function (fid, _), body), es) ->
+        peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
       | E2 (Let n, e1, e2) ->
         peval e2 ((n, peval e1 env ids)::env) ids
       | E2 (op, e1, e2) -> (
@@ -2419,8 +2421,6 @@ and check_fun_sign e0 l f ps =
               | Ge, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1>=_e2))
               | Ne, _, _ when is_orderable _e1 && is_orderable _e2 -> E0 (Bool (_e1!=_e2))
               | _ -> E2 (op, _e1, _e2))
-      | E1S (Apply, E1 (Function (fid, _), body), es) ->
-        peval body env ((List.mapi (fun i e -> ((fid, i), e)) es) @ ids)
       | E3 (If, e1, e2, e3) ->
         let _e1 = peval e1 env ids in
         (match _e1 with
