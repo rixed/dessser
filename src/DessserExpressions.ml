@@ -2189,6 +2189,13 @@ and check_fun_sign e0 l f ps =
       | ToU128 -> E0 (U128 (Uint128.of_uint128 n))
       | _ -> failwith "from_u128" in
     let conv_to_num_unsigned t e1 = from_u128 t (conv_to_u128 e1) in
+    let conv_to_float e1 = E0 (Float (conv_to_u128 e1 |> Uint128.to_float)) in
+    let is_int = function
+        E0 (U8  _) | E0 (U16  _) | E0 (U24  _) | E0 (U32  _) | E0 (U40  _)
+      | E0 (U48  _) | E0 (U56  _) | E0 (U64  _) | E0 (U128  _) | E0 (I8  _)
+      | E0 (I16  _) | E0 (I24  _) | E0 (I32  _) | E0 (I40  _) | E0 (I48  _)
+      | E0 (I56  _) | E0 (I64  _) | E0 (I128  _) -> true
+      | _ -> false in
     match e with
       | E1 (op, e1) -> (
         let _e1 = peval e1 env ids in
@@ -2281,6 +2288,7 @@ and check_fun_sign e0 l f ps =
           | I128OfPtr, E1 (DataPtrOfString, E0 (String s)) -> check_string s (fun () -> E0 (I128 (Int128.of_string s)))
           | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num_unsigned op _e1
           | (ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128), _ -> conv_to_num_signed op _e1
+          | ToFloat, _ when is_int _e1 -> conv_to_float _e1
           | _ -> E1 (op, _e1)
       )
       | E3 (If, e1, e2, e3) ->
@@ -2294,12 +2302,6 @@ and check_fun_sign e0 l f ps =
       | E2 (op, e1, e2) -> (
           let _e1 = peval e1 env ids in
           let _e2 = peval e2 env ids in
-          let is_int = function
-              E0 (U8  _) | E0 (U16  _) | E0 (U24  _) | E0 (U32  _) | E0 (U40  _)
-            | E0 (U48  _) | E0 (U56  _) | E0 (U64  _) | E0 (U128  _) | E0 (I8  _)
-            | E0 (I16  _) | E0 (I24  _) | E0 (I32  _) | E0 (I40  _) | E0 (I48  _)
-            | E0 (I56  _) | E0 (I64  _) | E0 (I128  _) -> true
-            | _ -> false in
           let is_orderable = function
             | e when is_int e-> true
             | E0 (Float _) -> true
@@ -2470,6 +2472,8 @@ and check_fun_sign e0 l f ps =
      (expr_simp "(to-u8 (u128 1))")
     [ Ops.(u16 (Uint16.one))] \
      (expr_simp "(to-u16 (u128 1))")
+    [ Ops.(float 1.0)] \
+     (expr_simp "(to-float (u32 1))")
   *)
 
   (*$>*)
