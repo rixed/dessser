@@ -2289,6 +2289,7 @@ and check_fun_sign e0 l f ps =
           | (ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128), _ -> conv_to_num_unsigned op _e1
           | (ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128), _ -> conv_to_num_signed op _e1
           | ToFloat, _ when is_int _e1 -> conv_to_float _e1
+          | ToFloat, E0 (Float _) -> _e1
           | BitNot, E0 (U8 n) -> E0 (U8 (Uint8.lognot n))
           | BitNot, E0 (U16 n) -> E0 (U16 (Uint16.lognot n))
           | BitNot, E0 (U24 n) -> E0 (U24 (Uint24.lognot n))
