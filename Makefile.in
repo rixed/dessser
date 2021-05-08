@@ -102,6 +102,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserConversions.ml \
+	src/DessserEval.ml \
 	src/DessserStdLib.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \
@@ -224,6 +225,7 @@ LINKED_FOR_TESTS = \
 	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserEval.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \

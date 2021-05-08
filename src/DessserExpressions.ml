@@ -12,9 +12,6 @@ module T = DessserTypes
 (* Controls whether [debug] translates into Dump or Ignore: *)
 let dump_debug = ref false
 
-(* Controls whether optimisation is enabled: *)
-let optimize = ref true
-
 type endianness = LittleEndian | BigEndian
 
 let string_of_endianness = function
@@ -3003,9 +3000,9 @@ let gen_id =
     incr seq ;
     prefix ^"_"^ string_of_int !seq
 
-let let_ ?(l=[]) ?name e f =
-  match e with
-  (* If [e] is already an identifier (or a param) there is no need for a
+let let_ ?(l=[]) ?name def f =
+  match def with
+  (* If [def] is already an identifier (or a param) there is no need for a
    * new one: *)
   | E0 (Param _ | Identifier _)
   (* Also, if it's a constant then the optimizer will work better if it's
@@ -3015,45 +3012,15 @@ let let_ ?(l=[]) ?name e f =
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
        | CopyField | SkipField | SetFieldNull)  ->
-      f l e
+      f l def
   | _ ->
       let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
-        try (E0 (Identifier n), type_of l e) :: l
+        try (E0 (Identifier n), type_of l def) :: l
         with Unbound_identifier _ | Unbound_parameter _ -> l in
-      (match f l (E0 (Identifier n)) with
-      | E0 (Identifier n') when n' = n ->
-          (* In that case the identifier is useless: *)
-          e
-      | body ->
-          (* If the identifier is used only once in the body, then the optimizer will
-           * also prefer to have no let. This will further allow, for instance, to
-           * simplify:
-           *   (get-vec 0
-           *     (let (arr (make-vec 0))
-           *       (set-vec 0 arr 1)))
-           * into:
-           *   (get-vec 0
-           *     (set-vec 0 (make-vec 0) 1))
-           * then ultimately into:
-           *   1
-           *)
-          let use_count =
-            (* TODO: early exit *)
-            fold 0 l (fun c _l -> function
-              | E0 (Identifier n') when n' = n -> c + 1
-              | _ -> c
-            ) body in
-          if !optimize && use_count <= 1 then
-            (* No need for the let: *)
-            map l (fun _l -> function
-              | E0 (Identifier n') when n' = n -> e
-              | e -> e
-            ) body
-          else
-            E2 (Let n, e, body))
+      E2 (Let n, def, f l (E0 (Identifier n)))
 
 (* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
@@ -3247,10 +3214,7 @@ struct
 
   let u128_of_int n = u128 (Uint128.of_int n)
 
-  let is_null = function
-    | E0 (Null _) when !optimize -> true_
-    | E1 (NotNull, _) when !optimize -> false_
-    | e -> E1 (IsNull, e)
+  let is_null e = E1 (IsNull, e)
 
   let nth e1 e2 = E2 (Nth, e1, e2)
 
@@ -3300,254 +3264,138 @@ struct
 
   let scale_weights set d = E2 (ScaleWeights, set, d)
 
-  let join e1 e2 =
-    match e1, e2 with
-    | E0 (String s1), E0S (MakeVec, ss) when !optimize ->
-        (try
-          List.map (function
-            | E0 (String s) -> s
-            | _ -> raise Exit
-          ) ss |>
-          String.join s1 |>
-          string
-        with Exit ->
-          E2 (Join, e1, e2))
-    | _ -> E2 (Join, e1, e2)
+  let join e1 e2 = E2 (Join, e1, e2)
 
   let bytes_of_string e1 = E1 (BytesOfString, e1)
 
-  let string_of_int_ = function
-    | E0 (U8 n) when !optimize -> string (Uint8.to_string n)
-    | E0 (U16 n) when !optimize -> string (Uint16.to_string n)
-    | E0 (U24 n) when !optimize -> string (Uint24.to_string n)
-    | E0 (U32 n) when !optimize -> string (Uint32.to_string n)
-    | E0 (U40 n) when !optimize -> string (Uint40.to_string n)
-    | E0 (U48 n) when !optimize -> string (Uint48.to_string n)
-    | E0 (U56 n) when !optimize -> string (Uint56.to_string n)
-    | E0 (U64 n) when !optimize -> string (Uint64.to_string n)
-    | E0 (U128 n) when !optimize -> string (Uint128.to_string n)
-    | E0 (I8 n) when !optimize -> string (Int8.to_string n)
-    | E0 (I16 n) when !optimize -> string (Int16.to_string n)
-    | E0 (I24 n) when !optimize -> string (Int24.to_string n)
-    | E0 (I32 n) when !optimize -> string (Int32.to_string n)
-    | E0 (I40 n) when !optimize -> string (Int40.to_string n)
-    | E0 (I48 n) when !optimize -> string (Int48.to_string n)
-    | E0 (I56 n) when !optimize -> string (Int56.to_string n)
-    | E0 (I64 n) when !optimize -> string (Int64.to_string n)
-    | E0 (I128 n) when !optimize -> string (Int128.to_string n)
-    | e -> E1 (StringOfInt, e)
+  let string_of_int_ e = E1 (StringOfInt, e)
 
-  let string_of_float_ = function
-    | E0 (Float f) when !optimize -> string (hexstring_of_float f)
-    | e -> E1 (StringOfFloat, e)
+  let string_of_float_ e = E1 (StringOfFloat, e)
 
-  let string_of_ip = function
-    | E0 (U32 n) when !optimize -> string (DessserIpTools.V4.to_string n)
-    | E0 (U128 n) when !optimize -> string (DessserIpTools.V6.to_string n)
-    | e -> E1 (StringOfIp, e)
+  let string_of_ip e = E1 (StringOfIp, e)
 
   let null vt = E0 (Null vt)
 
-  let char_of_string idx str =
-    match str with
-    | E0 (String s) when !optimize ->
-        if String.length s = 0 then null (Mac Char)
-        else (match to_cst_int idx with
-        | exception _ -> E2 (CharOfString, idx, str)
-        | idx when idx < String.length s && !optimize -> char s.[idx]
-        | _ -> E2 (CharOfString, idx, str))
-    | _ ->
-        E2 (CharOfString, idx, str)
+  let char_of_string idx str = E2 (CharOfString, idx, str)
 
   let strftime fmt time = E2 (Strftime, fmt, time)
 
-  let string_of_char = function
-    | E0 (Char c) when !optimize -> string (String.of_char c)
-    | e -> E1 (StringOfChar, e)
+  let string_of_char e = E1 (StringOfChar, e)
 
-  let not_null = function
-    | E1 (Force _, e1) when !optimize -> e1
-    | e1 -> E1 (NotNull, e1)
+  let not_null e = E1 (NotNull, e)
 
   let or_null_ vt op conv s =
     try not_null (op (conv s)) with Invalid_argument _ -> null vt
 
-  let float_of_string_ = function
-    | E0 (String s) when !optimize -> or_null_ (Mac Float) float float_of_string s
-    | e -> E1 (FloatOfString, e)
+  let float_of_string_ e = E1 (FloatOfString, e)
 
-  let u8_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U8) u8 Uint8.of_string s
-    | e -> E1 (U8OfString, e)
+  let u8_of_string e = E1 (U8OfString, e)
 
-  let u16_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U16) u16 Uint16.of_string s
-    | e -> E1 (U16OfString, e)
+  let u16_of_string e = E1 (U16OfString, e)
 
-  let u24_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U24) u24 Uint24.of_string s
-    | e -> E1 (U24OfString, e)
+  let u24_of_string e = E1 (U24OfString, e)
 
-  let u32_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U32) u32 Uint32.of_string s
-    | e -> E1 (U32OfString, e)
+  let u32_of_string e = E1 (U32OfString, e)
 
-  let u40_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U40) u40 Uint40.of_string s
-    | e -> E1 (U40OfString, e)
+  let u40_of_string e = E1 (U40OfString, e)
 
-  let u48_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U48) u48 Uint48.of_string s
-    | e -> E1 (U48OfString, e)
+  let u48_of_string e = E1 (U48OfString, e)
 
-  let u56_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U56) u56 Uint56.of_string s
-    | e -> E1 (U56OfString, e)
+  let u56_of_string e = E1 (U56OfString, e)
 
-  let u64_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U64) u64 Uint64.of_string s
-    | e -> E1 (U64OfString, e)
+  let u64_of_string e = E1 (U64OfString, e)
 
-  let u128_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac U128) u128 Uint128.of_string s
-    | e -> E1 (U128OfString, e)
+  let u128_of_string e = E1 (U128OfString, e)
 
-  let i8_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I8) i8 Int8.of_string s
-    | e -> E1 (I8OfString, e)
+  let i8_of_string e = E1 (I8OfString, e)
 
-  let i16_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I16) i16 Int16.of_string s
-    | e -> E1 (I16OfString, e)
+  let i16_of_string e = E1 (I16OfString, e)
 
-  let i24_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I24) i24 Int24.of_string s
-    | e -> E1 (I24OfString, e)
+  let i24_of_string e = E1 (I24OfString, e)
 
-  let i32_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I32) i32 Int32.of_string s
-    | e -> E1 (I32OfString, e)
+  let i32_of_string e = E1 (I32OfString, e)
 
-  let i40_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I40) i40 Int40.of_string s
-    | e -> E1 (I40OfString, e)
+  let i40_of_string e = E1 (I40OfString, e)
 
-  let i48_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I48) i48 Int48.of_string s
-    | e -> E1 (I48OfString, e)
+  let i48_of_string e = E1 (I48OfString, e)
 
-  let i56_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I56) i56 Int56.of_string s
-    | e -> E1 (I56OfString, e)
+  let i56_of_string e = E1 (I56OfString, e)
 
-  let i64_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I64) i64 Int64.of_string s
-    | e -> E1 (I64OfString, e)
+  let i64_of_string e = E1 (I64OfString, e)
 
-  let i128_of_string = function
-    | E0 (String s) when !optimize -> or_null_ (Mac I128) i128 Int128.of_string s
-    | e -> E1 (I128OfString, e)
+  let i128_of_string e = E1 (I128OfString, e)
 
-  let float_of_ptr e1 = E1 (FloatOfPtr, e1)
+  let float_of_ptr e = E1 (FloatOfPtr, e)
 
-  let char_of_ptr e1 = E1 (CharOfPtr, e1)
+  let char_of_ptr e = E1 (CharOfPtr, e)
 
-  let u8_of_ptr e1 = E1 (U8OfPtr, e1)
+  let u8_of_ptr e = E1 (U8OfPtr, e)
 
-  let u16_of_ptr e1 = E1 (U16OfPtr, e1)
+  let u16_of_ptr e = E1 (U16OfPtr, e)
 
-  let u24_of_ptr e1 = E1 (U24OfPtr, e1)
+  let u24_of_ptr e = E1 (U24OfPtr, e)
 
-  let u32_of_ptr e1 = E1 (U32OfPtr, e1)
+  let u32_of_ptr e = E1 (U32OfPtr, e)
 
-  let u40_of_ptr e1 = E1 (U40OfPtr, e1)
+  let u40_of_ptr e = E1 (U40OfPtr, e)
 
-  let u48_of_ptr e1 = E1 (U48OfPtr, e1)
+  let u48_of_ptr e = E1 (U48OfPtr, e)
 
-  let u56_of_ptr e1 = E1 (U56OfPtr, e1)
+  let u56_of_ptr e = E1 (U56OfPtr, e)
 
-  let u64_of_ptr e1 = E1 (U64OfPtr, e1)
+  let u64_of_ptr e = E1 (U64OfPtr, e)
 
-  let u128_of_ptr e1 = E1 (U128OfPtr, e1)
+  let u128_of_ptr e = E1 (U128OfPtr, e)
 
-  let i8_of_ptr e1 = E1 (I8OfPtr, e1)
+  let i8_of_ptr e = E1 (I8OfPtr, e)
 
-  let i16_of_ptr e1 = E1 (I16OfPtr, e1)
+  let i16_of_ptr e = E1 (I16OfPtr, e)
 
-  let i24_of_ptr e1 = E1 (I24OfPtr, e1)
+  let i24_of_ptr e = E1 (I24OfPtr, e)
 
-  let i32_of_ptr e1 = E1 (I32OfPtr, e1)
+  let i32_of_ptr e = E1 (I32OfPtr, e)
 
-  let i40_of_ptr e1 = E1 (I40OfPtr, e1)
+  let i40_of_ptr e = E1 (I40OfPtr, e)
 
-  let i48_of_ptr e1 = E1 (I48OfPtr, e1)
+  let i48_of_ptr e = E1 (I48OfPtr, e)
 
-  let i56_of_ptr e1 = E1 (I56OfPtr, e1)
+  let i56_of_ptr e = E1 (I56OfPtr, e)
 
-  let i64_of_ptr e1 = E1 (I64OfPtr, e1)
+  let i64_of_ptr e = E1 (I64OfPtr, e)
 
-  let i128_of_ptr e1 = E1 (I128OfPtr, e1)
+  let i128_of_ptr e = E1 (I128OfPtr, e)
 
-  let byte_of_u8 = function
-    | E0 (U8 n) when !optimize -> byte n
-    | e -> E1 (ByteOfU8, e)
+  let byte_of_u8 e = E1 (ByteOfU8, e)
 
-  let bool_of_u8 = function
-    | E0 (U8 n) when !optimize -> bool (Uint8.compare Uint8.zero n <> 0)
-    | e -> E1 (BoolOfU8, e)
+  let bool_of_u8 e = E1 (BoolOfU8, e)
 
-  let word_of_u16 = function
-    | E0 (U16 n) when !optimize -> word n
-    | e -> E1 (WordOfU16, e)
+  let word_of_u16 e = E1 (WordOfU16, e)
 
-  let dword_of_u32 = function
-    | E0 (U32 n) when !optimize -> dword n
-    | e -> E1 (DWordOfU32, e)
+  let dword_of_u32 e = E1 (DWordOfU32, e)
 
-  let qword_of_u64 = function
-    | E0 (U64 n) when !optimize -> qword n
-    | e -> E1 (QWordOfU64, e)
+  let qword_of_u64 e = E1 (QWordOfU64, e)
 
-  let oword_of_u128 = function
-    | E0 (U128 n) when !optimize -> oword n
-    | e -> E1 (OWordOfU128, e)
+  let oword_of_u128 e = E1 (OWordOfU128, e)
 
-  let u8_of_byte = function
-    | E0 (Byte n) when !optimize -> u8 n
-    | e -> E1 (U8OfByte, e)
+  let u8_of_byte e = E1 (U8OfByte, e)
 
-  let u8_of_char = function
-    | E0 (Char c) when !optimize -> u8 (Uint8.of_int (Char.code c))
-    | e -> E1 (U8OfChar, e)
+  let u8_of_char e = E1 (U8OfChar, e)
 
-  let u8_of_bool = function
-    | E0 (Bool false) when !optimize -> u8 (Uint8.of_int 0)
-    | E0 (Bool true) when !optimize -> u8 (Uint8.of_int 1)
-    | e -> E1 (U8OfBool, e)
+  let u8_of_bool e = E1 (U8OfBool, e)
 
-  let bool_of_bit = function
-    | E0 (Bit b) when !optimize -> bool b
-    | e -> E1 (BoolOfBit, e)
+  let bool_of_bit e = E1 (BoolOfBit, e)
 
-  let bit_of_bool = function
-    | E0 (Bool b) when !optimize -> bit b
-    | e -> E1 (BitOfBool, e)
+  let bit_of_bool e = E1 (BitOfBool, e)
 
   let u8_of_bit = u8_of_bool % bool_of_bit
 
   let bit_of_u8 = bit_of_bool % bool_of_u8
 
-  let char_of_u8 = function
-    | E0 (U8 n) when !optimize -> char (Char.chr (Uint8.to_int n))
-    | e -> E1 (CharOfU8, e)
+  let char_of_u8 e = E1 (CharOfU8, e)
 
-  let u32_of_size = function
-    | E0 (Size n) when !optimize -> u32 (Uint32.of_int n)
-    | e -> E1 (U32OfSize, e)
+  let u32_of_size e = E1 (U32OfSize, e)
 
-  let size_of_u32 = function
-    | E0 (U32 n) when !optimize -> size (Uint32.to_int n)
-    | e -> E1 (SizeOfU32, e)
+  let size_of_u32 e = E1 (SizeOfU32, e)
 
   let eol t = E0 (EndOfList t)
 
@@ -3581,58 +3429,30 @@ struct
 
   let pair e1 e2 = E2 (Pair, e1, e2)
 
-  let first = function
-    | E2 (Pair, e, _) when !optimize -> e
-    | e -> E1 (Fst, e)
+  let first e = E1 (Fst, e)
 
-  let secnd = function
-    | E2 (Pair, _, e) when !optimize -> e
-    | e -> E1 (Snd, e)
+  let secnd e = E1 (Snd, e)
 
   let cons e1 e2 = E2 (Cons, e1, e2)
 
-  let head = function
-    | E2 (Cons, e, _) when !optimize -> e
-    | e -> E1 (Head, e)
+  let head e = E1 (Head, e)
 
-  let rec tail = function
-    | E0 (EndOfList _) when !optimize -> invalid_arg "tail" (* FIXME: return Null *)
-    | E2 (Cons, e, E0 (EndOfList _)) when !optimize -> e
-    | E2 (Cons, _, e) when !optimize -> tail e
-    | e -> E1 (Tail, e)
+  let tail e = E1 (Tail, e)
 
-  let byte_of_char = function
-    | E0 (Char c) when !optimize -> byte (Uint8.of_int (Char.code c))
-    | e -> byte_of_u8 (u8_of_char e)
+  let byte_of_char e = byte_of_u8 (u8_of_char e)
 
   let byte_of_const_char c = byte_of_char (char c)
 
-  let rec if_ cond ~then_ ~else_ =
-    match cond with
-    | E0 (Bool true) when !optimize -> then_
-    | E0 (Bool false) when !optimize -> else_
-    | E1 (Not, e) when !optimize -> if_ e ~then_:else_ ~else_:then_
-    | _->
-        if eq then_ else_ && !optimize && not (has_side_effect cond) then
-          then_
-        else
-          E3 (If, cond, then_, else_)
+  let rec if_ cond ~then_ ~else_ = E3 (If, cond, then_, else_)
 
-  let if_null d ~then_ ~else_ =
-    if_ (is_null d) ~then_ ~else_
+  let if_null d ~then_ ~else_ = if_ (is_null d) ~then_ ~else_
 
   let read_while ~cond ~reduce ~init ~pos =
-    match cond with
-    | E0 (Bool false) when !optimize -> pair init pos
-    | _ -> E4 (ReadWhile, cond, reduce, init, pos)
+    E4 (ReadWhile, cond, reduce, init, pos)
 
-  let float_of_qword = function
-    | E0 (QWord n) when !optimize -> float (BatInt64.float_of_bits (Uint64.to_int64 n))
-    | e -> E1 (FloatOfQWord, e)
+  let float_of_qword e = E1 (FloatOfQWord, e)
 
-  let qword_of_float = function
-    | E0 (Float f) when !optimize -> qword (Uint64.of_int64 (BatInt64.bits_of_float f))
-    | e -> E1 (QWordOfFloat, e)
+  let qword_of_float e = E1 (QWordOfFloat, e)
 
   let comment n e1 = E1 (Comment n, e1)
 
@@ -3644,68 +3464,9 @@ struct
 
   let lt e1 e2 = ge e2 e1
 
-  let rec eq e1 e2 =
-    match e1, e2 with
-    | E0 Null _, E0 Null _
-    | E0 (EndOfList _), E0 (EndOfList _)
-    | E0 (EmptySet _), E0 (EmptySet _)
-    | E0 Unit, E0 Unit
-    | E0 CopyField, E0 CopyField
-    | E0 SkipField, E0 SkipField
-    | E0 SetFieldNull, E0 SetFieldNull when !optimize ->
-        true_
-    (* None other combination of those can be equal: *)
-    | E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-         | CopyField | SkipField | SetFieldNull),
-      E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-         | CopyField | SkipField | SetFieldNull) when !optimize ->
-        false_
-    (* Another easy case of practical importance: comparison of a null with
-     * a NotNull: *)
-    | E0 (Null _), E1 (NotNull, _)
-    | E1 (NotNull, _), E0 (Null _) when !optimize ->
-        false_
-    (* Peel away some common wrappers: *)
-    | E1 (NotNull, e1), E1 (NotNull, e2)
-    | E1 (Force _, e1), E1 (Force _, e2) when !optimize ->
-        eq e1 e2
-    (* Compare numerical constant (only if of the same type (TODO)): *)
-    | E0 (Float v1), E0 (Float v2) when !optimize -> bool (v1 = v2)
-    | E0 (String v1), E0 (String v2) when !optimize -> bool (v1 = v2)
-    | E0 (Bool v1), E0 (Bool v2) when !optimize -> bool (v1 = v2)
-    | E0 (Char v1), E0 (Char v2) when !optimize -> bool (v1 = v2)
-    | E0 (U8 v1), E0 (U8 v2) when !optimize -> bool (Uint8.compare v1 v2 = 0)
-    | E0 (U16 v1), E0 (U16 v2) when !optimize -> bool (Uint16.compare v1 v2 = 0)
-    | E0 (U24 v1), E0 (U24 v2) when !optimize -> bool (Uint24.compare v1 v2 = 0)
-    | E0 (U32 v1), E0 (U32 v2) when !optimize -> bool (Uint32.compare v1 v2 = 0)
-    | E0 (U40 v1), E0 (U40 v2) when !optimize -> bool (Uint40.compare v1 v2 = 0)
-    | E0 (U48 v1), E0 (U48 v2) when !optimize -> bool (Uint48.compare v1 v2 = 0)
-    | E0 (U56 v1), E0 (U56 v2) when !optimize -> bool (Uint56.compare v1 v2 = 0)
-    | E0 (U64 v1), E0 (U64 v2) when !optimize -> bool (Uint64.compare v1 v2 = 0)
-    | E0 (U128 v1), E0 (U128 v2) when !optimize -> bool (Uint128.compare v1 v2 = 0)
-    | E0 (I8 v1), E0 (I8 v2) when !optimize -> bool (Int8.compare v1 v2 = 0)
-    | E0 (I16 v1), E0 (I16 v2) when !optimize -> bool (Int16.compare v1 v2 = 0)
-    | E0 (I24 v1), E0 (I24 v2) when !optimize -> bool (Int24.compare v1 v2 = 0)
-    | E0 (I32 v1), E0 (I32 v2) when !optimize -> bool (Int32.compare v1 v2 = 0)
-    | E0 (I40 v1), E0 (I40 v2) when !optimize -> bool (Int40.compare v1 v2 = 0)
-    | E0 (I48 v1), E0 (I48 v2) when !optimize -> bool (Int48.compare v1 v2 = 0)
-    | E0 (I56 v1), E0 (I56 v2) when !optimize -> bool (Int56.compare v1 v2 = 0)
-    | E0 (I64 v1), E0 (I64 v2) when !optimize -> bool (Int64.compare v1 v2 = 0)
-    | E0 (I128 v1), E0 (I128 v2) when !optimize -> bool (Int128.compare v1 v2 = 0)
-    | E0 (Bit v1), E0 (Bit v2) when !optimize -> bool (v1 = v2)
-    | E0 (Size v1), E0 (Size v2) when !optimize -> bool (v1 = v2)
-    | E0 (Byte v1), E0 (Byte v2) when !optimize -> bool (Uint8.compare v1 v2 = 0)
-    | E0 (Word v1), E0 (Word v2) when !optimize -> bool (Uint16.compare v1 v2 = 0)
-    | E0 (DWord v1), E0 (DWord v2) when !optimize -> bool (Uint32.compare v1 v2 = 0)
-    | E0 (QWord v1), E0 (QWord v2) when !optimize -> bool (Uint64.compare v1 v2 = 0)
-    | E0 (OWord v1), E0 (OWord v2) when !optimize -> bool (Uint128.compare v1 v2 = 0)
-    | E0 (Bytes v1), E0 (Bytes v2) when !optimize -> bool (v1 = v2)
-    | _ -> E2 (Eq, e1, e2)
+  let eq e1 e2 = E2 (Eq, e1, e2)
 
-  let not_ = function
-    | E0 (Bool b) when !optimize -> bool (not b)
-    | E1 (Not, e) when !optimize -> e
-    | e -> E1 (Not, e)
+  let not_ e = E1 (Not, e)
 
   let abs e1 = E1 (Abs, e1)
 
@@ -3713,7 +3474,6 @@ struct
 
   let param fid n = E0 (Param (fid, n))
 
-  (* TODO: optimize constants *)
   let add e1 e2 = E2 (Add, e1, e2)
 
   let sub e1 e2 = E2 (Sub, e1, e2)
@@ -3736,23 +3496,9 @@ struct
 
   let bit_xor e1 e2 = E2 (BitXor, e1, e2)
 
-  let and_ e1 e2 =
-    match e1, e2 with
-    | E0 (Bool true), _ when !optimize -> e2
-    | _, E0 (Bool true) when !optimize -> e1
-    | E0 (Bool false), _ when !optimize -> e1  (* False, [e2] not evaluated *)
-    (* Cannot ignore [e1] even if e2 is demonstrably false because of its
-     * possible side effects! *)
-    | _ -> E2 (And, e1, e2)
+  let and_ e1 e2 = E2 (And, e1, e2)
 
-  let or_ e1 e2 =
-    match e1, e2 with
-    | E0 (Bool false), _ when !optimize -> e2
-    | _, E0 (Bool false) when !optimize -> e1
-    | E0 (Bool true), _ when !optimize -> e1  (* True, [e2] not evaluated *)
-    (* Cannot ignore [e1] event if e2 is demonstrably true because if its
-     * possible side effects! *)
-    | _ -> E2 (Or, e1, e2)
+  let or_ e1 e2 = E2 (Or, e1, e2)
 
   let let_ = let_
 
@@ -3760,326 +3506,130 @@ struct
 
   let ext_identifier n = E0 (ExtIdentifier n)
 
-  let to_i8 = function
-    | E0 (I8 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI8, e)
-        | i when !optimize -> E0 (I8 (Int8.of_int i))
-        | _ -> E1 (ToI8, e))
+  let to_i8 e = E1 (ToI8, e)
+  let to_i16 e = E1 (ToI16, e)
+  let to_i24 e = E1 (ToI24, e)
+  let to_i32 e = E1 (ToI32, e)
+  let to_i40 e = E1 (ToI40, e)
+  let to_i48 e = E1 (ToI48, e)
+  let to_i56 e = E1 (ToI56, e)
+  let to_i64 e = E1 (ToI64, e)
+  let to_i128 e = E1 (ToI128, e)
+  let to_u8 e = E1 (ToU8, e)
+  let to_u16 e = E1 (ToU16, e)
+  let to_u24 e = E1 (ToU24, e)
+  let to_u32 e = E1 (ToU32, e)
+  let to_u40 e = E1 (ToU40, e)
+  let to_u48 e = E1 (ToU48, e)
+  let to_u56 e = E1 (ToU56, e)
+  let to_u64 e = E1 (ToU64, e)
+  let to_u128 e = E1 (ToU128, e)
+  let to_float e = E1 (ToFloat, e)
 
-  let to_u8 = function
-    | E0 (U8 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU8, e)
-        | i when !optimize -> E0 (U8 (Uint8.of_int i))
-        | _ -> E1 (ToU8, e))
-
-  let to_i16 = function
-    | E0 (I16 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI16, e)
-        | i when !optimize -> E0 (I16 (Int16.of_int i))
-        | _ -> E1 (ToI16, e))
-
-  let to_u16 = function
-    | E0 (U16 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU16, e)
-        | i when !optimize -> E0 (U16 (Uint16.of_int i))
-        | _ -> E1 (ToU16, e))
-
-  let to_i24 = function
-    | E0 (I24 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI24, e)
-        | i when !optimize -> E0 (I24 (Int24.of_int i))
-        | _ -> E1 (ToI24, e))
-
-  let to_u24 = function
-    | E0 (U24 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU24, e)
-        | i when !optimize -> E0 (U24 (Uint24.of_int i))
-        | _ -> E1 (ToU24, e))
-
-  let to_i32 = function
-    | E0 (I32 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI32, e)
-        | i when !optimize -> E0 (I32 (Int32.of_int i))
-        | _ -> E1 (ToI32, e))
-
-  let to_u32 = function
-    | E0 (U32 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU32, e)
-        | i when !optimize -> E0 (U32 (Uint32.of_int i))
-        | _ -> E1 (ToU32, e))
-
-  let to_i40 = function
-    | E0 (I40 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI40, e)
-        | i when !optimize -> E0 (I40 (Int40.of_int i))
-        | _ -> E1 (ToI40, e))
-
-  let to_u40 = function
-    | E0 (U40 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU40, e)
-        | i when !optimize -> E0 (U40 (Uint40.of_int i))
-        | _ -> E1 (ToU40, e))
-
-  let to_i48 = function
-    | E0 (I48 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI48, e)
-        | i when !optimize -> E0 (I48 (Int48.of_int i))
-        | _ -> E1 (ToI48, e))
-
-  let to_u48 = function
-    | E0 (U48 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU48, e)
-        | i when !optimize -> E0 (U48 (Uint48.of_int i))
-        | _ -> E1 (ToU48, e))
-
-  let to_i56 = function
-    | E0 (I56 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI56, e)
-        | i when !optimize -> E0 (I56 (Int56.of_int i))
-        | _ -> E1 (ToI56, e))
-
-  let to_u56 = function
-    | E0 (U56 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU56, e)
-        | i when !optimize -> E0 (U56 (Uint56.of_int i))
-        | _ -> E1 (ToU56, e))
-
-  let to_i64 = function
-    | E0 (I64 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI64, e)
-        | i when !optimize -> E0 (I64 (Int64.of_int i))
-        | _ -> E1 (ToI64, e))
-
-  let to_u64 = function
-    | E0 (U64 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU64, e)
-        | i when !optimize -> E0 (U64 (Uint64.of_int i))
-        | _ -> E1 (ToU64, e))
-
-  let to_i128 = function
-    | E0 (I128 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToI128, e)
-        | i when !optimize -> E0 (I128 (Int128.of_int i))
-        | _ -> E1 (ToI128, e))
-
-  let to_u128 = function
-    | E0 (U128 _) as e when !optimize -> e
-    | e ->
-        (match to_cst_int e with
-        | exception _ -> E1 (ToU128, e)
-        | i when !optimize -> E0 (U128 (Uint128.of_int i))
-        | _ -> E1 (ToU128, e))
-
-  let to_float = function
-    | E0 (Float _) as e when !optimize -> e
-    | e -> E1 (ToFloat, e)
-
-  (* Avoid useless sequences: *)
-  let seq = function
-    (* `seq []` is already synonymous with void/nop *)
-    | [ e ] when !optimize -> e
-    | es -> E0S (Seq, es)
+  let seq es = E0S (Seq, es)
 
   let nop = seq []
 
-  let apply f es =
-    (* If [f] is constant we cannot proceed directly with variable
-     * substitutions unless each variable is used only once. We can
-     * turn the apply into a sequence of lets that will further
-     * substitute what can be substituted: *)
-    match f with
-    | E1 (Function (fid, _typs), body) when !optimize ->
-        if es = [] then body else
-        List.fold_lefti (fun body i e ->
-          let_ e (fun l e ->
-            map l (fun _ -> function
-              | E0 (Param (fid', i')) when fid' = fid && i' = i -> e
-              | e -> e
-            ) body)
-        ) body es
-    | _ ->
-        E1S (Apply, f, es)
+  let apply f es = E1S (Apply, f, es)
 
-  let repeat ~from ~to_ ~body ~init =
-    match from, to_ with
-    | E0 (I32 f), E0 (I32 t) when !optimize ->
-        let c = Int32.compare f t in
-        if c >= 0 then init
-        else if 0 = Int32.(compare t (succ f)) then
-          apply body [ from ; init ]
-        else E4 (Repeat, from, to_, body, init)
-    | _ ->
-        E4 (Repeat, from, to_, body, init)
+  let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
 
-  let loop_until ~body ~cond ~init =
-    match cond with
-    | E0 (Bool false) when !optimize ->
-        apply body [ init ]
-    | _ ->
-        E3 (LoopUntil, body, cond, init)
+  let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
 
-  let loop_while ~cond ~body ~init =
-    match cond with
-    | E0 (Bool false) when !optimize -> init
-    | _ -> E3 (LoopWhile, cond, body, init)
+  let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
 
-  let fold ~init ~body ~list =
-    match list with
-    | E0S ((MakeVec | MakeLst _), [ e ]) when !optimize ->
-        apply body [ e ; init ]
-    | _ ->
-        E3 (Fold, init, body, list)
+  let fold ~init ~body ~list = E3 (Fold, init, body, list)
 
-  let string_of_bytes e1 = E1 (StringOfBytes, e1)
+  let string_of_bytes e = E1 (StringOfBytes, e)
 
-  let rem_size e1 = E1 (RemSize, e1)
+  let rem_size e = E1 (RemSize, e)
 
-  let offset e1 = E1 (Offset, e1)
+  let offset e = E1 (Offset, e)
 
-  let neg e1 = E1 (Neg, e1)
+  let neg e = E1 (Neg, e)
 
-  let exp e1 = E1 (Exp, e1)
+  let exp_ e = E1 (Exp, e)
 
-  let log_ e1 = E1 (Log, e1)
+  let log_ e = E1 (Log, e)
 
-  let log10_ e1 = E1 (Log10, e1)
+  let log10_ e = E1 (Log10, e)
 
-  let sqrt_ e1 = E1 (Sqrt, e1)
+  let sqrt_ e = E1 (Sqrt, e)
 
-  let ceil_ e1 = E1 (Ceil, e1)
+  let ceil_ e = E1 (Ceil, e)
 
-  let floor_ e1 = E1 (Floor, e1)
+  let floor_ e = E1 (Floor, e)
 
-  let round e1 = E1 (Round, e1)
+  let round e = E1 (Round, e)
 
-  let cos_ e1 = E1 (Cos, e1)
+  let cos_ e = E1 (Cos, e)
 
-  let sin_ e1 = E1 (Sin, e1)
+  let sin_ e = E1 (Sin, e)
 
-  let tan_ e1 = E1 (Tan, e1)
+  let tan_ e = E1 (Tan, e)
 
-  let acos_ e1 = E1 (ACos, e1)
+  let acos_ e = E1 (ACos, e)
 
-  let asin_ e1 = E1 (ASin, e1)
+  let asin_ e = E1 (ASin, e)
 
-  let atan_ e1 = E1 (ATan, e1)
+  let atan_ e = E1 (ATan, e)
 
-  let cosh_ e1 = E1 (CosH, e1)
+  let cosh_ e = E1 (CosH, e)
 
-  let sinh_ e1 = E1 (SinH, e1)
+  let sinh_ e = E1 (SinH, e)
 
-  let tanh_ e1 = E1 (TanH, e1)
+  let tanh_ e = E1 (TanH, e)
 
-  let lower e1 = E1 (Lower, e1)
+  let lower e = E1 (Lower, e)
 
-  let upper e1 = E1 (Upper, e1)
+  let upper e = E1 (Upper, e)
 
-  let hash e1 = E1 (Hash, e1)
+  let hash e = E1 (Hash, e)
 
-  let u16_of_word e1 = E1 (U16OfWord, e1)
+  let u16_of_word e = E1 (U16OfWord, e)
 
-  let u32_of_dword e1 = E1 (U32OfDWord, e1)
+  let u32_of_dword e = E1 (U32OfDWord, e)
 
-  let u64_of_qword e1 = E1 (U64OfQWord, e1)
+  let u64_of_qword e = E1 (U64OfQWord, e)
 
-  let u128_of_oword e1 = E1 (U128OfOWord, e1)
+  let u128_of_oword e = E1 (U128OfOWord, e)
 
   let data_ptr_add e1 e2 = E2 (DataPtrAdd, e1, e2)
 
   let data_ptr_sub e1 e2 = E2 (DataPtrSub, e1, e2)
 
-  let data_ptr_push e1 = E1 (DataPtrPush, e1)
+  let data_ptr_push e = E1 (DataPtrPush, e)
 
-  let data_ptr_pop e1 = E1 (DataPtrPop, e1)
+  let data_ptr_pop e = E1 (DataPtrPop, e)
 
-  let data_ptr_of_string e1 = E1 (DataPtrOfString, e1)
+  let data_ptr_of_string e = E1 (DataPtrOfString, e)
 
-  let data_ptr_of_buffer e1 = E1 (DataPtrOfBuffer, e1)
+  let data_ptr_of_buffer e = E1 (DataPtrOfBuffer, e)
 
   let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
 
-  let string_length e1 = E1 (StringLength, e1)
+  let string_length e = E1 (StringLength, e)
 
-  let cardinality = function
-    | E0S ((MakeVec | MakeLst _), es) when !optimize ->
-        u32_of_int (List.length es)
-    | e1 ->
-        E1 (Cardinality, e1)
+  let cardinality e = E1 (Cardinality, e)
 
-  let blit_byte e1 e2 e3 =
-    (* Do nothing if blitint nothing: *)
-    match e3 with
-    | E0 (Size 0) when !optimize -> e1 (* return unmodified pointer *)
-    | _ -> E3 (BlitByte, e1, e2, e3)
+  let blit_byte e1 e2 e3 = E3 (BlitByte, e1, e2, e3)
 
   let set_bit e1 e2 e3 = E3 (SetBit, e1, e2, e3)
 
   let get_bit e1 e2 = E2 (GetBit, e1, e2)
 
-  let force ?(what="") = function
-    | E1 (NotNull, e1) when !optimize ->
-        e1
-    | E0 (Null _) as e when !optimize ->
-        (* TODO: A special "fail of type" instruction translated into
-         * "assert false" *)
-        E1 (Force what, e)
-    | e ->
-        E1 (Force what, e)
+  let force ?(what="") e = E1 (Force what, e)
 
   let find_substring from_start haystack needle =
-    match haystack, needle with
-    | E0 (String s1), E0 (String s2) when !optimize ->
-        (* Let if_ optimize away that condition if the bool is known: *)
-        let then_ =
-          try not_null (u24 (Uint24.of_int (String.find s2 s1)))
-          with Not_found -> null T.(Mac U24)
-        and else_ =
-          try not_null (u24 (Uint24.of_int (String.rfind s2 s1)))
-          with Not_found -> null T.(Mac U24) in
-        if_ from_start ~then_ ~else_
-    | _ -> E3 (FindSubstring, from_start, haystack, needle)
+    E3 (FindSubstring, from_start, haystack, needle)
 
-  let get_item n e1 = E1 (GetItem n, e1)
+  let get_item n e = E1 (GetItem n, e)
 
-  let get_field s e1 = E1 (GetField s, e1)
+  let get_field s e = E1 (GetField s, e)
 
-  let get_alt s e1 = E1 (GetAlt s, e1)
+  let get_alt s e = E1 (GetAlt s, e)
 
-  let construct mns i e1 = E1 (Construct (mns, i), e1)
+  let construct mns i e = E1 (Construct (mns, i), e)
 
   let map_pair e1 e2 = E2 (MapPair, e1, e2)
 
@@ -4087,92 +3637,23 @@ struct
 
   let max_ e1 e2 = E2 (Max, e1, e2)
 
-  let member e1 e2 =
-    match e2 with
-    | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
-           Heap), _) ->
-        (* Those are created empty: *)
-        bool false
-    | e2 ->
-        E2 (Member, e1, e2)
+  let member e1 e2 = E2 (Member, e1, e2)
 
   let make_vec es = E0S (MakeVec, es)
 
   let make_lst mn es = E0S (MakeLst mn, es)
 
-  let alloc_lst ~l ~len:e1 ~init:e2 =
-    match type_of l e2 with
-    | T.Value mn ->
-        (match e1 with
-        | E0 (U8 n) when !optimize && Uint8.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U16 n) when !optimize && Uint16.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U24 n) when !optimize && Uint24.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U32 n) when !optimize && Uint32.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U40 n) when !optimize && Uint40.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U48 n) when !optimize && Uint48.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U56 n) when !optimize && Uint56.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U64 n) when !optimize && Uint64.(compare zero n) = 0 ->
-            make_lst mn []
-        | E0 (U128 n) when !optimize && Uint128.(compare zero n) = 0 ->
-            make_lst mn []
-        | _ ->
-            E2 (AllocLst, e1, e2))
-    | _ ->
-        (* Let the type checker deal with this: *)
-        E2 (AllocLst, e1, e2)
+  let alloc_lst ~len ~init = E2 (AllocLst, len, init)
 
-  let partial_sort vs ks =
-    match vs, ks with
-    | _, E0S (MakeVec, [])
-    | _, E0S (MakeLst _, [])
-    | E0S (MakeVec, []), _
-    | E0S (MakeLst _, []), _ ->
-        vs
-    | _ ->
-        E2 (PartialSort, vs, ks)
+  let partial_sort vs ks = E2 (PartialSort, vs, ks)
 
-  let assert_ = function
-    | E0 (Bool true) when !optimize -> nop
-    | e -> E1 (Assert, e)
+  let assert_ e = E1 (Assert, e)
 
-  let set_vec e1 e2 e3 =
-    match to_cst_int e1 with
-    | exception _ ->
-        E3 (SetVec, e1, e2, e3)
-    | i ->
-        (match e2 with
-        | E0S (MakeVec, es) when !optimize ->
-            List.mapi (fun j e -> if i = j then e3 else e) es |>
-            make_vec
-        | _ ->
-            E3 (SetVec, e1, e2, e3))
+  let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
 
-  let get_vec e1 e2 =
-    match to_cst_int e1 with
-    | exception _ ->
-        E2 (GetVec, e1, e2)
-    | i ->
-        (match e2 with
-        | E0S (MakeVec, es) when !optimize ->
-            (try List.at es i
-            with Invalid_argument _ -> E2 (GetVec, e1, e2))
-        | _ -> E2 (GetVec, e1, e2))
+  let get_vec e1 e2 = E2 (GetVec, e1, e2)
 
-  let map_ lst f =
-    match lst with
-    | E0S (MakeVec, [ e ]) when !optimize ->
-        (* Unearth the MakeVec might makes further optimisations possible: *)
-        make_vec [ apply f [ e ] ]
-    | _ ->
-        if !optimize && is_identity f then lst
-        else E2 (Map, lst, f)
+  let map_ lst f = E2 (Map, lst, f)
 
   let list_of_slist e1 = E1 (ListOfSList, e1)
 
@@ -4184,14 +3665,7 @@ struct
 
   let list_of_set e1 = E1 (ListOfSet, e1)
 
-  let split_by e1 e2 =
-    match e1, e2 with
-    | E0 (String s1), E0 (String s2) when !optimize ->
-        String.split_on_string s1 s2 |>
-        List.map string |>
-        make_lst T.(required (Mac String))
-    | _ ->
-        E2 (SplitBy, e1, e2)
+  let split_by e1 e2 = E2 (SplitBy, e1, e2)
 
   (* It might be easier for users to accept also 0 or 1 expressions and turn
    * them into what's expected: *)
@@ -4214,31 +3688,13 @@ struct
   let verbatim temps out_t ins =
     E0S (Verbatim (temps, out_t), ins)
 
-  let split_at e1 e2 =
-    match to_cst_int e1 with
-    | exception _ ->
-        E2 (SplitAt, e1, e2)
-    | i ->
-        let res s =
-          make_tup [ string (String.sub s 0 i) ;
-                     string (String.sub s i (String.length s - i)) ] in
-        (match e2 with
-        | E0 (String s) when !optimize -> res s
-        | _ -> E2 (SplitAt, e1, e2))
+  let split_at e1 e2 = E2 (SplitAt, e1, e2)
 
   let append_byte e1 e2 = E2 (AppendByte, e1, e2)
 
-  let append_bytes e1 e2 =
-    match e1, e2 with
-    | E0 (Bytes b), _ when Bytes.length b = 0 && !optimize -> e2
-    | _, E0 (Bytes b) when Bytes.length b = 0 && !optimize -> e1
-    | _ -> E2 (AppendBytes, e1, e2)
+  let append_bytes e1 e2 = E2 (AppendBytes, e1, e2)
 
-  let append_string e1 e2 =
-    match e1, e2 with
-    | E0 (String ""), _ when !optimize -> e2
-    | _, E0 (String "") when !optimize -> e1
-    | _ -> E2 (AppendString, e1, e2)
+  let append_string e1 e2 = E2 (AppendString, e1, e2)
 
   let starts_with e1 e2 = E2 (StartsWith, e1, e2)
 
@@ -4266,9 +3722,7 @@ struct
 
   let getenv e = E1 (GetEnv, e)
 
-  let string_of_char_ = function
-    | E0 (Char c) when !optimize -> string (String.of_char c)
-    | e -> E1 (StringOfChar, e)
+  let string_of_char_ e = E1 (StringOfChar, e)
 
   (* Helpers for ref-cells (implemented with 1 dimensional vectors): *)
   let ref_ e = make_vec [ e ]
@@ -4277,40 +3731,8 @@ struct
 
   let set_ref e x = set_vec (u8 Uint8.zero) e x
 
-  let chop_begin lst n =
-    let def = E2 (ChopBegin, lst, n) in
-    match lst with
-    | E0S (MakeLst _, []) ->
-        lst (* Cannot be truncated further *)
-    | E0S (MakeLst mn, items) ->
-        (match to_cst_int n with
-        | exception _ -> def
-        | n -> E0S (MakeLst mn, List.drop n items))
-    | _ ->
-        (match to_cst_int n with
-        | exception _ -> def
-        | 0 -> lst
-        | _ -> def)
-
-  let chop_end lst n =
-    let def = E2 (ChopEnd, lst, n) in
-    match lst with
-    | E0S (MakeLst _, []) ->
-        lst (* Cannot be truncated further *)
-    | E0S (MakeLst mn, items) ->
-        (match to_cst_int n with
-        | exception _ -> def
-        | n ->
-            let l = List.length items in
-            if n >= l then
-              E0S (MakeLst mn, [])
-            else
-              E0S (MakeLst mn, List.take (l - n) items))
-    | _ ->
-        (match to_cst_int n with
-        | exception _ -> def
-        | 0 -> lst
-        | _ -> def)
+  let chop_begin lst n = E2 (ChopBegin, lst, n)
+  let chop_end lst n = E2 (ChopEnd, lst, n)
 end
 
 (* User constructors for the example user types: *)

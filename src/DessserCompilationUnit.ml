@@ -86,10 +86,14 @@ let add_identifier_of_expression compunit ?name expr =
         gen_sym "anon_", false
     | Some name ->
         name, true in
-  let identifier = { public ; expr } in
   let l = environment compunit in
   E.type_check l expr ;
   let t = E.type_of l expr in
+  let expr = DessserEval.peval l expr in
+  (* Check that the expression types are equivalent: *)
+  E.type_check l expr ;
+  assert (T.eq t (E.type_of l expr)) ;
+  let identifier = { public ; expr } in
   { compunit with
       identifiers = (name, identifier, t) :: compunit.identifiers },
   E.E0 (Identifier name),
