@@ -10,7 +10,7 @@ module E = DessserExpressions
 module M = DessserMasks
 open E.Ops
 
-let debug = true
+let debug = false
 
 (*
  * Code generators
