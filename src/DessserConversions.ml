@@ -174,7 +174,7 @@ let rec conv ?(depth=0) ~to_ l d =
         else
           let s' = conv_maybe_nullable ~to_ l (get_item i d) in
           let s = if i > 0 then append_string s (string ";") else s in
-          append_string s s' in
+          loop (append_string s s') (i + 1) in
       loop (string "(") 0
   | Mac Bool, Mac String ->
       if_ d ~then_:(string "true") ~else_:(string "false")
