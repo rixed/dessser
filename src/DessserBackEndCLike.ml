@@ -96,17 +96,21 @@ struct
    * dessser's scope. Yet, we need to pass [E.fold] a valid environment so it
    * can compute any expression's type. *)
   let get_depends compunit e =
-    let l =
+    (* Then we want to find out which of the identifiers refers to any non
+     * external identifiers. *)
+    let ext =
+      (* Start with external identifiers: *)
       List.map (fun (name, typ) ->
         E.Ops.ext_identifier name, typ
       ) compunit.U.external_identifiers in
-    (* Note: [E.fold] will enrich the environment with locally defined
-     *       identifiers *)
-    E.fold [] l (fun lst l -> function
+    let init_l = U.environment compunit in
+    E.fold [] (fun lst -> function
       | E0 (Identifier s) as e ->
           assert (s <> "") ;
-          if List.mem_assoc e l (* already defined *) ||
-             List.mem s lst (* already known to be undefined *) then (
+          if List.mem_assoc e ext (* already defined externally *) ||
+             List.mem s lst (* already known to be undefined *) ||
+             not (List.mem_assoc e init_l) (* identifier defined in [e] itself *)
+          then (
             lst
           ) else (
             if debug then

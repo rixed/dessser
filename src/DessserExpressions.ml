@@ -1,5 +1,6 @@
 open Batteries
 open Stdint
+
 open DessserTools
 open DessserFloatTools
 module T = DessserTypes
@@ -2180,83 +2181,137 @@ let expand_verbatim backend_id temps ins =
       ) temp ins
 
 (* depth last, pass the list of bound identifiers along the way: *)
-let rec fold u l f e =
+let rec fold u f e =
+  let u = f u e in
+  match e with
+  | E0 _ ->
+      u
+  | E0S (_, es) ->
+      List.fold_left (fun u e1 -> fold u f e1) u es
+  | E1 (_, e1) ->
+      fold u f e1
+  | E1S (_, e1, es) ->
+      let u = fold u f e1 in
+      List.fold_left (fun u e1 -> fold u f e1) u es
+  | E2 (Let _, e1, e2) ->
+      fold (fold u f e1) f e2
+  | E2 (_, e1, e2) ->
+      fold (fold u f e1) f e2
+  | E3 (_, e1, e2, e3) ->
+      fold (fold (fold u f e1) f e2) f e3
+  | E4 (_, e1, e2, e3, e4) ->
+      fold (fold (fold (fold u f e1) f e2) f e3) f e4
+
+let rec fold_env u l f e =
   let u = f u l e in
   match e with
   | E0 _ ->
       u
   | E0S (_, es) ->
-      List.fold_left (fun u e1 -> fold u l f e1) u es
+      List.fold_left (fun u e1 -> fold_env u l f e1) u es
   | E1 (Function (id, ts), e1) ->
       let l =
         Array.fold_lefti (fun l i t ->
           (E0 (Param (id, i)), t) :: l
         ) l ts in
-      fold u l f e1
+      fold_env u l f e1
   | E1 (_, e1) ->
-      fold u l f e1
+      fold_env u l f e1
   | E1S (_, e1, es) ->
-      let u = fold u l f e1 in
-      List.fold_left (fun u e1 -> fold u l f e1) u es
+      let u = fold_env u l f e1 in
+      List.fold_left (fun u e1 -> fold_env u l f e1) u es
   | E2 (Let s, e1, e2) ->
       let l' = (E0 (Identifier s), type_of l e1) :: l in
-      fold (fold u l f e1) l' f e2
+      fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
-      fold (fold u l f e1) l f e2
+      fold_env (fold_env u l f e1) l f e2
   | E3 (_, e1, e2, e3) ->
-      fold (fold (fold u l f e1) l f e2) l f e3
+      fold_env (fold_env (fold_env u l f e1) l f e2) l f e3
   | E4 (_, e1, e2, e3, e4) ->
-      fold (fold (fold (fold u l f e1) l f e2) l f e3) l f e4
+      fold_env (fold_env (fold_env (fold_env u l f e1) l f e2) l f e3) l f e4
 
-let iter l f e =
-  fold () l (fun () l e -> f l e) e
+let iter f e =
+  fold () (fun () e -> f e) e
+
+let iter_env l f e =
+  fold_env () l (fun () l e -> f l e) e
 
 (* depth first expression transformation: *)
-let rec map l f e =
+let rec map f e =
+  match e with
+  | E0 _ ->
+      f e
+  | E0S (op, es) ->
+      let es = List.map (map f) es in
+      f (E0S (op, es))
+  | E1 (op, e1) ->
+      let e1 = map f e1 in
+      f (E1 (op, e1))
+  | E1S (op, e1, es) ->
+      let e1 = map f e1
+      and es = List.map (map f) es in
+      f (E1S (op, e1, es))
+  | E2 (op, e1, e2) ->
+      let e1 = map f e1
+      and e2 = map f e2 in
+      f (E2 (op, e1, e2))
+  | E3 (op, e1, e2, e3) ->
+      let e1 = map f e1
+      and e2 = map f e2
+      and e3 = map f e3 in
+      f (E3 (op, e1, e2, e3))
+  | E4 (op, e1, e2, e3, e4) ->
+      let e1 = map f e1
+      and e2 = map f e2
+      and e3 = map f e3
+      and e4 = map f e4 in
+      f (E4 (op, e1, e2, e3, e4))
+
+let rec map_env l f e =
   match e with
   | E0 _ ->
       f l e
   | E0S (op, es) ->
-      let es = List.map (map l f) es in
+      let es = List.map (map_env l f) es in
       f l (E0S (op, es))
   | E1 (Function (id, ts), e1) ->
       let l =
         Array.fold_lefti (fun l i t ->
           (E0 (Param (id, i)), t) :: l
         ) l ts in
-      let e1 = map l f e1 in
+      let e1 = map_env l f e1 in
       f l (E1 (Function (id, ts), e1))
   | E1 (op, e1) ->
-      let e1 = map l f e1 in
+      let e1 = map_env l f e1 in
       f l (E1 (op, e1))
   | E1S (op, e1, es) ->
-      let e1 = map l f e1
-      and es = List.map (map l f) es in
+      let e1 = map_env l f e1
+      and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
   | E2 (Let s, e1, e2) ->
-      let e1 = map l f e1 in
+      let e1 = map_env l f e1 in
       let l = (E0 (Identifier s), type_of l e1) :: l in
-      let e2 = map l f e2 in
+      let e2 = map_env l f e2 in
       f l (E2 (Let s, e1, e2))
   | E2 (op, e1, e2) ->
-      let e1 = map l f e1
-      and e2 = map l f e2 in
+      let e1 = map_env l f e1
+      and e2 = map_env l f e2 in
       f l (E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
-      let e1 = map l f e1
-      and e2 = map l f e2
-      and e3 = map l f e3 in
+      let e1 = map_env l f e1
+      and e2 = map_env l f e2
+      and e3 = map_env l f e3 in
       f l (E3 (op, e1, e2, e3))
   | E4 (op, e1, e2, e3, e4) ->
-      let e1 = map l f e1
-      and e2 = map l f e2
-      and e3 = map l f e3
-      and e4 = map l f e4 in
+      let e1 = map_env l f e1
+      and e2 = map_env l f e2
+      and e3 = map_env l f e3
+      and e4 = map_env l f e4 in
       f l (E4 (op, e1, e2, e3, e4))
 
-let has_side_effect ?(l=[]) e =
+let has_side_effect e =
   try
-    iter l (fun _l e0 ->
+    iter (fun e0 ->
       match e0 with
       | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
@@ -2273,7 +2328,7 @@ let has_side_effect ?(l=[]) e =
 
 (* [l] is the stack of expr * type *)
 let rec type_check l e =
-  iter l (fun l e0 ->
+  iter_env l (fun l e0 ->
     let check_void l e =
       match type_of l e |> T.develop_user_types with
       | Void -> ()
@@ -2833,8 +2888,8 @@ let rec type_check l e =
    not (pass_type_check "(get-alt \"pejh\" (random-float))")
 *)
 
-let size_of_expr l e =
-  fold 0 l (fun n _l _e0 -> n + 1) e
+let size_of_expr e =
+  fold 0 (fun n _e0 -> n + 1) e
 
 let print_environment oc l =
   let p oc (e, t) =

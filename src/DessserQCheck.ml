@@ -519,7 +519,7 @@ let expression_gen =
   Gen.(sized_size (int_bound 3) (fun n -> expression_gen ([], n)))
 
 let size_of_expression e =
-  E.fold 0 [] (fun n _ _ -> succ n) e
+  E.fold 0 (fun n _ -> succ n) e
 
 (* TODO: try to shrink expressions by replacing terms with constants of the
  * same type *)
