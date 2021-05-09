@@ -539,6 +539,10 @@ let mn_of_t = function
   | Value mn -> mn
   | t -> invalid_arg ("mn_of_t for type "^ to_string t)
 
+let vtyp_of_t t =
+  let mn = mn_of_t t in
+  mn.vtyp
+
 let to_nullable = function
   | Value { vtyp ; nullable = false } ->
       Value { vtyp ; nullable = true }

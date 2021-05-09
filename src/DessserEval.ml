@@ -62,8 +62,108 @@ let to_int to_op e cst of_i128 =
   | exception Invalid_argument _ -> E.E1 (to_op, e)
   | n -> cst (of_i128 n)
 
+let peval_to_float e =
+  match e with
+  | E.E0 (Float _) -> e
+  | E0 (U128 n) -> float (Uint128.to_float n)
+  | _ ->
+      (match to_i128 e with
+      | exception _ -> to_float e
+      | n -> float (Int128.to_float n))
+
 let nullable_of_nan f =
   if f <> f then null (Mac Float) else not_null (float f)
+
+let arith2'' op e1 e2 op_i128 cst =
+  (* All but U128 ints can be safely converted into I128.
+   * And non const U128 won't be converted either, so let's just leave this
+   * one aside: *)
+  try
+    match e1, e2 with
+    | E.E0 (U128 _), _
+    | _, E.E0 (U128 _) ->
+        invalid_arg "arith2''"
+    | _ ->
+        let n1, n2 = to_i128 e1, to_i128 e2 in
+        cst (op_i128 n1 n2)
+  with Invalid_argument _ ->
+    E.E2 (op, e1, e2)
+
+let arith2' op e1 e2 op_i128 op_u128 =
+  match e1, e2 with
+  | E.E0 (U8 _), _ -> arith2'' op e1 e2 op_i128 (u8 % Int128.to_uint8)
+  | E0 (U16 _), _ -> arith2'' op e1 e2 op_i128 (u16 % Int128.to_uint16)
+  | E0 (U24 _), _ -> arith2'' op e1 e2 op_i128 (u24 % Int128.to_uint24)
+  | E0 (U32 _), _ -> arith2'' op e1 e2 op_i128 (u32 % Int128.to_uint32)
+  | E0 (U40 _), _ -> arith2'' op e1 e2 op_i128 (u40 % Int128.to_uint40)
+  | E0 (U48 _), _ -> arith2'' op e1 e2 op_i128 (u48 % Int128.to_uint48)
+  | E0 (U56 _), _ -> arith2'' op e1 e2 op_i128 (u56 % Int128.to_uint56)
+  | E0 (U64 _), _ -> arith2'' op e1 e2 op_i128 (u64 % Int128.to_uint64)
+  | E0 (U128 a), E.E0 (U128 b) -> u128 (op_u128 a b)
+  | E0 (I8 _), _ -> arith2'' op e1 e2 op_i128 (i8 % Int128.to_int8)
+  | E0 (I16 _), _ -> arith2'' op e1 e2 op_i128 (i16 % Int128.to_int16)
+  | E0 (I24 _), _ -> arith2'' op e1 e2 op_i128 (i24 % Int128.to_int24)
+  | E0 (I32 _), _ -> arith2'' op e1 e2 op_i128 (i32 % Int128.to_int32)
+  | E0 (I40 _), _ -> arith2'' op e1 e2 op_i128 (i40 % Int128.to_int40)
+  | E0 (I48 _), _ -> arith2'' op e1 e2 op_i128 (i48 % Int128.to_int48)
+  | E0 (I56 _), _ -> arith2'' op e1 e2 op_i128 (i56 % Int128.to_int56)
+  | E0 (I64 _), _ -> arith2'' op e1 e2 op_i128 (i64 % Int128.to_int64)
+  | E0 (I128 _), _ -> arith2'' op e1 e2 op_i128 (i128 % Int128.to_int128)
+  | _ -> E.E2 (op, e1, e2)
+
+let arith2 op e1 e2 =
+  match op with
+  | E.Add -> arith2' op e1 e2 Int128.add Uint128.add
+  | Sub -> arith2' op e1 e2 Int128.sub Uint128.sub
+  | Mul -> arith2' op e1 e2 Int128.mul Uint128.mul
+  | _ -> E.E2 (op, e1, e2)
+
+let arith1'' op e op_i128 cst =
+  try
+    match e with
+    | E.E0 (U128 _) ->
+        invalid_arg "arith2''"
+    | _ ->
+        cst (op_i128 (to_i128 e))
+  with Invalid_argument _ ->
+    E.E1 (op, e)
+
+let arith1' op e op_i128 op_u128 =
+  match e with
+  | E.E0 (U8 _) -> arith1'' op e op_i128 (u8 % Int128.to_uint8)
+  | E0 (U16 _) -> arith1'' op e op_i128 (u16 % Int128.to_uint16)
+  | E0 (U24 _) -> arith1'' op e op_i128 (u24 % Int128.to_uint24)
+  | E0 (U32 _) -> arith1'' op e op_i128 (u32 % Int128.to_uint32)
+  | E0 (U40 _) -> arith1'' op e op_i128 (u40 % Int128.to_uint40)
+  | E0 (U48 _) -> arith1'' op e op_i128 (u48 % Int128.to_uint48)
+  | E0 (U56 _) -> arith1'' op e op_i128 (u56 % Int128.to_uint56)
+  | E0 (U64 _) -> arith1'' op e op_i128 (u64 % Int128.to_uint64)
+  | E0 (U128 a) -> u128 (op_u128 a)
+  | E0 (I8 _) -> arith1'' op e op_i128 (i8 % Int128.to_int8)
+  | E0 (I16 _) -> arith1'' op e op_i128 (i16 % Int128.to_int16)
+  | E0 (I24 _) -> arith1'' op e op_i128 (i24 % Int128.to_int24)
+  | E0 (I32 _) -> arith1'' op e op_i128 (i32 % Int128.to_int32)
+  | E0 (I40 _) -> arith1'' op e op_i128 (i40 % Int128.to_int40)
+  | E0 (I48 _) -> arith1'' op e op_i128 (i48 % Int128.to_int48)
+  | E0 (I56 _) -> arith1'' op e op_i128 (i56 % Int128.to_int56)
+  | E0 (I64 _) -> arith1'' op e op_i128 (i64 % Int128.to_int64)
+  | E0 (I128 _) -> arith1'' op e op_i128 (i128 % Int128.to_int128)
+  | _ -> E.E1 (op, e)
+
+let arith1 op e =
+  match op with
+  | E.Neg -> arith1' op e Int128.neg Uint128.neg
+  | _ -> E.E1 (op, e)
+
+let is_zero e =
+  e = E.E0 (Float 0.) ||
+  (try E.to_cst_int e = 0
+  with _ -> false)
+
+let is_one e =
+  e = E.E0 (Float 1.) ||
+  (try E.to_cst_int e = 1
+  with _ -> false)
 
 let can_inline _e =
   true (* TODO *)
@@ -173,6 +273,8 @@ let rec peval l e =
       | ToU56, e -> to_uint ToU56 e u56 Uint56.of_uint128
       | ToU64, e -> to_uint ToU64 e u64 Uint64.of_uint128
       | ToU128, e -> to_uint ToU128 e u128 Uint128.of_uint128
+      | ToFloat, e -> peval_to_float e
+      | Neg, e1 -> arith1 Neg e1
       | StringOfBytes, E0 (Bytes v) -> string (Bytes.to_string v)
       | Exp, E0 (Float n) -> float (exp n)
       | Log, E0 (Float n) -> nullable_of_nan (log n)
@@ -264,7 +366,20 @@ let rec peval l e =
           E2 (Let n, def, body))
   | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
-      (* TODO: Add, Sub etc *)
+      | Add, e1, e2 when is_zero e1 -> e2
+      | (Add | Sub), e1, e2 when is_zero e2 -> e1
+      | Sub, e1, e2 when is_zero e1 -> neg e2 |> p
+      | Mul, e1, e2 when is_one e1 -> e2
+      | Mul, e1, e2 when is_one e2 -> e1
+      | Mul, e1, _ when is_zero e1 -> e1
+      | Mul, _, e2 when is_zero e2 -> e2
+      | (Add | Sub | Mul as op), e1, e2 -> arith2 op e1 e2
+      | Div, E0 (Float a), E0 (Float b) ->
+          (try float (a /. b)
+          with Division_by_zero -> null (Mac Float))
+      | Div, e1, e2 ->
+          (try arith2' Div e1 e2 Int128.div Uint128.div
+          with Division_by_zero -> null (T.vtyp_of_t (E.type_of l e1)))
       | Join, (E0 (String s1) as e1), (E0S (MakeVec, ss) as e2) ->
           (try
             (* TODO: we could join only some of the strings *)
