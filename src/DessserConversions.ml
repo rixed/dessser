@@ -241,20 +241,27 @@ let rec conv ?(depth=0) ~to_ l d =
       failwith
 
 and conv_list ?(depth=0) length_e l src =
-  (* We use a one entry vector as a ref cell: *)
+  (* [dst] is a ref cell storing the build up string: *)
   let_ ~name:"dst_" ~l (make_vec [ string "[" ]) (fun _l dst ->
-    let set v = set_vec (u32_of_int 0) dst v
-    and get () = get_vec (u32_of_int 0) dst in
+    let set v = set_ref dst v
+    and get () = get_ref dst in
     let idx_t = T.(Value (required (Mac U32))) in
     let cond =
       E.func1 ~l idx_t (fun _l i -> lt i length_e)
     and body =
       E.func1 ~l idx_t (fun _l i ->
-        let s =
-          conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Mac String))
-                              l (get_vec i src) in
-        seq [ set (append_string (get ()) s) ;
-              add i (u32_of_int 1) ]) in
+        seq [
+          (* Append a delimiter? *)
+          if_ (gt i (u32_of_int 0))
+            ~then_:(set (append_string (get ()) (string ";")))
+            ~else_:nop ;
+          (* Next value: *)
+          (let s =
+            conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Mac String))
+                                l (get_vec i src) in
+          set (append_string (get ()) s)) ;
+          (* Loop: *)
+          add i (u32_of_int 1) ]) in
     seq [ ignore_ (loop_while ~init:(u32_of_int 0) ~cond ~body) ;
           set (append_string (get ()) (string "]")) ;
           get () ])
