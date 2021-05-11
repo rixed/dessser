@@ -2517,6 +2517,7 @@ let rec type_check l e =
     | E1 (Force _, e) ->
         check_nullable true l e
     | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
+        (* TODO: For Eq, also accept sets? *)
         check_comparable l e1 ;
         check_same_types l e1 e2
     | E2 ((Add | Sub | Mul), e1, e2) ->
