@@ -136,7 +136,7 @@ let may_set_nullbit bit mn0 path l stk =
   | _ ->
       (* This is an item of some compound (top level or inner), which have a
        * nullbit if it is nullable: *)
-      if (T.type_of_path mn0 path).nullable then
+      if T.(type_of_path mn0 path |> develop_maybe_nullable).nullable then
         set_nullbit_to bit l stk
       else
         stk
@@ -149,7 +149,7 @@ let may_skip_nullbit mn0 path l p_stk =
       assert (not mn0.T.nullable) ;
       p_stk
   | _ ->
-      if (T.type_of_path mn0 path).nullable then
+      if T.(type_of_path mn0 path |> develop_maybe_nullable).nullable then
         E.with_sploded_pair ~l "may_skip_nullbit" p_stk (fun l p stk ->
           let stk = skip_nullbit l stk in
           pair p stk)
@@ -164,21 +164,24 @@ struct
      * with more fields, including nullable ones, and cannot tell in the
      * ringbuffer which parent a tuple is originating from. *)
     true,
-    Array.count_matching (fun mn -> mn.T.nullable) mns
+    Array.count_matching (fun mn ->
+      T.(develop_maybe_nullable mn).nullable) mns
 
   let rec_bits mns =
     let mns = tuple_typs_of_record mns in
     tup_bits mns
 
   let vec_bits dim mn =
+    let mn = T.develop_maybe_nullable mn in
     mn.T.nullable,
     if mn.T.nullable then dim else 0
 
   let lst_bits mn n =
+    let mn = T.develop_maybe_nullable mn in
     mn.T.nullable,
     if mn.T.nullable then n else u32_of_int 0
 
-  let of_type = function
+  let rec of_type = function
     | T.Vec (dim, mn) ->
         vec_bits dim mn
     | Lst _ ->
@@ -189,6 +192,8 @@ struct
         rec_bits mns
     | Sum _ ->
         true, 1 (* Although encoding also includes the label *)
+    | Usr { def ; _ } ->
+        of_type def
     | _ ->
         false, 0
 
@@ -498,7 +503,7 @@ struct
                    nullmask_bytes)
     and without_nullmask () =
       ConstSize word_size in
-    match (T.type_of_path mn0 path).vtyp with
+    match T.(type_of_path mn0 path |> develop_maybe_nullable).vtyp with
     | Lst vt ->
         (* If the items are not nullable then there is no nullmask. *)
         if vt.nullable then
