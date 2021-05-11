@@ -1394,13 +1394,17 @@ struct
         ppi p.P.def "partial_sort %s ;" n1 ;
         "()"
     | E.E2 (ChopBegin, lst, len) ->
+        let m = mod_name (E.type_of l len) in
         let lst = print ?name emit p l lst
         and len = print emit p l len in
-        emit ?name p l e (fun oc -> pp oc "lst_lchop %s %s" lst len)
+        emit ?name p l e (fun oc ->
+          pp oc "lst_lchop %s (%s.to_int %s)" lst m len)
     | E.E2 (ChopEnd, lst, len) ->
+        let m = mod_name (E.type_of l len) in
         let lst = print ?name emit p l lst
         and len = print emit p l len in
-        emit ?name p l e (fun oc -> pp oc "lst_rchop %s %s" lst len)
+        emit ?name p l e (fun oc ->
+          pp oc "lst_rchop %s (%s.to_int %s)" lst m len)
     | E.E2 (ScaleWeights, set, d) ->
         let set = print emit p l set
         and d = print emit p l d
