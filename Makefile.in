@@ -225,6 +225,7 @@ LINKED_FOR_TESTS = \
 	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserConversions.ml \
 	src/DessserEval.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \

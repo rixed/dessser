@@ -3,6 +3,7 @@ open Stdint
 
 open DessserTools
 open DessserFloatTools
+module C = DessserConversions
 module T = DessserTypes
 
 module E = DessserExpressions
@@ -62,14 +63,14 @@ let to_int to_op e cst of_i128 =
   | exception Invalid_argument _ -> E.E1 (to_op, e)
   | n -> cst (of_i128 n)
 
+let float_of_num = function
+  | E.E0 (Float v) -> v
+  | E0 (U128 n) -> Uint128.to_float n
+  | e -> Int128.to_float (to_i128 e)
+
 let peval_to_float e =
-  match e with
-  | E.E0 (Float _) -> e
-  | E0 (U128 n) -> float (Uint128.to_float n)
-  | _ ->
-      (match to_i128 e with
-      | exception _ -> to_float e
-      | n -> float (Int128.to_float n))
+  try float (float_of_num e)
+  with _ -> to_float e
 
 let nullable_of_nan f =
   if f <> f then null (Mac Float) else not_null (float f)
@@ -255,6 +256,46 @@ let rec peval l e =
           qword (Uint64.of_int64 (BatInt64.bits_of_float f))
       | Not, E0 (Bool b) -> bool (not b)
       | Not, E1 (Not, e) -> e
+      (* Shorten cascades of converters: *)
+      | ToI8, E1 ((ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
+                   ToI64 | ToI128), e) -> E1 (ToI8, e)
+      | ToI16, E1 ((ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToI16, e)
+      | ToI24, E1 ((ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToI24, e)
+      | ToI32, E1 ((ToI32 | ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToI32, e)
+      | ToI40, E1 ((ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToI40, e)
+      | ToI48, E1 ((ToI48 | ToI56 | ToI64 | ToI128), e) -> E1 (ToI48, e)
+      | ToI56, E1 ((ToI56 | ToI64 | ToI128), e) -> E1 (ToI56, e)
+      | ToI64, E1 ((ToI64 | ToI128), e) -> E1 (ToI64, e)
+      | ToI128, E1 (ToI128, e) -> E1 (ToI128, e)
+      | ToU8, E1 ((ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 |
+                   ToU64 | ToU128 |
+                   ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
+                   ToI64 | ToI128), e) -> E1 (ToU8, e)
+      | ToU16, E1 ((ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 |
+                    ToU64 | ToU128 |
+                    ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToU16, e)
+      | ToU24, E1 ((ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
+                    ToI32 | ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToU24, e)
+      | ToU32, E1 ((ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
+                    ToI40 | ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToU32, e)
+      | ToU40, E1 ((ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
+                    ToI48 | ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToU40, e)
+      | ToU48, E1 ((ToU48 | ToU56 | ToU64 | ToU128 |
+                    ToI56 |
+                    ToI64 | ToI128), e) -> E1 (ToU48, e)
+      | ToU56, E1 ((ToU56 | ToU64 | ToU128 |
+                    ToI64 | ToI128), e) -> E1 (ToU56, e)
+      | ToU64, E1 ((ToU64 | ToU128 | ToI128), e) -> E1 (ToU64, e)
+      | ToU128, E1 (ToU128, e) -> E1 (ToU128, e)
+      (* Evaluate conversions *)
       | ToI8, e -> to_int ToI8 e i8 Int8.of_int128
       | ToI16, e -> to_int ToI16 e i16 Int16.of_int128
       | ToI24, e -> to_int ToI24 e i24 Int24.of_int128
@@ -303,6 +344,8 @@ let rec peval l e =
           u32_of_int (List.length es)
       | Force _, E1 (NotNull, e) -> e
       | Assert, E0 (Bool true) -> nop
+      | BitNot, e ->
+          arith1' BitNot e Int128.lognot Uint128.lognot
       | op, e1 -> E1 (op, e1))
   | E1S (op, e1, es) ->
       (match op, p e1, List.map p es with
@@ -374,12 +417,56 @@ let rec peval l e =
       | Mul, e1, _ when is_zero e1 -> e1
       | Mul, _, e2 when is_zero e2 -> e2
       | (Add | Sub | Mul as op), e1, e2 -> arith2 op e1 e2
-      | Div, E0 (Float a), E0 (Float b) ->
-          (try float (a /. b)
+      | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
+          (try float (if op = Div then a /. b else Stdlib.Float.rem a b)
           with Division_by_zero -> null (Mac Float))
-      | Div, e1, e2 ->
-          (try arith2' Div e1 e2 Int128.div Uint128.div
+      | (Div | Rem as op), e1, e2 ->
+          (try arith2' op e1 e2
+                       (if op = Div then Int128.div else Int128.rem)
+                       (if op = Div then Uint128.div else Uint128.rem)
           with Division_by_zero -> null (T.vtyp_of_t (E.type_of l e1)))
+      | Pow, E0 (Float a), E0 (Float b) ->
+          nullable_of_nan (a ** b)
+      | Pow, E0 (I32 a), E0 (I32 b) ->
+          (try not_null (i32 (BatInt32.pow a b))
+          with Invalid_argument _ -> null (Mac I32))
+      | Pow, E0 (I64 a), E0 (I64 b) ->
+          (try not_null (i64 (BatInt64.pow a b))
+          with Invalid_argument _ -> null (Mac I64))
+      | Pow, e1, e2 ->
+          (match float_of_num e1, float_of_num e2 with
+          | exception _ ->
+              E2 (Pow, e1, e2)
+          | a, b ->
+              let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
+              (try C.conv ~to_ l (float (a ** b))
+              with _ -> null to_))
+      | BitAnd, e1, e2 ->
+          arith2' BitAnd e1 e2 Int128.logand Uint128.logand
+      | BitOr, e1, e2 ->
+          arith2' BitOr e1 e2 Int128.logor Uint128.logor
+      | BitXor, e1, e2 ->
+          arith2' BitXor e1 e2 Int128.logxor Uint128.logxor
+      | LeftShift, E0 (U128 x), E0 (U8 n) ->
+          let n = Uint8.to_int n in
+          u128 (Uint128.shift_left x n)
+      | LeftShift, e1, (E0 (U8 n) as e2) ->
+          (match to_i128 e1 with
+          | exception _ -> E2 (LeftShift, e1, e2)
+          | x ->
+              let n = Uint8.to_int n in
+              let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
+              C.conv ~to_ l (i128 (Int128.shift_left x n)) |> p)
+      | RightShift, E0 (U128 x), E0 (U8 n) ->
+          let n = Uint8.to_int n in
+          u128 (Uint128.shift_right x n)
+      | RightShift, e1, (E0 (U8 n) as e2) ->
+          (match to_i128 e1 with
+          | exception _ -> E2 (RightShift, e1, e2)
+          | x ->
+              let n = Uint8.to_int n in
+              let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
+              C.conv ~to_ l (i128 (Int128.shift_right x n)) |> p)
       | Join, (E0 (String s1) as e1), (E0S (MakeVec, ss) as e2) ->
           (try
             (* TODO: we could join only some of the strings *)
