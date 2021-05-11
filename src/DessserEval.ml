@@ -395,7 +395,7 @@ let rec peval l e =
           if String.length s = 0 then null (Mac Char)
           else (match E.to_cst_int idx with
           | exception _ -> E2 (CharOfString, idx, str)
-          | idx when idx < String.length s -> char s.[idx]
+          | idx when idx < String.length s -> not_null (char s.[idx])
           | _ -> E2 (CharOfString, idx, str))
       | Eq, E0 Null _, E0 Null _
       | Eq, E0 (EndOfList _), E0 (EndOfList _)
