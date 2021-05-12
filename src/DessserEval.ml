@@ -418,13 +418,23 @@ let rec peval l e =
       | Mul, _, e2 when is_zero e2 -> e2
       | (Add | Sub | Mul as op), e1, e2 -> arith2 op e1 e2
       | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
-          (try float (if op = Div then a /. b else Stdlib.Float.rem a b)
+          (try
+            let v = if op = Div then a /. b else Stdlib.Float.rem a b in
+            not_null (float v)
           with Division_by_zero -> null (Base Float))
       | (Div | Rem as op), e1, e2 ->
-          (try arith2' op e1 e2
-                       (if op = Div then Int128.div else Int128.rem)
-                       (if op = Div then Uint128.div else Uint128.rem)
-          with Division_by_zero -> null (T.value_of_t (E.type_of l e1)))
+          (match arith2' op e1 e2
+                         (if op = Div then Int128.div else Int128.rem)
+                         (if op = Div then Uint128.div else Uint128.rem) with
+          | exception Division_by_zero ->
+              (* Tried to compute, but could not: *)
+              null (T.value_of_t (E.type_of l e1))
+          | E2 ((Div | Rem), _, _) as e ->
+              (* Could not replace: keep as is *)
+              e
+          | e ->
+              (* Did replace by the result, make it nullable: *)
+              not_null e)
       | Pow, E0 (Float a), E0 (Float b) ->
           nullable_of_nan (a ** b)
       | Pow, E0 (I32 a), E0 (I32 b) ->
