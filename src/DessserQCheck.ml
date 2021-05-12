@@ -175,61 +175,49 @@ let shrink_mac_type mt =
   loop to_simplest
 
 let rec shrink_value_type =
+  let open Iter in
   let vt_of_mn mn = mn.T.typ in
-  let shrink_fields mns make_typ f =
-    Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
-    let shrink_mns =
-      let shrink (fn, mn) =
-        Iter.map (fun mn -> fn, mn) (shrink_maybe_nullable mn) in
-      Shrink.filter (fun mns -> Array.length mns > 1)
-        (Shrink.array ~shrink) mns |>
-      Iter.map make_typ in
-    shrink_mns f in
+  let shrink_fields f =
+    (Shrink.pair Shrink.nil shrink_maybe_nullable) f in
   function
-  | T.Void ->
-      Iter.empty
+  | T.Unknown | T.Ext _ | T.Usr _  | T.Void ->
+      empty
   | T.Base mt ->
-      (fun f ->
-        shrink_mac_type mt (fun mt -> f (T.Base mt)))
-  | T.Usr _ ->
-      Iter.empty
+      shrink_mac_type mt >|= T.base
   | T.Vec (dim, mn) ->
-      (fun f ->
-        shrink_maybe_nullable mn (fun mn ->
-          f mn.typ ;
-          f (T.Vec (dim, mn))))
+      let smn = shrink_maybe_nullable mn in
+      (smn >|= vt_of_mn) <+> (smn >|= T.vec dim)
   | T.Lst mn ->
-      (fun f ->
-        shrink_maybe_nullable mn (fun mn ->
-          f (T.Lst mn) ;
-          f mn.typ))
+      let smn = shrink_maybe_nullable mn in
+      (smn >|= vt_of_mn) <+> (smn >|= T.lst)
   | T.Set (st, mn) ->
-      (fun f ->
-        shrink_maybe_nullable mn (fun mn ->
-          f (T.Set (st, mn)) ;
-          f mn.typ))
+      let smn = shrink_maybe_nullable mn in
+      (smn >|= vt_of_mn) <+> (smn >|= T.set st)
   | T.Tup mns ->
-      (fun f ->
-        Array.iter (fun mn -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
-        let shrink_mns =
-          Shrink.filter (fun mns -> Array.length mns > 1)
-            (Shrink.array ~shrink:shrink_maybe_nullable) mns |>
-          Iter.map (fun mns -> T.Tup mns) in
-        shrink_mns f)
+      (of_array mns >|= vt_of_mn)
+       <+>
+      (Shrink.array ~shrink:shrink_maybe_nullable mns |>
+        filter (fun mns -> Array.length mns > 1) >|= T.tup)
   | T.Rec mns ->
-      shrink_fields mns (fun mns -> T.Rec mns)
+      (of_array mns >|= vt_of_mn % snd)
+       <+>
+      (Shrink.array ~shrink:shrink_fields mns |>
+        filter (fun mns -> Array.length mns > 1) >|= T.record)
   | T.Sum mns ->
-      shrink_fields mns (fun mns -> T.Sum mns)
+      (of_array mns >|= vt_of_mn % snd)
+       <+>
+      (Shrink.array ~shrink:shrink_fields mns |>
+        filter (fun mns -> Array.length mns > 1) >|= T.sum)
   | T.Map (k, v) ->
-      (fun f ->
-        shrink_maybe_nullable k (f % vt_of_mn) ;
-        shrink_maybe_nullable v (f % vt_of_mn) ;
-        let shrink_kv =
-          (Shrink.pair shrink_maybe_nullable shrink_maybe_nullable) (k, v) |>
-          Iter.map (fun (k, v) -> T.Map (k, v)) in
-        shrink_kv f)
+      let sk = shrink_maybe_nullable k in
+      let sv = shrink_maybe_nullable v in
+      (sk >|= vt_of_mn) <+> (sv >|= vt_of_mn)
+        <+>
+      (sk >|= fun k -> T.map k v)
+        <+>
+      (sv >|= fun v -> T.map k v)
   | _ ->
-      Iter.empty
+      empty
 
 and shrink_maybe_nullable mn =
   let vt = mn.typ in
