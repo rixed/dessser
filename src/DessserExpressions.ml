@@ -40,7 +40,7 @@ type e0 =
    * name is used verbatim by the backend and must therefore correspond to a
    * valid object. *)
   | ExtIdentifier of string
-  | Null of T.value_type
+  | Null of T.value
   | EndOfList of T.t (* T.t being the type of list items *)
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
   | Now
@@ -414,7 +414,7 @@ type t =
 let rec e0_eq e1 e2 =
   match e1, e2 with
   | Null vt1, Null vt2 ->
-      T.value_type_eq vt1 vt2
+      T.value_eq vt1 vt2
   | EndOfList t1, EndOfList t2 ->
       T.eq t1 t2
   | EmptySet t1, EmptySet t2 ->
@@ -544,53 +544,53 @@ let rec default_value ?(allow_null=true) = function
       else
         default_value ~allow_null { vtyp ; nullable = false }
   | { vtyp = T.Unknown ; _ }
-  | { vtyp = T.Ext _ ; _ } ->
+  | { vtyp = Ext _ ; _ } ->
       invalid_arg "default_value"
-  | { vtyp = T.Unit ; _ } ->
+  | { vtyp = Base Unit ; _ } ->
       E0 Unit
-  | { vtyp = Mac Float ; _ } ->
+  | { vtyp = Base Float ; _ } ->
       E0 (Float 0.)
-  | { vtyp = Mac String ; _ } ->
+  | { vtyp = Base String ; _ } ->
       E0 (String "")
-  | { vtyp = Mac Bool ; _ } ->
+  | { vtyp = Base Bool ; _ } ->
       E0 (Bool false)
-  | { vtyp = Mac Char ; _ } ->
+  | { vtyp = Base Char ; _ } ->
       E0 (Char '\000')
-  | { vtyp = Mac I8 ; _ } ->
+  | { vtyp = Base I8 ; _ } ->
       E0 (I8 Int8.zero)
-  | { vtyp = Mac I16 ; _ } ->
+  | { vtyp = Base I16 ; _ } ->
       E0 (I16 Int16.zero)
-  | { vtyp = Mac I24 ; _ } ->
+  | { vtyp = Base I24 ; _ } ->
       E0 (I24 Int24.zero)
-  | { vtyp = Mac I32 ; _ } ->
+  | { vtyp = Base I32 ; _ } ->
       E0 (I32 Int32.zero)
-  | { vtyp = Mac I40 ; _ } ->
+  | { vtyp = Base I40 ; _ } ->
       E0 (I40 Int40.zero)
-  | { vtyp = Mac I48 ; _ } ->
+  | { vtyp = Base I48 ; _ } ->
       E0 (I48 Int48.zero)
-  | { vtyp = Mac I56 ; _ } ->
+  | { vtyp = Base I56 ; _ } ->
       E0 (I56 Int56.zero)
-  | { vtyp = Mac I64 ; _ } ->
+  | { vtyp = Base I64 ; _ } ->
       E0 (I64 Int64.zero)
-  | { vtyp = Mac I128 ; _ } ->
+  | { vtyp = Base I128 ; _ } ->
       E0 (I128 Int128.zero)
-  | { vtyp = Mac U8 ; _ } ->
+  | { vtyp = Base U8 ; _ } ->
       E0 (U8 Uint8.zero)
-  | { vtyp = Mac U16 ; _ } ->
+  | { vtyp = Base U16 ; _ } ->
       E0 (U16 Uint16.zero)
-  | { vtyp = Mac U24 ; _ } ->
+  | { vtyp = Base U24 ; _ } ->
       E0 (U24 Uint24.zero)
-  | { vtyp = Mac U32 ; _ } ->
+  | { vtyp = Base U32 ; _ } ->
       E0 (U32 Uint32.zero)
-  | { vtyp = Mac U40 ; _ } ->
+  | { vtyp = Base U40 ; _ } ->
       E0 (U40 Uint40.zero)
-  | { vtyp = Mac U48 ; _ } ->
+  | { vtyp = Base U48 ; _ } ->
       E0 (U48 Uint48.zero)
-  | { vtyp = Mac U56 ; _ } ->
+  | { vtyp = Base U56 ; _ } ->
       E0 (U56 Uint56.zero)
-  | { vtyp = Mac U64 ; _ } ->
+  | { vtyp = Base U64 ; _ } ->
       E0 (U64 Uint64.zero)
-  | { vtyp = Mac U128 ; _ } ->
+  | { vtyp = Base U128 ; _ } ->
       E0 (U128 Uint128.zero)
   | { vtyp = Usr nn ; _ } ->
       default_value ~allow_null { vtyp = nn.def ; nullable = false }
@@ -629,7 +629,7 @@ let rec default_value ?(allow_null=true) = function
   | { vtyp = Set (Heap, mn) ; _ } ->
       let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param (0, 0)))) ;
                             E1 (Ignore, (E0 (Param (0, 1)))) ]) in
-      E1 (Heap, E1 (Function (0, [| T.Value mn ; T.Value mn |]), cmp))
+      E1 (Heap, E1 (Function (0, [| T.Data mn ; T.Data mn |]), cmp))
   | { vtyp = Set (Top, mn) ; _ } ->
       let size = E0 (U8 Uint8.one) in
       let max_size = size
@@ -654,7 +654,7 @@ let backend_of_string s =
 
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Null vt -> "null "^ String.quote (IO.to_string T.print_value_type vt)
+  | Null vt -> "null "^ String.quote (IO.to_string T.print_value vt)
   | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
   | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
   | Now -> "now"
@@ -728,7 +728,7 @@ let string_of_e1 = function
   | GetField s -> "get-field "^ String.quote s
   | GetAlt s -> "get-alt "^ String.quote s
   | Construct (mns, i) ->
-      "construct "^ String.quote (IO.to_string T.print_value_type (Sum mns))
+      "construct "^ String.quote (IO.to_string T.print_value (Sum mns))
                   ^" "^ string_of_int i
   | Dump -> "dump"
   | Identity -> "identity"
@@ -1203,7 +1203,7 @@ struct
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
     | Lst [ Sym "null" ; Str vt ] ->
-        E0 (Null (T.value_type_of_string vt))
+        E0 (Null (T.value_of_string vt))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
         E0 (EndOfList (T.Parser.of_string t))
     | Lst [ Sym "empty-set" ; Str mn ] ->
@@ -1581,7 +1581,7 @@ struct
     [ Ops.u8 (Uint8.of_int 42) ] (expr "(u8 42)")
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
-    [ Ops.null T.(Mac String) ] (expr "(null \"string\")")
+    [ Ops.null T.(Base String) ] (expr "(null \"string\")")
     [ Ops.i56 (Int56.of_string "-36028797018963967") ] (expr "(i56 -36028797018963967)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
@@ -1634,17 +1634,17 @@ let rec type_of l e0 =
   match e0 with
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
-      T.void
+      T.Void
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
       raise (Struct_error (e0, "vector dimension must be > 1"))
   | E0S (MakeVec, (e0::_ as es)) ->
-      Value (T.make (Vec (List.length es, maybe_nullable_of l e0)))
+      Data (T.required (Vec (List.length es, maybe_nullable_of l e0)))
   | E0S (MakeLst mn, _) ->
-      Value (T.make (Lst mn))
+      Data (T.required (Lst mn))
   | E0S (MakeTup, es) ->
-      Value (T.make (Tup (List.map (maybe_nullable_of l) es |>
+      Data (T.required (Tup (List.map (maybe_nullable_of l) es |>
                             Array.of_list)))
   | E0S (MakeRec, es) ->
       let prev_name, mns =
@@ -1659,9 +1659,9 @@ let rec type_of l e0 =
         raise (Struct_error (e0,
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
-      Value (T.make (Rec (Array.of_list mns)))
+      Data (T.required (Rec (Array.of_list mns)))
   | E0S (MakeUsr n, _) ->
-      T.(Value (required (get_user_type n)))
+      T.(Data (required (get_user_type n)))
   | E0S (Verbatim (_, t), _) -> t
   | E1S (Apply, f, _) ->
       (match type_of l f with
@@ -1669,17 +1669,17 @@ let rec type_of l e0 =
       | t -> raise (Type_error (e0, f, t, "be a function")))
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | Value { vtyp = Tup mns ; nullable = false } ->
+      | Data { vtyp = Tup mns ; nullable = false } ->
           let num_n = Array.length mns in
           if n < 0 || n >= num_n then
             raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
                                      string_of_int num_n ^" items)")) ;
-          Value mns.(n)
+          Data mns.(n)
       | t ->
           raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 ((GetField name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | Value { vtyp = Rec mns ; nullable = false } ->
+      | Data { vtyp = Rec mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
               let msg =
@@ -1688,22 +1688,22 @@ let rec type_of l e0 =
                   (pretty_enum_print String.print) (Array.enum mns /@ fst) in
               raise (Struct_error (e0, msg))
           | mn ->
-              Value mn)
+              Data mn)
       | t ->
           raise (Type_error (e0, e1, t, "be a record")))
   | E1 ((GetAlt name), e1) ->
       (match type_of l e1 |> T.develop_user_types with
-      | Value { vtyp = Sum mns ; nullable = false } ->
+      | Data { vtyp = Sum mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
               raise (Struct_error (e0, "no alternative named "^ name))
-          | mn -> Value mn)
+          | mn -> Data mn)
       | t -> raise (Type_error (e0, e1, t, "be a union")))
-  | E1 ((Construct (mns, _)), _) -> Value (T.make (Sum mns))
+  | E1 ((Construct (mns, _)), _) -> Data (T.required (Sum mns))
   | E2 (Nth, _, e2) ->
       (match type_of l e2 |> T.develop_user_types with
-      | Value { vtyp = (Vec (_, mn) | Lst mn) ; nullable = false } ->
-          Value mn
+      | Data { vtyp = (Vec (_, mn) | Lst mn) ; nullable = false } ->
+          Data mn
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E1 (Comment _, e)
@@ -1721,9 +1721,9 @@ let rec type_of l e0 =
   | E1 (Force _, e) ->
       T.force (type_of l e)
   | E1 (IsNull, _) -> T.bool
-  | E0 (Null vt) -> Value { vtyp = vt ; nullable = true }
+  | E0 (Null vt) -> Data { vtyp = vt ; nullable = true }
   | E0 (EndOfList t) -> SList t
-  | E0 (EmptySet mn) -> Value (T.make (T.Set (Simple, mn)))
+  | E0 (EmptySet mn) -> Data (T.required (T.Set (Simple, mn)))
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
   | E0 RandomU8 -> T.u8
@@ -1753,14 +1753,14 @@ let rec type_of l e0 =
   | E0 (I56 _) -> T.i56
   | E0 (I64 _) -> T.i64
   | E0 (I128 _) -> T.i128
-  | E0 (Bit _) -> T.bit
-  | E0 (Size _) -> T.size
-  | E0 (Byte _) -> T.byte
-  | E0 (Word _) -> T.word
-  | E0 (DWord _) -> T.dword
-  | E0 (QWord _) -> T.qword
-  | E0 (OWord _) -> T.oword
-  | E0 (Bytes _) -> T.bytes
+  | E0 (Bit _) -> T.Bit
+  | E0 (Size _) -> T.Size
+  | E0 (Byte _) -> T.Byte
+  | E0 (Word _) -> T.Word
+  | E0 (DWord _) -> T.DWord
+  | E0 (QWord _) -> T.QWord
+  | E0 (OWord _) -> T.OWord
+  | E0 (Bytes _) -> T.Bytes
   | E2 (Gt, _, _) -> T.bool
   | E2 (Ge, _, _) -> T.bool
   | E2 (Eq, _, _) -> T.bool
@@ -1769,128 +1769,128 @@ let rec type_of l e0 =
   | E1 (StringOfChar, _)
   | E1 (StringOfInt, _) -> T.string
   | E1 (StringOfIp, _) -> T.string
-  | E1 (FloatOfString, _) -> T.(Value (optional (Mac Float)))
-  | E1 (U8OfString, _) -> T.(Value (optional (Mac U8)))
-  | E1 (U16OfString, _) -> T.(Value (optional (Mac U16)))
-  | E1 (U24OfString, _) -> T.(Value (optional (Mac U24)))
-  | E1 (U32OfString, _) -> T.(Value (optional (Mac U32)))
-  | E1 (U40OfString, _) -> T.(Value (optional (Mac U40)))
-  | E1 (U48OfString, _) -> T.(Value (optional (Mac U48)))
-  | E1 (U56OfString, _) -> T.(Value (optional (Mac U56)))
-  | E1 (U64OfString, _) -> T.(Value (optional (Mac U64)))
-  | E1 (U128OfString, _) -> T.(Value (optional (Mac U128)))
-  | E1 (I8OfString, _) -> T.(Value (optional (Mac I8)))
-  | E1 (I16OfString, _) -> T.(Value (optional (Mac I16)))
-  | E1 (I24OfString, _) -> T.(Value (optional (Mac I24)))
-  | E1 (I32OfString, _) -> T.(Value (optional (Mac I32)))
-  | E1 (I40OfString, _) -> T.(Value (optional (Mac I40)))
-  | E1 (I48OfString, _) -> T.(Value (optional (Mac I48)))
-  | E1 (I56OfString, _) -> T.(Value (optional (Mac I56)))
-  | E1 (I64OfString, _) -> T.(Value (optional (Mac I64)))
-  | E1 (I128OfString, _) -> T.(Value (optional (Mac I128)))
-  | E1 (CharOfPtr, _) -> T.pair T.char T.dataptr
-  | E1 (FloatOfPtr, _) -> T.pair T.float T.dataptr
-  | E1 (U8OfPtr, _) -> T.pair T.u8 T.dataptr
-  | E1 (U16OfPtr, _) -> T.pair T.u16 T.dataptr
-  | E1 (U24OfPtr, _) -> T.pair T.u24 T.dataptr
-  | E1 (U32OfPtr, _) -> T.pair T.u32 T.dataptr
-  | E1 (U40OfPtr, _) -> T.pair T.u40 T.dataptr
-  | E1 (U48OfPtr, _) -> T.pair T.u48 T.dataptr
-  | E1 (U56OfPtr, _) -> T.pair T.u56 T.dataptr
-  | E1 (U64OfPtr, _) -> T.pair T.u64 T.dataptr
-  | E1 (U128OfPtr, _) -> T.pair T.u128 T.dataptr
-  | E1 (I8OfPtr, _) -> T.pair T.i8 T.dataptr
-  | E1 (I16OfPtr, _) -> T.pair T.i16 T.dataptr
-  | E1 (I24OfPtr, _) -> T.pair T.i24 T.dataptr
-  | E1 (I32OfPtr, _) -> T.pair T.i32 T.dataptr
-  | E1 (I40OfPtr, _) -> T.pair T.i40 T.dataptr
-  | E1 (I48OfPtr, _) -> T.pair T.i48 T.dataptr
-  | E1 (I56OfPtr, _) -> T.pair T.i56 T.dataptr
-  | E1 (I64OfPtr, _) -> T.pair T.i64 T.dataptr
-  | E1 (I128OfPtr, _) -> T.pair T.i128 T.dataptr
+  | E1 (FloatOfString, _) -> T.nfloat
+  | E1 (U8OfString, _) -> T.nu8
+  | E1 (U16OfString, _) -> T.nu16
+  | E1 (U24OfString, _) -> T.nu24
+  | E1 (U32OfString, _) -> T.nu32
+  | E1 (U40OfString, _) -> T.nu40
+  | E1 (U48OfString, _) -> T.nu48
+  | E1 (U56OfString, _) -> T.nu56
+  | E1 (U64OfString, _) -> T.nu64
+  | E1 (U128OfString, _) -> T.nu128
+  | E1 (I8OfString, _) -> T.ni8
+  | E1 (I16OfString, _) -> T.ni16
+  | E1 (I24OfString, _) -> T.ni24
+  | E1 (I32OfString, _) -> T.ni32
+  | E1 (I40OfString, _) -> T.ni40
+  | E1 (I48OfString, _) -> T.ni48
+  | E1 (I56OfString, _) -> T.ni56
+  | E1 (I64OfString, _) -> T.ni64
+  | E1 (I128OfString, _) -> T.ni128
+  | E1 (CharOfPtr, _) -> T.pair T.char T.DataPtr
+  | E1 (FloatOfPtr, _) -> T.pair T.float T.DataPtr
+  | E1 (U8OfPtr, _) -> T.pair T.u8 T.DataPtr
+  | E1 (U16OfPtr, _) -> T.pair T.u16 T.DataPtr
+  | E1 (U24OfPtr, _) -> T.pair T.u24 T.DataPtr
+  | E1 (U32OfPtr, _) -> T.pair T.u32 T.DataPtr
+  | E1 (U40OfPtr, _) -> T.pair T.u40 T.DataPtr
+  | E1 (U48OfPtr, _) -> T.pair T.u48 T.DataPtr
+  | E1 (U56OfPtr, _) -> T.pair T.u56 T.DataPtr
+  | E1 (U64OfPtr, _) -> T.pair T.u64 T.DataPtr
+  | E1 (U128OfPtr, _) -> T.pair T.u128 T.DataPtr
+  | E1 (I8OfPtr, _) -> T.pair T.i8 T.DataPtr
+  | E1 (I16OfPtr, _) -> T.pair T.i16 T.DataPtr
+  | E1 (I24OfPtr, _) -> T.pair T.i24 T.DataPtr
+  | E1 (I32OfPtr, _) -> T.pair T.i32 T.DataPtr
+  | E1 (I40OfPtr, _) -> T.pair T.i40 T.DataPtr
+  | E1 (I48OfPtr, _) -> T.pair T.i48 T.DataPtr
+  | E1 (I56OfPtr, _) -> T.pair T.i56 T.DataPtr
+  | E1 (I64OfPtr, _) -> T.pair T.i64 T.DataPtr
+  | E1 (I128OfPtr, _) -> T.pair T.i128 T.DataPtr
   | E1 (FloatOfQWord, _) -> T.float
-  | E1 (QWordOfFloat, _) -> T.qword
+  | E1 (QWordOfFloat, _) -> T.QWord
   | E1 (U8OfByte, _) -> T.u8
-  | E1 (ByteOfU8, _) -> T.byte
+  | E1 (ByteOfU8, _) -> T.Byte
   | E1 (U16OfWord, _) -> T.u16
-  | E1 (WordOfU16, _) -> T.word
+  | E1 (WordOfU16, _) -> T.Word
   | E1 (U32OfDWord, _) -> T.u32
-  | E1 (DWordOfU32, _) -> T.dword
+  | E1 (DWordOfU32, _) -> T.DWord
   | E1 (U64OfQWord, _) -> T.u64
-  | E1 (QWordOfU64, _) -> T.qword
+  | E1 (QWordOfU64, _) -> T.QWord
   | E1 (U128OfOWord, _) -> T.u128
-  | E1 (OWordOfU128, _) -> T.oword
+  | E1 (OWordOfU128, _) -> T.OWord
   | E1 (U8OfChar, _) -> T.u8
   | E1 (CharOfU8, _) -> T.char
-  | E1 (SizeOfU32, _) -> T.size
+  | E1 (SizeOfU32, _) -> T.Size
   | E1 (U32OfSize, _) -> T.u32
-  | E1 (BitOfBool, _) -> T.bit
+  | E1 (BitOfBool, _) -> T.Bit
   | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e |> T.develop_user_types with
-      | SList (Value mn) -> Value (T.make (Lst mn))
+      | SList (Data mn) -> Data (T.required (Lst mn))
       | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (SetOfSList, e) ->
       (match type_of l e |> T.develop_user_types with
-      | SList (Value mn) -> Value (T.make (Set (Simple, mn)))
+      | SList (Data mn) -> Data (T.required (Set (Simple, mn)))
       | SList _ as t ->
           raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (ListOfVec, e) ->
       (match type_of l e |> T.develop_user_types with
-      | T.Value ({ vtyp = Vec (_, mn) ; nullable = false }) ->
-          Value (T.make (Lst mn))
+      | T.Data ({ vtyp = Vec (_, mn) ; nullable = false }) ->
+          Data (T.required (Lst mn))
       | t ->
           raise (Type_error (e0, e, t, "be a vec")))
   | E1 (ListOfSet, e) ->
       (match type_of l e |> T.develop_user_types with
-      | T.Value ({ vtyp = Set (_, mn) ; nullable = false }) ->
-          Value (T.make (Lst mn))
+      | T.Data ({ vtyp = Set (_, mn) ; nullable = false }) ->
+          Data (T.required (Lst mn))
       | t ->
           raise (Type_error (e0, e, t, "be a set")))
   | E1 (U8OfBool, _) -> T.u8
   | E1 (BoolOfU8, _) -> T.bool
-  | E2 (AppendByte, _, _) -> T.bytes
-  | E2 (AppendBytes, _, _) -> T.bytes
+  | E2 (AppendByte, _, _) -> T.Bytes
+  | E2 (AppendBytes, _, _) -> T.Bytes
   | E2 (AppendString, _, _) -> T.string
   | E2 ((StartsWith | EndsWith), _, _) -> T.bool
   | E1 (StringLength, _) -> T.u32
   | E1 (StringOfBytes, _) -> T.string
-  | E1 (BytesOfString, _) -> T.bytes
+  | E1 (BytesOfString, _) -> T.Bytes
   | E1 (Cardinality, _) -> T.u32
-  | E3 (DataPtrOfPtr, _, _, _) -> T.dataptr
-  | E3 (FindSubstring, _, _, _) -> T.(Value (optional (Mac U24)))
-  | E2 (GetBit, _, _) -> T.bit
-  | E2 (GetVec, _, e1) -> T.Value (get_item_type ~lst:true ~vec:true e0 l e1)
-  | E3 ((SetBit | SetVec), _, _, _) -> T.void
-  | E1 (ReadByte, _) -> T.pair T.byte T.dataptr
-  | E1 (ReadWord _, _) -> T.pair T.word T.dataptr
-  | E1 (ReadDWord _, _) -> T.pair T.dword T.dataptr
-  | E1 (ReadQWord _, _) -> T.pair T.qword T.dataptr
-  | E1 (ReadOWord _, _) -> T.pair T.oword T.dataptr
-  | E1 (Assert, _) -> T.void
-  | E2 (ReadBytes, _, _) -> T.pair T.bytes T.dataptr
-  | E2 (PeekByte, _, _) -> T.byte
-  | E2 (PeekWord _, _, _) -> T.word
-  | E2 (PeekDWord _ , _, _)-> T.dword
-  | E2 (PeekQWord _, _, _) -> T.qword
-  | E2 (PeekOWord _, _, _) -> T.oword
-  | E2 (WriteByte, _, _) -> T.dataptr
-  | E2 (WriteWord _, _, _) -> T.dataptr
-  | E2 (WriteDWord _, _, _) -> T.dataptr
-  | E2 (WriteQWord _, _, _) -> T.dataptr
-  | E2 (WriteOWord _, _, _) -> T.dataptr
-  | E2 (WriteBytes, _, _) -> T.dataptr
-  | E2 (PokeByte, _, _) -> T.dataptr
-  | E3 (BlitByte, _, _, _) -> T.dataptr
-  | E2 (DataPtrAdd, _, _) -> T.dataptr
-  | E2 (DataPtrSub, _, _) -> T.size
-  | E1 (DataPtrPush, _) -> T.dataptr
-  | E1 (DataPtrPop, _) -> T.dataptr
-  | E1 (RemSize, _) -> T.size
-  | E1 (Offset, _) -> T.size
+  | E3 (DataPtrOfPtr, _, _, _) -> T.DataPtr
+  | E3 (FindSubstring, _, _, _) -> T.nu24
+  | E2 (GetBit, _, _) -> T.Bit
+  | E2 (GetVec, _, e1) -> T.Data (get_item_type ~lst:true ~vec:true e0 l e1)
+  | E3 ((SetBit | SetVec), _, _, _) -> T.Void
+  | E1 (ReadByte, _) -> T.pair T.Byte T.DataPtr
+  | E1 (ReadWord _, _) -> T.pair T.Word T.DataPtr
+  | E1 (ReadDWord _, _) -> T.pair T.DWord T.DataPtr
+  | E1 (ReadQWord _, _) -> T.pair T.QWord T.DataPtr
+  | E1 (ReadOWord _, _) -> T.pair T.OWord T.DataPtr
+  | E1 (Assert, _) -> T.Void
+  | E2 (ReadBytes, _, _) -> T.pair T.Bytes T.DataPtr
+  | E2 (PeekByte, _, _) -> T.Byte
+  | E2 (PeekWord _, _, _) -> T.Word
+  | E2 (PeekDWord _ , _, _)-> T.DWord
+  | E2 (PeekQWord _, _, _) -> T.QWord
+  | E2 (PeekOWord _, _, _) -> T.OWord
+  | E2 (WriteByte, _, _) -> T.DataPtr
+  | E2 (WriteWord _, _, _) -> T.DataPtr
+  | E2 (WriteDWord _, _, _) -> T.DataPtr
+  | E2 (WriteQWord _, _, _) -> T.DataPtr
+  | E2 (WriteOWord _, _, _) -> T.DataPtr
+  | E2 (WriteBytes, _, _) -> T.DataPtr
+  | E2 (PokeByte, _, _) -> T.DataPtr
+  | E3 (BlitByte, _, _, _) -> T.DataPtr
+  | E2 (DataPtrAdd, _, _) -> T.DataPtr
+  | E2 (DataPtrSub, _, _) -> T.Size
+  | E1 (DataPtrPush, _) -> T.DataPtr
+  | E1 (DataPtrPop, _) -> T.DataPtr
+  | E1 (RemSize, _) -> T.Size
+  | E1 (Offset, _) -> T.Size
   | E2 (And, _, _) -> T.bool
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
@@ -1923,12 +1923,12 @@ let rec type_of l e0 =
   | E1 (ToU128, _) -> T.u128
   | E1 (ToI128, _) -> T.i128
   | E1 (ToFloat, _) -> T.float
-  | E1 (DataPtrOfString, _) -> T.dataptr
-  | E1 (DataPtrOfBuffer, _) -> T.dataptr
-  | E1 (GetEnv, _) -> T.(Value (optional (Mac String)))
+  | E1 (DataPtrOfString, _) -> T.DataPtr
+  | E1 (DataPtrOfBuffer, _) -> T.DataPtr
+  | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop_user_types with
-      | T.Value { vtyp = Set (Heap, mn) ; nullable = false } -> T.Value mn
+      | T.Data { vtyp = Set (Heap, mn) ; nullable = false } -> T.Data mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
@@ -1959,14 +1959,14 @@ let rec type_of l e0 =
       | Function (_, ot) as f_t ->
           let map_mn g =
             match ot with
-            | T.Value mn -> T.(Value (required (g mn)))
+            | T.Data mn -> T.(Data (required (g mn)))
             | _ ->
                 let err = "be a function of a value type" in
                 raise (Type_error (e0, f, f_t, err)) in
           (match type_of l set |> T.develop_user_types with
-          | T.Value { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
-          | T.Value { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
-          | T.Value { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
+          | T.Data { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
+          | T.Data { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | T.Data { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
           | T.SList _ -> SList ot
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
       | t ->
@@ -1983,7 +1983,7 @@ let rec type_of l e0 =
       with Not_found ->
         raise (Unbound_identifier (e0, true, n, l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
-      T.mask
+      T.Mask
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
   | E1 (Function (fid, ts), e) ->
@@ -1999,65 +1999,66 @@ let rec type_of l e0 =
   | E3 (If, _, e, _) ->
       type_of l e
   | E4 (ReadWhile, _, _, e, _) ->
-      T.pair (type_of l e) T.dataptr
+      T.pair (type_of l e) T.DataPtr
   | E3 (LoopWhile, _, _, e)
   | E3 (LoopUntil, _, _, e)
   | E3 (Fold, e, _, _)
   | E4 (Repeat, _, _, _, e) ->
       type_of l e
   | E1 (MaskGet _, _) ->
-      T.mask
+      T.Mask
   | E1 (LabelOf, _) ->
       T.u16
   | E1 (SlidingWindow mn, _) ->
-      T.set Sliding mn
+      T.(data (required (set Sliding mn)))
   | E1 (TumblingWindow mn, _) ->
-      T.set Tumbling mn
+      T.(data (required (set Tumbling mn)))
   | E1 (Sampling mn, _) ->
-      T.set Sampling mn
+      T.(data (required (set Sampling mn)))
   | E1 (HashTable mn, _) ->
-      T.set HashTable mn
+      T.(data (required (set HashTable mn)))
   | E1 (Heap, cmp) ->
       let item_t = get_compared_type l cmp in
-      T.set Heap item_t
+      T.(data (required (set Heap item_t)))
   | E2 ((Insert | DelMin), _, _) ->
-      T.void
+      T.Void
   | E2 (SplitBy, _, _) ->
-      T.list T.(required (Mac String))
+      T.(data (required (lst (required (Base String)))))
   | E2 (SplitAt, _, _) ->
-      T.tuple T.[| required (Mac String) ; required (Mac String) |]
+      T.(data (required (tup [| required (Base String) ;
+                                required (Base String) |])))
   | E2 (Join, _, _) ->
       T.string
   | E2 (AllocLst, _, e2) ->
       let item_t =
         match type_of l e2 with
-        | Value mn ->
+        | Data mn ->
             mn
         | t1 ->
             raise (Type_error (
               e0, e2, t1, "be a possibly nullable value type")) in
-      T.list item_t
+      T.(data (required (lst item_t)))
   | E2 (PartialSort, _, _) ->
-      T.void
+      T.Void
   | E2 ((ChopBegin | ChopEnd), lst, _) ->
       type_of l lst
   | E2 (ScaleWeights, _, _) ->
-      T.void
+      T.Void
   | E3 (Top mn, _, _, _) ->
-      T.set Top mn
+      T.(data (required (set Top mn)))
   | E3 (InsertWeighted, _, _, _) ->
-      T.void
+      T.Void
   | E3 (Substring, _, _, _)
   | E2 (Strftime, _, _) ->
       T.string
   | E2 (CharOfString, _, _) ->
-      T.(Value (optional (Mac Char)))
+      T.nchar
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
-  | Value { vtyp = Vec (_, t) ; nullable = false } when vec -> Ok t
-  | Value { vtyp = Lst t ; nullable = false } when lst -> Ok t
-  | Value { vtyp = Set (_, t) ; nullable = false } when set -> Ok t
+  | Data { vtyp = Vec (_, t) ; nullable = false } when vec -> Ok t
+  | Data { vtyp = Lst t ; nullable = false } when lst -> Ok t
+  | Data { vtyp = Set (_, t) ; nullable = false } when set -> Ok t
   | t -> Error t
 
 (* Return the element type or fail: *)
@@ -2072,7 +2073,7 @@ and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
 
 and get_compared_type l cmp =
   match type_of l cmp with
-  | Function ([| T.Value item_t ; _ |], _) ->
+  | Function ([| T.Data item_t ; _ |], _) ->
       item_t
   | cmp_t ->
       let err = "should be a function of two values" in
@@ -2081,7 +2082,7 @@ and get_compared_type l cmp =
 (* Registering the constructor also register the type: *)
 and register_user_constructor name out_vt ?print ?parse def =
   (* Add identity to the passed definitions: *)
-  let out_t = T.(Value (required out_vt)) in
+  let out_t = T.(Data (required out_vt)) in
   let id = E1 (Function (0, [| out_t |]), E0 (Param (0, 0))) in
   let def = id :: def in
   let _ =
@@ -2332,34 +2333,34 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be Void")) in
     let check_nullable b l e =
       match type_of l e |> T.develop_user_types with
-      | Value { nullable ; _ } when nullable = b -> ()
+      | Data { nullable ; _ } when nullable = b -> ()
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
     let rec is_comparable = function
       | T.Size | Byte | Word | DWord | QWord | OWord | Mask
-      | Value {
-          vtyp = Mac (
+      | Data {
+          vtyp = Base (
             Float | String | Bool | Char |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } ->
           true
-      | Value { vtyp = Sum mns ; nullable = false } ->
-          Array.for_all (fun (_, mn) -> is_comparable (Value mn)) mns
-      | Value { nullable = true ; vtyp } ->
-          is_comparable (Value { nullable = false ; vtyp })
+      | Data { vtyp = Sum mns ; nullable = false } ->
+          Array.for_all (fun (_, mn) -> is_comparable (Data mn)) mns
+      | Data { nullable = true ; vtyp } ->
+          is_comparable (Data { nullable = false ; vtyp })
       | _ ->
           false in
     let check_comparable l e =
       let t = type_of l e |> T.develop_user_types_rec in
       if not (is_comparable t) then
         raise (Type_error (e0, e, t, "be comparable")) in
-    let check_numeric ?(only_mac=false) l e =
+    let check_numeric ?(only_base=false) l e =
       match type_of l e |> T.develop_user_types with
-      | Size | Byte | Word | DWord | QWord | OWord when not only_mac ->
+      | Size | Byte | Word | DWord | QWord | OWord when not only_base ->
           ()
-      | Value {
-          vtyp = Mac (
+      | Data {
+          vtyp = Base (
             Float |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
@@ -2368,14 +2369,14 @@ let rec type_check l e =
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
       | Size | Byte | Word | DWord | QWord | OWord
-      | Value { vtyp = Mac (
+      | Data { vtyp = Base (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
           I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
       | T.Size
-      | Value { vtyp = Mac (
+      | Data { vtyp = Base (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
           nullable = false } ->
           true
@@ -2401,7 +2402,7 @@ let rec type_check l e =
       List.iter (check_same_types l e1) e2s in
     let check_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
-      | Value _ -> ()
+      | Data _ -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a possibly nullable value")) in
     let check_vector l e =
@@ -2441,12 +2442,12 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_slist_of_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
-      | SList (Value _) -> ()
+      | SList (Data _) -> ()
       | t -> raise (Type_error (e0, e, t,
                "be a slist of maybe nullable values")) in
     let check_sum l e =
       match type_of l e |> T.develop_user_types with
-      | Value { vtyp = Sum _ ; nullable = false } -> ()
+      | Data { vtyp = Sum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign l f ps =
@@ -2456,10 +2457,10 @@ let rec type_check l e =
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
       match t |> T.develop_user_types with
-      | Value { vtyp = Mac (U32 | U128) ; nullable = false } ->
+      | Data { vtyp = Base (U32 | U128) ; nullable = false } ->
           ()
-      | Value { vtyp = Sum mns ; nullable = false } when rec_ = false ->
-          Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Value mn)) mns
+      | Data { vtyp = Sum mns ; nullable = false } when rec_ = false ->
+          Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Data mn)) mns
       | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
     | E0 (Null _ | EndOfList _ | EmptySet _ | Now
@@ -2487,7 +2488,7 @@ let rec type_check l e =
         check_maybe_nullable l e1 ;
         check_all_same_types l e1 e2s
     | E0S (MakeLst mn, e1s) ->
-        List.iter (fun e1 -> check_eq l e1 (Value mn)) e1s
+        List.iter (fun e1 -> check_eq l e1 (Data mn)) e1s
     | E0S (MakeTup, es) ->
         if List.compare_length_with es 2 < 0 then
           raise (Struct_error (e0, "tuple dimension must be ≥ 2")) ;
@@ -2524,12 +2525,12 @@ let rec type_check l e =
         check_numeric l e1 ;
         check_same_types l e1 e2
     | E2 ((Div | Rem | Pow), e1, e2) ->
-        check_numeric ~only_mac:true l e1 ;
+        check_numeric ~only_base:true l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
         (match type_of l e2 |> T.develop_user_types with
-        | Value { vtyp = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
-            check_eq l e1 (T.Value t)
+        | Data { vtyp = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
+            check_eq l e1 (T.Data t)
         | t ->
             raise (Type_error (e0, e, t, "be a vector or list")))
     | E2 ((BitAnd | BitOr | BitXor), e1, e2) ->
@@ -2556,13 +2557,13 @@ let rec type_check l e =
          | U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr
          | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr
          | I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), e) ->
-        check_eq l e T.dataptr
+        check_eq l e T.DataPtr
     | E1 ((FloatOfQWord | U64OfQWord), e) ->
-        check_eq l e T.qword
+        check_eq l e T.QWord
     | E1 ((QWordOfFloat | StringOfFloat), e) ->
         check_eq l e T.float
     | E1 (U8OfByte, e) ->
-        check_eq l e T.byte
+        check_eq l e T.Byte
     | E1 ((CharOfU8 | ByteOfU8 | BoolOfU8), e) ->
         check_eq l e T.u8
     | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
@@ -2570,11 +2571,11 @@ let rec type_check l e =
          | ToI128 | ToU128 | ToFloat), e) ->
         check_numeric l e
     | E1 (U16OfWord, e) ->
-        check_eq l e T.word
+        check_eq l e T.Word
     | E1 (WordOfU16, e) ->
         check_eq l e T.u16
     | E1 (U32OfDWord, e) ->
-        check_eq l e T.dword
+        check_eq l e T.DWord
     | E1 ((DWordOfU32 | SizeOfU32), e) ->
         check_eq l e T.u32
     | E1 (QWordOfU64, e) ->
@@ -2582,9 +2583,9 @@ let rec type_check l e =
     | E1 (OWordOfU128, e) ->
         check_eq l e T.u128
     | E1 (U128OfOWord, e) ->
-        check_eq l e T.oword
+        check_eq l e T.OWord
     | E1 (U32OfSize, e) ->
-        check_eq l e T.size
+        check_eq l e T.Size
     | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
     | E1 ((Abs | Neg), e) ->
@@ -2595,7 +2596,7 @@ let rec type_check l e =
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
     | E1 (BoolOfBit, e) ->
-        check_eq l e T.bit
+        check_eq l e T.Bit
     | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
         check_slist_of_maybe_nullable l e
     | E1 (ListOfVec, e) ->
@@ -2605,27 +2606,27 @@ let rec type_check l e =
     | E1 (DataPtrOfString, e) ->
         check_eq l e T.string
     | E1 (DataPtrOfBuffer, e) ->
-        check_eq l e T.size
+        check_eq l e T.Size
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
         check_set l e
     | E2 (AppendByte, e1, e2) ->
-        check_eq l e1 T.bytes ;
-        check_eq l e2 T.byte
+        check_eq l e1 T.Bytes ;
+        check_eq l e2 T.Byte
     | E2 (AppendBytes, e1, e2) ->
-        check_eq l e1 T.bytes ;
-        check_eq l e2 T.bytes
+        check_eq l e1 T.Bytes ;
+        check_eq l e2 T.Bytes
     | E2 ((AppendString | StartsWith | EndsWith | SplitBy), e1, e2) ->
         check_eq l e1 T.string ;
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
-        check_eq l e T.bytes
+        check_eq l e T.Bytes
     | E1 (Cardinality, e) ->
         check_list_or_vector_or_set l e
     | E2 (GetBit, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.size
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Size
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
         check_list_or_vector l e2
@@ -2639,58 +2640,58 @@ let rec type_check l e =
         check_eq l fmt T.string ;
         check_numeric l time
     | E3 (SetBit, e1, e2, e3) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.size ;
-        check_eq l e3 T.bit
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Size ;
+        check_eq l e3 T.Bit
     | E3 (SetVec, e1, e2, e3) ->
         check_integer l e1 ;
         (match type_of l e2 |> T.develop_user_types with
-        | T.Value { vtyp = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
-            check_eq l e3 (Value mn)
+        | T.Data { vtyp = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
+            check_eq l e3 (Data mn)
         | t ->
             raise (Type_error (e0, e1, t, "be a vector")))
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
-        check_eq l e T.dataptr
+        check_eq l e T.DataPtr
     | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
          | PeekOWord _), e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.size
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Size
     | E2 ((WriteByte | PokeByte), e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.byte
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Byte
     | E2 (WriteWord _, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.word
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Word
     | E2 (WriteDWord _, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.dword
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.DWord
     | E2 (WriteQWord _, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.qword
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.QWord
     | E2 (WriteOWord _, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.oword
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.OWord
     | E2 (WriteBytes, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.bytes
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Bytes
     | E3 (BlitByte, e1, e2, e3) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.byte ;
-        check_eq l e3 T.size
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Byte ;
+        check_eq l e3 T.Size
     | E2 (DataPtrAdd, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.size
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Size
     | E2 (DataPtrSub, e1, e2) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.dataptr
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.DataPtr
     | E1 ((DataPtrPush | DataPtrPop), e1) ->
-        check_eq l e1 T.dataptr
+        check_eq l e1 T.DataPtr
     | E1 ((RemSize | Offset), e) ->
-        check_eq l e T.dataptr
+        check_eq l e T.DataPtr
     | E3 (DataPtrOfPtr, e1, e2, e3) ->
-        check_eq l e1 T.dataptr ;
-        check_eq l e2 T.size ;
-        check_eq l e3 T.size
+        check_eq l e1 T.DataPtr ;
+        check_eq l e2 T.Size ;
+        check_eq l e3 T.Size
     | E3 (FindSubstring, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_eq l e2 T.string ;
@@ -2710,7 +2711,7 @@ let rec type_check l e =
                 i max_lbl in
             raise (Struct_error (e0, msg))
           ) ;
-          check_eq l e (Value (snd mns.(i)))
+          check_eq l e (Data (snd mns.(i)))
     | E1 (Fst, e) ->
         check_pair l e
     | E1 (Snd, e) ->
@@ -2743,17 +2744,17 @@ let rec type_check l e =
                 let err = "be a function of "^ T.to_string t in
                 raise (Type_error (e0, f, f_t, err))) ;
               if must_output_mn then
-                match ot with T.Value _ -> ()
+                match ot with T.Data _ -> ()
                 | _ ->
                     let err = "be a function returning a value type" in
                     raise (Type_error (e0, f, f_t, err)) in
             (match type_of l set |> T.develop_user_types with
-            | T.(Value { vtyp = Vec (_, mn) ; nullable = false }) ->
-                check_fun_type_with (T.Value mn) true
-            | T.(Value { vtyp = Lst mn ; nullable = false }) ->
-                check_fun_type_with (T.Value mn) true
-            | T.(Value { vtyp = Set (_, mn) ; nullable = false }) ->
-                check_fun_type_with (T.Value mn) true
+            | T.(Data { vtyp = Vec (_, mn) ; nullable = false }) ->
+                check_fun_type_with (T.Data mn) true
+            | T.(Data { vtyp = Lst mn ; nullable = false }) ->
+                check_fun_type_with (T.Data mn) true
+            | T.(Data { vtyp = Set (_, mn) ; nullable = false }) ->
+                check_fun_type_with (T.Data mn) true
             | T.SList t ->
                 check_fun_type_with t false
             | t ->
@@ -2766,13 +2767,13 @@ let rec type_check l e =
         check_same_types l e2 e3
     | E4 (ReadWhile, e1 (*byte->bool*), e2 (*'a->byte->'a*), e3 (*'a*), e4 (*ptr*)) ->
         check_params1 l e1 (fun t1 t2 ->
-          check_param e1 0 t1 T.byte ;
+          check_param e1 0 t1 T.Byte ;
           check_param e1 1 t2 T.bool) ;
         check_params2 l e2 (fun t1 t2 t3 ->
           check_eq l e3 t1 ;
-          check_param e2 1 t2 T.byte ;
+          check_param e2 1 t2 T.Byte ;
           check_eq l e3 t3) ;
-        check_eq l e4 T.dataptr
+        check_eq l e4 T.DataPtr
     | E3 (LoopWhile, e1 (*'a->bool*), e2 (*'a->'a*), e3 (*'a*)) ->
         check_params1 l e1 (fun t1 t2 (* return type *)->
           check_eq l e3 t1 ;
@@ -2791,7 +2792,7 @@ let rec type_check l e =
         (* Fold function first parameter is the result and second is the list
          * item *)
         let item_t =
-          T.Value (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
+          T.Data (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
         check_params2 l e2 (fun p1 p2 ret ->
           check_eq l e1 p1 ;
           check_eq l e1 ret ;
@@ -2827,8 +2828,8 @@ let rec type_check l e =
             err "must be a function")
     | E2 (Insert, set, x) ->
         (match type_of l set |> T.develop_user_types with
-        | T.Value { vtyp = T.Set (_, mn) ; nullable = false } ->
-            check_eq l x (Value mn)
+        | T.Data { vtyp = T.Set (_, mn) ; nullable = false } ->
+            check_eq l x (Data mn)
         | t ->
             raise (Type_error (e0, set, t, "be a set")))
     | E2 (DelMin, set, n) ->
@@ -2840,18 +2841,18 @@ let rec type_check l e =
     | E2 (Join, e1, e2) ->
         check_eq l e1 T.string ;
         let item_t = get_item_type ~lst:true ~vec:true e0 l e2 in
-        if item_t <> T.(required (Mac String)) then
+        if item_t <> T.(required (Base String)) then
           let msg = "be a list or vector of strings" in
-          raise (Type_error (e0, e, T.Value item_t, msg))
+          raise (Type_error (e0, e, T.Data item_t, msg))
     | E2 (AllocLst, e1, e2) ->
         check_unsigned l e1 ;
         check_maybe_nullable l e2
     | E2 (PartialSort, e1, e2) ->
-        let item_t1 = T.Value (get_item_type ~lst:true ~vec:true e0 l e1) in
+        let item_t1 = T.Data (get_item_type ~lst:true ~vec:true e0 l e1) in
         if not (is_comparable item_t1) then
           raise (Type_error (e0, e1, item_t1,
                              "be a list or vector of comparable items")) ;
-        let item_t2 = T.Value (get_item_type ~lst:true ~vec:true e0 l e2) in
+        let item_t2 = T.Data (get_item_type ~lst:true ~vec:true e0 l e2) in
         if not (is_unsigned item_t2) then
           raise (Type_error (e0, e2, item_t2,
                              "be a list or vector of unsigned integers"))
@@ -2864,9 +2865,9 @@ let rec type_check l e =
         check_numeric l sigmas
     | E3 (InsertWeighted, set, w, x) ->
         (match type_of l set |> T.develop_user_types with
-        | T.Value { vtyp = T.Set (_, mn) ; nullable = false } ->
+        | T.Data { vtyp = T.Set (_, mn) ; nullable = false } ->
             check_eq l w T.float ;
-            check_eq l x (Value mn)
+            check_eq l x (Data mn)
         | t ->
             raise (Type_error (e0, set, t, "be a set")))
     | E3 (Substring, str, start, stop) ->
@@ -3740,27 +3741,27 @@ end
 
 let () =
   let open Ops in
-  register_user_constructor "Date" (Mac Float) [] ;
-  register_user_constructor "Eth" (Mac U48) [] ;
-  register_user_constructor "Ip4" (Mac U32) [] ;
-  register_user_constructor "Ip6" (Mac U128) [] ;
+  register_user_constructor "Date" (Base Float) [] ;
+  register_user_constructor "Eth" (Base U48) [] ;
+  register_user_constructor "Ip4" (Base U32) [] ;
+  register_user_constructor "Ip6" (Base U128) [] ;
   let ip4_t = T.required (T.get_user_type "Ip4")
   and ip6_t = T.required (T.get_user_type "Ip6") in
   let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
   register_user_constructor "Ip" (Sum ip_mns)
-    [ func1 T.(Value ip4_t) (fun _l x -> construct ip_mns 0 x) ;
-      func1 T.(Value ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
+    [ func1 T.(Data ip4_t) (fun _l x -> construct ip_mns 0 x) ;
+      func1 T.(Data ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
   register_user_constructor "Cidr4"
-    (Rec [| "ip", ip4_t ; "mask", T.required (Mac U8) |])
-    [ func2 T.(Value ip4_t) T.u8 (fun _l ip mask ->
+    (Rec [| "ip", ip4_t ; "mask", T.required (Base U8) |])
+    [ func2 T.(Data ip4_t) T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   register_user_constructor "Cidr6"
-    (Rec [| "ip", ip6_t ; "mask", T.required (Mac U8) |])
-    [ func2 T.(Value ip6_t) T.u8 (fun _l ip mask ->
+    (Rec [| "ip", ip6_t ; "mask", T.required (Base U8) |])
+    [ func2 T.(Data ip6_t) T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   let cidr4_t = T.required (T.get_user_type "Cidr4")
   and cidr6_t = T.required (T.get_user_type "Cidr6") in
   let cidr_mns = [| "v4", cidr4_t ; "v6", cidr6_t |] in
   register_user_constructor "Cidr" (Sum cidr_mns)
-    [ func1 T.(Value cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
-      func1 T.(Value cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]
+    [ func1 T.(Data cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
+      func1 T.(Data cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]

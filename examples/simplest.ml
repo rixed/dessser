@@ -12,7 +12,7 @@ module TestDes : DES with type config = unit =
 struct
   type config = unit
   type state = unit
-  let ptr _vtyp = T.dataptr
+  let ptr _vtyp = T.DataPtr
 
   let start ?(config=()) _vtyp _l src = config, src
   let stop () _l src = src
@@ -63,7 +63,7 @@ struct
   let list_opn () = KnownSize (fun _ _ _ l src ->
     let b_src = read_byte src in
     map_pair b_src
-      (E.func2 ~l T.byte T.dataptr (fun _l b p ->
+      (E.func2 ~l T.Byte T.DataPtr (fun _l b p ->
         pair (to_u32 (u8_of_byte b)) p)))
   let list_cls () _ _ _ src = src
   let list_sep () _ _ _ src = src
@@ -78,7 +78,7 @@ module TestSer : SER with type config = unit =
 struct
   type config = unit
   type state = unit
-  let ptr _vtyp = T.dataptr
+  let ptr _vtyp = T.DataPtr
 
   let start ?(config=()) _l _v dst = config, dst
   let stop () _l dst = dst
@@ -166,12 +166,12 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let vtyp = T.{ vtyp = Tup [| { vtyp = Mac U8 ; nullable = false } ;
-                               { vtyp = Mac Char ; nullable = false } |] ;
-                 nullable = false } in
+  let mn = T.{ vtyp = Tup [| { vtyp = Base U8 ; nullable = false } ;
+                             { vtyp = Base Char ; nullable = false } |] ;
+               nullable = false } in
   let src = data_ptr_of_string (string "\001X")
   and dst = data_ptr_of_string (string "_____") in
-  E.Ops.let_ (TestDesSer.desser vtyp [] src dst) (fun _l e ->
+  E.Ops.let_ (TestDesSer.desser mn [] src dst) (fun _l e ->
     seq [ dump e ;
           dump (string "\n") ;
           e ])

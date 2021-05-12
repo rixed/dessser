@@ -12,35 +12,29 @@ let pp = Printf.fprintf
 
 type backend_id = DIL | OCaml | Cpp
 
-(* Basic scalar types that can be used to define more specialized user types *)
+(* Basic types that can be used to define more specialized user types *)
 
-type mac_type =
-  | Float | String | Bool | Char
+type base_type =
+  | Unit | Bool | Char | Float | String
   | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
   | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
 
-(* Machine-types are the basic types from which more specialized types can be
- * build. Those constructed types are called user-types.
- * User types specialize machine types in several ways: they have their own
- * name, pretty-printer, parser, and of course an implementation as the
- * corresponding machine type.
- * Notice that user types cannot be parameterized (yet?)
- * User expressions can restrict types to user types.
- * Every operation that applies to the implementation of a user type also
- * applies to the user type. *)
+(* User types are specialized types that can be build from basic types and
+ * given their own name, pretty-printer and parser.
+ * User expressions can restrict types to user types. Other than that,
+ * every operation that applies to the implementation of a user type also
+ * applies to the user type, and the other way around. *)
 
 and user_type =
   { name : string ;
-    def : value_type }
+    def : value }
 
-(* Those types describing values that can be (de)serialized.
- * All of them can possibly be nullable.
- * User types are build from those value types. *)
+(* "Value" types are all the types describing values that can be (de)serialized.
+ * All of them can possibly be nullable. *)
 
-and value_type =
+and value =
   | Unknown
-  | Unit
-  | Mac of mac_type
+  | Base of base_type
   (* Aliases with custom representations: *)
   | Usr of user_type
   (* External types: *)
@@ -69,94 +63,66 @@ and value_type =
   | Map of maybe_nullable * maybe_nullable
 
 and maybe_nullable =
-  { vtyp : value_type ; nullable : bool }
+  { vtyp : value ; nullable : bool }
 
 and set_type =
   | Simple | Sliding | Tumbling | Sampling | HashTable | Heap | Top
 
-let make ?(nullable=false) vtyp =
-  { vtyp ; nullable }
+(* Outside of types used to hold data that can be serialized, there are types
+ * to help implement serializers themselves: *)
+type t =
+  | Data of maybe_nullable
+  (* Used for functions without return values: *)
+  | Void
+  (* DataPtr are used to point into the stream of bytes that's being
+   * serialized into / deserialized from. The type of the value that's
+   * being (de)serialized is kept nonetheless. *)
+  | DataPtr
+  (* A size in byte: *)
+  | Size
+  (* Data access, may be just pointer to the actual serialized object: *)
+  | Bit
+  | Byte
+  | Word
+  | DWord
+  | QWord
+  | OWord
+  | Bytes
+  (* Types for the runtime representation of a field mask: *)
+  | Mask  (* What to do with a tree of fields *)
+  (* We'd like the DES/SERializer to be able to use complex types as their
+   * "pointer", part of those types being actual pointers. Therefore, we cannot
+   * use the value-types, as we cannot embed a pointer in there. So here are
+   * defined two specific compound types: a pair and an homogeneous list
+   * (sufficient in practice and better than untyped car/cdr!) *)
+  | Pair of t * t
+  (* A Data Lst is just a vector which length is unknown at compile timei,
+   * whereas an SList can actually be constructed/destructed element by element.
+   * "SList" is for "singly-chained" list, and is written using "{}" instead
+   * of "[]". *)
+  | SList of t
+  (* Finally, simple non recursive functions: *)
+  | Function of (* arguments: *) t array * (* result: *) t
 
-let required = make ~nullable:false
-
-let optional = make ~nullable:true
-
-let string_of_set_type = function
-  | Simple -> ""
-  | Sliding -> "sliding"
-  | Tumbling -> "tumbling"
-  | Sampling -> "sampling"
-  | HashTable -> "hashtable"
-  | Heap -> "heap"
-  | Top -> "top"
-
-(* Consider user types opaque by default, so that it matches DessserQCheck
- * generators. *)
-let rec depth ?(opaque_user_type=true) = function
-  | Unknown -> invalid_arg "depth"
-  | Unit | Mac _ | Ext _ -> 0
-  | Usr { def ; _ } ->
-      if opaque_user_type then 0 else depth ~opaque_user_type def
-  | Vec (_, mn) | Lst mn | Set (_, mn) ->
-      1 + depth ~opaque_user_type mn.vtyp
-  | Tup mns ->
-      1 + Array.fold_left (fun d mn ->
-        max d (depth ~opaque_user_type mn.vtyp)
-      ) 0 mns
-  | Rec mns | Sum mns ->
-      1 + Array.fold_left (fun d (_, mn) ->
-        max d (depth ~opaque_user_type mn.vtyp)
-      ) 0 mns
-  | Map (k, v) ->
-      1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
-
-(*$= depth & ~printer:string_of_int
-  0 (depth (Mac U8))
-  2 (depth (Tup [| required (Mac U8) ; required (Lst (required (Mac U8))) |]))
-  7 (depth (\
-    Lst (required (\
-      Vec (4, (required (\
-        Rec [| \
-          "mgfhm", required (\
-            Rec [| \
-              "ceci", optional (Mac Char) ; \
-              "zauxs", required (\
-                Rec [| \
-                  "gidf", required (\
-                    Rec [| \
-                      "qskv", optional (Mac Float) ; \
-                      "lefr", required (Mac I16) ; \
-                      "bdujmi", required (\
-                        Vec (8, required (get_user_type "Cidr6"))) |]) ; \
-                  "cdwcv", required (Mac U64) ; \
-                  "jcdivs", required (\
-                    Rec [| \
-                      "hgtixf", required (Lst (optional (Mac I128))) ; \
-                      "yuetd", required (Mac Char) ; \
-                      "bsbff", required (Mac U16) |]) |]) |]) ; \
-          "pudia", required (get_user_type "Cidr4") ; \
-          "qngl", required (Mac Bool) ; \
-          "iajv", optional (Mac I128) |])))))))
-*)
+(*
+ * Comparators
+ *)
 
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
-let cmp_nv (n1, _) (n2, _) =
-  String.compare n1 n2
-
 let sorted_rec fields =
+  let cmp_nv (n1, _) (n2, _) =
+    String.compare n1 n2 in
   let fields = Array.copy fields in
   Array.sort cmp_nv fields ;
   fields
 
-let mac_type_eq mt1 mt2 = mt1 = mt2
+let base_type_eq mt1 mt2 = mt1 = mt2
 
-let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
+let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
-  | Unit, Unit ->
-      true
-  | Mac mt1, Mac mt2 ->
-      mac_type_eq mt1 mt2
+  | Base mt1, Base mt2 ->
+      base_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
   | Ext n1, Ext n2 ->
@@ -181,73 +147,49 @@ let rec value_type_eq ?(opaque_user_type=false) vt1 vt2 =
       maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
   (* User types are lost in des/ser so we have to accept this: *)
   | Usr ut1, vt2 when not opaque_user_type ->
-      value_type_eq ut1.def vt2
+      value_eq ut1.def vt2
   | vt1, Usr ut2 when not opaque_user_type ->
-      value_type_eq vt1 ut2.def
+      value_eq vt1 ut2.def
   | _ ->
       false
 
-(*$T value_type_eq
-  value_type_eq (get_user_type "Eth") (get_user_type "Eth")
+(*$T value_eq
+  value_eq (get_user_type "Eth") (get_user_type "Eth")
 *)
 
 and maybe_nullable_eq mn1 mn2 =
-  mn1.nullable = mn2.nullable && value_type_eq mn1.vtyp mn2.vtyp
+  mn1.nullable = mn2.nullable && value_eq mn1.vtyp mn2.vtyp
 
-let not_null mn =
-  { mn with nullable = true }
+let rec eq t1 t2 =
+  match t1, t2 with
+  | Data mn1, Data mn2 ->
+      maybe_nullable_eq mn1 mn2
+  | Pair (t11, t12), Pair (t21, t22) ->
+      eq t11 t21 && eq t12 t22
+  | SList t1, SList t2 ->
+      eq t1 t2
+  | Function (pt1, rt1), Function (pt2, rt2) ->
+      array_for_all2_no_exc eq pt1 pt2 && eq rt1 rt2
+  | t1, t2 ->
+      t1 = t2
 
-let force_maybe_nullable mn =
-  { mn with nullable = false }
-
-(* To all the above types we add a few low-level types that can not be used
- * in values but are useful to manipulate them. *)
-type t =
-  | Value of maybe_nullable
-  (* Used for functions without return values: *)
-  | Void
-  (* DataPtr are used to point into the stream of bytes that's being
-   * serialized into / deserialized from. The type of the value that's
-   * being (de)serialized is kept nonetheless. *)
-  | DataPtr
-  (* A size in byte. *)
-  | Size
-  (* Data access, may be just pointer to the actual serialized object: *)
-  | Bit
-  | Byte
-  | Word
-  | DWord
-  | QWord
-  | OWord
-  | Bytes
-  (* Types for the runtime representation of a field mask: *)
-  | Mask  (* What to do with a tree of fields *)
-  | Pair of t * t
-  (* We'd like the DES/SERializer to be able to use complex types as their
-   * "pointer", part of those types being actual pointers. Therefore, we cannot
-   * use the value-types, as we cannot embed a pointer in there. So here we
-   * define another LIST which is a simple persistent list (as opposed to the
-   * Value Lst, which is just an array in disguise and serve another purpose
-   * (namely, to compactly store a bunch of read only values).
-   * Therefore this one is named SList, as in "single-chaned" list, and is
-   * written using "{}" instead of "[]". *)
-  | SList of t
-  | Function of t array * (* result: *) t
-
-(* Helper to get the two types constituting a Pair: *)
-let pair_of_tpair = function
-  | Pair (t1, t2) -> t1, t2
-  | _ -> invalid_arg "pair_of_tpair"
+(*$T eq
+  eq unit unit
+  eq (Data (required (get_user_type "Eth"))) \
+     (Data (required (get_user_type "Eth"))) ;
+  eq (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit)) \
+     (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit))
+*)
 
 (*
  * Iterators
  *)
 
-let rec develop_value_type = function
-  | (Unknown | Unit | Mac _ | Ext _) as vt ->
-      vt
+let rec develop_value = function
+  | (Unknown | Base _ | Ext _) as v ->
+      v
   | Usr { def ; _ } ->
-      develop_value_type def
+      develop_value def
   | Vec (d, mn) ->
       Vec (d, develop_maybe_nullable mn)
   | Lst mn ->
@@ -264,30 +206,30 @@ let rec develop_value_type = function
       Map (develop_maybe_nullable mn1, develop_maybe_nullable mn2)
 
 and develop_maybe_nullable mn =
-  { mn with vtyp = develop_value_type mn.vtyp }
+  { mn with vtyp = develop_value mn.vtyp }
 
 and develop_user_types_rec = function
-  | Value mn -> Value (develop_maybe_nullable mn)
+  | Data mn -> Data (develop_maybe_nullable mn)
   | t -> t
 
 (* This develop user types at first level (ie. excluding sub-branches but
  * including when a user type is implemented with another): *)
 let rec develop_user_types = function
-  | Value { vtyp = Usr { def ; _ } ; nullable } ->
-      develop_user_types (Value { vtyp = def ; nullable })
+  | Data { vtyp = Usr { def ; _ } ; nullable } ->
+      develop_user_types (Data { vtyp = def ; nullable })
   | t ->
       t
 
-(* Top-down folding of a value_type: *)
+(* Top-down folding of a value: *)
 (* FIXME: either consider Usr types as opaque and stop the recursion, or as
  * transparent and do not call [f] on Usr: *)
-let rec fold_value_type u f vt =
-  let u = f u vt in
-  match vt with
-  | Unknown | Unit | Mac _ | Ext _ ->
+let rec fold_value u f v =
+  let u = f u v in
+  match v with
+  | Unknown | Base _ | Ext _ ->
       u
   | Usr { def ; _ } ->
-      fold_value_type u f def
+      fold_value u f def
   | Vec (_, mn) | Lst mn | Set (_, mn) ->
       fold_maybe_nullable u f mn
   | Tup mns ->
@@ -298,69 +240,13 @@ let rec fold_value_type u f vt =
       fold_maybe_nullable (fold_maybe_nullable u f k) f v
 
 and fold_maybe_nullable u f mn =
-  fold_value_type u f mn.vtyp
+  fold_value u f mn.vtyp
 
-let iter_value_type f vt =
-  fold_value_type () (fun () vt -> f vt) vt
+let iter_value f v =
+  fold_value () (fun () v -> f v) v
 
 let iter_maybe_nullable f mn =
   fold_maybe_nullable () (fun () mn -> f mn) mn
-
-(*
- * Tools
- *)
-
-let is_defined vt =
-  try
-    iter_value_type (function
-      | Unknown -> raise Exit
-      | _ -> ()
-    ) vt ;
-    true
-  with Exit ->
-    false
-
-let check vt =
-  iter_value_type (function
-    (* TODO: also field names in a record *)
-    | Sum mns ->
-        Array.fold_left (fun s (n, _) ->
-          if Set.String.mem n s then
-            failwith "Constructor names not unique" ;
-          Set.String.add n s
-        ) Set.String.empty mns |>
-        ignore
-    | _ -> ()
-  ) vt
-
-let rec is_integer = function
-  | Unknown -> invalid_arg "is_integer"
-  | Mac (U8|U16|U24|U32|U40|U48|U56|U64|U128|
-         I8|I16|I24|I32|I40|I48|I56|I64|I128) -> true
-  | Usr { def ; _ } ->
-      is_integer def
-  | _ -> false
-
-let is_numeric vt =
-  is_integer vt || vt = Mac Float
-
-let is_nullable = function
-  | Value { nullable = true ; _ } -> true
-  | _ -> false
-
-let width_of_int = function
-  | Mac (U8 | I8) -> 8
-  | Mac (U16 | I16) -> 16
-  | Mac (U24 | I24) -> 24
-  | Mac (U32 | I32) -> 32
-  | Mac (U40 | I40) -> 40
-  | Mac (U48 | I48) -> 48
-  | Mac (U56 | I56) -> 56
-  | Mac (U64 | I64) -> 64
-  | Mac (U128 | I128) -> 128
-  | _ ->
-      invalid_arg "width_of_int"
-
 
 (*
  * User-defined types
@@ -369,7 +255,7 @@ let width_of_int = function
 type user_type_def =
   { typ : user_type ;
     print : 'a. 'a IO.output -> unit ;
-    mutable parse : value_type P.t }
+    mutable parse : value P.t }
 
 let user_types : (string, user_type_def) Hashtbl.t = Hashtbl.create 50
 
@@ -387,9 +273,19 @@ let get_user_type n =
  * Printers
  *)
 
-let print_mac_type oc =
+let string_of_set_type = function
+  | Simple -> ""
+  | Sliding -> "sliding"
+  | Tumbling -> "tumbling"
+  | Sampling -> "sampling"
+  | HashTable -> "hashtable"
+  | Heap -> "heap"
+  | Top -> "top"
+
+let print_base_type oc =
   let sp = String.print oc in
   function
+  | Unit -> sp "UNIT"
   | Float -> sp "FLOAT"
   | String -> sp "STRING"
   | Bool -> sp "BOOL"
@@ -413,13 +309,11 @@ let print_mac_type oc =
   | I64 -> sp "I64"
   | I128 -> sp "I128"
 
-let rec print_value_type ?(sorted=false) oc = function
+let rec print_value ?(sorted=false) oc = function
   | Unknown ->
       pp oc "UNKNOWN"
-  | Unit ->
-      pp oc "unit"
-  | Mac t ->
-      print_mac_type oc t
+  | Base t ->
+      print_base_type oc t
   | Ext n ->
       pp oc "%s" n
   | Usr t ->
@@ -462,39 +356,14 @@ let rec print_value_type ?(sorted=false) oc = function
 
 and print_maybe_nullable ?sorted oc mn =
   pp oc "%a%s"
-    (print_value_type ?sorted) mn.vtyp
+    (print_value ?sorted) mn.vtyp
     (if mn.nullable then "?" else "")
-
-let to_maybe_nullable = function
-  | Value mn -> mn
-  | _ -> invalid_arg "to_maybe_nullable"
-
-let rec eq t1 t2 =
-  match t1, t2 with
-  | Value mn1, Value mn2 ->
-      maybe_nullable_eq mn1 mn2
-  | Pair (t11, t12), Pair (t21, t22) ->
-      eq t11 t21 && eq t12 t22
-  | SList t1, SList t2 ->
-      eq t1 t2
-  | Function (pt1, rt1), Function (pt2, rt2) ->
-      array_for_all2_no_exc eq pt1 pt2 && eq rt1 rt2
-  | t1, t2 ->
-      t1 = t2
-
-(*$T eq
-  eq unit unit
-  eq (Value (required (get_user_type "Eth"))) \
-     (Value (required (get_user_type "Eth"))) ;
-  eq (Function ([| Value (required (get_user_type "Eth")) ; Size |], unit)) \
-     (Function ([| Value (required (get_user_type "Eth")) ; Size |], unit))
-*)
 
 let rec print ?sorted oc =
   let sp = String.print oc in
   function
-  | Value vt ->
-      print_maybe_nullable oc ?sorted vt
+  | Data v ->
+      print_maybe_nullable oc ?sorted v
   | Void -> sp "Void"
   | DataPtr -> sp "DataPtr"
   | Size -> sp "Size"
@@ -523,41 +392,12 @@ let print_sorted oc = print ~sorted:true oc
 let print oc = print ~sorted:false oc
 let print_maybe_nullable_sorted oc = print_maybe_nullable ~sorted:true oc
 let print_maybe_nullable oc = print_maybe_nullable ~sorted:false oc
-let print_value_type_sorted oc = print_value_type ~sorted:true oc
-let print_value_type oc = print_value_type ~sorted:false oc
+let print_value_sorted oc = print_value ~sorted:true oc
+let print_value oc = print_value ~sorted:false oc
 
-let string_of_value_type = IO.to_string print_value_type
+let string_of_value = IO.to_string print_value
 let string_of_maybe_nullable = IO.to_string print_maybe_nullable
 let to_string = IO.to_string print
-
-let uniq_id t =
-  IO.to_string print_sorted (develop_user_types_rec t) |>
-  Digest.string |>
-  Digest.to_hex
-
-let mn_of_t = function
-  | Value mn -> mn
-  | t -> invalid_arg ("mn_of_t for type "^ to_string t)
-
-let vtyp_of_t t =
-  let mn = mn_of_t t in
-  mn.vtyp
-
-let to_nullable = function
-  | Value { vtyp ; nullable = false } ->
-      Value { vtyp ; nullable = true }
-  | t ->
-      Printf.eprintf "Cannot turn type %a into nullable\n%!"
-        print t ;
-      assert false
-
-let force = function
-  | Value { vtyp ; nullable = true } ->
-      Value { vtyp ; nullable = false }
-  | t ->
-      Printf.eprintf "Cannot turn type %a into not-nullable\n%!"
-        print t ;
-      assert false
 
 module Parser =
 struct
@@ -634,13 +474,13 @@ struct
   let rec reduce_dims mn = function
     | [] -> mn
     | (VecDim d, nullable) :: rest ->
-        reduce_dims (make ~nullable (Vec (d, mn))) rest
+        reduce_dims { nullable ; vtyp = Vec (d, mn) } rest
     | (ListDim, nullable) :: rest ->
-        reduce_dims (make ~nullable (Lst mn)) rest
+        reduce_dims { nullable ; vtyp = Lst mn } rest
     | (SetDim st, nullable) :: rest ->
-        reduce_dims (make ~nullable (Set (st, mn))) rest
+        reduce_dims { nullable ; vtyp = Set (st, mn) } rest
     | (MapKey k, nullable) :: rest ->
-        reduce_dims (make ~nullable (Map (k, mn))) rest
+        reduce_dims { nullable ; vtyp = Map (k, mn) } rest
 
   let rec key_type m =
     let vec_dim m =
@@ -699,7 +539,8 @@ struct
     (
       (
         unit_typ ||| scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
-        (!user_type ++ opt_question_mark >>: fun (vt, n) -> make ~nullable:n vt)
+        (!user_type ++ opt_question_mark >>:
+          fun (vtyp, nullable) -> { vtyp ; nullable })
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
         reduce_dims t dims
@@ -708,16 +549,16 @@ struct
   and unit_typ m =
     let m = "unit type" :: m in
     (
-      (strinG "unit" >>: fun () -> required Unit) |||
-      (strinG "unit?" >>: fun () -> make ~nullable:true Unit)
+      (strinG "unit" >>: fun () -> { nullable = false ; vtyp = Base Unit }) |||
+      (strinG "unit?" >>: fun () -> { nullable = true ; vtyp = Base Unit })
     ) m
 
   and scalar_typ m =
     let m = "scalar type" :: m in
     let st n mtyp =
-      let vtyp = Mac mtyp in
-      (strinG (n ^"?") >>: fun () -> make ~nullable:true vtyp) |||
-      (strinG n >>: fun () -> required vtyp)
+      let vtyp = Base mtyp in
+      (strinG (n ^"?") >>: fun () -> { vtyp ; nullable = true }) |||
+      (strinG n >>: fun () -> { vtyp ; nullable = false })
     in
     (
       (st "float" Float) |<|
@@ -752,7 +593,7 @@ struct
         several ~sep:tup_sep maybe_nullable
       +- opt_blanks +- char ')' ++
       opt_question_mark >>: fun (ts, nullable) ->
-        make ~nullable (Tup (Array.of_list ts))
+        { nullable ; vtyp = Tup (Array.of_list ts) }
     ) m
 
   and record_typ m =
@@ -766,7 +607,7 @@ struct
       char '}' ++
       opt_question_mark >>: fun (ts, nullable) ->
         (* TODO: check that all field names are distinct *)
-        make ~nullable (Rec (Array.of_list ts))
+        { nullable ; vtyp = Rec (Array.of_list ts) }
     ) m
 
   and sum_typ m =
@@ -775,7 +616,8 @@ struct
       let m = "constructor" :: m in
       (
         identifier ++
-        optional ~def:(required Unit) (!blanks -+ maybe_nullable)
+        optional ~def:{ nullable = false ; vtyp = Base Unit }
+          (!blanks -+ maybe_nullable)
       ) m
     and sep =
       opt_blanks -- char '|' -- opt_blanks in
@@ -785,10 +627,10 @@ struct
       opt_blanks +- char ')' ++ opt_question_mark >>:
         fun (ts, nullable) ->
           (* TODO: check that all constructors are case insensitively distinct *)
-          make ~nullable (Sum (Array.of_list ts))
+          { nullable ; vtyp = Sum (Array.of_list ts) }
     ) m
 
-  let value_type m =
+  let value m =
     let m = "value type" :: m in
     (
       maybe_nullable >>: fun mn ->
@@ -861,39 +703,41 @@ struct
     open DessserTypes
   *)
 
-  (*$= maybe_nullable & ~printer:(test_printer print_maybe_nullable)
-    (Ok ((required (Mac U8)), (2,[]))) \
-       (test_p maybe_nullable "u8")
-    (Ok ((optional (Mac U8)), (3,[]))) \
-       (test_p maybe_nullable "u8?")
-    (Ok ((required (Vec (3, (required (Mac U8))))), (5,[]))) \
-       (test_p maybe_nullable "u8[3]")
-    (Ok ((required (Vec (3, (optional (Mac U8))))), (6,[]))) \
-       (test_p maybe_nullable "u8?[3]")
-    (Ok ((optional (Vec (3, (required (Mac U8))))), (6,[]))) \
-       (test_p maybe_nullable "u8[3]?")
-    (Ok ((required (Vec (3, (optional (Lst (required (Mac U8))))))), (8,[]))) \
-       (test_p maybe_nullable "u8[]?[3]")
-    (Ok ((optional (Lst (required (Vec (3, (optional (Mac U8))))))), (9,[]))) \
-       (test_p maybe_nullable "u8?[3][]?")
-    (Ok ((optional (Map ((required (Mac String)), (required (Mac U8))))), (11,[]))) \
-       (test_p maybe_nullable "u8[string]?")
-    (Ok ((required (Map ((required (Map ((optional (Mac U8)), (optional (Mac String))))), (optional (Lst ((required (Tup [| (required (Mac U8)) ; (required (Map ((required (Mac String)), (required (Mac Bool))))) |])))))))), (35,[]))) \
-       (test_p maybe_nullable "(u8; bool[string])[]?[string?[u8?]]")
-    (Ok ((required (Rec [| "f1", required (Mac Bool) ; "f2", optional (Mac U8) |])), (19,[]))) \
-      (test_p maybe_nullable "{f1: Bool; f2: U8?}")
-    (Ok ((required (Rec [| "f2", required (Mac Bool) ; "f1", optional (Mac U8) |])), (19,[]))) \
-      (test_p maybe_nullable "{f2: Bool; f1: U8?}")
-    (Ok ((required (Sum [| "c1", required (Mac Bool) ; "c2", optional (Mac U8) |])), (18,[]))) \
-      (test_p maybe_nullable "(c1 Bool | c2 U8?)")
-    (Ok ((required (Vec (1, required (Mac Bool)))), (7,[]))) \
-      (test_p maybe_nullable "Bool[1]")
+  (*$inject
+    let pmn = Parser.maybe_nullable *)
+  (*$= pmn & ~printer:(test_printer print_maybe_nullable)
+    (Ok ((required (Base U8)), (2,[]))) \
+       (test_p pmn "u8")
+    (Ok ((optional (Base U8)), (3,[]))) \
+       (test_p pmn "u8?")
+    (Ok ((required (Vec (3, (required (Base U8))))), (5,[]))) \
+       (test_p pmn "u8[3]")
+    (Ok ((required (Vec (3, (optional (Base U8))))), (6,[]))) \
+       (test_p pmn "u8?[3]")
+    (Ok ((optional (Vec (3, (required (Base U8))))), (6,[]))) \
+       (test_p pmn "u8[3]?")
+    (Ok ((required (Vec (3, (optional (Lst (required (Base U8))))))), (8,[]))) \
+       (test_p pmn "u8[]?[3]")
+    (Ok ((optional (Lst (required (Vec (3, (optional (Base U8))))))), (9,[]))) \
+       (test_p pmn "u8?[3][]?")
+    (Ok ((optional (Map ((required (Base String)), (required (Base U8))))), (11,[]))) \
+       (test_p pmn "u8[string]?")
+    (Ok ((required (Map ((required (Map ((optional (Base U8)), (optional (Base String))))), (optional (Lst ((required (Tup [| (required (Base U8)) ; (required (Map ((required (Base String)), (required (Base Bool))))) |])))))))), (35,[]))) \
+       (test_p pmn "(u8; bool[string])[]?[string?[u8?]]")
+    (Ok ((required (Rec [| "f1", required (Base Bool) ; "f2", optional (Base U8) |])), (19,[]))) \
+      (test_p pmn "{f1: Bool; f2: U8?}")
+    (Ok ((required (Rec [| "f2", required (Base Bool) ; "f1", optional (Base U8) |])), (19,[]))) \
+      (test_p pmn "{f2: Bool; f1: U8?}")
+    (Ok ((required (Sum [| "c1", required (Base Bool) ; "c2", optional (Base U8) |])), (18,[]))) \
+      (test_p pmn "(c1 Bool | c2 U8?)")
+    (Ok ((required (Vec (1, required (Base Bool)))), (7,[]))) \
+      (test_p pmn "Bool[1]")
   *)
 
   let rec typ m =
     let m = "type" :: m in
     (
-      (maybe_nullable >>: fun mn -> Value mn) |<|
+      (maybe_nullable >>: fun mn -> Data mn) |<|
       (strinG "void" >>: fun () -> Void) |<|
       (strinG "dataptr" >>: fun () -> DataPtr) |<|
       (strinG "size" >>: fun () -> Size) |<|
@@ -961,43 +805,50 @@ struct
       let m = "Type name" :: m in
       (
         (* Look only for simple types, starting with numerics: *)
-        (iD "UInt8" >>: fun () -> required (Mac U8)) |<|
-        (iD "UInt16" >>: fun () -> required (Mac U16)) |<|
-        (iD "UInt32" >>: fun () -> required (Mac U32)) |<|
-        (iD "UInt64" >>: fun () -> required (Mac U64)) |<|
+        (iD "UInt8" >>: fun () -> { nullable = false ; vtyp = Base U8 }) |<|
+        (iD "UInt16" >>: fun () -> { nullable = false ; vtyp = Base U16 }) |<|
+        (iD "UInt32" >>: fun () -> { nullable = false ; vtyp = Base U32 }) |<|
+        (iD "UInt64" >>: fun () -> { nullable = false ; vtyp = Base U64 }) |<|
         ((iD "Int8" |<| iD "TINYINT") >>:
-          fun () -> required (Mac I8)) |<|
+          fun () -> { nullable = false ; vtyp = Base I8 }) |<|
         ((iD "Int16" |<| iD "SMALLINT") >>:
-          fun () -> required (Mac I16)) |<|
+          fun () -> { nullable = false ; vtyp = Base I16 }) |<|
         ((iD "Int32" |<| iD "INTEGER" |<| iD "INT") >>:
-          fun () -> required (Mac I32)) |<|
+          fun () -> { nullable = false ; vtyp = Base I32 }) |<|
         ((iD "Int64" |<| iD "BIGINT") >>:
-          fun () -> required (Mac I64)) |<|
+          fun () -> { nullable = false ; vtyp = Base I64 }) |<|
         ((iD "Float32" |<| iD "Float64" |<|
           iD "FLOAT" |<| iD "DOUBLE") >>:
-          fun () -> required (Mac Float)) |<|
+          fun () -> { nullable = false ; vtyp = Base Float }) |<|
         (* Assuming UUIDs are just plain U128 with funny-printing: *)
-        (iD "UUID" >>: fun () -> required (Mac U128)) |<|
+        (iD "UUID" >>: fun () -> { nullable = false ; vtyp = Base U128 }) |<|
         (* Decimals: for now forget about the size of the decimal part,
          * just map into corresponding int type*)
-        (with_num_param "Decimal32" >>: fun _p -> required (Mac I32)) |<|
-        (with_num_param "Decimal64" >>: fun _p -> required (Mac I64)) |<|
-        (with_num_param "Decimal128" >>: fun _p -> required (Mac I128)) |<|
+        (with_num_param "Decimal32" >>:
+          fun _p -> { nullable = false ; vtyp = Base I32 }) |<|
+        (with_num_param "Decimal64" >>:
+          fun _p -> { nullable = false ; vtyp = Base I64 }) |<|
+        (with_num_param "Decimal128" >>:
+          fun _p -> { nullable = false ; vtyp = Base I128 }) |<|
         (* TODO: actually do something with the size: *)
         ((with_2_num_params "Decimal" |<| with_2_num_params "DEC") >>:
-          fun (_n, _m)  -> required (Mac I128)) |<|
+          fun (_n, _m)  -> { nullable = false ; vtyp = Base I128 }) |<|
         ((iD "DateTime" |<| iD "TIMESTAMP") >>:
-          fun () -> required (Mac U32)) |<|
-        (iD "Date" >>: fun () -> required (Mac U16)) |<|
+          fun () -> { nullable = false ; vtyp = Base U32 }) |<|
+        (iD "Date" >>: fun () -> { nullable = false ; vtyp = Base U16 }) |<|
         ((iD "String" |<| iD "CHAR" |<| iD "VARCHAR" |<|
           iD "TEXT" |<| iD "TINYTEXT" |<| iD "MEDIUMTEXT" |<|
           iD "LONGTEXT" |<| iD "BLOB" |<| iD "TINYBLOB" |<|
           iD "MEDIUMBLOB" |<| iD "LONGBLOB") >>:
-          fun () -> required (Mac String)) |<|
+          fun () -> { nullable = false ; vtyp = Base String }) |<|
         ((with_num_param "FixedString" |<| with_num_param "BINARY") >>:
-          fun d -> required (Vec (d, required (Mac Char)))) |<|
-        (with_typ_param "Nullable" >>: not_null) |<|
-        (with_typ_param "Array" >>: fun mn -> required (Lst mn)) |<|
+          fun d -> { nullable = false ;
+                     vtyp = Vec (d, { nullable = false ;
+                                       vtyp = Base Char }) }) |<|
+        (with_typ_param "Nullable" >>:
+          fun mn -> { mn with nullable = true }) |<|
+        (with_typ_param "Array" >>:
+          fun mn -> { nullable = false ; vtyp = Lst mn }) |<|
         (* Just ignore those ones (for now): *)
         (with_typ_param "LowCardinality")
         (* Etc... *)
@@ -1012,14 +863,14 @@ struct
         backquoted_string_with_sql_style +- !blanks ++ ptype)
       >>: fun mns ->
         let mns = Array.of_list mns in
-        Value { nullable = false ; vtyp = Rec mns }
+        Data { nullable = false ; vtyp = Rec mns }
     ) m
 
   (*$= clickhouse_names_and_types & ~printer:(test_printer print)
-    (Ok (Value (required (Rec [| "thing", required (Mac U16) |])), (14,[]))) \
+    (Ok (Data (required (Rec [| "thing", required (Base U16) |])), (14,[]))) \
        (test_p clickhouse_names_and_types "`thing` UInt16")
 
-    (Ok (Value (required (Rec [| "thing", required (Lst (required (Mac U16))) |])), (21,[]))) \
+    (Ok (Data (required (Rec [| "thing", required (Lst (required (Base U16))) |])), (21,[]))) \
        (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
   *)
 
@@ -1039,16 +890,268 @@ let maybe_nullable_of_string ?what =
   let print = print_maybe_nullable in
   Parser.(string_parser ~print ?what maybe_nullable)
 
-let value_type_of_string ?what =
-  let print = print_value_type in
-  Parser.(string_parser ~print ?what value_type)
+let value_of_string ?what =
+  let print = print_value in
+  Parser.(string_parser ~print ?what value)
 
-(* This register a user type.
+(*
+ * Tools
+ *)
+
+(* Consider user types opaque by default, so that it matches DessserQCheck
+ * generators. *)
+let rec depth ?(opaque_user_type=true) = function
+  | Unknown -> invalid_arg "depth"
+  | Base _ | Ext _ -> 0
+  | Usr { def ; _ } ->
+      if opaque_user_type then 0 else depth ~opaque_user_type def
+  | Vec (_, mn) | Lst mn | Set (_, mn) ->
+      1 + depth ~opaque_user_type mn.vtyp
+  | Tup mns ->
+      1 + Array.fold_left (fun d mn ->
+        max d (depth ~opaque_user_type mn.vtyp)
+      ) 0 mns
+  | Rec mns | Sum mns ->
+      1 + Array.fold_left (fun d (_, mn) ->
+        max d (depth ~opaque_user_type mn.vtyp)
+      ) 0 mns
+  | Map (k, v) ->
+      1 + max (depth ~opaque_user_type k.vtyp) (depth ~opaque_user_type v.vtyp)
+
+(*$= depth & ~printer:string_of_int
+  0 (depth (Base U8))
+  2 (depth (Tup [| required (Base U8) ; required (Lst (required (Base U8))) |]))
+  7 (depth (\
+    Lst (required (\
+      Vec (4, (required (\
+        Rec [| \
+          "mgfhm", required (\
+            Rec [| \
+              "ceci", optional (Base Char) ; \
+              "zauxs", required (\
+                Rec [| \
+                  "gidf", required (\
+                    Rec [| \
+                      "qskv", optional (Base Float) ; \
+                      "lefr", required (Base I16) ; \
+                      "bdujmi", required (\
+                        Vec (8, required (get_user_type "Cidr6"))) |]) ; \
+                  "cdwcv", required (Base U64) ; \
+                  "jcdivs", required (\
+                    Rec [| \
+                      "hgtixf", required (Lst (optional (Base I128))) ; \
+                      "yuetd", required (Base Char) ; \
+                      "bsbff", required (Base U16) |]) |]) |]) ; \
+          "pudia", required (get_user_type "Cidr4") ; \
+          "qngl", required (Base Bool) ; \
+          "iajv", optional (Base I128) |])))))))
+*)
+
+let uniq_id t =
+  IO.to_string print_sorted (develop_user_types_rec t) |>
+  Digest.string |>
+  Digest.to_hex
+
+(*
+ * Some functional constructors:
+ *)
+
+let base x = Base x
+
+let usr x = Usr x
+
+let ext x = Ext x
+
+let vec dim mn =
+  if dim <= 0 then invalid_arg "vector" else Vec (dim, mn)
+
+let lst mn = Lst mn
+
+let set st mn = Set (st, mn)
+
+let tup mns = Tup mns
+
+let record mns = Rec mns
+
+let sum mns = Sum mns
+
+let map k v = Map (k, v)
+
+let maybe_nullable vtyp ~nullable = { vtyp ; nullable }
+
+let required = maybe_nullable ~nullable:false
+
+let optional = maybe_nullable ~nullable:true
+
+(* Can come handy: *)
+let tuple = function
+  | [||] -> invalid_arg "tuple"
+  | [| x |] -> x
+  | mns -> required (Tup mns)
+
+let data mn = Data mn
+
+let pair t1 t2 = Pair (t1, t2)
+
+let slist t = SList t
+
+let func ins out = Function (ins, out)
+let func1 i1 out = Function ([| i1 |], out)
+let func2 i1 i2 out = Function ([| i1 ; i2 |], out)
+let func3 i1 i2 i3 out = Function ([| i1 ; i2 ; i3 |], out)
+let func4 i1 i2 i3 i4 out = Function ([| i1 ; i2 ; i3 ; i4 |], out)
+
+(* Some short cuts for often used types: *)
+let bool = Data (required (Base Bool))
+let char = Data (required (Base Char))
+let string = Data (required (Base String))
+let float = Data (required (Base Float))
+let u8 = Data (required (Base U8))
+let u16 = Data (required (Base U16))
+let u24 = Data (required (Base U24))
+let u32 = Data (required (Base U32))
+let u40 = Data (required (Base U40))
+let u48 = Data (required (Base U48))
+let u56 = Data (required (Base U56))
+let u64 = Data (required (Base U64))
+let u128 = Data (required (Base U128))
+let i8 = Data (required (Base I8))
+let i16 = Data (required (Base I16))
+let i24 = Data (required (Base I24))
+let i32 = Data (required (Base I32))
+let i40 = Data (required (Base I40))
+let i48 = Data (required (Base I48))
+let i56 = Data (required (Base I56))
+let i64 = Data (required (Base I64))
+let i128 = Data (required (Base I128))
+let unit = Data (required (Base Unit))
+(* nullable counterparts: *)
+let nbool = Data (optional (Base Bool))
+let nchar = Data (optional (Base Char))
+let nstring = Data (optional (Base String))
+let nfloat = Data (optional (Base Float))
+let nu8 = Data (optional (Base U8))
+let nu16 = Data (optional (Base U16))
+let nu24 = Data (optional (Base U24))
+let nu32 = Data (optional (Base U32))
+let nu40 = Data (optional (Base U40))
+let nu48 = Data (optional (Base U48))
+let nu56 = Data (optional (Base U56))
+let nu64 = Data (optional (Base U64))
+let nu128 = Data (optional (Base U128))
+let ni8 = Data (optional (Base I8))
+let ni16 = Data (optional (Base I16))
+let ni24 = Data (optional (Base I24))
+let ni32 = Data (optional (Base I32))
+let ni40 = Data (optional (Base I40))
+let ni48 = Data (optional (Base I48))
+let ni56 = Data (optional (Base I56))
+let ni64 = Data (optional (Base I64))
+let ni128 = Data (optional (Base I128))
+let nunit = Data (optional (Base Unit))
+
+let nullable_of mn =
+  { mn with nullable = true }
+
+let not_nullable_of mn =
+  { mn with nullable = false }
+
+let to_maybe_nullable = function
+  | Data mn -> mn
+  | _ -> invalid_arg "to_maybe_nullable"
+
+let to_nullable = function
+  | Data { vtyp ; nullable = false } ->
+      Data { vtyp ; nullable = true }
+  | t ->
+      Printf.sprintf2 "Cannot turn type %a into nullable\n%!"
+        print t |>
+      failwith
+
+let force = function
+  | Data { vtyp ; nullable = true } ->
+      Data { vtyp ; nullable = false }
+  | t ->
+      Printf.sprintf2 "Cannot turn type %a into not-nullable\n%!"
+        print t |>
+      failwith
+
+(*
+ * And destructors:
+ *)
+
+let pair_of_tpair = function
+  | Pair (t1, t2) -> t1, t2
+  | _ -> invalid_arg "pair_of_tpair"
+
+let mn_of_t = function
+  | Data mn -> mn
+  | t -> invalid_arg ("mn_of_t for type "^ to_string t)
+
+let value_of_t t =
+  let mn = mn_of_t t in
+  mn.vtyp
+
+let is_defined v =
+  try
+    iter_value (function
+      | Unknown -> raise Exit
+      | _ -> ()
+    ) v ;
+    true
+  with Exit ->
+    false
+
+let rec is_integer = function
+  | Unknown -> invalid_arg "is_integer"
+  | Base (U8|U16|U24|U32|U40|U48|U56|U64|U128|
+          I8|I16|I24|I32|I40|I48|I56|I64|I128) -> true
+  | Usr { def ; _ } ->
+      is_integer def
+  | _ -> false
+
+let is_numeric v =
+  is_integer v || v = Base Float
+
+let is_nullable = function
+  | Data { nullable = true ; _ } -> true
+  | _ -> false
+
+let width_of_int = function
+  | Base (U8 | I8) -> 8
+  | Base (U16 | I16) -> 16
+  | Base (U24 | I24) -> 24
+  | Base (U32 | I32) -> 32
+  | Base (U40 | I40) -> 40
+  | Base (U48 | I48) -> 48
+  | Base (U56 | I56) -> 56
+  | Base (U64 | I64) -> 64
+  | Base (U128 | I128) -> 128
+  | _ ->
+      invalid_arg "width_of_int"
+
+(*
+ * Registering User Types.
+ *
  * Note that to actually create values of that type the constructor must
- * be registered also (see DessserExpressions.register_user_constructor). *)
+ * be registered also (see DessserExpressions.register_user_constructor).
+ *)
+
+let check v =
+  iter_value (function
+    (* TODO: also field names in a record *)
+    | Sum mns ->
+        Array.fold_left (fun s (n, _) ->
+          if Set.String.mem n s then
+            failwith "Constructor names not unique" ;
+          Set.String.add n s
+        ) Set.String.empty mns |>
+        ignore
+    | _ -> ()
+  ) v
 
 let register_user_type
-    name ?(print : gen_printer option) ?(parse : value_type P.t option) def =
+    name ?(print : gen_printer option) ?(parse : value P.t option) def =
   if not (is_defined def) then invalid_arg "register_user_type" ;
   check def ;
   Hashtbl.modify_opt name (function
@@ -1104,7 +1207,7 @@ let type_and_name_of_path t path =
     | [] -> t, field_name
     | i :: path ->
         let rec type_of = function
-          | (Unknown | Unit | Mac _ | Ext _ | Map _) ->
+          | (Unknown | Base _ | Ext _ | Map _) ->
               assert false
           | Usr t ->
               type_of t.def
@@ -1136,111 +1239,15 @@ let type_of_parent mn path =
 
 (*$inject
   let test_t = required (Tup [|
-    required (Mac U8) ;
-    optional (Mac String) ;
-    optional (Vec (2, required (Mac Char))) |])
+    required (Base U8) ;
+    optional (Base String) ;
+    optional (Vec (2, required (Base Char))) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_maybe_nullable)
   test_t (type_of_path test_t [])
-  (required (Mac U8)) (type_of_path test_t [0])
-  (optional (Mac String)) (type_of_path test_t [1])
-  (optional (Vec (2, required (Mac Char)))) (type_of_path test_t [2])
-  (required (Mac Char)) (type_of_path test_t [2; 0])
+  (required (Base U8)) (type_of_path test_t [0])
+  (optional (Base String)) (type_of_path test_t [1])
+  (optional (Vec (2, required (Base Char)))) (type_of_path test_t [2])
+  (required (Base Char)) (type_of_path test_t [2; 0])
 *)
-
-(* Some short cuts for often used types: *)
-
-let bool = Value (required (Mac Bool))
-
-let char = Value (required (Mac Char))
-
-let nstring = Value (optional (Mac String))
-
-let string = Value (required (Mac String))
-
-let float = Value (required (Mac Float))
-
-let u8 = Value (required (Mac U8))
-
-let u16 = Value (required (Mac U16))
-
-let u24 = Value (required (Mac U24))
-
-let u32 = Value (required (Mac U32))
-
-let u40 = Value (required (Mac U40))
-
-let u48 = Value (required (Mac U48))
-
-let u56 = Value (required (Mac U56))
-
-let u64 = Value (required (Mac U64))
-
-let u128 = Value (required (Mac U128))
-
-let i8 = Value (required (Mac I8))
-
-let i16 = Value (required (Mac I16))
-
-let i24 = Value (required (Mac I24))
-
-let i32 = Value (required (Mac I32))
-
-let i40 = Value (required (Mac I40))
-
-let i48 = Value (required (Mac I48))
-
-let i56 = Value (required (Mac I56))
-
-let i64 = Value (required (Mac I64))
-
-let i128 = Value (required (Mac I128))
-
-let void = Void
-
-let unit = Value (required Unit)
-
-let bit = Bit
-
-let byte = Byte
-
-let size = Size
-
-let word = Word
-
-let dword = DWord
-
-let qword = QWord
-
-let oword = OWord
-
-let bytes = Bytes
-
-let mask = Mask
-
-let dataptr = DataPtr
-
-let pair t1 t2 = Pair (t1, t2)
-
-let slist t = SList t
-
-let list mn = Value (required (Lst mn))
-
-let tuple mns =
-  match Array.length mns with
-  | 0 -> invalid_arg "tuple"
-  | 1 -> Value mns.(0)
-  | _ -> Value (required (Tup mns))
-
-let set st mn = Value (required (Set (st, mn)))
-
-let vector d mn = Value (required (Vec (d, mn)))
-
-let ext n = Value (required (Ext n))
-
-let func ins out = Function (ins, out)
-let func1 i1 out = Function ([| i1 |], out)
-let func2 i1 i2 out = Function ([| i1 ; i2 |], out)
-let func3 i1 i2 i3 out = Function ([| i1 ; i2 ; i3 |], out)
-let func4 i1 i2 i3 i4 out = Function ([| i1 ; i2 ; i3 ; i4 |], out)

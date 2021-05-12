@@ -11,7 +11,7 @@ type t =
     verbatim_definitions : verbatim_definition list ;
     external_types : (string * (P.t -> T.backend_id -> string)) list ;
     (* User may prefer some specific name for some types: *)
-    type_names : (T.value_type * string) list }
+    type_names : (T.value * string) list }
 
 and verbatim_definition =
   { name : string ; (* or empty string *)
@@ -110,7 +110,7 @@ let get_type_of_identifier compunit name =
   t
 
 let make_verbatim_definition
-      ?(name="") ?(typ=T.(Value (required Unit))) ?(dependencies=[])
+      ?(name="") ?(typ=T.unit) ?(dependencies=[])
       ?(location=Inline) ~backend printer =
   if location = Inline && name = "" then
     invalid_arg "make_verbatim_definition: Inline definitions must be named" ;

@@ -22,7 +22,7 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.dataptr
+  let ptr _vtyp = T.DataPtr
 
   let start ?(config=default_config) _l _v p = config, p
 
@@ -225,7 +225,7 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.dataptr
+  let ptr _vtyp = T.DataPtr
 
   let start ?(config=default_config) _mn _ p = config, p
 
@@ -272,9 +272,9 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = E.func1 ~l T.byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
+    let cond = E.func1 ~l T.Byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
     and init = bytes_of_string (string "")
-    and reduce = E.func2 ~l T.bytes T.byte (fun _l -> append_byte) in
+    and reduce = E.func2 ~l T.Bytes T.Byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair ~l "dbytes" str_p (fun _l str p ->
       (* Skip the closing double-quote: *)

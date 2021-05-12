@@ -73,7 +73,7 @@ let peval_to_float e =
   with _ -> to_float e
 
 let nullable_of_nan f =
-  if f <> f then null (Mac Float) else not_null (float f)
+  if f <> f then null (Base Float) else not_null (float f)
 
 let arith2'' op e1 e2 op_i128 cst =
   (* All but U128 ints can be safely converted into I128.
@@ -210,25 +210,25 @@ let rec peval l e =
       | StringOfIp, E0 (U32 n) -> string (DessserIpTools.V4.to_string n)
       | StringOfIp, E0 (U128 n) -> string (DessserIpTools.V6.to_string n)
       | StringOfChar, E0 (Char c) -> string (String.of_char c)
-      | FloatOfString, E0 (String s) -> or_null_ (Mac Float) float float_of_string s
-      | U8OfString, E0 (String s) -> or_null_ (Mac U8) u8 Uint8.of_string s
-      | U16OfString, E0 (String s) -> or_null_ (Mac U16) u16 Uint16.of_string s
-      | U24OfString, E0 (String s) -> or_null_ (Mac U24) u24 Uint24.of_string s
-      | U32OfString, E0 (String s) -> or_null_ (Mac U32) u32 Uint32.of_string s
-      | U40OfString, E0 (String s) -> or_null_ (Mac U40) u40 Uint40.of_string s
-      | U48OfString, E0 (String s) -> or_null_ (Mac U48) u48 Uint48.of_string s
-      | U56OfString, E0 (String s) -> or_null_ (Mac U56) u56 Uint56.of_string s
-      | U64OfString, E0 (String s) -> or_null_ (Mac U64) u64 Uint64.of_string s
-      | U128OfString, E0 (String s) -> or_null_ (Mac U128) u128 Uint128.of_string s
-      | I8OfString, E0 (String s) -> or_null_ (Mac I8) i8 Int8.of_string s
-      | I16OfString, E0 (String s) -> or_null_ (Mac I16) i16 Int16.of_string s
-      | I24OfString, E0 (String s) -> or_null_ (Mac I24) i24 Int24.of_string s
-      | I32OfString, E0 (String s) -> or_null_ (Mac I32) i32 Int32.of_string s
-      | I40OfString, E0 (String s) -> or_null_ (Mac I40) i40 Int40.of_string s
-      | I48OfString, E0 (String s) -> or_null_ (Mac I48) i48 Int48.of_string s
-      | I56OfString, E0 (String s) -> or_null_ (Mac I56) i56 Int56.of_string s
-      | I64OfString, E0 (String s) -> or_null_ (Mac I64) i64 Int64.of_string s
-      | I128OfString, E0 (String s) -> or_null_ (Mac I128) i128 Int128.of_string s
+      | FloatOfString, E0 (String s) -> or_null_ (Base Float) float float_of_string s
+      | U8OfString, E0 (String s) -> or_null_ (Base U8) u8 Uint8.of_string s
+      | U16OfString, E0 (String s) -> or_null_ (Base U16) u16 Uint16.of_string s
+      | U24OfString, E0 (String s) -> or_null_ (Base U24) u24 Uint24.of_string s
+      | U32OfString, E0 (String s) -> or_null_ (Base U32) u32 Uint32.of_string s
+      | U40OfString, E0 (String s) -> or_null_ (Base U40) u40 Uint40.of_string s
+      | U48OfString, E0 (String s) -> or_null_ (Base U48) u48 Uint48.of_string s
+      | U56OfString, E0 (String s) -> or_null_ (Base U56) u56 Uint56.of_string s
+      | U64OfString, E0 (String s) -> or_null_ (Base U64) u64 Uint64.of_string s
+      | U128OfString, E0 (String s) -> or_null_ (Base U128) u128 Uint128.of_string s
+      | I8OfString, E0 (String s) -> or_null_ (Base I8) i8 Int8.of_string s
+      | I16OfString, E0 (String s) -> or_null_ (Base I16) i16 Int16.of_string s
+      | I24OfString, E0 (String s) -> or_null_ (Base I24) i24 Int24.of_string s
+      | I32OfString, E0 (String s) -> or_null_ (Base I32) i32 Int32.of_string s
+      | I40OfString, E0 (String s) -> or_null_ (Base I40) i40 Int40.of_string s
+      | I48OfString, E0 (String s) -> or_null_ (Base I48) i48 Int48.of_string s
+      | I56OfString, E0 (String s) -> or_null_ (Base I56) i56 Int56.of_string s
+      | I64OfString, E0 (String s) -> or_null_ (Base I64) i64 Int64.of_string s
+      | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s
       | ByteOfU8, E0 (U8 n) -> byte n
       | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0)
       | WordOfU16, E0 (U16 n) -> word n
@@ -419,20 +419,20 @@ let rec peval l e =
       | (Add | Sub | Mul as op), e1, e2 -> arith2 op e1 e2
       | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
           (try float (if op = Div then a /. b else Stdlib.Float.rem a b)
-          with Division_by_zero -> null (Mac Float))
+          with Division_by_zero -> null (Base Float))
       | (Div | Rem as op), e1, e2 ->
           (try arith2' op e1 e2
                        (if op = Div then Int128.div else Int128.rem)
                        (if op = Div then Uint128.div else Uint128.rem)
-          with Division_by_zero -> null (T.vtyp_of_t (E.type_of l e1)))
+          with Division_by_zero -> null (T.value_of_t (E.type_of l e1)))
       | Pow, E0 (Float a), E0 (Float b) ->
           nullable_of_nan (a ** b)
       | Pow, E0 (I32 a), E0 (I32 b) ->
           (try not_null (i32 (BatInt32.pow a b))
-          with Invalid_argument _ -> null (Mac I32))
+          with Invalid_argument _ -> null (Base I32))
       | Pow, E0 (I64 a), E0 (I64 b) ->
           (try not_null (i64 (BatInt64.pow a b))
-          with Invalid_argument _ -> null (Mac I64))
+          with Invalid_argument _ -> null (Base I64))
       | Pow, e1, e2 ->
           (match float_of_num e1, float_of_num e2 with
           | exception _ ->
@@ -479,7 +479,7 @@ let rec peval l e =
           with Exit ->
             E2 (Join, e1, e2))
       | CharOfString, idx, (E0 (String s) as str) ->
-          if String.length s = 0 then null (Mac Char)
+          if String.length s = 0 then null (Base Char)
           else (match E.to_cst_int idx with
           | exception _ -> E2 (CharOfString, idx, str)
           | idx when idx < String.length s -> not_null (char s.[idx])
@@ -553,7 +553,7 @@ let rec peval l e =
                        | HashTable _ | Heap), _) -> bool false
       | AllocLst, e1, e2 ->
           (match E.type_of l e2 with
-          | T.Value mn ->
+          | T.Data mn ->
               (match E.to_cst_int e1 with
               | exception _ -> E2 (AllocLst, e1, e2)
               | 0 -> make_lst mn [] |> p
@@ -582,7 +582,7 @@ let rec peval l e =
       | SplitBy, E0 (String s1), E0 (String s2) ->
           String.split_on_string s1 s2 |>
           List.map string |>
-          make_lst T.(required (Mac String)) |>
+          make_lst T.(required (Base String)) |>
           p
       | SplitAt, e1, E0 (String s) ->
           (match E.to_cst_int e1 with
@@ -646,7 +646,7 @@ let rec peval l e =
           and else_ = u24 (Uint24.of_int (String.rfind s2 s1)) in
           (try
             not_null (if_ from_start ~then_ ~else_) |> p
-          with Not_found -> null T.(Mac U24))
+          with Not_found -> null T.(Base U24))
       | SetVec, e1, e2, e3 ->
           (match E.to_cst_int e1 with
           | exception _ ->

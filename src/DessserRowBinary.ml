@@ -9,7 +9,7 @@ module Ser : SER with type config = unit =
 struct
   type config = unit
   type state = unit
-  let ptr _mn = T.dataptr
+  let ptr _mn = T.DataPtr
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
@@ -203,7 +203,7 @@ module Des : DES with type config = unit =
 struct
   type config = unit
   type state = unit
-  let ptr _mn = T.dataptr
+  let ptr _mn = T.DataPtr
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
@@ -214,15 +214,15 @@ struct
     E.with_sploded_pair ~l "dfloat" w_p (fun _l w p ->
       pair (float_of_qword w) p)
 
-  (* Returns a size and a dataptr: *)
+  (* Returns a size and a DataPtr: *)
   let read_leb128 l p =
     let t_u32_u8 = T.Pair (T.u32, T.u8) in
     let_ ~l ~name:"leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
-          (E.func1 ~l T.byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
+          (E.func1 ~l T.Byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
         ~reduce:(comment "Reducer for read_leb128"
-          (E.func2 ~l t_u32_u8 T.byte (fun _l leb_shft b ->
+          (E.func2 ~l t_u32_u8 T.Byte (fun _l leb_shft b ->
             let byte = bit_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in
             let leb = first leb_shft
             and shft = secnd leb_shft in

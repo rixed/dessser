@@ -55,7 +55,7 @@ struct
     dslist set_of_slist mn dstate mn0 path l src
 
   and dslist of_slist mn dstate mn0 path l src =
-    let init_t = T.Value mn in
+    let init_t = T.Data mn in
     let init_list_t = T.SList init_t in
     let inits_src_t = T.Pair (init_list_t, Des.ptr mn0) in
     (* good enough to determine the item type but not much more: *)
@@ -174,29 +174,29 @@ struct
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
       | T.Unknown | T.Ext _ -> invalid_arg "make1"
-      | T.Unit -> dunit
-      | T.Mac Float -> Des.dfloat
-      | T.Mac String -> Des.dstring
-      | T.Mac Bool -> Des.dbool
-      | T.Mac Char -> Des.dchar
-      | T.Mac I8 -> Des.di8
-      | T.Mac I16 -> Des.di16
-      | T.Mac I24 -> Des.di24
-      | T.Mac I32 -> Des.di32
-      | T.Mac I40 -> Des.di40
-      | T.Mac I48 -> Des.di48
-      | T.Mac I56 -> Des.di56
-      | T.Mac I64 -> Des.di64
-      | T.Mac I128 -> Des.di128
-      | T.Mac U8 -> Des.du8
-      | T.Mac U16 -> Des.du16
-      | T.Mac U24 -> Des.du24
-      | T.Mac U32 -> Des.du32
-      | T.Mac U40 -> Des.du40
-      | T.Mac U48 -> Des.du48
-      | T.Mac U56 -> Des.du56
-      | T.Mac U64 -> Des.du64
-      | T.Mac U128 -> Des.du128
+      | T.Base Unit -> dunit
+      | T.Base Float -> Des.dfloat
+      | T.Base String -> Des.dstring
+      | T.Base Bool -> Des.dbool
+      | T.Base Char -> Des.dchar
+      | T.Base I8 -> Des.di8
+      | T.Base I16 -> Des.di16
+      | T.Base I24 -> Des.di24
+      | T.Base I32 -> Des.di32
+      | T.Base I40 -> Des.di40
+      | T.Base I48 -> Des.di48
+      | T.Base I56 -> Des.di56
+      | T.Base I64 -> Des.di64
+      | T.Base I128 -> Des.di128
+      | T.Base U8 -> Des.du8
+      | T.Base U16 -> Des.du16
+      | T.Base U24 -> Des.du24
+      | T.Base U32 -> Des.du32
+      | T.Base U40 -> Des.du40
+      | T.Base U48 -> Des.du48
+      | T.Base U56 -> Des.du56
+      | T.Base U64 -> Des.du64
+      | T.Base U128 -> Des.du128
       | T.Usr vt ->
           (* Deserialize according to vt.def, then make a new user value to
            * keep the user type: *)
@@ -286,7 +286,7 @@ struct
       fold ~list:v
         ~init:(pair dst (i32 0l))
         ~body:
-          (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32)) (T.Value mn)
+          (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32)) (T.Data mn)
                    (fun l dst_n x ->
             E.with_sploded_pair ~l "dst_n" dst_n (fun l dst n ->
               let_ ~name:"slist_dst" ~l (
@@ -360,29 +360,29 @@ struct
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
       | T.Unknown | T.Ext _ -> invalid_arg "ser1"
-      | T.Unit -> sunit
-      | T.Mac Float -> Ser.sfloat
-      | T.Mac String -> Ser.sstring
-      | T.Mac Bool -> Ser.sbool
-      | T.Mac Char -> Ser.schar
-      | T.Mac I8 -> Ser.si8
-      | T.Mac I16 -> Ser.si16
-      | T.Mac I24 -> Ser.si24
-      | T.Mac I32 -> Ser.si32
-      | T.Mac I40 -> Ser.si40
-      | T.Mac I48 -> Ser.si48
-      | T.Mac I56 -> Ser.si56
-      | T.Mac I64 -> Ser.si64
-      | T.Mac I128 -> Ser.si128
-      | T.Mac U8 -> Ser.su8
-      | T.Mac U16 -> Ser.su16
-      | T.Mac U24 -> Ser.su24
-      | T.Mac U32 -> Ser.su32
-      | T.Mac U40 -> Ser.su40
-      | T.Mac U48 -> Ser.su48
-      | T.Mac U56 -> Ser.su56
-      | T.Mac U64 -> Ser.su64
-      | T.Mac U128 -> Ser.su128
+      | T.Base Unit -> sunit
+      | T.Base Float -> Ser.sfloat
+      | T.Base String -> Ser.sstring
+      | T.Base Bool -> Ser.sbool
+      | T.Base Char -> Ser.schar
+      | T.Base I8 -> Ser.si8
+      | T.Base I16 -> Ser.si16
+      | T.Base I24 -> Ser.si24
+      | T.Base I32 -> Ser.si32
+      | T.Base I40 -> Ser.si40
+      | T.Base I48 -> Ser.si48
+      | T.Base I56 -> Ser.si56
+      | T.Base I64 -> Ser.si64
+      | T.Base I128 -> Ser.si128
+      | T.Base U8 -> Ser.su8
+      | T.Base U16 -> Ser.su16
+      | T.Base U24 -> Ser.su24
+      | T.Base U32 -> Ser.su32
+      | T.Base U40 -> Ser.su40
+      | T.Base U48 -> Ser.su48
+      | T.Base U56 -> Ser.su56
+      | T.Base U64 -> Ser.su64
+      | T.Base U128 -> Ser.su128
       | T.Usr vt -> ser_of_vt vt.def
       | T.Tup mns -> stup mns ma
       | T.Rec mns -> srec mns ma
@@ -530,29 +530,29 @@ struct
       add_size l sizes sz in
     let rec ssz_of_vt = function
       | T.Unknown | T.Ext _ -> invalid_arg "sersz1"
-      | T.Unit -> fun _ _ _ _ sizes -> sizes
-      | T.Mac Float -> to_dyn Ser.ssize_of_float
-      | T.Mac String -> to_dyn Ser.ssize_of_string
-      | T.Mac Bool -> to_dyn Ser.ssize_of_bool
-      | T.Mac Char -> to_dyn Ser.ssize_of_char
-      | T.Mac I8 -> to_dyn Ser.ssize_of_i8
-      | T.Mac I16 -> to_dyn Ser.ssize_of_i16
-      | T.Mac I24 -> to_dyn Ser.ssize_of_i24
-      | T.Mac I32 -> to_dyn Ser.ssize_of_i32
-      | T.Mac I40 -> to_dyn Ser.ssize_of_i40
-      | T.Mac I48 -> to_dyn Ser.ssize_of_i48
-      | T.Mac I56 -> to_dyn Ser.ssize_of_i56
-      | T.Mac I64 -> to_dyn Ser.ssize_of_i64
-      | T.Mac I128 -> to_dyn Ser.ssize_of_i128
-      | T.Mac U8 -> to_dyn Ser.ssize_of_u8
-      | T.Mac U16 -> to_dyn Ser.ssize_of_u16
-      | T.Mac U24 -> to_dyn Ser.ssize_of_u24
-      | T.Mac U32 -> to_dyn Ser.ssize_of_u32
-      | T.Mac U40 -> to_dyn Ser.ssize_of_u40
-      | T.Mac U48 -> to_dyn Ser.ssize_of_u48
-      | T.Mac U56 -> to_dyn Ser.ssize_of_u56
-      | T.Mac U64 -> to_dyn Ser.ssize_of_u64
-      | T.Mac U128 -> to_dyn Ser.ssize_of_u128
+      | T.Base Unit -> fun _ _ _ _ sizes -> sizes
+      | T.Base Float -> to_dyn Ser.ssize_of_float
+      | T.Base String -> to_dyn Ser.ssize_of_string
+      | T.Base Bool -> to_dyn Ser.ssize_of_bool
+      | T.Base Char -> to_dyn Ser.ssize_of_char
+      | T.Base I8 -> to_dyn Ser.ssize_of_i8
+      | T.Base I16 -> to_dyn Ser.ssize_of_i16
+      | T.Base I24 -> to_dyn Ser.ssize_of_i24
+      | T.Base I32 -> to_dyn Ser.ssize_of_i32
+      | T.Base I40 -> to_dyn Ser.ssize_of_i40
+      | T.Base I48 -> to_dyn Ser.ssize_of_i48
+      | T.Base I56 -> to_dyn Ser.ssize_of_i56
+      | T.Base I64 -> to_dyn Ser.ssize_of_i64
+      | T.Base I128 -> to_dyn Ser.ssize_of_i128
+      | T.Base U8 -> to_dyn Ser.ssize_of_u8
+      | T.Base U16 -> to_dyn Ser.ssize_of_u16
+      | T.Base U24 -> to_dyn Ser.ssize_of_u24
+      | T.Base U32 -> to_dyn Ser.ssize_of_u32
+      | T.Base U40 -> to_dyn Ser.ssize_of_u40
+      | T.Base U48 -> to_dyn Ser.ssize_of_u48
+      | T.Base U56 -> to_dyn Ser.ssize_of_u56
+      | T.Base U64 -> to_dyn Ser.ssize_of_u64
+      | T.Base U128 -> to_dyn Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
       | T.Vec (dim, mn) -> ssvec dim mn
       | T.Tup mns -> sstup mns ma

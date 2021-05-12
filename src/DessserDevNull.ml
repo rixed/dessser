@@ -6,7 +6,7 @@ module Ser : SER with type config = unit =
 struct
   type config = unit
   type state = unit
-  let ptr _vtyp = T.dataptr
+  let ptr _vtyp = T.DataPtr
 
   let start ?(config=()) _vtyp _l p = config, p
   let stop () _l p = p

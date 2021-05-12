@@ -21,10 +21,10 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = T.{ vtyp = Mac x ; nullable = false }
-  and n x = T.{ vtyp = Mac x ; nullable = true } in
+  let m x = T.{ vtyp = Base x ; nullable = false }
+  and n x = T.{ vtyp = Base x ; nullable = true } in
   let udp_typ =
-    T.make (Tup [|
+    T.required (Tup [|
       m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
       n U32 ; m U64 ; m U64 ; m U32 ; m U32 ; n U32 ; n String ; n U32 ;
       n String ; n U32 ; n String ; m U16 ; m U16 ; m U8 ; m U8 ; n U32 ;
@@ -32,7 +32,7 @@ let () =
       m U64 ; (* Should be U32 *) m U64 ; m U64 ; n String
     |])
   and _http_typ =
-    T.make (Tup [|
+    T.required (Tup [|
       m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ;
       n U32 ; n U32 ; m U64 ; m U64 ; m U32 ; m U32 ;
       n U32 ; T.optional (Vec (16, m Char)) ;

@@ -86,7 +86,7 @@ let tuple_typs_of_record mns =
 (* We use a stack of "frames" of pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
  * itself (p) and a stack (stk): *)
-let t_frame = T.(pair dataptr size)
+let t_frame = T.(pair DataPtr Size)
 
 let leave_frame l p_stk =
   E.with_sploded_pair ~l "leave_frame" p_stk (fun _l p stk ->
@@ -214,7 +214,7 @@ struct
   type config = unit
   type state = unit
 
-  let ptr _mn = T.(pair dataptr (slist t_frame))
+  let ptr _mn = T.(pair DataPtr (slist t_frame))
 
   (* Few helper functions: *)
 
@@ -512,7 +512,7 @@ struct
           without_nullmask ()
     | vtyp ->
         Printf.eprintf "ERROR: List of type %a!?\n%!"
-          T.print_value_type vtyp ;
+          T.print_value vtyp ;
         assert false
 
   let ssize_of_float _mn0 _path _ _ =

@@ -66,11 +66,11 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let ma = copy_field in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 (Value schema) (fun l v ->
+    E.func1 (Data schema) (fun l v ->
       OfValue.sersize schema l ma v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    E.func2 (Value schema) DataPtr (fun l v dst ->
+    E.func2 (Data schema) DataPtr (fun l v dst ->
       OfValue.serialize schema l ma v dst) in
   if debug then (
     if has_convert then E.type_check [] convert ;
@@ -213,7 +213,7 @@ let aggregator
    * and the input_t: *)
   E.type_check [] update_expr ;
   let update_t = E.type_of [] update_expr in
-  if not (T.eq update_t (T.Function ([| state_t ; Value schema |], T.void)))
+  if not (T.eq update_t (T.Function ([| state_t ; Data schema |], T.Void)))
   then
     Printf.sprintf2
       "Aggregation updater (%a) must be a function of the aggregation state \
@@ -227,7 +227,7 @@ let aggregator
   E.type_check [] finalize_expr ;
   let output_t =
     match E.type_of [] finalize_expr with
-    | T.Function ([| a1 |], Value mn) when a1 = state_t -> mn
+    | T.Function ([| a1 |], Data mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
                          aggregation state (not %a)" T.print t |>
@@ -238,7 +238,7 @@ let aggregator
   let module OfValue = DessserHeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
-    E.func2 (Value output_t) DataPtr (fun l v dst ->
+    E.func2 (Data output_t) DataPtr (fun l v dst ->
       OfValue.serialize output_t l ma v dst) in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;

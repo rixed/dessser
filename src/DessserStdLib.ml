@@ -25,7 +25,7 @@ let coalesce l es =
         e
     | e :: es ->
         (match E.type_of l e with
-        | T.Value { nullable = true ; _ } ->
+        | T.Data { nullable = true ; _ } ->
             let name = "coalesced_"^ string_of_int i in
             let_ ~name ~l e (fun l d ->
               if_null d
@@ -51,9 +51,9 @@ let rec random_slist mn =
     force ~what:"random_slist rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length)
   and body =
-    E.func2 T.i32 T.(SList (Value mn)) (fun _l _idx lst ->
+    E.func2 T.i32 T.(SList (Data mn)) (fun _l _idx lst ->
       cons (random mn) lst)
-  and init = eol T.(Value mn) in
+  and init = eol T.(Data mn) in
   repeat ~from ~to_ ~body ~init
 
 (* [random mn] returns an expression with a (runtime) random value of
@@ -63,67 +63,67 @@ and random mn =
   let std_random = random in
   let open E.Ops in
   if mn.T.nullable then
-    if_ (std_random T.(required (Mac Bool)))
+    if_ (std_random T.(required (Base Bool)))
       ~then_:(null mn.vtyp)
       ~else_:(not_null (std_random { mn with nullable = false }))
   else match mn.vtyp with
   | T.Unknown ->
       invalid_arg "random for unknown type"
-  | Unit ->
+  | Base Unit ->
       unit
-  | Mac Float ->
+  | Base Float ->
       random_float
-  | Mac Bool ->
+  | Base Bool ->
       eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
-  | Mac String ->
+  | Base String ->
       (* Just 5 random letters for now: *)
       repeat
         ~from:(i32 0l) ~to_:(i32 5l)
         ~init:(string "") ~body:(E.func2 T.i32 T.string (fun _l _i s ->
-          let c = std_random T.(required (Mac Char)) in
+          let c = std_random T.(required (Base Char)) in
           append_string s (string_of_char_ c)))
-  | Mac Char ->
+  | Base Char ->
       (* Just a random lowercase letter for now *)
       (char_of_u8
         (add (u8_of_char (char 'a'))
              (force ~what:"random rem"
-                    (rem (std_random T.(required (Mac U8)))
+                    (rem (std_random T.(required (Base U8)))
                          (u8_of_int 26)))))
-  | Mac U8 ->
+  | Base U8 ->
       random_u8
-  | Mac U16 ->
+  | Base U16 ->
       to_u16 random_u32
-  | Mac U24 ->
+  | Base U24 ->
       to_u24 random_u32
-  | Mac U32 ->
+  | Base U32 ->
       random_u32
-  | Mac U40 ->
+  | Base U40 ->
       to_u40 random_u64
-  | Mac U48 ->
+  | Base U48 ->
       to_u48 random_u64
-  | Mac U56 ->
+  | Base U56 ->
       to_u56 random_u64
-  | Mac U64 ->
+  | Base U64 ->
       random_u64
-  | Mac U128 ->
+  | Base U128 ->
       random_u128
-  | Mac I8 ->
+  | Base I8 ->
       to_i8 random_u8
-  | Mac I16 ->
+  | Base I16 ->
       to_i16 random_u32
-  | Mac I24 ->
+  | Base I24 ->
       to_i24 random_u32
-  | Mac I32 ->
+  | Base I32 ->
       to_i32 random_u32
-  | Mac I40 ->
+  | Base I40 ->
       to_i40 random_u64
-  | Mac I48 ->
+  | Base I48 ->
       to_i48 random_u64
-  | Mac I56 ->
+  | Base I56 ->
       to_i56 random_u64
-  | Mac I64 ->
+  | Base I64 ->
       to_i64 random_u64
-  | Mac I128 ->
+  | Base I128 ->
       to_i128 random_u128
   | Usr ut ->
       std_random T.(required ut.def)
@@ -161,7 +161,7 @@ module Kahan =
 struct
   (* The state of the sum consists of the sum itself and some carry: *)
   let state_t =
-    let float = T.(required (Mac Float)) in
+    let float = T.(required (Base Float)) in
     T.tuple [| float ; float |]
 
   (* Return the initial value for the state: *)
@@ -221,7 +221,7 @@ let percentiles ~l vs ps =
     | Ok p_t ->
         let_ ~name:"vs" ~l vs (fun l vs ->
           let ks =
-            map_ ps (E.func1 ~l (T.Value p_t) (fun _l p ->
+            map_ ps (E.func1 ~l (T.Data p_t) (fun _l p ->
               seq [
                 assert_ (and_ (ge (to_float p) (float 0.))
                               (le (to_float p) (float 100.))) ;
@@ -249,24 +249,24 @@ let is_empty l e =
   let prop_null nullable e f =
     if nullable then
       if_null e
-        ~then_:(null T.(Mac Bool))
+        ~then_:(null T.(Base Bool))
         ~else_:(not_null (f (force e)))
     else
       f e in
   match E.type_of l e with
-  | T.Value ({ vtyp = (Mac String) ; nullable }) ->
+  | T.Data ({ vtyp = (Base String) ; nullable }) ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
-  | T.Value ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
+  | T.Data ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (cardinality e))
-  | T.Value ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
+  | T.Data ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 32))
-  | T.Value ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
+  | T.Data ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 128))
-  | T.Value ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
+  | T.Data ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         if_ (eq (label_of e) (u16_of_int 0))
           ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
@@ -290,7 +290,7 @@ let exists ~l lst f =
       (* FIXME: a way to exit the loop that iterates through a container *)
       fold
         ~init:(bool false)
-        ~body:(E.func2 ~l T.bool T.(Value item_t) (fun l res item ->
+        ~body:(E.func2 ~l T.bool T.(Data item_t) (fun l res item ->
           or_ res (f l item)))
         ~list:lst
 
@@ -342,7 +342,7 @@ let rec is_in ?(l=[]) item lst =
       and item_t = E.type_of l item in
       if T.is_nullable lst_t then
         if_null lst
-          ~then_:(null T.(Mac Bool))
+          ~then_:(null T.(Base Bool))
           ~else_:(
             to_nullable l (is_in ~l item (force ~what:"is_in(0)" lst)))
       else
@@ -358,7 +358,7 @@ let rec is_in ?(l=[]) item lst =
           ~else_:(
             if T.is_nullable item_t then
               if_null item
-                ~then_:(null T.(Mac Bool))
+                ~then_:(null T.(Base Bool))
                 ~else_:(
                   to_nullable l (is_in ~l (force ~what:"is_in(1)" item) lst))
             else (
@@ -371,24 +371,24 @@ let rec is_in ?(l=[]) item lst =
                * the actual question: *)
               match item_t, lst_t with
               (* Substring search: *)
-              | T.Value { vtyp = Mac String ; _ },
-                T.Value { vtyp = Mac String ; _ } ->
+              | T.Data { vtyp = Base String ; _ },
+                T.Data { vtyp = Base String ; _ } ->
                   not_ (is_null (find_substring (bool true) item lst))
               (* In all other cases where [item] and [lst] are of the same type
                * then [in_in item lst] is just a comparison: *)
               | t1, t2 when T.eq t1 t2 ->
                   eq item lst
               (* Otherwise [lst] must be some kind of sub-set: *)
-              | T.Value { vtyp = Usr { name = "Ip4" ; _ } ; _ },
-                T.Value { vtyp = Usr { name = "Cidr4" ; _ } ; _ } ->
+              | T.Data { vtyp = Usr { name = "Ip4" ; _ } ; _ },
+                T.Data { vtyp = Usr { name = "Cidr4" ; _ } ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
                        (le item (last_ip_of_cidr4 lst))
-              | T.Value { vtyp = Usr { name = "Ip6" ; _ } ; _ },
-                T.Value { vtyp = Usr { name = "Cidr6" ; _ } ; _ } ->
+              | T.Data { vtyp = Usr { name = "Ip6" ; _ } ; _ },
+                T.Data { vtyp = Usr { name = "Cidr6" ; _ } ; _ } ->
                   and_ (ge item (first_ip_of_cidr6 lst))
                        (le item (last_ip_of_cidr6 lst))
-              | T.Value { vtyp = Usr { name = "Ip" ; _ } ; _ },
-                T.Value { vtyp = Usr { name = "Cidr" ; _ } ; _ } ->
+              | T.Data { vtyp = Usr { name = "Ip" ; _ } ; _ },
+                T.Data { vtyp = Usr { name = "Cidr" ; _ } ; _ } ->
                   if_ (eq (label_of item) (label_of lst))
                     ~then_:(
                       if_ (eq (label_of item) (u16_of_int 0))
@@ -401,9 +401,9 @@ let rec is_in ?(l=[]) item lst =
                             let_ ~l ~name:"cidr" (get_alt "v6" lst) (fun l cidr ->
                               is_in ~l ip cidr))))
                     ~else_:(bool false)
-              | T.Value { vtyp = item_vtyp ; _ },
-                ( T.Value { vtyp = Vec (_, { vtyp = lst_vtyp ; nullable }) ; _ }
-                | T.Value { vtyp = Lst { vtyp = lst_vtyp ; nullable } ; _ }) ->
+              | T.Data { vtyp = item_vtyp ; _ },
+                ( T.Data { vtyp = Vec (_, { vtyp = lst_vtyp ; nullable }) ; _ }
+                | T.Data { vtyp = Lst { vtyp = lst_vtyp ; nullable } ; _ }) ->
                   (* If the set item type is the same as item type then perform
                    * direct comparisons with [eq], otherwise call [is_in]
                    * recursively.
@@ -411,8 +411,8 @@ let rec is_in ?(l=[]) item lst =
                    * semantic with strings: "ba" is in "foobar" whereas it is
                    * not in [ "foobar" ]! *)
                   let op l =
-                    if T.value_type_eq item_vtyp lst_vtyp then eq
-                                                          else is_in ~l in
+                    if T.value_eq item_vtyp lst_vtyp then eq
+                                                     else is_in ~l in
                   exists ~l lst (fun l i ->
                     if nullable then
                       if_null i
@@ -420,7 +420,7 @@ let rec is_in ?(l=[]) item lst =
                         ~else_:(op l item (force ~what:"is_in(2)" i))
                     else
                       op l item i)
-              | _, T.Value lst_mn ->
+              | _, T.Data lst_mn ->
                   (* If we can convert item into lst (which at this point is
                    * known not to be a list) then we can try equality: *)
                   (match C.conv_maybe_nullable ~to_:lst_mn l item with

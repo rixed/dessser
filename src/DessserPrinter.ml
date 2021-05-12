@@ -16,7 +16,7 @@ type t =
     mutable external_types : (string * (t -> T.backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses of type names: *)
-    mutable type_names : (T.value_type * string) list }
+    mutable type_names : (T.value * string) list }
 
 let make ?(declared=Set.String.empty) context type_names external_types =
   { context ;
@@ -49,7 +49,7 @@ let indent_more p f =
 let declared_type p t f =
   let id =
     match t with
-    | T.Value { vtyp ; _ } ->
+    | T.Data { vtyp ; _ } ->
         (try List.assoc vtyp p.type_names
         with Not_found -> T.uniq_id t)
     | _ ->

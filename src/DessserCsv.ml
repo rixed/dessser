@@ -54,7 +54,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
   match mn.T.vtyp with
   | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       false
-  | Unit | Mac _ ->
+  | Base _ ->
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with vtyp = def }
@@ -80,7 +80,7 @@ let rec nullable_at_first mn =
   match mn.vtyp with
   | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "nullable_at_first"
-  | Unit | Mac _ ->
+  | Base _ ->
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with vtyp = def }
@@ -109,7 +109,7 @@ let rec make_serializable mn =
   match mn.T.vtyp with
   | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "make_serializable"
-  | Unit | Mac _ ->
+  | Base _ ->
       mn
   | Usr { def ; _ } ->
       let mn' = T.{ mn with vtyp = def } in
@@ -157,7 +157,7 @@ let make_serializable =
  * the same) *)
 let is_fixed_string mn0 path =
   match T.type_of_path mn0 path with
-  | { vtyp = Vec (_, { vtyp = Mac Char ; nullable = false } ) ; _ } ->
+  | { vtyp = Vec (_, { vtyp = Base Char ; nullable = false } ) ; _ } ->
       true
   | _ ->
       false
@@ -192,7 +192,7 @@ struct
 
   let ptr mn =
     if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.dataptr
+    T.DataPtr
 
   let start ?(config=default_config) _l _v p = config, p
 
@@ -382,7 +382,7 @@ struct
 
   let ptr mn =
     if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.dataptr
+    T.DataPtr
 
   let start ?(config=default_config) _mn _l p = config, p
 
@@ -461,13 +461,13 @@ struct
          * had_quote: *)
         (* FIXME: handle escaping the separator/newline! *)
         let cond =
-          E.func1 ~l T.byte (fun l b ->
+          E.func1 ~l T.Byte (fun l b ->
             not_ (
               if_ had_quote
                 ~then_:(eq b quote_byte)
                 ~else_:(is_sep_or_newline conf l b)))
         and init = size 0
-        and reduce = E.func2 ~l T.size T.byte (fun _l s _b -> add s (size 1)) in
+        and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
         E.with_sploded_pair ~l "dbytes_quoted1" sz_p (fun _l sz p' ->
           (* Skip the initial double-quote: *)
@@ -482,10 +482,10 @@ struct
   let dbytes conf op l p =
     (* Read up to next separator/newline *)
     let cond =
-      E.func1 ~l T.byte (fun l b ->
+      E.func1 ~l T.Byte (fun l b ->
         not_ (is_sep_or_newline conf l b))
     and init = size 0
-    and reduce = E.func2 ~l T.size T.byte (fun _l s _b -> add s (size 1)) in
+    and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
     let sz_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair ~l "dbytes" sz_p (fun _l sz p' ->
       let bytes_p = read_bytes p sz in

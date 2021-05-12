@@ -104,7 +104,7 @@ let rec value_type_gen_of_depth depth =
     frequency
       (* User types are always considered opaque: *)
       [ 1, map (fun ut -> T.Usr ut) user_type_gen ;
-        9, map (fun mt -> T.Mac mt) mac_type_gen ]
+        9, map (fun mt -> T.Base mt) mac_type_gen ]
   else
     let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
     oneof
@@ -118,8 +118,8 @@ let rec value_type_gen_of_depth depth =
         map2 (fun k v -> T.Map (k, v)) mn_gen mn_gen *) ]
 
 and maybe_nullable_gen_of_depth depth =
-  Gen.map2 (fun nullable vtyp ->
-    T.make ~nullable vtyp
+  Gen.map2 (fun nullable value ->
+    T.maybe_nullable ~nullable value
   ) Gen.bool (value_type_gen_of_depth depth)
 
 (*$Q maybe_nullable_gen_of_depth
@@ -144,7 +144,7 @@ let maybe_nullable_gen =
 
 let rec size_of_value_type = function
   | T.Unknown | T.Ext _ -> invalid_arg "size_of_value_type"
-  | T.Unit | T.Mac _ | T.Usr _ -> 1
+  | T.Base _ | T.Usr _ -> 1
   | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_maybe_nullable mn
   | T.Tup mns ->
       Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
@@ -165,7 +165,7 @@ let shrink_mac_type mt =
         I32 ; U32 ; I24 ; U24 ; I16 ; U16 ; I8 ; U8 ; Char ; Bool ] in
   let rec loop = function
     | [] -> Iter.empty
-    | mt'::rest when T.mac_type_eq mt' mt ->
+    | mt'::rest when T.base_type_eq mt' mt ->
         if rest = [] then Iter.empty else Iter.of_list rest
     | _::rest ->
         loop rest in
@@ -185,11 +185,11 @@ let rec shrink_value_type =
   function
   | T.Unknown | T.Ext _ ->
       Iter.empty
-  | T.Unit ->
+  | T.Base Unit ->
       Iter.empty
-  | T.Mac mt ->
+  | T.Base mt ->
       (fun f ->
-        shrink_mac_type mt (fun mt -> f (T.Mac mt)))
+        shrink_mac_type mt (fun mt -> f (T.Base mt)))
   | T.Usr _ ->
       Iter.empty
   | T.Vec (dim, mn) ->
@@ -240,7 +240,7 @@ and shrink_maybe_nullable mn =
       shrink_value_type vt (fun vtyp -> f { vtyp ; nullable = false }))
 
 let value_type =
-  let print = IO.to_string T.print_value_type
+  let print = IO.to_string T.print_value
   and small = size_of_value_type
   and shrink = shrink_value_type in
   make ~print ~small ~shrink value_type_gen
@@ -436,7 +436,7 @@ and e1_gen l depth =
     1,
       join (
         map (fun ts ->
-          let ts = Array.map (fun mn -> T.Value mn) ts in
+          let ts = Array.map (fun mn -> T.Data mn) ts in
           let fid = get_next_fid () in
           let l =
             Array.fold_lefti (fun l i t ->
@@ -626,35 +626,35 @@ let rec sexpr_of_vtyp_gen vtyp =
   match vtyp with
   | T.Unknown | T.Ext _ ->
       invalid_arg "sexpr_of_vtyp_gen"
-  | T.Unit ->
+  | T.Base Unit ->
       return "()"
-  | T.Mac Float ->
+  | T.Base Float ->
       map hexstring_of_float float
-  | T.Mac String ->
+  | T.Base String ->
       (* FIXME: support escaping in quotes: *)
       map String.quote (string_size ~gen:printable_no_escape (int_range 3 15))
-  | T.Mac Char ->
+  | T.Base Char ->
       map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
-  | T.Mac Bool ->
+  | T.Base Bool ->
       map (function true -> "T" | false -> "F") bool
-  | T.Mac U8 -> int_string_gen 0L 255L
-  | T.Mac U16 -> int_string_gen 0L 65535L
-  | T.Mac U24 -> int_string_gen 0L 16777215L
-  | T.Mac U32 -> int_string_gen 0L 4294967295L
-  | T.Mac U40 -> int_string_gen 0L 1099511627775L
-  | T.Mac U48 -> int_string_gen 0L 281474976710655L
-  | T.Mac U56 -> int_string_gen 0L 72057594037927935L
-  | T.Mac U64 -> map Uint64.(to_string % of_int64) ui64
-  | T.Mac U128 -> map Uint128.to_string ui128_gen
-  | T.Mac I8 -> int_string_gen (-128L) 127L
-  | T.Mac I16 -> int_string_gen (-32768L) 32767L
-  | T.Mac I24 -> int_string_gen (-8388608L) 8388607L
-  | T.Mac I32 -> int_string_gen (-2147483648L) 2147483647L
-  | T.Mac I40 -> int_string_gen (-549755813888L) 549755813887L
-  | T.Mac I48 -> int_string_gen (-140737488355328L) 140737488355327L
-  | T.Mac I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
-  | T.Mac I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
-  | T.Mac I128 -> map Int128.to_string i128_gen
+  | T.Base U8 -> int_string_gen 0L 255L
+  | T.Base U16 -> int_string_gen 0L 65535L
+  | T.Base U24 -> int_string_gen 0L 16777215L
+  | T.Base U32 -> int_string_gen 0L 4294967295L
+  | T.Base U40 -> int_string_gen 0L 1099511627775L
+  | T.Base U48 -> int_string_gen 0L 281474976710655L
+  | T.Base U56 -> int_string_gen 0L 72057594037927935L
+  | T.Base U64 -> map Uint64.(to_string % of_int64) ui64
+  | T.Base U128 -> map Uint128.to_string ui128_gen
+  | T.Base I8 -> int_string_gen (-128L) 127L
+  | T.Base I16 -> int_string_gen (-32768L) 32767L
+  | T.Base I24 -> int_string_gen (-8388608L) 8388607L
+  | T.Base I32 -> int_string_gen (-2147483648L) 2147483647L
+  | T.Base I40 -> int_string_gen (-549755813888L) 549755813887L
+  | T.Base I48 -> int_string_gen (-140737488355328L) 140737488355327L
+  | T.Base I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
+  | T.Base I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
+  | T.Base I128 -> map Int128.to_string i128_gen
   | T.Usr ut -> sexpr_of_vtyp_gen ut.def
   | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
@@ -797,7 +797,7 @@ let sexpr mn =
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
-    let mn_ringbuf = T.force_maybe_nullable mn in
+    let mn_ringbuf = T.not_nullable_of mn in
     (* CSV cannot encode some nullable compound types: *)
     let mn_csv = DessserCsv.make_serializable mn in
 
@@ -926,7 +926,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun l src dst ->
+        func2 T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -940,7 +940,7 @@ let sexpr mn =
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun l src dst ->
+        func2 T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -976,7 +976,7 @@ let sexpr mn =
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun l src dst ->
+        func2 T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -988,7 +988,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        func2 T.dataptr T.dataptr (fun l src dst ->
+        func2 T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser ?ser_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;

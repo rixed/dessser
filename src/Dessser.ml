@@ -92,8 +92,8 @@ sig
   val list_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_null : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*bool*) E.t
-  val dnull : T.value_type -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val dnotnull : T.value_type -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnotnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
 (* Same goes for SER(rializers), with the addition that it is also possible to
@@ -162,8 +162,8 @@ sig
   val list_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val nullable : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snull : T.value_type -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snotnull : T.value_type -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snotnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
@@ -467,32 +467,32 @@ struct
             (Des.list_cls dstate mn0 path l src)
             (Ser.list_cls sstate mn0 path l dst))))
 
-  and desser_value_type = function
-    | T.Unknown | T.Ext _ -> invalid_arg "desser_value_type"
-    | T.Unit -> fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
-    | T.Mac Float -> dsfloat
-    | T.Mac String -> dsstring
-    | T.Mac Bool -> dsbool
-    | T.Mac Char -> dschar
-    | T.Mac I8 -> dsi8
-    | T.Mac I16 -> dsi16
-    | T.Mac I24 -> dsi24
-    | T.Mac I32 -> dsi32
-    | T.Mac I40 -> dsi40
-    | T.Mac I48 -> dsi48
-    | T.Mac I56 -> dsi56
-    | T.Mac I64 -> dsi64
-    | T.Mac I128 -> dsi128
-    | T.Mac U8 -> dsu8
-    | T.Mac U16 -> dsu16
-    | T.Mac U24 -> dsu24
-    | T.Mac U32 -> dsu32
-    | T.Mac U40 -> dsu40
-    | T.Mac U48 -> dsu48
-    | T.Mac U56 -> dsu56
-    | T.Mac U64 -> dsu64
-    | T.Mac U128 -> dsu128
-    | T.Usr vt -> desser_value_type vt.def
+  and desser_value = function
+    | T.Unknown | T.Ext _ -> invalid_arg "desser_value"
+    | T.Base Unit -> fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
+    | T.Base Float -> dsfloat
+    | T.Base String -> dsstring
+    | T.Base Bool -> dsbool
+    | T.Base Char -> dschar
+    | T.Base I8 -> dsi8
+    | T.Base I16 -> dsi16
+    | T.Base I24 -> dsi24
+    | T.Base I32 -> dsi32
+    | T.Base I40 -> dsi40
+    | T.Base I48 -> dsi48
+    | T.Base I56 -> dsi56
+    | T.Base I64 -> dsi64
+    | T.Base I128 -> dsi128
+    | T.Base U8 -> dsu8
+    | T.Base U16 -> dsu16
+    | T.Base U24 -> dsu24
+    | T.Base U32 -> dsu32
+    | T.Base U40 -> dsu40
+    | T.Base U48 -> dsu48
+    | T.Base U56 -> dsu56
+    | T.Base U64 -> dsu64
+    | T.Base U128 -> dsu128
+    | T.Usr vt -> desser_value vt.def
     | T.Tup mns -> dstup mns
     | T.Rec mns -> dsrec mns
     | T.Sum mns -> dssum mns
@@ -517,9 +517,9 @@ struct
         if_ (Des.is_null dstate mn0 path l src)
           ~then_:(dsnull mn.vtyp sstate dstate mn0 path l src dst)
           ~else_:(dsnotnull mn.vtyp sstate dstate mn0 path l src dst |>
-                  desser_value_type mn.vtyp transform sstate dstate mn0 path l))
+                  desser_value mn.vtyp transform sstate dstate mn0 path l))
     ) else (
-      desser_value_type mn.vtyp transform sstate dstate mn0 path l src_dst
+      desser_value mn.vtyp transform sstate dstate mn0 path l src_dst
     )
 
   let desser ?ser_config ?des_config mn0 ?transform l src dst =

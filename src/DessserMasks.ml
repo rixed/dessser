@@ -168,7 +168,7 @@ struct
       (mask_of_string "(xxx)")
     (Recurse \
       [| Copy ; \
-         Recurse [| Skip ; Insert (E.(E0 (Null T.(Mac U8)))) ; Copy |] |]) \
+         Recurse [| Skip ; Insert (E.(E0 (Null T.(Base U8)))) ; Copy |] |]) \
       (mask_of_string "(X(_{(null \"u8\")}X))")
     (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
       (mask_of_string "(X(_NX))")
@@ -197,7 +197,7 @@ let rec project mn ma =
         | Skip -> mns', n, i + 1
         | Insert e ->
             (match E.type_of [] e with
-            | T.Value mn ->
+            | T.Data mn ->
                 ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
             | t -> raise (Invalid_type_for_mask t))
         | ma ->
@@ -240,8 +240,8 @@ let rec project mn ma =
           raise (Not_a_recursive_type mn))
   | Replace e ->
       let te = E.type_of [] e in
-      if te = Value mn then mn (* Does not change the type *)
-      else raise (Types_do_not_match { expr = te ; mask = T.Value mn })
+      if te = Data mn then mn (* Does not change the type *)
+      else raise (Types_do_not_match { expr = te ; mask = T.Data mn })
   | Insert _ ->
       raise Cannot_insert_into_that
 
@@ -251,8 +251,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
-  (T.optional (Mac U8)) (* Do nothing case *) \
-    (project (T.optional (Mac U8)) Copy)
+  (T.optional (Base U8)) (* Do nothing case *) \
+    (project (T.optional (Base U8)) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \
