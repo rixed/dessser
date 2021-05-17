@@ -420,7 +420,7 @@ let rec peval l e =
       | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
           (try
             let v = if op = Div then a /. b else Stdlib.Float.rem a b in
-            not_null (float v)
+            nullable_of_nan v
           with Division_by_zero -> null (Base Float))
       | (Div | Rem as op), e1, e2 ->
           (match arith2' op e1 e2
