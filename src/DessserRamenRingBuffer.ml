@@ -53,7 +53,7 @@ let round_up_dyn_bytes n =
 
 (* Same as above but [n] is given in bits, as a u32: *)
 let round_up_dyn_bits n =
-  let n = right_shift (add (u32_of_int 7) n) (u8_of_int 8) in
+  let n = right_shift (add (u32_of_int 7) n) (u8_of_int 3) in
   round_up_dyn_bytes (size_of_u32 n)
 
 (* Realign the pointer on a multiple of [word_size].
@@ -581,14 +581,14 @@ struct
   let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
-    ConstSize nullmask_words
+      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize (nullmask_words * word_size)
 
   let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
-    ConstSize nullmask_words
+      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize (nullmask_words * word_size)
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ _ =
@@ -596,8 +596,8 @@ struct
 
   let ssize_of_vec mn0 path _ _ =
     let nullmask_words =
-      NullMaskWidth.bytes_of_type (T.type_of_path mn0 path).vtyp in
-    ConstSize nullmask_words
+      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+    ConstSize (nullmask_words * word_size)
 
   let ssize_of_null _mn0 _path = ConstSize 0
 
