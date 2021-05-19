@@ -187,7 +187,7 @@ let rec peval l e =
       | Comment _, e1 -> e1 (* FIXME: Would prevent further optimization *)
       | IsNull, E0 (Null _) -> true_
       | IsNull, E1 (NotNull, _) -> false_
-      | NotNull, E1 (Force _, e) -> p e
+      | NotNull, E1 (Force _, e) -> e
       | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n)
       | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n)
       | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n)
