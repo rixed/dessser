@@ -455,9 +455,13 @@ struct
         let inits = List.rev inits in
         let m = module_of_type (E.type_of l e) in
         emit ?name p l e (fun oc ->
-          List.print ~first:(m ^".{ ") ~last:" }" ~sep:"; "
-            (fun oc (name, n) ->
-              Printf.fprintf oc "%s = %s" name n) oc inits)
+          let last = "\n"^ p.P.indent ^"}" in
+          P.indent_more p (fun () ->
+            let first = m ^".{\n"^ p.P.indent
+            and sep = ";\n"^ p.P.indent in
+            List.print ~first ~last ~sep
+              (fun oc (name, n) ->
+                Printf.fprintf oc "%s = %s" name n) oc inits))
     | E.E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
         print ?name emit p l e
