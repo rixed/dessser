@@ -295,6 +295,7 @@ let rec peval l e =
                     ToI64 | ToI128), e) -> E1 (ToU56, e)
       | ToU64, E1 ((ToU64 | ToU128 | ToI128), e) -> E1 (ToU64, e)
       | ToU128, E1 (ToU128, e) -> E1 (ToU128, e)
+      | ToFloat, E1 (ToFloat, e) -> E1 (ToFloat, e)
       (* Evaluate conversions *)
       | ToI8, e -> to_int ToI8 e i8 Int8.of_int128
       | ToI16, e -> to_int ToI16 e i16 Int16.of_int128
