@@ -172,6 +172,7 @@ struct
     )
 
   let define name p l e =
+    C.print_comment p.P.def "%s" (E.to_pretty_string ?max_depth:None e) ;
     let name = valid_identifier name in
     C.print_binding_toplevel emit name p l e
 
