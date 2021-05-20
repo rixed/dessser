@@ -177,7 +177,12 @@ let rec peval l e =
   | E0S (op, es) ->
       (match op, List.map p es with
       | Seq, es ->
-          let es = List.filter (fun e -> e <> E.E0S (Seq, [])) es in
+          let es =
+            List.filter (function
+              | E.E0S (Seq, []) -> false
+              | E.E1 (Ignore, e) -> E.has_side_effect e
+              | _ -> true
+            ) es in
           (match es with
           | [ e ] -> e
           | es -> seq es )
