@@ -245,19 +245,32 @@ let rec peval l e =
       | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s
       | ByteOfU8, E0 (U8 n) -> byte n
       | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0)
+      | BoolOfU8, E1 (U8OfBool, e) -> e
       | WordOfU16, E0 (U16 n) -> word n
+      | WordOfU16, E1 (U16OfWord, e) -> e
       | DWordOfU32, E0 (U32 n) -> dword n
+      | DWordOfU32, E1 (U32OfDWord, e) -> e
       | QWordOfU64, E0 (U64 n) -> qword n
+      | QWordOfU64, E1 (U64OfQWord, e) -> e
       | OWordOfU128, E0 (U128 n) -> oword n
+      | OWordOfU128, E1 (U128OfOWord, e) -> e
       | U8OfByte, E0 (Byte n) -> u8 n
+      | U8OfByte, E1 (ByteOfU8, e) -> e
       | U8OfChar, E0 (Char c) -> u8 (Uint8.of_int (Char.code c))
+      | U8OfChar, E1 (CharOfU8, e) -> e
       | U8OfBool, E0 (Bool false) -> u8 (Uint8.of_int 0)
       | U8OfBool, E0 (Bool true) -> u8 (Uint8.of_int 1)
+      | U8OfBool, E1 (BoolOfU8, e) -> e
       | BoolOfBit, E0 (Bit b) -> bool b
+      | BoolOfBit, E1 (BitOfBool, e) -> e
       | BitOfBool, E0 (Bool b) -> bit b
+      | BitOfBool, E1 (BoolOfBit, e) -> e
       | CharOfU8, E0 (U8 n) -> char (Char.chr (Uint8.to_int n))
+      | CharOfU8, E1 (U8OfChar, e) -> e
       | U32OfSize, E0 (Size n) -> u32 (Uint32.of_int n)
+      | U32OfSize, E1 (SizeOfU32, e) -> e
       | SizeOfU32, E0 (U32 n) -> size (Uint32.to_int n)
+      | SizeOfU32, E1 (U32OfSize, e) -> e
       | Fst, E2 (Pair, e, _) -> e
       | Snd, E2 (Pair, _, e) -> e
       | Head, E2 (Cons, e, _) -> e
@@ -266,8 +279,10 @@ let rec peval l e =
       | Tail, E2 (Cons, _, e) -> tail e |> p
       | FloatOfQWord, E0 (QWord n) ->
           float (BatInt64.float_of_bits (Uint64.to_int64 n))
+      | FloatOfQWord, E1 (QWordOfFloat, e) -> e
       | QWordOfFloat, E0 (Float f) ->
           qword (Uint64.of_int64 (BatInt64.bits_of_float f))
+      | QWordOfFloat, E1 (FloatOfQWord, e) -> e
       | Not, E0 (Bool b) -> bool (not b)
       | Not, E1 (Not, e) -> e
       (* Shorten cascades of converters: *)
@@ -332,6 +347,9 @@ let rec peval l e =
       | ToFloat, e -> peval_to_float e
       | Neg, e1 -> arith1 Neg e1
       | StringOfBytes, E0 (Bytes v) -> string (Bytes.to_string v)
+      | StringOfBytes, E1 (BytesOfString, e) -> e
+      | BytesOfString, E0 (String s) -> bytes (Bytes.of_string s)
+      | BytesOfString, E1 (StringOfBytes, e) -> e
       | Exp, E0 (Float n) -> float (exp n)
       | Log, E0 (Float n) -> nullable_of_nan (log n)
       | Log10, E0 (Float n) -> nullable_of_nan (log10 n)
@@ -351,10 +369,16 @@ let rec peval l e =
       | Lower, E0 (String s) -> string (String.lowercase_ascii s)
       | Upper, E0 (String s) -> string (String.uppercase_ascii s)
       | U16OfWord, E0 (Word w) -> u16 w
+      | U16OfWord, E1 (WordOfU16, e) -> e
       | U32OfDWord, E0 (DWord d) -> u32 d
+      | U32OfDWord, E1 (DWordOfU32, e) -> e
       | U64OfQWord, E0 (QWord q) -> u64 q
+      | U64OfQWord, E1 (QWordOfU64, e) -> e
       | U128OfOWord, E0 (OWord o) -> u128 o
+      | U128OfOWord, E1 (OWordOfU128, e) -> e
       | StringLength, E0 (String s) -> u32_of_int (String.length s)
+      | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
+          u32_of_int 1
       | Cardinality, E0S ((MakeVec | MakeLst _), es) ->
           u32_of_int (List.length es)
       | Force _, E1 (NotNull, e) -> e
