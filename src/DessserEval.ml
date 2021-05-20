@@ -9,6 +9,16 @@ module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
 
+let inline_level = ref 1
+
+let max_inline_size () =
+  let l = !inline_level in
+  if l <= 1 then 4 else
+  if l <= 2 then 8 else
+  if l <= 3 then 16 else
+  if l <= 4 then 32 else
+  64
+
 let to_u128 = function
   | E.E0 (I8 n) -> Int8.to_uint128 n
   | E0 (I16 n) -> Int16.to_uint128 n
@@ -402,11 +412,14 @@ let rec peval l e =
           E.fold 0 (fun c -> function
             | E0 (Identifier n') when n' = n -> c + 1
             | _ -> c
-          ) body in
         assert (use_count <> 8765) ;
-        if use_count = 0 && not (E.has_side_effect def) then
-          body
-        else if use_count = 1 then
+          ) body
+        and side_effects = E.has_side_effect def in
+        if use_count = 0 then
+          if not side_effects then body else p (seq [ ignore_ def ; body ])
+        else if use_count = 1 ||
+                not side_effects && (use_count - 1) * E.size def < max_inline_size ()
+             then
           E.map (function
             | E0 (Identifier n') when n' = n -> def
             | e -> e
@@ -686,3 +699,16 @@ let rec peval l e =
             p
           else E4 (Repeat, from, to_, body, init)
       | op, e1, e2, e3, e4 -> E4 (op, e1, e2, e3, e4))
+
+(*$inject
+  let test_peval opt_lvl s =
+    inline_level := opt_lvl ;
+    peval [] (E.of_string s) |> E.to_string ?max_depth:None
+*)
+(*$= test_peval & ~printer:BatPervasives.identity
+  "(pair (size 4) (size 0))" \
+    (test_peval 3 \
+      "(let \"useless\" (pair (add (size 0) (size 0)) (size 0)) \
+          (pair (add (size 4) (fst (identifier \"useless\"))) \
+          (snd (identifier \"useless\"))))")
+*)

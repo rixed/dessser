@@ -2,8 +2,6 @@ module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
 
-let inline_level = ref 1
-
 type t =
   (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
@@ -92,7 +90,7 @@ let add_identifier_of_expression compunit ?name expr =
   E.type_check l expr ;
   let t = E.type_of l expr in
   let expr =
-    if !inline_level > 0 then
+    if !DessserEval.inline_level > 0 then
       DessserEval.peval l expr
     else expr in
   (* Check that the expression types are equivalent: *)

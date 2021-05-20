@@ -2234,6 +2234,9 @@ let iter f e =
 let iter_env l f e =
   fold_env () l (fun () l e -> f l e) e
 
+let size e =
+  fold 0 (fun c _ -> c + 1) e
+
 (* depth first expression transformation: *)
 let rec map f e =
   match e with
