@@ -607,6 +607,7 @@ let rec peval l e =
       | Or, E0 (Bool true), _ -> bool true  (* [e2] not evaluated *)
       (* Cannot ignore [e1] event if e2 is demonstrably true because if its
        * possible side effects! *)
+      | Pair, E1 (Fst, a), E1 (Snd, b) when E.eq a b -> a
       (* Those are created empty: *)
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) -> bool false
