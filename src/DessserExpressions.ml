@@ -1035,15 +1035,15 @@ let to_pretty_string ?max_depth e =
 let to_cst_int =
   let m = max_int in
   function
-  | E0 (U8 n) -> Uint8.to_int n
-  | E0 (U16 n) -> Uint16.to_int n
+  | E0 (U8 n | Byte n) -> Uint8.to_int n
+  | E0 (U16 n | Word n) -> Uint16.to_int n
   | E0 (U24 n) -> Uint24.to_int n
-  | E0 (U32 n) when Uint64.(compare (of_uint32 n) (of_int m) <= 0) -> Uint32.to_int n
+  | E0 (U32 n | DWord n) when Uint64.(compare (of_uint32 n) (of_int m) <= 0) -> Uint32.to_int n
   | E0 (U40 n) when Uint64.(compare (of_uint40 n) (of_int m) <= 0) -> Uint40.to_int n
   | E0 (U48 n) when Uint64.(compare (of_uint48 n) (of_int m) <= 0) -> Uint48.to_int n
   | E0 (U56 n) when Uint64.(compare (of_uint56 n) (of_int m) <= 0) -> Uint56.to_int n
-  | E0 (U64 n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
-  | E0 (U128 n) when Uint128.(compare n (of_int m) <= 0) -> Uint128.to_int n
+  | E0 (U64 n | QWord n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
+  | E0 (U128 n | OWord n) when Uint128.(compare n (of_int m) <= 0) -> Uint128.to_int n
   | E0 (I8 n) -> Int8.to_int n
   | E0 (I16 n) -> Int16.to_int n
   | E0 (I24 n) -> Int24.to_int n
@@ -1053,6 +1053,7 @@ let to_cst_int =
   | E0 (I56 n) when Int64.(compare (of_int56 n) (of_int m) <= 0) -> Int56.to_int n
   | E0 (I64 n) when Int64.(compare n (of_int m) <= 0) -> Int64.to_int n
   | E0 (I128 n) when Int128.(compare n (of_int m) <= 0) -> Int128.to_int n
+  | E0 (Size n) -> n
   | _ -> invalid_arg "to_cst_int"
 
 module Parser =

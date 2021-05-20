@@ -28,16 +28,17 @@ let to_u128 = function
   | E0 (I56 n) -> Int56.to_uint128 n
   | E0 (I64 n) -> Int64.to_uint128 n
   | E0 (I128 n) -> Int128.to_uint128 n
-  | E0 (U8 n) -> Uint8.to_uint128 n
-  | E0 (U16 n) -> Uint16.to_uint128 n
+  | E0 (U8 n | Byte n) -> Uint8.to_uint128 n
+  | E0 (U16 n| Word n) -> Uint16.to_uint128 n
   | E0 (U24 n) -> Uint24.to_uint128 n
-  | E0 (U32 n) -> Uint32.to_uint128 n
+  | E0 (U32 n| DWord n) -> Uint32.to_uint128 n
   | E0 (U40 n) -> Uint40.to_uint128 n
   | E0 (U48 n) -> Uint48.to_uint128 n
   | E0 (U56 n) -> Uint56.to_uint128 n
-  | E0 (U64 n) -> Uint64.to_uint128 n
-  | E0 (U128 n) -> Uint128.to_uint128 n
+  | E0 (U64 n | QWord n) -> Uint64.to_uint128 n
+  | E0 (U128 n | OWord n) -> Uint128.to_uint128 n
   | E0 (Float n) -> Uint128.of_float n
+  | E0 (Size n) -> Uint128.of_int n
   | _ -> invalid_arg "to_u128"
 
 let to_i128 = function
@@ -50,16 +51,17 @@ let to_i128 = function
   | E0 (I56 n) -> Int56.to_int128 n
   | E0 (I64 n) -> Int64.to_int128 n
   | E0 (I128 n) -> Int128.to_int128 n
-  | E0 (U8 n) -> Uint8.to_int128 n
-  | E0 (U16 n) -> Uint16.to_int128 n
+  | E0 (U8 n | Byte n) -> Uint8.to_int128 n
+  | E0 (U16 n | Word n) -> Uint16.to_int128 n
   | E0 (U24 n) -> Uint24.to_int128 n
-  | E0 (U32 n) -> Uint32.to_int128 n
+  | E0 (U32 n | DWord n) -> Uint32.to_int128 n
   | E0 (U40 n) -> Uint40.to_int128 n
   | E0 (U48 n) -> Uint48.to_int128 n
   | E0 (U56 n) -> Uint56.to_int128 n
-  | E0 (U64 n) -> Uint64.to_int128 n
-  | E0 (U128 n) -> Uint128.to_int128 n
+  | E0 (U64 n | QWord n) -> Uint64.to_int128 n
+  | E0 (U128 n | OWord n) -> Uint128.to_int128 n
   | E0 (Float n) -> Int128.of_float n
+  | E0 (Size n) -> Int128.of_int n
   | _ -> invalid_arg "to_u128"
 
 let to_uint to_op e cst of_u128 =
@@ -119,6 +121,12 @@ let arith2' op e1 e2 op_i128 op_u128 =
   | E0 (I56 _), _ -> arith2'' op e1 e2 op_i128 (i56 % Int128.to_int56)
   | E0 (I64 _), _ -> arith2'' op e1 e2 op_i128 (i64 % Int128.to_int64)
   | E0 (I128 _), _ -> arith2'' op e1 e2 op_i128 (i128 % Int128.to_int128)
+  | E0 (Byte _), _ -> arith2'' op e1 e2 op_i128 (byte % Int128.to_uint8)
+  | E0 (Word _), _ -> arith2'' op e1 e2 op_i128 (word % Int128.to_uint16)
+  | E0 (DWord _), _ -> arith2'' op e1 e2 op_i128 (dword % Int128.to_uint32)
+  | E0 (QWord _), _ -> arith2'' op e1 e2 op_i128 (qword % Int128.to_uint64)
+  | E0 (OWord _), _ -> arith2'' op e1 e2 op_i128 (oword % Int128.to_uint128)
+  | E0 (Size _), _ -> arith2'' op e1 e2 op_i128 (size % Int128.to_int)
   | _ -> E.E2 (op, e1, e2)
 
 let arith2 op e1 e2 =
@@ -733,4 +741,7 @@ let rec peval l e =
       "(let \"useless\" (pair (add (size 0) (size 0)) (size 0)) \
           (pair (add (size 4) (fst (identifier \"useless\"))) \
           (snd (identifier \"useless\"))))")
+
+  "(pair (size 8) (size 0))" \
+    (test_peval 3 "(pair (add (size 4) (size 4)) (size 0))")
 *)
