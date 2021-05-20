@@ -1026,6 +1026,9 @@ let rec pretty_print ?max_depth fmt e =
 let to_pretty_string ?max_depth e =
   let buf = Buffer.create 1024 in
   let fmt = Format.formatter_of_buffer buf in
+  (* Seems to do nothing but still: *)
+  Format.pp_set_max_indent fmt 240 ;
+  Format.pp_set_margin fmt 230 ;
   Format.fprintf fmt "@.    @[<hov 4>%a@]@." (pretty_print ?max_depth) e ;
   Buffer.contents buf
 

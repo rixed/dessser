@@ -5,7 +5,6 @@ open DessserTools
 open DessserFloatTools
 module C = DessserConversions
 module T = DessserTypes
-
 module E = DessserExpressions
 open E.Ops
 
@@ -412,7 +411,6 @@ let rec peval l e =
           E.fold 0 (fun c -> function
             | E0 (Identifier n') when n' = n -> c + 1
             | _ -> c
-        assert (use_count <> 8765) ;
           ) body
         and side_effects = E.has_side_effect def in
         if use_count = 0 then
