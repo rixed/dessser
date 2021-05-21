@@ -707,9 +707,14 @@ struct
             pp p.P.def "%sincr off_ ;\n" p.P.indent ;
             pp p.P.def "%sc_) in\n" p.P.indent)) ;
         emit ?name p l e (fun oc ->
-          pp oc "Scanf.bscanf s_ (if is_hex_ then \" %%h%%n\" else \
-                                                  \" %%f%%n\") \
-                   (fun f_ o_ -> f_, Pointer.skip %s o_)" n1)
+          ppi oc "(try" ;
+          P.indent_more p (fun () ->
+            ppi oc "Scanf.bscanf s_ (if is_hex_ then \" %%h%%n\" else \
+                                                     \" %%f%%n\") \
+                      (fun f_ o_ -> f_, Pointer.skip %s o_)" n1) ;
+          ppi oc "with Scanf.Scan_failure msg_ ->" ;
+          ppi oc "  Printf.eprintf \"Scanf failure: %%s\\n\" msg_ ;" ;
+          ppi oc "  nan, %s)" n1)
     | E.E1 (U8OfPtr, e1)
     | E.E1 (I8OfPtr, e1)
     | E.E1 (U16OfPtr, e1)
