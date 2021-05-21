@@ -687,12 +687,12 @@ struct
         P.indent_more p (fun () ->
           pp p.P.def "%slet o_ =\n" p.P.indent ;
           P.indent_more p (fun () ->
-            pp p.P.def "%slet c_ = Bytes.get %s.bytes %s.start in\n"
+            pp p.P.def "%slet c_ = Bytes.unsafe_get %s.bytes %s.start in\n"
               p.P.indent n1 n1 ;
             pp p.P.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.P.indent) ;
           pp p.P.def "%slen_ > 2 + o_ && \
-                      Bytes.get %s.bytes (%s.start + o_) = '0' && \
-                      (let c2_ = Bytes.get %s.bytes (%s.start + o_ + 1) in \
+                      Bytes.unsafe_get %s.bytes (%s.start + o_) = '0' && \
+                      (let c2_ = Bytes.unsafe_get %s.bytes (%s.start + o_ + 1) in \
                        c2_ = 'x' || c2_ = 'X')) in\n"
             p.P.indent n1 n1 n1 n1) ;
         pp p.P.def "%slet s_ =\n" p.P.indent ;
@@ -702,7 +702,7 @@ struct
           P.indent_more p (fun () ->
             pp p.P.def "%sif !off_ >= %s.Pointer.stop then raise End_of_file ;\n"
               p.P.indent n1 ;
-            pp p.P.def "%slet c_ = Bytes.get %s.Pointer.bytes !off_ in\n"
+            pp p.P.def "%slet c_ = Bytes.unsafe_get %s.Pointer.bytes !off_ in\n"
               p.P.indent n1 ;
             pp p.P.def "%sincr off_ ;\n" p.P.indent ;
             pp p.P.def "%sc_) in\n" p.P.indent)) ;
