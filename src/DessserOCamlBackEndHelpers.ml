@@ -130,6 +130,8 @@ exception NotEnoughInput of { offset : int ; missing : int }
 
 let () =
   Printexc.register_printer (function
+    | NotImplemented s ->
+        Some ("Not implemented: "^ s)
     | NotEnoughInput b ->
         Some (
           Printf.sprintf "NotEnoughInput: %d byte%s missing at offset %d"

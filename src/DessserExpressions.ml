@@ -973,6 +973,8 @@ let rec print ?max_depth oc e =
     match e with
     | E0 op ->
         pp oc "(%s)" (string_of_e0 op)
+    | E0S (Seq, []) ->
+        pp oc "(nop)"
     | E0S (op, es) ->
         pp oc "(%s%s%a)"
           (string_of_e0s op)
@@ -1256,6 +1258,7 @@ struct
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
+    | Lst [ Sym "nop" ] -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
     | Lst (Sym "make-lst" :: Str mn :: xs) ->
         E0S (MakeLst (T.maybe_nullable_of_string mn), List.map e xs)
