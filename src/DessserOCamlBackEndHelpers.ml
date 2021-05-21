@@ -295,45 +295,38 @@ struct
     make (Bytes.of_string s) 0 (String.length s)
 end
 
-module Pointer =
+module type POINTER_IO =
+sig
+  type t
+
+  (* Tells whether two pointers cover the same bytes: *)
+  val eq : t -> t -> bool
+
+  (* Returns the number of the covered bytes: *)
+  val size : t -> int
+
+  val peek : t -> int -> int
+
+  val peekn : t -> int -> int -> Slice.t
+
+  val poke : t -> int -> int -> unit
+
+  val poken : t -> int -> Slice.t -> unit
+end
+
+(* Add functions that can be build from the base functions of a POINTER_IO: *)
+module MakePointer (IO : POINTER_IO) =
 struct
   type t =
-    { bytes : Bytes.t ;
+    { bytes : IO.t ;
       start : int ;
       stop : int ; (* From the beginning of [bytes] not [start]! *)
       stack : int list }
 
-  let make sz =
-    { bytes = Bytes.create sz ;
-      start = 0 ;
-      stop = sz ;
-      stack = [] }
-
-  let of_bytes bytes start stop =
-    { bytes ; start ; stop ; stack = [] }
-
-  let of_string s =
-    { bytes = Bytes.of_string s ;
-      start = 0 ;
-      stop = String.length s ;
-      stack = [] }
-
-  let of_buffer n =
-    { bytes = Bytes.create n ;
-      start = 0 ;
-      stop = n ;
-      stack = [] }
-
-  let of_pointer p start stop =
-    { p with start ; stop }
-
   let reset p =
     { p with start = 0 ;
-             stop = Bytes.length p.bytes ;
+             stop = IO.size p.bytes ;
              stack = [] }
-
-  let contents p =
-    Bytes.sub p.bytes 0 p.start
 
   (* Check that the given start is not past the end; But end position is OK *)
   let check_input_length o l =
@@ -346,7 +339,7 @@ struct
     { p with start = p.start + n }
 
   let sub p1 p2 =
-    assert (p1.bytes == p2.bytes) ;
+    assert (IO.eq p1.bytes p2.bytes) ;
     assert (p1.start >= p2.start) ;
     Size.of_int (p1.start - p2.start)
 
@@ -358,10 +351,10 @@ struct
 
   let peekByte p at =
     check_input_length (p.start + at + 1) p.stop ;
-    let c = Bytes.unsafe_get p.bytes (p.start + at) in
+    let c = IO.peek p.bytes (p.start + at) in
     if debug then
-      Printf.eprintf "PeekByte 0x%02x at %d\n%!" (Char.code c) (p.start+at) ;
-    Uint8.of_int (Char.code c)
+      Printf.eprintf "PeekByte 0x%02x at %d\n%!" c (p.start + at) ;
+    Uint8.of_int c
 
   let peekWord ?(big_endian=false) p at =
     let cat b0 b1 =
@@ -411,11 +404,13 @@ struct
     peekOWord ~big_endian p 0, skip p 16
 
   let readBytes p sz =
-    Slice.make p.bytes p.start sz,
+    check_input_length (p.start + sz) p.stop ;
+    IO.peekn p.bytes p.start sz,
     skip p sz
 
   let pokeByte p at v =
-    Bytes.set p.bytes (p.start + at) (Uint8.to_int v |> Char.chr)
+    check_input_length (p.start + at) p.stop ;
+    IO.poke p.bytes (p.start + at) (Uint8.to_int v)
 
   let pokeWord ?(big_endian=false) p at v =
     let fst, snd = v, Uint16.shift_right_logical v 8 in
@@ -476,13 +471,13 @@ struct
 
   let writeBytes p v =
     let len = v.Slice.length in
-    Bytes.blit v.bytes v.offset p.bytes p.start len ;
+    IO.poken p.bytes p.start v ;
     skip p len
 
   let blitBytes p v sz =
-    let c = Char.chr (Uint8.to_int v) in
+    let c = Uint8.to_int v in
     for i = p.start to p.start + sz - 1 do
-      Bytes.set p.bytes i c
+      IO.poke p.bytes i c
     done ;
     skip p sz
 
@@ -497,6 +492,77 @@ struct
           assert false
       | o :: s -> o, s in
     { p with start ; stack }
+end
+
+module Buffer_IO =
+struct
+  type t = Bytes.t
+
+  let of_bytes bytes =
+    bytes
+
+  let of_string s =
+    Bytes.of_string s
+
+  let of_buffer n =
+    Bytes.create n
+
+  let eq t1 t2 =
+    t1 == t2
+
+  let size t =
+    Bytes.length t
+
+  let peek t at =
+    Bytes.unsafe_get t at |> Char.code
+
+  let peekn t at sz =
+    Slice.make t at sz
+
+  let poken t at slice =
+    Bytes.blit slice.Slice.bytes slice.offset t at slice.length
+
+  let poke t at v =
+    Bytes.unsafe_set t at (Char.chr v)
+end
+
+module Pointer =
+struct
+  include MakePointer (Buffer_IO)
+
+  let make sz =
+    { bytes = Buffer_IO.of_buffer sz ;
+      start = 0 ;
+      stop = sz ;
+      stack = [] }
+
+  let of_bytes bytes start stop =
+    if stop > Bytes.length bytes then invalid_arg "of_bytes" ;
+    { bytes = Buffer_IO.of_bytes bytes ;
+      start ; stop ; stack = [] }
+
+  let of_string s =
+    { bytes = Buffer_IO.of_string s ;
+      start = 0 ;
+      stop = String.length s ;
+      stack = [] }
+
+  let of_buffer n =
+    { bytes = Buffer_IO.of_buffer n ;
+      start = 0 ;
+      stop = n ;
+      stack = [] }
+
+  let of_pointer p start stop =
+    { p with start ; stop }
+
+  let reset p =
+    { p with start = 0 ;
+             stop = Buffer_IO.size p.bytes ;
+             stack = [] }
+
+  let contents p =
+    Bytes.sub p.bytes 0 p.start
 end
 
 (* Once a set is constructed few operations are possible with it:
