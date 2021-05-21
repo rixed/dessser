@@ -210,6 +210,33 @@ let rec peval l e =
   | E1 (op, e1) ->
       (match op, p e1 with
       | Comment _, e1 -> e1 (* FIXME: Would prevent further optimization *)
+      | GetItem n, E0S (MakeTup, es) when n < List.length es ->
+          let got = List.at es n in
+          let es =
+            List.fold_lefti (fun es i e ->
+              if i = n then es else ignore_ e :: es
+            ) [] es in
+          seq (List.rev (got :: es)) |> p
+      | GetField n, (E0S (MakeRec, es) as e1) ->
+          let def = E.E1 (op, e1) in
+          let rec loop got es = function
+            | [] -> got, es
+            | [ _ ] -> raise Exit
+            | E.E0 (String n') :: v :: rest when n = n' ->
+                if got = None then
+                  loop (Some v) es rest
+                else
+                  failwith "multiple binding"
+            | _ :: v :: rest ->
+                loop got (ignore_ v :: es) rest
+            in
+          (match loop None [] es with
+          | exception _ -> def
+          | None, _ -> def
+          | Some got, es -> seq (List.rev (got :: es)) |> p)
+      | GetAlt n, E1 (Construct (mns, i), e)
+        when i < Array.length mns && fst mns.(i) = n ->
+          e
       | Ignore, e ->
           if E.type_of l e = T.Void then e else E1 (op, e)
       | IsNull, E0 (Null _) -> true_
@@ -635,16 +662,6 @@ let rec peval l e =
           | _ -> E2 (AllocLst, e1, e2))
       | PartialSort, e1, E0S ((MakeVec | MakeLst _), [])
       | PartialSort, (E0S ((MakeVec | MakeLst _), []) as e1), _ -> e1
-      | GetVec, e1, e2 ->
-          (match E.to_cst_int e1 with
-          | exception _ ->
-              E2 (GetVec, e1, e2)
-          | i ->
-              (match e2 with
-              | E0S (MakeVec, es) ->
-                  (try List.at es i
-                  with Invalid_argument _ -> E2 (GetVec, e1, e2))
-              | _ -> E2 (GetVec, e1, e2)))
       | Map, lst, f ->
           (match lst with
           | E0S (MakeVec, [ e ]) ->
@@ -672,6 +689,11 @@ let rec peval l e =
       | AppendString, E0 (String s1), E0 (String s2) -> string (s1 ^ s2)
       | AppendString, E0 (String ""), e2 -> e2
       | AppendString, e1, E0 (String "") -> e1
+      | GetVec, e1, (E0S ((MakeLst _ | MakeVec), es) as e2) ->
+          let def = E.E2 (GetVec, e1, e2) in
+          (match E.to_cst_int e1 with
+          | exception _ -> def
+          | idx -> (try List.at es idx with _ -> def))
       (* Cannot be truncated further: *)
       | ChopBegin, (E0S (MakeLst _, []) as lst), _ -> lst
       | ChopBegin, (E0S (MakeLst mn, items) as lst), n ->
