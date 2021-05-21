@@ -183,9 +183,6 @@ let is_one e =
   (try E.to_cst_int e = 1
   with _ -> false)
 
-let can_inline _e =
-  true (* TODO *)
-
 let rec peval l e =
   let p = peval l in
   match e with
@@ -204,6 +201,12 @@ let rec peval l e =
           | [ e ] -> e
           | es -> seq es )
       | op, es -> E0S (op, es))
+  | E1 (Function (fid, ps), body) ->
+      let l =
+        Array.fold_lefti (fun l i p ->
+          (E.E0 (Param (fid, i)), p) :: l
+        ) l ps in
+      E1 (Function (fid, ps), peval l body)
   | E1 (op, e1) ->
       (match op, p e1 with
       | Comment _, e1 -> e1 (* FIXME: Would prevent further optimization *)
@@ -394,14 +397,14 @@ let rec peval l e =
       | BitNot, e ->
           arith1' BitNot e Int128.lognot Uint128.lognot
       | op, e1 -> E1 (op, e1))
-  | E1S (op, e1, es) ->
-      (match op, p e1, List.map p es with
-      | Apply, E1 (Function _, body), [] when can_inline body -> body
+  | E1S (Apply, e1, es) ->
+      (match p e1, List.map p es with
+      | E1 (Function _, body), [] -> body
       (* If [f] is constant we cannot proceed directly with variable
        * substitutions unless each variable is used only once. We can
        * turn the apply into a sequence of lets that will further
        * substitute what can be substituted: *)
-      | Apply, E1 (Function (fid, _), body), es when can_inline body ->
+      | E1 (Function (fid, _), body), es ->
           List.fold_lefti (fun body i e ->
             let_ ~l e (fun _l e ->
               E.map (function
@@ -409,8 +412,16 @@ let rec peval l e =
                 | x -> x
               ) body)
           ) body es |>
+          (* There is no more params left so no need to update the environment: *)
           p
-      | op, e1, es -> E1S (op, e1, es))
+      | e1, es ->
+          (* In case we have no constant function (an identifier then) there is
+           * nothing to simplify in the body: *)
+          E1S (Apply, e1, es))
+(*  Unused for now since the only E1S is Apply:
+  | E1S (op, e1, es) ->
+      (match op, p e1, List.map p es with
+      | op, e1, es -> E1S (op, e1, es)) *)
   (*
    * Let expressions
    *)
