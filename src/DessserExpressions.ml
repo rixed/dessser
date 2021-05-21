@@ -2330,7 +2330,7 @@ let has_side_effect e =
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
              Insert | DelMin | PartialSort), _, _)
-      | E3 ((SetVec | InsertWeighted), _, _, _)
+      | E3 ((SetBit | SetVec | InsertWeighted), _, _, _)
       | E4 (ReadWhile, _, _, _, _) ->
           raise Exit
       | _ -> ()
