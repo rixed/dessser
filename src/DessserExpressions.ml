@@ -2319,8 +2319,7 @@ let rec map_env l f e =
 
 let has_side_effect e =
   try
-    iter (fun e0 ->
-      match e0 with
+    iter (function
       | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
@@ -2331,13 +2330,32 @@ let has_side_effect e =
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | Insert | DelMin | PartialSort), _, _)
       | E3 ((SetVec | InsertWeighted), _, _, _)
-      | E4 (ReadWhile, _, _, _, _)->
+      | E4 (ReadWhile, _, _, _, _) ->
           raise Exit
       | _ -> ()
     ) e ;
     false
   with Exit ->
     true
+
+let can_duplicate e =
+  not (has_side_effect e) &&
+  try
+    iter (function
+      (* Although not exactly a side effect, those functions produce a copy of
+       * a given pointer that are then mutable and which address is used in
+       * comparisons *)
+      | E1 ((DataPtrOfString | DataPtrOfBuffer), _) | E3 (DataPtrOfPtr, _, _, _)
+      (* Similarly, sets and vec are mutable: *)
+      | E0 (EmptySet _)
+      | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
+             Heap), _) ->
+          raise Exit
+      | _ -> ()
+    ) e ;
+    true
+  with Exit ->
+    false
 
 (* [l] is the stack of expr * type *)
 let rec type_check l e =

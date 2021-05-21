@@ -443,12 +443,13 @@ let rec peval l e =
           E.fold 0 (fun c -> function
             | E0 (Identifier n') when n' = n -> c + 1
             | _ -> c
-          ) body
-        and side_effects = E.has_side_effect def in
+          ) body in
         if use_count = 0 then
-          if not side_effects then body else p (seq [ ignore_ def ; body ])
+          if not (E.has_side_effect def) then body
+          else p (seq [ ignore_ def ; body ])
         else if use_count = 1 ||
-                not side_effects && (use_count - 1) * E.size def < max_inline_size ()
+                E.can_duplicate def &&
+                (use_count - 1) * E.size def < max_inline_size ()
              then
           E.map (function
             | E0 (Identifier n') when n' = n -> def
