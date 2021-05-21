@@ -658,7 +658,7 @@ let rec peval l e =
           List.map string |>
           make_lst T.(required (Base String)) |>
           p
-      | SplitAt, e1, E0 (String s) ->
+      | SplitAt, e1, (E0 (String s) as e2) ->
           (match E.to_cst_int e1 with
           | exception _ ->
               E2 (SplitAt, e1, e2)
