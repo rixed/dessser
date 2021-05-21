@@ -2328,7 +2328,8 @@ let has_side_effect e =
              I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
-             WriteQWord _ | WriteOWord _ | Insert | DelMin | PartialSort), _, _)
+             WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
+             Insert | DelMin | PartialSort), _, _)
       | E3 ((SetVec | InsertWeighted), _, _, _)
       | E4 (ReadWhile, _, _, _, _) ->
           raise Exit
