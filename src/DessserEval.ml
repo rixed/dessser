@@ -192,10 +192,10 @@ let rec peval l e =
       (match op, List.map p es with
       | Seq, es ->
           let es =
-            List.filter (function
-              | E.E0S (Seq, []) -> false
-              | E.E1 (Ignore, e) -> E.has_side_effect e
-              | _ -> true
+            List.filter_map (fun e ->
+              (* Type checking makes sure that it's a void if not last: *)
+              if E.type_of l e = T.Void && not (E.has_side_effect e) then None
+              else Some e
             ) es in
           (match es with
           | [ e ] -> e
@@ -210,6 +210,8 @@ let rec peval l e =
   | E1 (op, e1) ->
       (match op, p e1 with
       | Comment _, e1 -> e1 (* FIXME: Would prevent further optimization *)
+      | Ignore, e ->
+          if E.type_of l e = T.Void then e else E1 (op, e)
       | IsNull, E0 (Null _) -> true_
       | IsNull, E1 (NotNull, _) -> false_
       | NotNull, E1 (Force _, e) -> e
