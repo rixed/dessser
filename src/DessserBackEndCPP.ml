@@ -580,64 +580,82 @@ struct
         emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
     | E.E1 (FloatOfPtr, e1) ->
         let n = print emit p l e1 in
-        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
-          n n ;
+        let start = gen_sym "start_" in
+        let stop = gen_sym "stop_" in
+        let val_ = gen_sym "val_" in
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.offset };"
+          start n n ;
         (* Nice but not supported yet on ordinary g++/clang:
-        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
-          n n ;
-        ppi p.P.def "double val_ { 0. /* don't warn */ };" ;
-        ppi p.P.def "bool const is_hex_ { stop_ > start_ + 1 && *start_ == '0' && \
-                    (*start_ == 'x' || *start_ == 'X') };"
-          ;
-        ppi p.P.def "if (is_hex_) start_ += 2;" ;
-        ppi p.P.def "struct std::from_chars_result res_ = \
+        let res = gen_sym "res_" in
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.size };"
+          stop n n ;
+        ppi p.P.def "double %s { 0. /* don't warn */ };" val_ ;
+        ppi p.P.def "bool const is_hex_ { %s > %s + 1 && *%s == '0' && \
+                    (*%s== 'x' || *%s== 'X') };"
+          stop start start start start ;
+        ppi p.P.def "if (is_hex_) %s += 2;" start ;
+        ppi p.P.def "struct std::from_chars_result %s = \
                     std::from_chars(\
-                      start_ + (is_hex_ ? 2 : 0), stop_, val_, \
+                      %s + (is_hex_ ? 2 : 0), %s, %s, \
                       is_hex_ ? std::chars_format::hex : \
-                                std::chars_format::general);" ;
+                                std::chars_format::general);"
+          res start stop val_ ;
         emit ?name p l e (fun oc ->
-          pp oc "val_, %s.skip(res_.ptr - start_)" n)
+          pp oc "%s, %s.skip(%s.ptr - %s)" val_ n res start)
         *)
-        ppi p.P.def "char *end_;" ;
+        ppi p.P.def "char *%s;" stop ;
         (* This assumes there will always be a non-digit at the end to prevent
          * strtod to read past the end of the buffer: *)
-        ppi p.P.def "double const val_ = strtod(start_, &end_);" ;
+        ppi p.P.def "double const %s = strtod(%s, &%s);" val_ start stop ;
         emit ?name p l e (fun oc ->
-          pp oc "val_, %s.skip(end_ - start_)" n)
+          pp oc "%s, %s.skip(%s - %s)" val_ n stop start)
     | E.E1 ((U8OfPtr | U16OfPtr | U24OfPtr | U32OfPtr | U40OfPtr |
              U48OfPtr | U56OfPtr | U64OfPtr |
              I8OfPtr | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
-          n n ;
-        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
-          n n ;
-        ppi p.P.def "struct std::from_chars_result res_ = \
-                    std::from_chars(start_, stop_, val_);" ;
+        let start = gen_sym "start_" in
+        let stop = gen_sym "stop_" in
+        let val_ = gen_sym "val_" in
+        let res = gen_sym "res_" in
+        ppi p.P.def "%s %s { 0 /* don't warn */ };" tn val_ ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.offset };"
+          start n n ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.size };"
+          stop n n ;
+        ppi p.P.def "struct std::from_chars_result %s = \
+                    std::from_chars(%s, %s, %s);" res start stop val_ ;
         emit ?name p l e (fun oc ->
-          pp oc "val_, %s.skip(res_.ptr - start_)" n)
+          pp oc "%s, %s.skip(%s.ptr - %s)" val_ n res start)
     | E.E1 (U128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
-          n n ;
-        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };" n n ;
-        ppi p.P.def "std::size_t count_ = u128_from_chars(start_, stop_, &val_);" ;
-        emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
+        let start = gen_sym "start_" in
+        let stop = gen_sym "stop_" in
+        let val_ = gen_sym "val_" in
+        ppi p.P.def "%s %s { 0 /* don't warn */ };" tn val_ ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.offset };"
+          start n n ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.size };"
+          stop n n ;
+        ppi p.P.def "std::size_t count_ = u128_from_chars(%s, %s, &%s);"
+          start stop val_ ;
+        emit ?name p l e (fun oc -> pp oc "%s, %s.skip(count_)" val_ n)
     | E.E1 (I128OfPtr, e1) ->
         let n = print emit p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier p in
-        ppi p.P.def "%s val_ { 0 /* don't warn */ };" tn ;
-        ppi p.P.def "char const *start_ { (char *)%s.buffer.get() + %s.offset };"
-          n n ;
-        ppi p.P.def "char const *stop_ { (char *)%s.buffer.get() + %s.size };"
-          n n ;
-        ppi p.P.def "std::size_t count_ = i128_from_chars(start_, stop_, &val_);" ;
-        emit ?name p l e (fun oc -> pp oc "val_, %s.skip(count_)" n)
+        let start = gen_sym "start_" in
+        let stop = gen_sym "stop_" in
+        let val_ = gen_sym "val_" in
+        ppi p.P.def "%s %s { 0 /* don't warn */ };" tn val_ ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.offset };"
+          start n n ;
+        ppi p.P.def "char const *%s { (char *)%s.buffer.get() + %s.size };"
+          stop n n ;
+        ppi p.P.def "std::size_t count_ = i128_from_chars(%s, %s, &%s);"
+          start stop val_ ;
+        emit ?name p l e (fun oc -> pp oc "%s, %s.skip(count_)" val_ n)
     | E.E1 (FloatOfQWord, e1) ->
         unary_func "float_of_qword" e1
     | E.E1 (QWordOfFloat, e1) ->
