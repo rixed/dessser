@@ -2322,7 +2322,12 @@ let has_side_effect e =
     iter (fun e0 ->
       match e0 with
       | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
-             ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert), _)
+             ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
+             FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
+             U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
+             U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
+             I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
+             I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | Insert | DelMin | PartialSort), _, _)
       | E3 ((SetVec | InsertWeighted), _, _, _)
