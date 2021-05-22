@@ -60,11 +60,10 @@ struct
   let vec_opn () _ _ _ _ _ src = src
   let vec_cls () _ _ _ src = src
   let vec_sep () _ _ _ src = src
-  let list_opn () = KnownSize (fun _ _ _ l src ->
-    let b_src = read_byte src in
-    map_pair b_src
-      (E.func2 ~l T.Byte T.DataPtr (fun _l b p ->
-        pair (to_u32 (u8_of_byte b)) p)))
+  let list_opn () =
+    KnownSize (fun _ _ _ l src ->
+      E.with_sploded_pair ~l "b_src" (read_byte src) (fun _l b src ->
+        pair (to_u32 (u8_of_byte b)) src))
   let list_cls () _ _ _ src = src
   let list_sep () _ _ _ src = src
   let is_null () _ _ _ src =

@@ -244,7 +244,7 @@ type e1 =
   | Hash (* Turns anything into an u64 *)
   (* WARNING: never use Fst and Snd on the same expression or that expression
    * will be computed twice!
-   * Instead, use MapPair or Let *)
+   * Instead, use a Let expression *)
   | Fst
   | Snd
   | Head
@@ -319,10 +319,6 @@ type e2 =
   | Or
   | Cons
   | Pair
-  (* MapPair takes the pair then the function of 2 arguments returning whatever.
-   * Note: the result is whatever returns the function, not necessarily a
-   * pair! FIXME: that name is misleading ; also, should be part of stdlib *)
-  | MapPair
   | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
@@ -500,8 +496,6 @@ let rec can_precompute l i = function
   | E2 (Let n, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l (n :: i) e2
-  | E2 (MapPair, _, _) ->
-      false (* TODO *)
   | E2 (Map, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l i e2
@@ -917,7 +911,6 @@ let string_of_e2 = function
   | Or -> "or"
   | Cons -> "cons"
   | Pair -> "pair"
-  | MapPair -> "map-pair"
   | Map -> "map"
   | Min -> "min"
   | Max -> "max"
@@ -1507,7 +1500,6 @@ struct
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
     | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
-    | Lst [ Sym "map-pair" ; x1 ; x2 ] -> E2 (MapPair, e x1, e x2)
     | Lst [ Sym "map" ; x1 ; x2 ] -> E2 (Map, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
@@ -1957,10 +1949,6 @@ let rec type_of l e0 =
       (match type_of l e |> T.develop_user_types with
       | SList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E2 (MapPair, _, e2) ->
-      (match type_of l e2 |> T.develop_user_types with
-      | Function (_, ot) -> ot
-      | t2 -> raise (Type_error (e0, e2, t2, "be a function")))
   | E2 (Map, set, f) ->
       (match type_of l f |> T.develop_user_types with
       | Function (_, ot) as f_t ->
@@ -2756,20 +2744,6 @@ let rec type_check l e =
         check_slist l e
     | E2 (Cons, e1, e2) ->
         check_slist_same_type e1 l e2
-    | E2 (MapPair, e1, e2) ->
-        (match type_of l e2 |> T.develop_user_types with
-        | Function ([| i1 ; i2 |], _) ->
-            (match type_of l e1 |> T.develop_user_types with
-            | Pair (p1, p2) as t1 ->
-                if not (T.eq p1 i1 && T.eq p2 i2) then
-                  let err = "be a "^ T.to_string (Pair (i1, i2)) in
-                  raise (Type_error (e0, e1, t1, err))
-            | t1 ->
-                raise (Type_error (e0, e1, t1, "be a pair")))
-        | Function _ as t2 ->
-            bad_arity 2 e2 t2
-        | t2 ->
-            raise (Type_error (e0, e2, t2, "be a function")))
     | E2 (Map, set, f) ->
         (match type_of l f |> T.develop_user_types with
         | Function ([| it |], ot) as f_t ->
@@ -3058,7 +3032,7 @@ let let_ ?(l=[]) ?name def f =
         with Unbound_identifier _ | Unbound_parameter _ -> l in
       E2 (Let n, def, f l (E0 (Identifier n)))
 
-(* Do not use a function (thus not MapPair) to avoid leaking function parameters *)
+(* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
   let pair_id = gen_id "pair" ^"_"^ what in
   let n1 = pair_id ^"_fst"
@@ -3666,8 +3640,6 @@ struct
   let get_alt s e = E1 (GetAlt s, e)
 
   let construct mns i e = E1 (Construct (mns, i), e)
-
-  let map_pair e1 e2 = E2 (MapPair, e1, e2)
 
   let min_ e1 e2 = E2 (Min, e1, e2)
 

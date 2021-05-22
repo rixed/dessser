@@ -317,7 +317,7 @@ let e2_of_int n =
          AppendString ; StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;
-         And ; Or ; Pair ; MapPair ; Map ; Min ; Max ; Member ; Insert ;
+         And ; Or ; Pair ; Map ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
          ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
   e2s.(n mod Array.length e2s)

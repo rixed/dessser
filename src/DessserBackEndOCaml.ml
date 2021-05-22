@@ -1032,12 +1032,6 @@ struct
         unary_op "fst" e1
     | E.E1 (Snd, e1) ->
         unary_op "snd" e1
-    | E.E2 (MapPair, e1, e2) ->
-        let n1 = print emit p l e1 (* the pair *)
-        and n2 = print emit p l e2 (* the function of 2 args *) in
-        let n1_0 = "(fst "^ n1 ^")"
-        and n1_1 = "(snd "^ n1 ^")" in
-        emit ?name p l e (fun oc -> pp oc "%s %s %s" n2 n1_0 n1_1)
     | E.E2 (Map, e1, e2) ->
         let n1 = print emit p l e1 (* the iterable *)
         and n2 = print emit p l e2 (* the function of 1 arg *) in
