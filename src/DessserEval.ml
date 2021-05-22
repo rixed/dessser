@@ -101,7 +101,7 @@ let arith2'' op e1 e2 op_i128 cst =
   with Invalid_argument _ ->
     E.E2 (op, e1, e2)
 
-let arith2' op e1 e2 op_i128 op_u128 =
+let arith2' op e1 e2 op_float op_i128 op_u128 =
   match e1, e2 with
   | E.E0 (U8 _), _ -> arith2'' op e1 e2 op_i128 (u8 % Int128.to_uint8)
   | E0 (U16 _), _ -> arith2'' op e1 e2 op_i128 (u16 % Int128.to_uint16)
@@ -127,14 +127,96 @@ let arith2' op e1 e2 op_i128 op_u128 =
   | E0 (QWord _), _ -> arith2'' op e1 e2 op_i128 (qword % Int128.to_uint64)
   | E0 (OWord _), _ -> arith2'' op e1 e2 op_i128 (oword % Int128.to_uint128)
   | E0 (Size _), _ -> arith2'' op e1 e2 op_i128 (size % Int128.to_int)
+  | E0 (Float a), E0 (Float b) -> float (op_float a b)
   | _ -> E.E2 (op, e1, e2)
 
 let arith2 op e1 e2 =
   match op with
-  | E.Add -> arith2' op e1 e2 Int128.add Uint128.add
-  | Sub -> arith2' op e1 e2 Int128.sub Uint128.sub
-  | Mul -> arith2' op e1 e2 Int128.mul Uint128.mul
+  | E.Add -> arith2' op e1 e2 (+.) Int128.add Uint128.add
+  | Sub -> arith2' op e1 e2 (-.) Int128.sub Uint128.sub
+  | Mul -> arith2' op e1 e2 ( *.) Int128.mul Uint128.mul
   | _ -> E.E2 (op, e1, e2)
+
+let comp2' op e1 e2 op_gen op_i128 op_u128 =
+  match e1, e2 with
+  | E.E0 (U8 a), E.E0 (U8 b)
+  | E0 (Byte a), E0 (Byte b) ->
+      op_i128 (Uint8.to_int128 a) (Uint8.to_int128 b)
+  | E0 (U16 a), E0 (U16 b)
+  | E0 (Word a), E0 (Word b) ->
+      op_i128 (Uint16.to_int128 a) (Uint16.to_int128 b)
+  | E0 (U24 a), E0 (U24 b) ->
+      op_i128 (Uint24.to_int128 a) (Uint24.to_int128 b)
+  | E0 (U32 a), E0 (U32 b)
+  | E0 (DWord a), E0 (DWord b) ->
+      op_i128 (Uint32.to_int128 a) (Uint32.to_int128 b)
+  | E0 (U40 a), E0 (U40 b) ->
+      op_i128 (Uint40.to_int128 a) (Uint40.to_int128 b)
+  | E0 (U48 a), E0 (U48 b) ->
+      op_i128 (Uint48.to_int128 a) (Uint48.to_int128 b)
+  | E0 (U56 a), E0 (U56 b) ->
+      op_i128 (Uint56.to_int128 a) (Uint56.to_int128 b)
+  | E0 (U64 a), E0 (U64 b)
+  | E0 (QWord a), E0 (QWord b) ->
+      op_i128 (Uint64.to_int128 a) (Uint64.to_int128 b)
+  | E0 (U128 a), E0 (U128 b)
+  | E0 (OWord a), E0 (OWord b) ->
+      op_u128 a b
+  | E0 (I8 a), E0 (I8 b) ->
+      op_i128 (Int8.to_int128 a) (Int8.to_int128 b)
+  | E0 (I16 a), E0 (I16 b) ->
+      op_i128 (Int16.to_int128 a) (Int16.to_int128 b)
+  | E0 (I24 a), E0 (I24 b) ->
+      op_i128 (Int24.to_int128 a) (Int24.to_int128 b)
+  | E0 (I32 a), E0 (I32 b) ->
+      op_i128 (Int32.to_int128 a) (Int32.to_int128 b)
+  | E0 (I40 a), E0 (I40 b) ->
+      op_i128 (Int40.to_int128 a) (Int40.to_int128 b)
+  | E0 (I48 a), E0 (I48 b) ->
+      op_i128 (Int48.to_int128 a) (Int48.to_int128 b)
+  | E0 (I56 a), E0 (I56 b) ->
+      op_i128 (Int56.to_int128 a) (Int56.to_int128 b)
+  | E0 (I64 a), E0 (I64 b) ->
+      op_i128 (Int64.to_int128 a) (Int64.to_int128 b)
+  | E0 (I128 a), E0 (I128 b) ->
+      op_i128 a b
+  | E0 (Size a), E0 (Size b) ->
+      op_i128 (Int128.of_int a) (Int128.of_int b)
+  (* Although every other *constant* E0 allowed by the type checker should
+   * work with the generic operators, let's prevent complex bugs to hide in
+   * here in the future by explicitly enumerating all valid cases ; better
+   * miss an optimisation opportunity than introduce a erroneous
+   * optimisation: *)
+  | E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
+        Null _ | EndOfList _ | EmptySet _ | Unit |
+        CopyField | SkipField | SetFieldNull as a),
+    E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
+        Null _ | EndOfList _ | EmptySet _ | Unit |
+        CopyField | SkipField | SetFieldNull as b) ->
+      op_gen a b
+  | _ ->
+      E.E2 (op, e1, e2)
+
+let comp2 op e1 e2 =
+  match op with
+  | E.Gt ->
+      comp2' op e1 e2 (fun a b -> bool (a > b))
+                      (fun a b -> bool (Int128.compare a b > 0))
+                      (fun a b -> bool (Uint128.compare a b > 0))
+  | Ge ->
+      comp2' op e1 e2 (fun a b -> bool (a >= b))
+                      (fun a b -> bool (Int128.compare a b >= 0))
+                      (fun a b -> bool (Uint128.compare a b >= 0))
+  | Eq ->
+      comp2' op e1 e2 (fun a b -> bool (a = b))
+                      (fun a b -> bool (Int128.compare a b = 0))
+                      (fun a b -> bool (Uint128.compare a b = 0))
+  | Ne ->
+      comp2' op e1 e2 (fun a b -> bool (a <> b))
+                      (fun a b -> bool (Int128.compare a b <> 0))
+                      (fun a b -> bool (Uint128.compare a b <> 0))
+  | _ ->
+      E.E2 (op, e1, e2)
 
 let arith1'' op e op_i128 cst =
   try
@@ -184,6 +266,9 @@ let is_one e =
   with _ -> false)
 
 let rec peval l e =
+  let no_floats _ _ =
+    (* For when some operations are invalid on floats: *)
+    assert false in
   let p = peval l in
   match e with
   | E.E0 _ ->
@@ -505,6 +590,16 @@ let rec peval l e =
           | exception _ -> def
           | idx when idx < List.length es -> List.at es idx
           | _ -> def)
+      (* Peel away some common wrappers: *)
+      | Eq, E1 (NotNull, e1), E1 (NotNull, e2)
+      | Eq, E1 (Force _, e1), E1 (Force _, e2) ->
+          eq e1 e2 |> p
+      (* Another easy case of practical importance: comparison of a null with
+       * anything that's NotNull: *)
+      | Eq, E0 (Null _), E1 (NotNull, _)
+      | Eq, E1 (NotNull, _), E0 (Null _) ->
+          false_
+      | (Gt | Ge | Eq | Ne as op), e1, e2 -> comp2 op e1 e2
       | Add, e1, e2 when is_zero e1 -> e2
       | (Add | Sub), e1, e2 when is_zero e2 -> e1
       | Sub, e1, e2 when is_zero e1 -> neg e2 |> p
@@ -520,6 +615,7 @@ let rec peval l e =
           with Division_by_zero -> null (Base Float))
       | (Div | Rem as op), e1, e2 ->
           (match arith2' op e1 e2
+                         (if op = Div then (/.) else (mod_float))
                          (if op = Div then Int128.div else Int128.rem)
                          (if op = Div then Uint128.div else Uint128.rem) with
           | exception Division_by_zero ->
@@ -548,11 +644,11 @@ let rec peval l e =
               (try C.conv ~to_ l (float (a ** b))
               with _ -> null to_))
       | BitAnd, e1, e2 ->
-          arith2' BitAnd e1 e2 Int128.logand Uint128.logand
+          arith2' BitAnd e1 e2 no_floats Int128.logand Uint128.logand
       | BitOr, e1, e2 ->
-          arith2' BitOr e1 e2 Int128.logor Uint128.logor
+          arith2' BitOr e1 e2 no_floats Int128.logor Uint128.logor
       | BitXor, e1, e2 ->
-          arith2' BitXor e1 e2 Int128.logxor Uint128.logxor
+          arith2' BitXor e1 e2 no_floats Int128.logxor Uint128.logxor
       | LeftShift, E0 (U128 x), E0 (U8 n) ->
           let n = Uint8.to_int n in
           u128 (Uint128.shift_left x n)
@@ -590,60 +686,6 @@ let rec peval l e =
           | exception _ -> E2 (CharOfString, idx, str)
           | idx when idx < String.length s -> not_null (char s.[idx])
           | _ -> E2 (CharOfString, idx, str))
-      | Eq, E0 Null _, E0 Null _
-      | Eq, E0 (EndOfList _), E0 (EndOfList _)
-      | Eq, E0 (EmptySet _), E0 (EmptySet _)
-      | Eq, E0 Unit, E0 Unit
-      | Eq, E0 CopyField, E0 CopyField
-      | Eq, E0 SkipField, E0 SkipField
-      | Eq, E0 SetFieldNull, E0 SetFieldNull ->
-          true_
-      (* None other combination of those can be equal: *)
-      | Eq, E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull),
-        E0 (Null _ | EndOfList _ | EmptySet _ | Unit
-           | CopyField | SkipField | SetFieldNull) ->
-          false_
-      (* Another easy case of practical importance: comparison of a null with
-       * a NotNull: *)
-      | Eq, E0 (Null _), E1 (NotNull, _)
-      | Eq, E1 (NotNull, _), E0 (Null _) ->
-          false_
-      (* Peel away some common wrappers: *)
-      | Eq, E1 (NotNull, e1), E1 (NotNull, e2)
-      | Eq, E1 (Force _, e1), E1 (Force _, e2) ->
-          eq e1 e2
-      (* Compare numerical constant (only if of the same type (TODO)): *)
-      | Eq, E0 (Float v1), E0 (Float v2) -> bool (v1 = v2)
-      | Eq, E0 (String v1), E0 (String v2) -> bool (v1 = v2)
-      | Eq, E0 (Bool v1), E0 (Bool v2) -> bool (v1 = v2)
-      | Eq, E0 (Char v1), E0 (Char v2) -> bool (v1 = v2)
-      | Eq, E0 (U8 v1), E0 (U8 v2) -> bool (Uint8.compare v1 v2 = 0)
-      | Eq, E0 (U16 v1), E0 (U16 v2) -> bool (Uint16.compare v1 v2 = 0)
-      | Eq, E0 (U24 v1), E0 (U24 v2) -> bool (Uint24.compare v1 v2 = 0)
-      | Eq, E0 (U32 v1), E0 (U32 v2) -> bool (Uint32.compare v1 v2 = 0)
-      | Eq, E0 (U40 v1), E0 (U40 v2) -> bool (Uint40.compare v1 v2 = 0)
-      | Eq, E0 (U48 v1), E0 (U48 v2) -> bool (Uint48.compare v1 v2 = 0)
-      | Eq, E0 (U56 v1), E0 (U56 v2) -> bool (Uint56.compare v1 v2 = 0)
-      | Eq, E0 (U64 v1), E0 (U64 v2) -> bool (Uint64.compare v1 v2 = 0)
-      | Eq, E0 (U128 v1), E0 (U128 v2) -> bool (Uint128.compare v1 v2 = 0)
-      | Eq, E0 (I8 v1), E0 (I8 v2) -> bool (Int8.compare v1 v2 = 0)
-      | Eq, E0 (I16 v1), E0 (I16 v2) -> bool (Int16.compare v1 v2 = 0)
-      | Eq, E0 (I24 v1), E0 (I24 v2) -> bool (Int24.compare v1 v2 = 0)
-      | Eq, E0 (I32 v1), E0 (I32 v2) -> bool (Int32.compare v1 v2 = 0)
-      | Eq, E0 (I40 v1), E0 (I40 v2) -> bool (Int40.compare v1 v2 = 0)
-      | Eq, E0 (I48 v1), E0 (I48 v2) -> bool (Int48.compare v1 v2 = 0)
-      | Eq, E0 (I56 v1), E0 (I56 v2) -> bool (Int56.compare v1 v2 = 0)
-      | Eq, E0 (I64 v1), E0 (I64 v2) -> bool (Int64.compare v1 v2 = 0)
-      | Eq, E0 (I128 v1), E0 (I128 v2) -> bool (Int128.compare v1 v2 = 0)
-      | Eq, E0 (Bit v1), E0 (Bit v2) -> bool (v1 = v2)
-      | Eq, E0 (Size v1), E0 (Size v2) -> bool (v1 = v2)
-      | Eq, E0 (Byte v1), E0 (Byte v2) -> bool (Uint8.compare v1 v2 = 0)
-      | Eq, E0 (Word v1), E0 (Word v2) -> bool (Uint16.compare v1 v2 = 0)
-      | Eq, E0 (DWord v1), E0 (DWord v2) -> bool (Uint32.compare v1 v2 = 0)
-      | Eq, E0 (QWord v1), E0 (QWord v2) -> bool (Uint64.compare v1 v2 = 0)
-      | Eq, E0 (OWord v1), E0 (OWord v2) -> bool (Uint128.compare v1 v2 = 0)
-      | Eq, E0 (Bytes v1), E0 (Bytes v2) -> bool (v1 = v2)
       | And, E0 (Bool true), e2 -> e2
       | And, e1, E0 (Bool true) -> e1
       | And, E0 (Bool false), _ -> bool false  (* [e2] not evaluated *)
