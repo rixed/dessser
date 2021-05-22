@@ -228,7 +228,7 @@ let arith1'' op e op_i128 cst =
   with Invalid_argument _ ->
     E.E1 (op, e)
 
-let arith1' op e op_i128 op_u128 =
+let arith1' op e op_float op_i128 op_u128 =
   match e with
   | E.E0 (U8 _) -> arith1'' op e op_i128 (u8 % Int128.to_uint8)
   | E0 (U16 _) -> arith1'' op e op_i128 (u16 % Int128.to_uint16)
@@ -248,11 +248,7 @@ let arith1' op e op_i128 op_u128 =
   | E0 (I56 _) -> arith1'' op e op_i128 (i56 % Int128.to_int56)
   | E0 (I64 _) -> arith1'' op e op_i128 (i64 % Int128.to_int64)
   | E0 (I128 _) -> arith1'' op e op_i128 (i128 % Int128.to_int128)
-  | _ -> E.E1 (op, e)
-
-let arith1 op e =
-  match op with
-  | E.Neg -> arith1' op e Int128.neg Uint128.neg
+  | E0 (Float a) -> float (op_float a)
   | _ -> E.E1 (op, e)
 
 let is_zero e =
@@ -266,9 +262,9 @@ let is_one e =
   with _ -> false)
 
 let rec peval l e =
-  let no_floats _ _ =
-    (* For when some operations are invalid on floats: *)
-    assert false in
+  (* For when some operations are invalid on floats: *)
+  let no_floats _ _ = assert false in
+  let no_float _ = assert false in
   let p = peval l in
   match e with
   | E.E0 _ ->
@@ -327,6 +323,7 @@ let rec peval l e =
       | IsNull, E0 (Null _) -> true_
       | IsNull, E1 (NotNull, _) -> false_
       | NotNull, E1 (Force _, e) -> e
+      | Force _, E1 (NotNull, e) -> e
       | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n)
       | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n)
       | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n)
@@ -470,7 +467,8 @@ let rec peval l e =
       | ToU64, e -> to_uint ToU64 e u64 Uint64.of_uint128
       | ToU128, e -> to_uint ToU128 e u128 Uint128.of_uint128
       | ToFloat, e -> peval_to_float e
-      | Neg, e1 -> arith1 Neg e1
+      | Abs, e1 -> arith1' Abs e1 abs_float Int128.abs Uint128.abs
+      | Neg, e1 -> arith1' Neg e1 (~-.) Int128.neg Uint128.neg
       | StringOfBytes, E0 (Bytes v) -> string (Bytes.to_string v)
       | StringOfBytes, E1 (BytesOfString, e) -> e
       | BytesOfString, E0 (String s) -> bytes (Bytes.of_string s)
@@ -506,10 +504,13 @@ let rec peval l e =
           u32_of_int 1
       | Cardinality, E0S ((MakeVec | MakeLst _), es) ->
           u32_of_int (List.length es)
-      | Force _, E1 (NotNull, e) -> e
+      | Cardinality, E0 (EndOfList _ | EmptySet _)
+      | Cardinality, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
+                          HashTable _ | Heap), _) ->
+          u32_of_int 0
       | Assert, E0 (Bool true) -> nop
       | BitNot, e ->
-          arith1' BitNot e Int128.lognot Uint128.lognot
+          arith1' BitNot e no_float Int128.lognot Uint128.lognot
       | op, e1 -> E1 (op, e1))
   | E1S (Apply, e1, es) ->
       (match p e1, List.map p es with
