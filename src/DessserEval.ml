@@ -316,6 +316,7 @@ let rec peval l e =
       | Head, E2 (Cons, e, _) -> e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
       | Tail, E2 (Cons, _, e) -> tail e |> p
+      | LabelOf, E1 (Construct (_, i), _) -> u16 (Uint16.of_int i)
       | FloatOfQWord, E0 (QWord n) ->
           float (BatInt64.float_of_bits (Uint64.to_int64 n))
       | FloatOfQWord, E1 (QWordOfFloat, e) -> e
@@ -498,6 +499,12 @@ let rec peval l e =
           E2 (Let n, def, body))
   | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
+      | Nth, e1, (E0S ((MakeVec | MakeLst _), es) as e2) ->
+          let def = E.E2 (Nth, e1, e2) in
+          (match E.to_cst_int e1 with
+          | exception _ -> def
+          | idx when idx < List.length es -> List.at es idx
+          | _ -> def)
       | Add, e1, e2 when is_zero e1 -> e2
       | (Add | Sub), e1, e2 when is_zero e2 -> e1
       | Sub, e1, e2 when is_zero e1 -> neg e2 |> p
@@ -688,11 +695,18 @@ let rec peval l e =
       | AppendString, E0 (String s1), E0 (String s2) -> string (s1 ^ s2)
       | AppendString, E0 (String ""), e2 -> e2
       | AppendString, e1, E0 (String "") -> e1
+      | StartsWith, E0 (String s1), E0 (String s2) ->
+          bool (String.starts_with s1 s2)
+      | EndsWith, E0 (String s1), E0 (String s2) ->
+          bool (String.ends_with s1 s2)
       | GetVec, e1, (E0S ((MakeLst _ | MakeVec), es) as e2) ->
           let def = E.E2 (GetVec, e1, e2) in
           (match E.to_cst_int e1 with
           | exception _ -> def
           | idx -> (try List.at es idx with _ -> def))
+      | Cons, E1 (Head, l1), E1 (Tail, l2)
+        when E.eq l1 l2 && not (E.has_side_effect l1) ->
+          l1
       (* Cannot be truncated further: *)
       | ChopBegin, (E0S (MakeLst _, []) as lst), _ -> lst
       | ChopBegin, (E0S (MakeLst mn, items) as lst), n ->
@@ -720,7 +734,6 @@ let rec peval l e =
           | exception _ -> E.E2 (ChopEnd, lst, n)
           | 0 -> lst
           | _ -> E.E2 (ChopEnd, lst, n))
-      (* TODO: Cons! *)
       | op, e1, e2 -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
       (match op, p e1, p e2, p e3 with
