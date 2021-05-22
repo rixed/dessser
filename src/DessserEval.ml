@@ -315,7 +315,6 @@ let rec peval l e =
       | Snd, E2 (Pair, _, e) -> e
       | Head, E2 (Cons, e, _) -> e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
-      | Tail, E2 (Cons, e, E0 (EndOfList _)) -> e
       | Tail, E2 (Cons, _, e) -> tail e |> p
       | FloatOfQWord, E0 (QWord n) ->
           float (BatInt64.float_of_bits (Uint64.to_int64 n))
