@@ -1117,6 +1117,11 @@ let is_nullable = function
   | Data { nullable = true ; _ } -> true
   | _ -> false
 
+let is_pair t =
+  match develop_user_types t with
+  | Pair _ -> true
+  | _ -> false
+
 let width_of_int = function
   | Base (U8 | I8) -> 8
   | Base (U16 | I16) -> 16

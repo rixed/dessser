@@ -1145,6 +1145,14 @@ struct
         let t = E.type_of l e1 in
         let l = (E.E0 (Identifier n), t) :: l in
         print ?name emit p l e2
+    | E.E2 (LetPair (n1, n2), e1, e2) ->
+        let n = "("^ valid_identifier n1 ^", "^ valid_identifier n2 ^")" in
+        let n1_n2 = print ~name:n emit p l e1 in
+        if n1_n2 <> n then
+          ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1_n2)) ;
+        let l = (E.E0 (Identifier n1), E.type_of l (E.Ops.first e1)) ::
+                (E.E0 (Identifier n2), E.type_of l (E.Ops.secnd e1)) :: l in
+        print ?name emit p l e2
     | E.E1 (Function (_fid, [||]), e1) ->
         emit ?name p l e (fun oc ->
           pp oc "(fun () ->\n" ;

@@ -975,6 +975,21 @@ struct
           ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
+    | E.E2 (LetPair (name1, name2), e1, e2) ->
+        let n1 = print emit p l e1 in
+        let res = gen_sym ?name "letpair_res_" in
+        let l = (E.E0 (Identifier name1), E.type_of l (E.Ops.first e1)) ::
+                (E.E0 (Identifier name2), E.type_of l (E.Ops.secnd e1)) :: l in
+        let t2 = E.type_of l e2 in
+        ppi p.P.def "%s %s;" (type_identifier p t2) res ;
+        ppi p.P.def "{" ;
+        P.indent_more p (fun () ->
+          ppi p.P.def "auto [%s, %s] = %s;"
+            (valid_identifier name1) (valid_identifier name2) n1 ;
+          let tmp = print emit p l e2 in
+          ppi p.P.def "%s = %s;" res tmp) ;
+        ppi p.P.def "}" ;
+        res
     | E.E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
           array_print_i ~first:"[&](" ~last:") {\n" ~sep:", "

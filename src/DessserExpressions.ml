@@ -281,6 +281,7 @@ type e1s =
 
 type e2 =
   | Let of string
+  | LetPair of string * string
   (* Deconstructor for vectors/lists: *)
   | Nth
   (* Comparators: *)
@@ -318,7 +319,7 @@ type e2 =
   | And
   | Or
   | Cons
-  | Pair
+  | Pair (* TODO: should be MakePair *)
   | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
@@ -496,6 +497,9 @@ let rec can_precompute l i = function
   | E2 (Let n, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l (n :: i) e2
+  | E2 (LetPair (n1, n2), e1, e2) ->
+      can_precompute l i e1 &&
+      can_precompute l (n1 :: n2 :: i) e2
   | E2 (Map, e1, e2) ->
       can_precompute l i e1 &&
       can_precompute l i e2
@@ -876,7 +880,8 @@ let string_of_e1 = function
   | GetMin -> "get-min"
 
 let string_of_e2 = function
-  | Let s -> "let "^ String.quote s
+  | Let n -> "let "^ String.quote n
+  | LetPair (n1, n2) -> "let-pair "^ String.quote n1 ^" "^ String.quote n2
   | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
@@ -1465,7 +1470,8 @@ struct
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
-    | Lst [ Sym "let" ; Str s ; x1 ; x2 ] -> E2 (Let s, e x1, e x2)
+    | Lst [ Sym "let" ; Str n ; x1 ; x2 ] -> E2 (Let n, e x1, e x2)
+    | Lst [ Sym "let-pair" ; Str n1 ; Str n2 ; x1 ; x2 ] -> E2 (LetPair (n1, n2), e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
@@ -1981,6 +1987,10 @@ let rec type_of l e0 =
       T.Mask
   | E2 (Let n, e1, e2) ->
       type_of ((E0 (Identifier n), type_of l e1) :: l) e2
+  | E2 (LetPair (n1, n2), e1, e2) ->
+      let l = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
+              (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
+      type_of l e2
   | E1 (Function (fid, ts), e) ->
       let l =
         Array.fold_lefti (fun l i t ->
@@ -2186,8 +2196,6 @@ let rec fold u f e =
   | E1S (_, e1, es) ->
       let u = fold u f e1 in
       List.fold_left (fun u e1 -> fold u f e1) u es
-  | E2 (Let _, e1, e2) ->
-      fold (fold u f e1) f e2
   | E2 (_, e1, e2) ->
       fold (fold u f e1) f e2
   | E3 (_, e1, e2, e3) ->
@@ -2213,8 +2221,12 @@ let rec fold_env u l f e =
   | E1S (_, e1, es) ->
       let u = fold_env u l f e1 in
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
-  | E2 (Let s, e1, e2) ->
-      let l' = (E0 (Identifier s), type_of l e1) :: l in
+  | E2 (Let n, e1, e2) ->
+      let l' = (E0 (Identifier n), type_of l e1) :: l in
+      fold_env (fold_env u l f e1) l' f e2
+  | E2 (LetPair (n1, n2), e1, e2) ->
+      let l' = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
+               (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
@@ -2284,11 +2296,17 @@ let rec map_env l f e =
       let e1 = map_env l f e1
       and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
-  | E2 (Let s, e1, e2) ->
+  | E2 (Let n, e1, e2) ->
       let e1 = map_env l f e1 in
-      let l = (E0 (Identifier s), type_of l e1) :: l in
+      let l = (E0 (Identifier n), type_of l e1) :: l in
       let e2 = map_env l f e2 in
-      f l (E2 (Let s, e1, e2))
+      f l (E2 (Let n, e1, e2))
+  | E2 (LetPair (n1, n2), e1, e2) ->
+      let e1 = map_env l f e1 in
+      let l = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
+              (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
+      let e2 = map_env l f e2 in
+      f l (E2 (LetPair (n1, n2), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
@@ -2496,7 +2514,7 @@ let rec type_check l e =
     | E0S (Verbatim _, _)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _
           | Hash), _)
-    | E2 ((Pair | Let _), _, _) ->
+    | E2 ((Pair | Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
     | E0S (Seq, es) ->
@@ -3010,9 +3028,9 @@ let gen_id =
     incr seq ;
     prefix ^"_"^ string_of_int !seq
 
-let let_ ?(l=[]) ?name def f =
-  match def with
-  (* If [def] is already an identifier (or a param) there is no need for a
+let let_ ?(l=[]) ?name value f =
+  match value with
+  (* If [value] is already an identifier (or a param) there is no need for a
    * new one: *)
   | E0 (Param _ | Identifier _)
   (* Also, if it's a constant then the optimizer will work better if it's
@@ -3022,15 +3040,24 @@ let let_ ?(l=[]) ?name def f =
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
        | CopyField | SkipField | SetFieldNull)  ->
-      f l def
+      f l value
   | _ ->
       let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
-        try (E0 (Identifier n), type_of l def) :: l
+        try (E0 (Identifier n), type_of l value) :: l
         with Unbound_identifier _ | Unbound_parameter _ -> l in
-      E2 (Let n, def, f l (E0 (Identifier n)))
+      E2 (Let n, value, f l (E0 (Identifier n)))
+
+let let_pair ?(l=[]) ?n1 ?n2 value f =
+  let name = function Some n -> gen_id n | None -> gen_id "gen" in
+  let n1 = name n1 and n2 = name n2 in
+  let id n = E0 (Identifier n) in
+  let id1 = id n1 and id2 = id n2 in
+  let l = (id1, type_of l (E1 (Fst, value))) ::
+          (id2, type_of l (E1 (Snd, value))) :: l in
+  E2 (LetPair (n1, n2), value, f l id1 id2)
 
 (* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =

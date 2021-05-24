@@ -11,12 +11,13 @@ open E.Ops
 let inline_level = ref 1
 
 let max_inline_size () =
-  let l = !inline_level in
-  if l <= 1 then 4 else
-  if l <= 2 then 8 else
-  if l <= 3 then 16 else
-  if l <= 4 then 32 else
-  64
+  match !inline_level with
+  | 0 -> 0
+  | 1 -> 4
+  | 2 -> 8
+  | 3 -> 16
+  | 4 -> 32
+  | _ -> 64
 
 let to_u128 = function
   | E.E0 (I8 n) -> Int8.to_uint128 n
@@ -260,6 +261,22 @@ let is_one e =
   e = E.E0 (Float 1.) ||
   (try E.to_cst_int e = 1
   with _ -> false)
+
+(* Returns how many time the pair identified by [name] is used with First,
+ * Secnd, and in total: *)
+let count_pair_uses name e =
+  E.fold (0, 0, 0) (fun (fst, snd, tot as prev) -> function
+    | E.E1 (Fst, E0 (Identifier n)) when n = name -> fst + 1, snd, tot
+    | E.E1 (Snd, E0 (Identifier n)) when n = name -> fst, snd + 1, tot
+    | E.E0 (Identifier n) when n = name -> fst, snd, tot + 1
+    | _ -> prev
+  ) e
+
+let count_id_uses name e =
+  E.fold 0 (fun count -> function
+    | E.E0 (Identifier n) when n = name -> count + 1
+    | _ -> count
+  ) e
 
 let rec peval l e =
   (* For when some operations are invalid on floats: *)
@@ -540,50 +557,92 @@ let rec peval l e =
   (*
    * Let expressions
    *)
-  | E2 (Let n, def, body) ->
-      let def = p def in
+  | E2 (Let name, value, body) ->
+      let value = p value in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
-        try (E.E0 (Identifier n), E.type_of l def) :: l
+        try (E.E0 (Identifier name), E.type_of l value) :: l
         with E.Unbound_identifier _ | E.Unbound_parameter _ -> l in
       let body = peval l body in
-      if body = E0 (Identifier n) then (
-        (* The identifier is then useless: *)
-        def
-      ) else (
-        (* If the identifier is used only once in the body, then the optimizer will
-         * also prefer to have no let. This will further allow, for instance, to
-         * simplify:
-         *   (get-vec 0
-         *     (let (arr (make-vec 0))
-         *       (set-vec 0 arr 1)))
-         * into:
-         *   (get-vec 0
-         *     (set-vec 0 (make-vec 0) 1))
-         * then ultimately into:
-         *   1
-         *)
-        let use_count =
-          (* TODO: early exit *)
-          E.fold 0 (fun c -> function
-            | E0 (Identifier n') when n' = n -> c + 1
-            | _ -> c
-          ) body in
-        if use_count = 0 then
-          if not (E.has_side_effect def) then body
-          else p (seq [ ignore_ def ; body ])
-        else if use_count = 1 ||
-                E.can_duplicate def &&
-                (use_count - 1) * E.size def < max_inline_size ()
-             then
+      let def = E.E2 (Let name, value, body) in
+      (* The identifier is useless in  that case: *)
+      if body = E.E0 (Identifier name) then value else
+      (* Also avoid introducing aliases: *)
+      (match value with
+      | E.E0 (Identifier alias) ->
           E.map (function
-            | E0 (Identifier n') when n' = n -> def
+            | E.E0 (Identifier n) when n = name -> E.E0 (Identifier alias)
             | e -> e
           ) body |> p
-        else
-          E2 (Let n, def, body))
-  | E2 (op, e1, e2) ->
+      | _ ->
+          (* If the identifier is used only once in the body, then the optimizer will
+           * also prefer to have no let. This will further allow, for instance, to
+           * simplify:
+           *   (get-vec 0
+           *     (let (arr (make-vec 0))
+           *       (set-vec 0 arr 1)))
+           * into:
+           *   (get-vec 0
+           *     (set-vec 0 (make-vec 0) 1))
+           * then ultimately into:
+           *   1
+           *)
+          let use_count =
+            (* TODO: early exit *)
+            E.fold 0 (fun c -> function
+              | E0 (Identifier n) when n = name -> c + 1
+              | _ -> c
+            ) body in
+          if use_count = 0 then
+            if not (E.has_side_effect value) then body
+            else p (seq [ ignore_ value ; body ])
+          else if use_count = 1 ||
+                  E.can_duplicate value &&
+                  (use_count - 1) * E.size value < max_inline_size ()
+               then
+            E.map (function
+              | E0 (Identifier n) when n = name -> value
+              | e -> e
+            ) body |> p
+          (* If the let binds a pair, and this binding appears only in Fst or Snd
+           * expression, then use a LetPair instead and save the intermediary
+           * bindings: *)
+          else if E.type_of l value |> T.is_pair then
+            (* Also count how many times the identifier is used to find out if
+             * the identifier is used outside of fst/snd: *)
+            let fst_count, snd_count, tot_count = count_pair_uses name body in
+            if tot_count > fst_count + snd_count then def else
+            let n1 = "fst_"^ name and n2 = "snd_"^ name in
+            let body =
+              E.map (function
+                | E1 (Fst, E0 (Identifier n)) when n = name -> E0 (Identifier n1)
+                | E1 (Snd, E0 (Identifier n)) when n = name -> E0 (Identifier n2)
+                | e -> e
+              ) body in
+            E.E2 (LetPair (n1, n2), value, body) |> p
+          else def)
+  | E2 (LetPair (n1, n2), value, body) ->
+      let value = p value in
+      (* Best effort, as sometime we cannot provide the environment but
+       * do not need it in the [body]: *)
+      let l =
+        (E.E0 (Identifier n1), E.type_of l (first value)) ::
+        (E.E0 (Identifier n2), E.type_of l (secnd value)) :: l in
+      let body = peval l body in
+      let fst_count = count_id_uses n1 body
+      and snd_count = count_id_uses n2 body in
+      if fst_count = 0 then
+        if snd_count = 0 then body
+        else E.E2 (Let n2, secnd value, body) |> p
+      else if snd_count = 0 then
+        E.E2 (Let n1, first value, body) |> p
+      else (match value with
+        | E.E2 (Pair, e1, e2) ->
+            E.E2 (Let n1, e1, E2 (Let n2, e2, body)) |> p
+        | _ ->
+            E.E2 (LetPair (n1, n2), value, body))
+   | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
       | Nth, e1, (E0S ((MakeVec | MakeLst _), es) as e2) ->
           let def = E.E2 (Nth, e1, e2) in
@@ -836,4 +895,14 @@ let rec peval l e =
 
   "(pair (size 8) (size 0))" \
     (test_peval 3 "(pair (add (size 4) (size 4)) (size 0))")
+
+  "(let \"a\" (u8 1) (let \"b\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
+    (test_peval 0 "(let-pair \"a\" \"b\" (pair (u8 1) (u8 2)) \
+                     (dump (add (add (identifier \"a\") (identifier \"b\")) \
+                                (add (identifier \"a\") (identifier \"b\")))))")
+
+  "(dump (u8 6))" \
+    (test_peval 1 "(let-pair \"a\" \"b\" (pair (u8 1) (u8 2)) \
+                     (dump (add (add (identifier \"a\") (identifier \"b\")) \
+                                (add (identifier \"a\") (identifier \"b\")))))")
 *)
