@@ -53,7 +53,7 @@ struct
   | SharedObject -> "cmxs"
   | Executable -> ""
 
-  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
+  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ?(optim=0) ~link src dst =
     let optim = clamp 2 3 optim in
     (* FIXME: path to src files! *)
     Printf.sprintf2
@@ -68,7 +68,8 @@ struct
          " src/DessserFloatTools.cmx \
            src/DessserTools.cmx \
            src/DessserLeftistHeap.cmx \
-           src/DessserOCamlBackEndHelpers.cmx"
+           src/DessserOCamlBackEndHelpers.cmx \
+           src/libdessser_ext.a"
        else
          ",dessser")
       (match link with

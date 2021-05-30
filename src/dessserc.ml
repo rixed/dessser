@@ -102,7 +102,7 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
 
 let converter
       schema backend encoding_in encoding_out _fieldmask
-      modifier_exprs dest_fname () =
+      modifier_exprs dest_fname dev_mode optim () =
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -131,7 +131,7 @@ let converter
     BE.print_definitions oc compunit ;
     String.print oc (convert_main_for BE.preferred_def_extension)
   ) ;
-  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
+  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
@@ -142,7 +142,8 @@ let destruct_pair = function
       failwith
 
 let lmdb main
-      key_schema val_schema backend encoding_in encoding_out dest_fname () =
+      key_schema val_schema backend encoding_in encoding_out dest_fname
+      dev_mode optim () =
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -170,7 +171,7 @@ let lmdb main
     main BE.preferred_def_extension convert_key_name convert_val_name |>
     String.print oc
   ) ;
-  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
+  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 let lmdb_dump =
@@ -196,7 +197,7 @@ let lmdb_query _ _ _ _ _ _ () =
 let aggregator
       schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
-      dest_fname () =
+      dest_fname dev_mode optim () =
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -276,7 +277,7 @@ let aggregator
     BE.print_definitions oc compunit ;
     String.print oc (main_for BE.preferred_def_extension)
   ) ;
-  compile ~optim:3 ~link:Executable backend def_fname dest_fname ;
+  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
   Printf.printf "executable in %S\n" dest_fname
 
 (*
@@ -440,6 +441,18 @@ let dest_fname =
   let i = Arg.info ~doc ~docv [ "o" ; "output-file" ] in
   Arg.(opt (some string) None i)
 
+let dev_mode =
+  let doc = "Compile in development mode (using local files rather than \
+             installed libraries)" in
+  let env = Term.env_info "DESSSER_DEV_MODE" in
+  let i = Arg.info ~env ~doc [ "dev-mode" ] in
+  Arg.flag i
+
+let optim =
+  let doc = "Optimization level" in
+  let i = Arg.info ~doc [ "O" ] in
+  Arg.(opt int 3 i)
+
 let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
   Term.(
@@ -450,7 +463,9 @@ let converter_cmd =
      $ Arg.value encoding_out
      $ Arg.value comptime_fieldmask
      $ Arg.value modifier_exprs
-     $ Arg.required dest_fname),
+     $ Arg.required dest_fname
+     $ Arg.value dev_mode
+     $ Arg.value optim),
     info "converter" ~doc)
 
 let lib_cmd =
@@ -477,7 +492,9 @@ let lmdb_dump_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dest_fname),
+     $ Arg.required dest_fname
+     $ Arg.value dev_mode
+     $ Arg.value optim),
     info "lmdb-dump" ~doc)
 
 let lmdb_load_cmd =
@@ -490,7 +507,9 @@ let lmdb_load_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dest_fname),
+     $ Arg.required dest_fname
+     $ Arg.value dev_mode
+     $ Arg.value optim),
     info "lmdb-load" ~doc)
 
 let lmdb_query_cmd =
@@ -517,7 +536,9 @@ let aggregator_cmd =
      $ Arg.required aggr_init
      $ Arg.required aggr_update
      $ Arg.required aggr_finalize
-     $ Arg.required dest_fname),
+     $ Arg.required dest_fname
+     $ Arg.value dev_mode
+     $ Arg.value optim),
     info "aggregator" ~doc)
 
 let default_cmd =

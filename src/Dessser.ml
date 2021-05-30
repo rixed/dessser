@@ -563,6 +563,6 @@ sig
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val preferred_comp_extension : link -> string
-  val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> optim:int -> link:link -> string -> string -> string
+  val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
   val type_identifier : P.t -> T.t -> string
 end

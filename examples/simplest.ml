@@ -197,7 +197,7 @@ let test_backend () =
   write_source ~src_fname (fun oc ->
       BE.print_definitions oc compunit ;
       String.print oc outro) ;
-  compile ~link:Executable  backend src_fname exe_fname
+  compile ~dev_mode:true ~link:Executable  backend src_fname exe_fname
 
 let main =
   test_backend ()

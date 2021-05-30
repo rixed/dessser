@@ -16,16 +16,13 @@ let has_timeout () =
       s.st_kind = S_REG &&
       s.st_perm land 1 = 1
 
-let dev_mode =
-  try ignore (Sys.getenv "DESSSER_DEV_MODE") ; true
-  with Not_found -> false
-
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
-let compile ?(optim=0) ?extra_search_paths ~link backend src_fname dest_fname =
+let compile ?dev_mode ?(optim=0) ?extra_search_paths ~link backend
+            src_fname dest_fname =
   let module BE = (val backend : BACKEND) in
-  let cmd = BE.compile_cmd ~dev_mode ?extra_search_paths ~optim ~link src_fname dest_fname in
+  let cmd = BE.compile_cmd ?dev_mode ?extra_search_paths ~optim ~link src_fname dest_fname in
   run_cmd cmd
 
 (* Compile and dynload the given compunit.
@@ -47,7 +44,7 @@ let compile_and_load ?optim ?extra_search_paths backend compunit =
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
  * into stdout and stops (for tests). *)
-let make_converter ?exe_fname ?mn backend convert =
+let make_converter ?dev_mode ?optim ?exe_fname ?mn backend convert =
   let module BE = (val backend : BACKEND) in
   E.type_check [] convert ;
   let compunit = U.make () in
@@ -63,13 +60,13 @@ let make_converter ?exe_fname ?mn backend convert =
         T.print_maybe_nullable mn
     ) mn ;
     BE.print_comment oc "Compile with:\n  %s\n"
-      (BE.compile_cmd ~dev_mode ~optim:0 ~link:Object src_fname exe_fname) ;
+      (BE.compile_cmd ?dev_mode ?optim ~link:Object src_fname exe_fname) ;
     BE.print_definitions oc compunit ;
     if BE.preferred_def_extension = "cc" then
       String.print oc (FragmentsCPP.converter entry_point)
     else
       String.print oc (FragmentsOCaml.converter entry_point)) ;
-  compile ~optim:3 ~link:Executable backend src_fname exe_fname ;
+  compile ?dev_mode ?optim ~link:Executable backend src_fname exe_fname ;
   exe_fname
 
 (* Write an input to some single-shot converter program and return its

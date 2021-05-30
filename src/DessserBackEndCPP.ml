@@ -24,7 +24,7 @@ struct
     | SharedObject -> "so"
     | Executable -> ""
 
-  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ~optim ~link src dst =
+  let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ?(optim=0) ~link src dst =
     let optim = clamp 0 3 optim in
     Printf.sprintf2
       "g++ -std=c++%d -g -O%d -W -Wall \

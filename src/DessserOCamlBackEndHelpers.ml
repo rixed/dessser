@@ -314,6 +314,20 @@ sig
   val poken : t -> int -> Slice.t -> unit
 end
 
+(* A C impl of the above, that reads from any address *)
+
+module ExtPointer =
+struct
+  type t (* abstract, represents an external pointer *)
+
+  external eq : t -> t -> bool = "ext_pointer_eq" [@@noalloc]
+  external size : t -> int = "ext_pointer_size" [@@noalloc]
+  external peek : t -> int -> int = "ext_pointer_peek" [@@noalloc]
+  external peekn : t -> int -> int -> Slice.t = "ext_pointer_peekn"
+  external poke : t -> int -> int -> unit = "ext_pointer_poke"
+  external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken"
+end
+
 (* Add functions that can be build from the base functions of a POINTER_IO: *)
 module MakePointer (IO : POINTER_IO) =
 struct

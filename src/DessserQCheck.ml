@@ -550,7 +550,7 @@ let expression =
       Filename.temp_file "dessserQCheck_" ext in
     let obj_fname = Filename.remove_extension src_fname in
     write_source ~src_fname (fun oc -> BE.print_definitions oc compunit) ;
-    try compile ~optim:0 ~link:Object be src_fname obj_fname ;
+    try compile ~dev_mode:true ~optim:0 ~link:Object be src_fname obj_fname ;
         ignore_exceptions Unix.unlink src_fname ;
         ignore_exceptions Unix.unlink obj_fname ;
         true
@@ -714,7 +714,7 @@ let sexpr mn =
     let e =
       func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
         S2S.desser mn l src dst) in
-    make_converter be ~mn e
+    make_converter ~dev_mode:true be ~mn e
 
   let test_desser alloc_dst be mn des ser =
     let module Des = (val des : DES) in
@@ -730,7 +730,7 @@ let sexpr mn =
             pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    make_converter be ~mn e
+    make_converter ~dev_mode:true be ~mn e
 
   let test_data_desser = test_desser (data_ptr_of_buffer (size 50_000))
 
@@ -791,7 +791,7 @@ let sexpr mn =
     let e = heap_convert_expr mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter be ~mn e in
+    let exe = make_converter ~dev_mode:true be ~mn e in
     test_exe "heap-value" mn exe in
 
   Gen.generate ~n:5 maybe_nullable_gen |>
@@ -860,7 +860,7 @@ let sexpr mn =
     let e = heap_convert_expr mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter be ~mn e in
+    let exe = make_converter ~dev_mode:true be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
 
@@ -930,7 +930,7 @@ let sexpr mn =
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter be ~mn e in
+      make_converter ~dev_mode:true be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 
@@ -944,7 +944,7 @@ let sexpr mn =
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter be ~mn e in
+      make_converter ~dev_mode:true be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 *)
@@ -980,7 +980,7 @@ let sexpr mn =
           DS.desser ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter be ~mn e in
+      make_converter ~dev_mode:true be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let check_ser_csv ?config be ts vs =
@@ -992,7 +992,7 @@ let sexpr mn =
           DS.desser ?ser_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter be ~mn e in
+      make_converter ~dev_mode:true be ~mn e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let csv_config_0 =
