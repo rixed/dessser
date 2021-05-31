@@ -2132,17 +2132,18 @@ and register_user_constructor name out_vt ?print ?parse def =
 and check_fun_sign e0 l f ps =
   match type_of l f with
   | Function (ts, _) ->
-      let lf = Array.length ts and lp = Array.length ps in
+      let lf = Array.length ts
+      and lp = List.length ps in
       if lf <> lp then (
         let err = string_of_int lp ^" parameter(s) but function expect "^
                   string_of_int lf in
         raise (Apply_error (e0, err))) ;
-      for i = 0 to lf - 1 do
-        let act = type_of l ps.(i) in
+      List.iteri (fun i p ->
+        let act = type_of l p in
         if not (T.eq act ts.(i)) then
           let expected = IO.to_string T.print ts.(i) in
-          raise (Type_error (e0, ps.(i), act, "be a "^ expected))
-      done
+          raise (Type_error (e0, p, act, "be a "^ expected))
+      ) ps
   | t ->
       raise (Type_error (e0, f, t, "be a function"))
 
@@ -2154,10 +2155,9 @@ let apply_constructor e0 l name ins =
   | [ c ] ->
       E1S (Apply, c, ins)
   | cs ->
-      let ins' = Array.of_list ins in
       (match
         List.find (fun c ->
-          try check_fun_sign e0 l c ins' ; true
+          try check_fun_sign e0 l c ins ; true
           with _ -> false
         ) cs with
       | exception Not_found ->
@@ -2490,8 +2490,7 @@ let rec type_check l e =
       | Data { vtyp = Sum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
-    let check_fun_sign l f ps =
-      check_fun_sign e0 l f ps in
+    let check_fun_sign = check_fun_sign e0 in
     let rec check_ip ?(rec_=false) l t =
       (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
        * but do not allow recursion in the sum type because code generator
@@ -2547,7 +2546,7 @@ let rec type_check l e =
     | E0S (MakeUsr name, es) ->
         ignore (apply_constructor e0 l name es)
     | E1S (Apply, f, es) ->
-        check_fun_sign l f (Array.of_list es)
+        check_fun_sign l f es
     | E1 (IsNull, e) ->
         check_nullable true l e
     | E2 (Nth, e1, e2) ->
@@ -2911,6 +2910,7 @@ let rec type_check l e =
 (*$T pass_type_check
    not (pass_type_check "(get-item 2 (read-qword big-endian (u64 17)))")
    not (pass_type_check "(get-alt \"pejh\" (random-float))")
+   not (pass_type_check "(apply (string \"blabla\") (bool false))")
 *)
 
 let size_of_expr e =

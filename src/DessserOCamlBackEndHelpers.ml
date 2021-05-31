@@ -252,7 +252,7 @@ struct
   let shift_right_logical v1 s = v1 lsr s
 end
 
-(* Persistent data container => no to be used as a buffer! *)
+(* Persistent data container => not to be used as a buffer! *)
 module Slice =
 struct
   type t = { bytes : Bytes.t ; offset : int ; length : int }
@@ -302,7 +302,7 @@ sig
   (* Tells whether two pointers cover the same bytes: *)
   val eq : t -> t -> bool
 
-  (* Returns the number of the covered bytes: *)
+  (* Returns the number of covered bytes: *)
   val size : t -> int
 
   val peek : t -> int -> int

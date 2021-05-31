@@ -163,6 +163,7 @@ let shrink_mac_type mt =
     T.[ String ; Float ;
         I128 ; U128 ; I64 ; U64 ; I56 ; U56 ; I48 ; U48 ; I40 ; U40 ;
         I32 ; U32 ; I24 ; U24 ; I16 ; U16 ; I8 ; U8 ; Char ; Bool ] in
+  (* Keep only types that are simpler than [mt]: *)
   let rec loop = function
     | [] -> Iter.empty
     | mt'::rest when T.base_type_eq mt' mt ->
@@ -519,7 +520,7 @@ let expression_gen =
   Gen.(sized_size (int_bound 3) (fun n -> expression_gen ([], n)))
 
 let size_of_expression e =
-  E.fold 0 (fun n _ -> succ n) e
+  E.fold 0 (fun n _ -> n + 1) e
 
 (* TODO: try to shrink expressions by replacing terms with constants of the
  * same type *)
