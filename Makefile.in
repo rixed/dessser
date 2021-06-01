@@ -53,7 +53,8 @@ INSTALLED_HEADERS = \
 	src/dessser/runtime.h \
 	src/dessser/SList.h \
 	src/dessser/typedefs.h \
-	src/dessser/Vec.h
+	src/dessser/Vec.h \
+	src/dessser_ocaml_ext_pointer.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \
