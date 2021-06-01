@@ -247,6 +247,7 @@ type e1 =
    * Instead, use a Let expression *)
   | Fst
   | Snd
+  (* FIXME: make Head and Tail return nullables: *)
   | Head
   | Tail
   | ReadWord of endianness
