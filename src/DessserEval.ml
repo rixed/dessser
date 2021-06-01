@@ -851,12 +851,13 @@ let rec peval l e =
       (* Do nothing if blitting nothing: *)
       | BlitByte, ptr, _, E0 (Size 0) -> ptr
       | FindSubstring, from_start, E0 (String s1), E0 (String s2) ->
-          (* Let [p] optimize away this condition if the bool is known: *)
-          let then_ = u24 (Uint24.of_int (String.find s2 s1))
-          and else_ = u24 (Uint24.of_int (String.rfind s2 s1)) in
           (try
+            (* Let [p] optimize away this condition if the bool is known: *)
+            let then_ = u24 (Uint24.of_int (String.find s2 s1))
+            and else_ = u24 (Uint24.of_int (String.rfind s2 s1)) in
             not_null (if_ from_start ~then_ ~else_) |> p
-          with Not_found -> null T.(Base U24))
+          with Not_found ->
+            null T.(Base U24))
       | SetVec, e1, e2, e3 ->
           (match E.to_cst_int e1 with
           | exception _ ->
