@@ -271,8 +271,8 @@ type e1 =
    * (given as first and only argument, this function also provides the
    * set elements' type): *)
   | Heap
-  | DataPtrOfString
-  | DataPtrOfBuffer
+  | DataPtrOfString (* Use a string as a data pointer *)
+  | DataPtrOfBuffer (* Use an uninitialized buffer as a data pointer *)
   | GetEnv
   (* Get the minimal value of a set (heap): *)
   | GetMin

@@ -257,16 +257,16 @@ let is_empty l e =
   | T.Data ({ vtyp = (Base String) ; nullable }) ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
-  | T.Data ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
+  | Data ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (cardinality e))
-  | T.Data ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
+  | Data ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 32))
-  | T.Data ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
+  | Data ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 128))
-  | T.Data ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
+  | Data ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
       prop_null nullable e (fun e ->
         if_ (eq (label_of e) (u16_of_int 0))
           ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
