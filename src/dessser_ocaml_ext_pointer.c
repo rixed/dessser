@@ -10,8 +10,6 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
-#include "dessser_ocaml_ext_pointer.h"
-
 /* type ExtPointer.t.
  * User data is a pointer and size: */
 
@@ -53,12 +51,6 @@ value ext_pointer_new(void *data, size_t len)
   ExtPointerLen_val(res) = len;
 
   CAMLreturn(res);
-}
-
-CAMLprim value ext_pointer_eq(value v1_, value v2_)
-{
-  CAMLparam2(v1_, v2_);
-  CAMLreturn(ExtPointerData_val(v1_) == ExtPointerData_val(v2_));
 }
 
 CAMLprim value ext_pointer_size(value v1_)
@@ -120,4 +112,13 @@ CAMLprim value ext_pointer_poken(value v, value offset_, value slice)
     Bytes_val(Field(slice, 0)) + slice_offset,
     len);
   CAMLreturn(Val_unit);
+}
+
+CAMLprim value ext_pointer_to_string(value v)
+{
+  CAMLparam1(v);
+  size_t len = ExtPointerLen_val(v);
+  /* This is only used for Int.of_substring so no need for more than 40 digits: */
+  if (len > 40) len = 40;
+  CAMLreturn(caml_alloc_initialized_string(len, (char *)ExtPointerData_val(v)));
 }

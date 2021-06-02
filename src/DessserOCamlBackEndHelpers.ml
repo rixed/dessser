@@ -312,35 +312,57 @@ sig
   val poke : t -> int -> int -> unit
 
   val poken : t -> int -> Slice.t -> unit
+
+  (* Required for I8OfPtr etc: *)
+  val to_string : t -> string
 end
 
-(* A C impl of the above, that reads from any address *)
+(* Pointers
+ *
+ * We want a data pointer to either points into an OCaml Bytes.t as well as
+ * into an out-of-ocaml-heap buffer, yet have an efficient implementation
+ * that does not switch for every operation.
+ *
+ * Therefore, pointers are records of functions.
+ * To sub them they must be able to probe whether another pointer uses the
+ * same backend implementation (and byte sequence). For this, we use an integer
+ * sequence that's incremented at each new pointer creation.
+ *)
 
-module ExtPointer =
+module Pointer =
 struct
-  type t (* abstract, represents an external pointer *)
+  let seq = ref 0
 
-  external eq : t -> t -> bool = "ext_pointer_eq" [@@noalloc]
-  external size : t -> int = "ext_pointer_size" [@@noalloc]
-  external peek : t -> int -> int = "ext_pointer_peek" [@@noalloc]
-  external peekn : t -> int -> int -> Slice.t = "ext_pointer_peekn"
-  external poke : t -> int -> int -> unit = "ext_pointer_poke"
-  external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken"
-end
+  let next_seq () =
+    incr seq ;
+    !seq
 
-(* Add functions that can be build from the base functions of a POINTER_IO: *)
-module MakePointer (IO : POINTER_IO) =
-struct
   type t =
-    { bytes : IO.t ;
-      start : int ;
-      stop : int ; (* From the beginning of [bytes] not [start]! *)
-      stack : int list }
+    { start : int ;
+      stop : int ;
+      stack : int list ;
+      seq : int ;
+      impl : impl }
 
-  let reset p =
-    { p with start = 0 ;
-             stop = IO.size p.bytes ;
-             stack = [] }
+  and impl =
+    { size : int ;
+      peek : int -> int ;
+      peekn : int -> int -> Slice.t ;
+      poke : int -> int -> unit ;
+      poken : int -> Slice.t -> unit ;
+      to_string : unit -> string }
+
+  let make impl =
+    { start = 0 ;
+      stop = impl.size ;
+      stack = [] ;
+      seq = next_seq () ;
+      impl }
+
+  let of_pointer p start stop =
+    assert (start <= stop) ;
+    assert (stop <= p.stop) ;
+    { p with start ; stop }
 
   (* Check that the given start is not past the end; But end position is OK *)
   let check_input_length o l =
@@ -353,7 +375,7 @@ struct
     { p with start = p.start + n }
 
   let sub p1 p2 =
-    assert (IO.eq p1.bytes p2.bytes) ;
+    assert (p1.seq = p2.seq) ;
     assert (p1.start >= p2.start) ;
     Size.of_int (p1.start - p2.start)
 
@@ -365,7 +387,7 @@ struct
 
   let peekByte p at =
     check_input_length (p.start + at + 1) p.stop ;
-    let c = IO.peek p.bytes (p.start + at) in
+    let c = p.impl.peek (p.start + at) in
     if debug then
       Printf.eprintf "PeekByte 0x%02x at %d\n%!" c (p.start + at) ;
     Uint8.of_int c
@@ -419,12 +441,12 @@ struct
 
   let readBytes p sz =
     check_input_length (p.start + sz) p.stop ;
-    IO.peekn p.bytes p.start sz,
+    p.impl.peekn p.start sz,
     skip p sz
 
   let pokeByte p at v =
     check_input_length (p.start + at) p.stop ;
-    IO.poke p.bytes (p.start + at) (Uint8.to_int v)
+    p.impl.poke (p.start + at) (Uint8.to_int v)
 
   let pokeWord ?(big_endian=false) p at v =
     let fst, snd = v, Uint16.shift_right_logical v 8 in
@@ -485,13 +507,13 @@ struct
 
   let writeBytes p v =
     let len = v.Slice.length in
-    IO.poken p.bytes p.start v ;
+    p.impl.poken p.start v ;
     skip p len
 
   let blitBytes p v sz =
     let c = Uint8.to_int v in
     for i = p.start to p.start + sz - 1 do
-      IO.poke p.bytes i c
+      p.impl.poke i c
     done ;
     skip p sz
 
@@ -508,76 +530,57 @@ struct
     { p with start ; stack }
 end
 
-module Buffer_IO =
-struct
-  type t = Bytes.t
-
-  let of_bytes bytes =
-    bytes
-
-  let of_string s =
-    Bytes.of_string s
-
-  let of_buffer n =
-    Bytes.create n
-
-  let eq t1 t2 =
-    t1 == t2
-
-  let size t =
-    Bytes.length t
-
-  let peek t at =
+let pointer_of_bytes t =
+  let size = Bytes.length t
+  and peek at =
     Bytes.unsafe_get t at |> Char.code
-
-  let peekn t at sz =
+  and peekn at sz =
     Slice.make t at sz
-
-  let poken t at slice =
-    Bytes.blit slice.Slice.bytes slice.offset t at slice.length
-
-  let poke t at v =
+  and poke at v =
     Bytes.unsafe_set t at (Char.chr v)
-end
+  and poken at slice =
+    Bytes.blit slice.Slice.bytes slice.offset t at slice.length
+  and to_string () =
+    Bytes.unsafe_to_string t in
+  Pointer.make { size ; peek ; peekn ; poke ; poken ; to_string }
 
-module Pointer =
+let pointer_of_buffer size =
+  pointer_of_bytes (Bytes.create size)
+
+let pointer_of_string str =
+  pointer_of_bytes (Bytes.of_string str)
+
+let peek_char p o =
+  p.Pointer.impl.peek o |> Char.chr
+
+(* A C impl of the above, that reads from any address *)
+
+module ExtPointer =
 struct
-  include MakePointer (Buffer_IO)
+  type t (* abstract, represents an external pointer *)
 
-  let make sz =
-    { bytes = Buffer_IO.of_buffer sz ;
-      start = 0 ;
-      stop = sz ;
-      stack = [] }
-
-  let of_bytes bytes start stop =
-    if stop > Bytes.length bytes then invalid_arg "of_bytes" ;
-    { bytes = Buffer_IO.of_bytes bytes ;
-      start ; stop ; stack = [] }
-
-  let of_string s =
-    { bytes = Buffer_IO.of_string s ;
-      start = 0 ;
-      stop = String.length s ;
-      stack = [] }
-
-  let of_buffer n =
-    { bytes = Buffer_IO.of_buffer n ;
-      start = 0 ;
-      stop = n ;
-      stack = [] }
-
-  let of_pointer p start stop =
-    { p with start ; stop }
-
-  let reset p =
-    { p with start = 0 ;
-             stop = Buffer_IO.size p.bytes ;
-             stack = [] }
-
-  let contents p =
-    Bytes.sub p.bytes 0 p.start
+  external make : Uint64.t -> Size.t -> t = "ext_pointer_new"
+  external size : t -> int = "ext_pointer_size" [@@noalloc]
+  external peek : t -> int -> int = "ext_pointer_peek" [@@noalloc]
+  external peekn : t -> int -> int -> Slice.t = "ext_pointer_peekn"
+  external poke : t -> int -> int -> unit = "ext_pointer_poke"
+  external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken"
+  external to_string : t -> string = "ext_pointer_to_string"
 end
+
+let pointer_of_address addr size =
+  let t = ExtPointer.make addr size in
+  let peek at =
+    ExtPointer.peek t at
+  and peekn at sz =
+    ExtPointer.peekn t at sz
+  and poke at v =
+    ExtPointer.poke t at v
+  and poken at slice =
+    ExtPointer.poken t at slice
+  and to_string () =
+    ExtPointer.to_string t in
+  Pointer.make { size ; peek ; peekn ; poke ; poken ; to_string }
 
 (* Once a set is constructed few operations are possible with it:
  * - insert an item

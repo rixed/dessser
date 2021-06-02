@@ -61,10 +61,10 @@ let main () =
     if Pointer.remSize src <= 0 then (
       src
     ) else (
-      let dst = Pointer.make %d in
+      let dst = pointer_of_buffer %d in
       let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
       if !delim <> '\000' then Char.print stdout !delim ;
       flush stdout ;
       if !single_input <> "" && Pointer.remSize src > 0 then
@@ -72,7 +72,7 @@ let main () =
         failwith ;
       loop src
     ) in
-  let src = Pointer.of_string input in
+  let src = pointer_of_string input in
   loop src |> ignore
 
 %s
@@ -140,17 +140,17 @@ let main () =
   (* A cursor is required to iter over the whole DB: *)
   Cursor.go Ro map (fun cursor ->
     Cursor.iter ~cursor ~f:(fun k v ->
-      let src = Pointer.of_string k in
-      let dst = Pointer.make out_buf_sz in
+      let src = pointer_of_string k in
+      let dst = pointer_of_buffer out_buf_sz in
       let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
       String.print stdout !kv_delim ;
-      let src = Pointer.of_string v in
-      let dst = Pointer.make out_buf_sz in
+      let src = pointer_of_string v in
+      let dst = pointer_of_buffer out_buf_sz in
       let src, dst = DessserGen.%s src dst in
       assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
       String.print stdout !eov_delim ;
       flush stdout
     ) map
@@ -253,19 +253,19 @@ let main () =
   String.split_on_string ~by:!eov_delim |>
   split_kv |>
   List.iter (fun (k, v) ->
-    let src = Pointer.of_string k in
-    let dst = Pointer.make out_buf_sz in
+    let src = pointer_of_string k in
+    let dst = pointer_of_buffer out_buf_sz in
     let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
     assert (dst.Pointer.start <= dst.Pointer.stop) ;
-    let key = Bytes.sub_string dst.bytes 0 dst.start in
+    let key = dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string in
 
-    let src = Pointer.of_string v in
-    let dst = Pointer.make out_buf_sz in
+    let src = pointer_of_string v in
+    let dst = pointer_of_buffer out_buf_sz in
     let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
     assert (dst.Pointer.start <= dst.Pointer.stop) ;
-    let value = Bytes.sub_string dst.bytes 0 dst.start in
+    let value = dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string in
 
     Map.set map key value ;
   )
@@ -319,13 +319,13 @@ let main () =
     else
       (* Accumulate that input into the state: *)
       loop (DessserGen.%s src) in
-  let src = Pointer.of_string input in
+  let src = pointer_of_string input in
   let src = loop src in
   (* Output the finalized state: *)
-  let dst = Pointer.make %d in
+  let dst = pointer_of_buffer %d in
   let dst = DessserGen.%s dst in
   assert (dst.Pointer.start <= dst.Pointer.stop) ;
-  String.print stdout (Bytes.sub_string dst.bytes 0 dst.start) ;
+  String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
   Char.print stdout !delim ;
   flush stdout
 

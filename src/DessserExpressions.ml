@@ -74,6 +74,7 @@ type e0 =
   | I128 of Int128.t
   | Bit of bool
   | Size of int
+  | Address of Uint64.t
   | Byte of Uint8.t
   | Word of Uint16.t
   | DWord of Uint32.t
@@ -201,6 +202,8 @@ type e1 =
   | CharOfU8
   | SizeOfU32
   | U32OfSize
+  | AddressOfU64
+  | U64OfAddress
   | BitOfBool
   | BoolOfBit
   | ListOfSList
@@ -362,6 +365,7 @@ type e2 =
   | CharOfString
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
+  | DataPtrOfAddress (* Points to a given address in memory *)
 
 type e3 =
   | SetBit
@@ -476,7 +480,8 @@ let rec can_precompute l i = function
   | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-       | Char _ | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Char _ | Bit _ | Size _ | Address _
+       | Byte _ | Word _ | DWord _ | QWord _ | OWord _
        | Bytes _ | CopyField | SkipField | SetFieldNull) ->
       true
   | E0 (Param (fid, _)) ->
@@ -687,6 +692,7 @@ let string_of_e0 = function
   | I128 n -> "i128 "^ Int128.to_string n
   | Bit b -> "bit "^ Bool.to_string b
   | Size n -> "size "^ string_of_int n
+  | Address n -> "address "^ Uint64.to_string n
   | Byte n -> "byte "^ Uint8.to_string n
   | Word n -> "word "^ Uint16.to_string n
   | DWord n -> "dword "^ Uint32.to_string n
@@ -814,6 +820,8 @@ let string_of_e1 = function
   | CharOfU8 -> "char-of-u8"
   | SizeOfU32 -> "size-of-u32"
   | U32OfSize -> "u32-of-size"
+  | AddressOfU64 -> "address-of-u64"
+  | U64OfAddress -> "u64-of-address"
   | BitOfBool -> "bit-of-bool"
   | BoolOfBit -> "bool-of-bit"
   | ListOfSList -> "list-of-slist"
@@ -941,6 +949,7 @@ let string_of_e2 = function
   | ScaleWeights -> "scale-weights"
   | CharOfString -> "char-of-string"
   | Strftime -> "strftime"
+  | DataPtrOfAddress -> "data-ptr-of-address"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1055,6 +1064,7 @@ let to_cst_int =
   | E0 (I64 n) when Int64.(compare n (of_int m) <= 0) -> Int64.to_int n
   | E0 (I128 n) when Int128.(compare n (of_int m) <= 0) -> Int128.to_int n
   | E0 (Size n) -> n
+  | E0 (Address n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
   | _ -> invalid_arg "to_cst_int"
 
 module Parser =
@@ -1244,6 +1254,7 @@ struct
     | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
     | Lst [ Sym "bit" ; Sym b ] -> E0 (Bit (Bool.of_string b))
     | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
+    | Lst [ Sym "address" ; Sym n ] -> E0 (Address (Uint64.of_string n))
     | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (Uint8.of_string n))
     | Lst [ Sym "word" ; Sym n ] -> E0 (Word (Uint16.of_string n))
     | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
@@ -1394,6 +1405,8 @@ struct
     | Lst [ Sym "char-of-u8" ; x ] -> E1 (CharOfU8, e x)
     | Lst [ Sym "size-of-u32" ; x ] -> E1 (SizeOfU32, e x)
     | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
+    | Lst [ Sym "address-of-u64" ; x ] -> E1 (AddressOfU64, e x)
+    | Lst [ Sym "u64-of-address" ; x ] -> E1 (U64OfAddress, e x)
     | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
     | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
     | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
@@ -1551,6 +1564,8 @@ struct
         E2 (CharOfString, e idx, e str)
     | Lst [ Sym "strftime" ; fmt ; time ] ->
         E2 (Strftime, e fmt, e time)
+    | Lst [ Sym "data-ptr-of-address" ; x1 ; x2 ] ->
+        E2 (DataPtrOfAddress, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1761,6 +1776,7 @@ let rec type_of l e0 =
   | E0 (I128 _) -> T.i128
   | E0 (Bit _) -> T.Bit
   | E0 (Size _) -> T.Size
+  | E0 (Address _) -> T.Address
   | E0 (Byte _) -> T.Byte
   | E0 (Word _) -> T.Word
   | E0 (DWord _) -> T.DWord
@@ -1830,6 +1846,8 @@ let rec type_of l e0 =
   | E1 (CharOfU8, _) -> T.char
   | E1 (SizeOfU32, _) -> T.Size
   | E1 (U32OfSize, _) -> T.u32
+  | E1 (AddressOfU64, _) -> T.Address
+  | E1 (U64OfAddress, _) -> T.u64
   | E1 (BitOfBool, _) -> T.Bit
   | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
@@ -1931,6 +1949,7 @@ let rec type_of l e0 =
   | E1 (ToFloat, _) -> T.float
   | E1 (DataPtrOfString, _) -> T.DataPtr
   | E1 (DataPtrOfBuffer, _) -> T.DataPtr
+  | E2 (DataPtrOfAddress, _, _) -> T.DataPtr
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop_user_types with
@@ -2354,7 +2373,9 @@ let can_duplicate e =
       (* Although not exactly a side effect, those functions produce a copy of
        * a given pointer that are then mutable and which address is used in
        * comparisons *)
-      | E1 ((DataPtrOfString | DataPtrOfBuffer), _) | E3 (DataPtrOfPtr, _, _, _)
+      | E1 ((DataPtrOfString | DataPtrOfBuffer), _)
+      | E2 (DataPtrOfAddress, _, _)
+      | E3 (DataPtrOfPtr, _, _, _)
       (* Similarly, sets and vec are mutable: *)
       | E0 (EmptySet _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
@@ -2379,7 +2400,7 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
     let rec is_comparable = function
-      | T.Size | Byte | Word | DWord | QWord | OWord | Mask
+      | T.Size | Address | Byte | Word | DWord | QWord | OWord | Mask
       | Data {
           vtyp = Base (
             Float | String | Bool | Char |
@@ -2399,7 +2420,7 @@ let rec type_check l e =
         raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_base=false) l e =
       match type_of l e |> T.develop_user_types with
-      | Size | Byte | Word | DWord | QWord | OWord when not only_base ->
+      | Size | Address | Byte | Word | DWord | QWord | OWord when not only_base ->
           ()
       | Data {
           vtyp = Base (
@@ -2410,14 +2431,14 @@ let rec type_check l e =
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match type_of l e |> T.develop_user_types with
-      | Size | Byte | Word | DWord | QWord | OWord
+      | Size | Address | Byte | Word | DWord | QWord | OWord
       | Data { vtyp = Base (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
           I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
-      | T.Size
+      | T.Size | Address
       | Data { vtyp = Base (
           U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
           nullable = false } ->
@@ -2509,7 +2530,8 @@ let rec type_check l e =
          | Unit | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-         | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+         | Bit _ | Size _ | Address _
+         | Byte _ | Word _ | DWord _ | QWord _ | OWord _
          | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
@@ -2619,7 +2641,7 @@ let rec type_check l e =
         check_eq l e T.DWord
     | E1 ((DWordOfU32 | SizeOfU32), e) ->
         check_eq l e T.u32
-    | E1 (QWordOfU64, e) ->
+    | E1 ((QWordOfU64 | AddressOfU64), e) ->
         check_eq l e T.u64
     | E1 (OWordOfU128, e) ->
         check_eq l e T.u128
@@ -2627,6 +2649,8 @@ let rec type_check l e =
         check_eq l e T.OWord
     | E1 (U32OfSize, e) ->
         check_eq l e T.Size
+    | E1 (U64OfAddress, e) ->
+        check_eq l e T.Address
     | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
     | E1 ((Abs | Neg), e) ->
@@ -2648,6 +2672,9 @@ let rec type_check l e =
         check_eq l e T.string
     | E1 (DataPtrOfBuffer, e) ->
         check_eq l e T.Size
+    | E2 (DataPtrOfAddress, e1, e2) ->
+        check_eq l e1 T.Address ;
+        check_eq l e2 T.Size
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
@@ -3040,7 +3067,8 @@ let let_ ?(l=[]) ?name value f =
   | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | Bool _ | Char _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-       | Bit _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Bit _ | Size _ | Address _
+       | Byte _ | Word _ | DWord _ | QWord _ | OWord _
        | CopyField | SkipField | SetFieldNull)  ->
       f l value
   | _ ->
@@ -3206,6 +3234,8 @@ struct
   let byte n = E0 (Byte n)
 
   let size n = E0 (Size n)
+
+  let address n = E0 (Address n)
 
   let word n = E0 (Word n)
 
@@ -3436,6 +3466,10 @@ struct
 
   let size_of_u32 e = E1 (SizeOfU32, e)
 
+  let u64_of_address e = E1 (U64OfAddress, e)
+
+  let address_of_u64 e = E1 (AddressOfU64, e)
+
   let eol t = E0 (EndOfList t)
 
   let end_of_list = eol
@@ -3644,6 +3678,8 @@ struct
   let data_ptr_of_string e = E1 (DataPtrOfString, e)
 
   let data_ptr_of_buffer e = E1 (DataPtrOfBuffer, e)
+
+  let data_ptr_of_address e1 e2 = E2 (DataPtrOfAddress, e1, e2)
 
   let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
 

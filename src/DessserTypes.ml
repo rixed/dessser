@@ -74,12 +74,13 @@ type t =
   | Data of maybe_nullable
   (* Used for functions without return values: *)
   | Void
-  (* DataPtr are used to point into the stream of bytes that's being
-   * serialized into / deserialized from. The type of the value that's
-   * being (de)serialized is kept nonetheless. *)
+  (* DataPtr are used to point into a stream of bytes to serialized into /
+   * deserialized from. *)
   | DataPtr
   (* A size in byte: *)
   | Size
+  (* An arbitrary address, used for DataPtrOfAddress: *)
+  | Address
   (* Data access, may be just pointer to the actual serialized object: *)
   | Bit
   | Byte
@@ -367,6 +368,7 @@ let rec print ?sorted oc =
   | Void -> sp "Void"
   | DataPtr -> sp "DataPtr"
   | Size -> sp "Size"
+  | Address -> sp "Address"
   | Bit -> sp "Bit"
   | Byte -> sp "Byte"
   | Word -> sp "Word"
@@ -741,6 +743,7 @@ struct
       (strinG "void" >>: fun () -> Void) |<|
       (strinG "dataptr" >>: fun () -> DataPtr) |<|
       (strinG "size" >>: fun () -> Size) |<|
+      (strinG "address" >>: fun () -> Address) |<|
       (strinG "bit" >>: fun () -> Bit) |<|
       (strinG "byte" >>: fun () -> Byte) |<|
       (strinG "word" >>: fun () -> Word) |<|

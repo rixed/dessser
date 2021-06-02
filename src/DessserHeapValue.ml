@@ -57,7 +57,8 @@ struct
   and dslist of_slist mn dstate mn0 path l src =
     let init_t = T.Data mn in
     let init_list_t = T.SList init_t in
-    let inits_src_t = T.Pair (init_list_t, Des.ptr mn0) in
+    let inits_src_t =
+      T.Pair (init_list_t, Des.ptr mn0) in
     (* good enough to determine the item type but not much more: *)
     let subpath = T.path_append 0 path in
     match Des.list_opn dstate with
@@ -286,7 +287,8 @@ struct
       fold ~list:v
         ~init:(pair dst (i32 0l))
         ~body:
-          (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32)) (T.Data mn)
+          (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32))
+                   (T.Data mn)
                    (fun l dst_n x ->
             E.with_sploded_pair ~l "dst_n" dst_n (fun l dst n ->
               let_ ~name:"slist_dst" ~l (

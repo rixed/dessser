@@ -210,6 +210,7 @@ struct
     | T.Void -> "unit"
     | T.DataPtr -> "Pointer.t"
     | T.Size -> "Size.t"
+    | T.Address -> "Uint64.t"
     | T.Bit -> "bool"
     | T.Byte -> "Uint8.t"
     | T.Word -> "Uint16.t"
@@ -257,6 +258,7 @@ struct
         mod_name (Data { vtyp = t.def ; nullable = false })
     | T.DataPtr -> "Pointer"
     | T.Size -> "Size"
+    | T.Address -> "Uint64"
     | T.Bit -> "Bool"
     | T.Byte -> "Uint8"
     | T.Word -> "Uint16"
@@ -559,6 +561,8 @@ struct
         emit ?name p l e (lift_i128 i)
     | E.E0 (Size s) ->
         emit ?name p l e (fun oc -> pp oc "Size.of_int (%d)" s)
+    | E.E0 (Address s) ->
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint64.to_string s))
     | E.E2 (Gt, e1, e2) ->
         binary_infix_op e1 ">" e2
     | E.E2 (Ge, e1, e2) ->
@@ -676,24 +680,26 @@ struct
         unary_mod_op_or_null "of_string" e1
     | E.E1 (CharOfPtr, e1) ->
         let n = print emit p l e1 in
+        let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "Char.chr (Uint8.to_int (Pointer.peekByte %s 0)),\
-                          Pointer.skip %s 1" n n)
+          pp oc "Char.chr (Uint8.to_int (%s.peekByte %s 0)), %s.skip %s 1"
+            m n m n)
     | E.E1 (FloatOfPtr, e1) ->
         let n1 = print emit p l e1 in
         (* Note: Scanf uses two distinct format specifiers for "normal"
          * and hex notations so detect it and pick the proper one: *)
-        pp p.P.def "%slet len_ = %s.Pointer.stop - %s.start in\n" p.P.indent n1 n1 ;
+        pp p.P.def "%slet len_ = %s.Pointer.stop - %s.start in\n"
+          p.P.indent n1 n1 ;
         pp p.P.def "%slet is_hex_ = len_ > 2 && (\n" p.P.indent ;
         P.indent_more p (fun () ->
           pp p.P.def "%slet o_ =\n" p.P.indent ;
           P.indent_more p (fun () ->
-            pp p.P.def "%slet c_ = Bytes.unsafe_get %s.bytes %s.start in\n"
+            pp p.P.def "%slet c_ = peek_char %s %s.start in\n"
               p.P.indent n1 n1 ;
             pp p.P.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.P.indent) ;
           pp p.P.def "%slen_ > 2 + o_ && \
-                      Bytes.unsafe_get %s.bytes (%s.start + o_) = '0' && \
-                      (let c2_ = Bytes.unsafe_get %s.bytes (%s.start + o_ + 1) in \
+                      peek_char %s (%s.start + o_) = '0' && \
+                      (let c2_ = peek_char %s (%s.start + o_ + 1) in \
                        c2_ = 'x' || c2_ = 'X')) in\n"
             p.P.indent n1 n1 n1 n1) ;
         pp p.P.def "%slet s_ =\n" p.P.indent ;
@@ -701,9 +707,9 @@ struct
           pp p.P.def "%slet off_ = ref %s.Pointer.start in\n" p.P.indent n1 ;
           pp p.P.def "%sScanf.Scanning.from_function (fun () ->\n" p.P.indent ;
           P.indent_more p (fun () ->
-            pp p.P.def "%sif !off_ >= %s.Pointer.stop then raise End_of_file ;\n"
+            pp p.P.def "%sif !off_ >= %s.stop then raise End_of_file ;\n"
               p.P.indent n1 ;
-            pp p.P.def "%slet c_ = Bytes.unsafe_get %s.Pointer.bytes !off_ in\n"
+            pp p.P.def "%slet c_ = peek_char %s !off_ in\n"
               p.P.indent n1 ;
             pp p.P.def "%sincr off_ ;\n" p.P.indent ;
             pp p.P.def "%sc_) in\n" p.P.indent)) ;
@@ -736,13 +742,14 @@ struct
     | E.E1 (I128OfPtr, e1) ->
         let n1 = print emit p l e1 in
         let m = mod_name (E.type_of l e |> T.pair_of_tpair |> fst) in
+        let m1 = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           P.indent_more p (fun () ->
-            pp oc "\n%slet s_ = Bytes.unsafe_to_string %s.Pointer.bytes in\n"
-              p.P.indent n1 ;
-            pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.Pointer.start) s_ in\n"
-              p.P.indent m n1 ;
-            pp oc "%sn_, Pointer.skip %s (o_ - %s.start)" p.P.indent n1 n1))
+            pp oc "\n%slet s_ = %s.%s.impl.to_string () in\n"
+              p.P.indent n1 m1 ;
+            pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.%s.start) s_ in\n"
+              p.P.indent m n1 m1 ;
+            pp oc "%sn_, %s.skip %s (o_ - %s.start)" p.P.indent m1 n1 n1))
     | E.E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -785,6 +792,8 @@ struct
         unary_op "Uint32.to_int" e1
     | E.E1 (U32OfSize, e1) ->
         unary_op "Uint32.of_int" e1
+    | E.E1 ((AddressOfU64 | U64OfAddress), e1) ->
+        print ?name emit p l e1
     | E.E1 (ListOfSList, e1) ->
         unary_op "Array.of_list" e1
     | E.E1 (ListOfSListRev, e1) ->
@@ -833,10 +842,14 @@ struct
             assert false (* Because type checking *))
     | E.E1 (DataPtrOfString, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Pointer.of_string %s" n1)
+        emit ?name p l e (fun oc -> pp oc "pointer_of_string %s" n1)
     | E.E1 (DataPtrOfBuffer, e1) ->
         let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Pointer.of_buffer %s" n1)
+        emit ?name p l e (fun oc -> pp oc "pointer_of_buffer %s" n1)
+    | E.E2 (DataPtrOfAddress, e1, e2) ->
+        let n1 = print emit p l e1 in
+        let n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "pointer_of_address %s %s" n1 n2)
     | E.E1 (GetEnv, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -845,9 +858,11 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
-        emit ?name p l e (fun oc -> pp oc "Pointer.of_pointer %s %s %s" n1 n2 n3)
+        let m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc -> pp oc "%s.of_pointer %s %s %s" m n1 n2 n3)
     | E.E2 (GetBit, e1, e2) ->
-        binary_op "Pointer.getBit" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".getBit") e1 e2
     | E.E2 (GetVec, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -857,7 +872,8 @@ struct
         let ptr = print emit p l e1
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
-        emit ?name p l e (fun oc -> pp oc "Pointer.setBit %s %s %s" ptr n2 n3)
+        let m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc -> pp oc "%s.setBit %s %s %s" m ptr n2 n3)
     | E.E3 (SetVec, e1, e2, e3) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -865,82 +881,119 @@ struct
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s) <- %s" n2 m n1 n3)
     | E.E1 (ReadByte, e1) ->
-        unary_op "Pointer.readByte" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readByte") e1
     | E.E1 (ReadWord LittleEndian, e1) ->
-        unary_op "Pointer.readWord ~big_endian:false" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readWord ~big_endian:false") e1
     | E.E1 (ReadWord BigEndian, e1) ->
-        unary_op "Pointer.readWord ~big_endian:true" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readWord ~big_endian:true") e1
     | E.E1 (ReadDWord LittleEndian, e1) ->
-        unary_op "Pointer.readDWord ~big_endian:false" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readDWord ~big_endian:false") e1
     | E.E1 (ReadDWord BigEndian, e1) ->
-        unary_op "Pointer.readDWord ~big_endian:true" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readDWord ~big_endian:true") e1
     | E.E1 (ReadQWord LittleEndian, e1) ->
-        unary_op "Pointer.readQWord ~big_endian:false" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readQWord ~big_endian:false") e1
     | E.E1 (ReadQWord BigEndian, e1) ->
-        unary_op "Pointer.readQWord ~big_endian:true" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readQWord ~big_endian:true") e1
     | E.E1 (ReadOWord LittleEndian, e1) ->
-        unary_op "Pointer.readOWord ~big_endian:false" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readOWord ~big_endian:false") e1
     | E.E1 (ReadOWord BigEndian, e1) ->
-        unary_op "Pointer.readOWord ~big_endian:true" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".readOWord ~big_endian:true") e1
     | E.E2 (ReadBytes, e1, e2) ->
-        binary_op "Pointer.readBytes" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".readBytes") e1 e2
     | E.E2 (PeekByte, e1, e2) ->
-        binary_op "Pointer.peekByte" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekByte") e1 e2
     | E.E2 (PeekWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekWord ~big_endian:false") e1 e2
     | E.E2 (PeekWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekWord ~big_endian:true") e1 e2
     | E.E2 (PeekDWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekDWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekDWord ~big_endian:false") e1 e2
     | E.E2 (PeekDWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekDWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekDWord ~big_endian:true") e1 e2
     | E.E2 (PeekQWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekQWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekQWord ~big_endian:false") e1 e2
     | E.E2 (PeekQWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekQWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekQWord ~big_endian:true") e1 e2
     | E.E2 (PeekOWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.peekOWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekOWord ~big_endian:false") e1 e2
     | E.E2 (PeekOWord BigEndian, e1, e2) ->
-        binary_op "Pointer.peekOWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".peekOWord ~big_endian:true") e1 e2
     | E.E2 (WriteByte, e1, e2) ->
-        binary_op "Pointer.writeByte" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeByte") e1 e2
     | E.E2 (WriteWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeWord ~big_endian:false") e1 e2
     | E.E2 (WriteWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeWord ~big_endian:true") e1 e2
     | E.E2 (WriteDWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeDWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeDWord ~big_endian:false") e1 e2
     | E.E2 (WriteDWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeDWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeDWord ~big_endian:true") e1 e2
     | E.E2 (WriteQWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeQWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeQWord ~big_endian:false") e1 e2
     | E.E2 (WriteQWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeQWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeQWord ~big_endian:true") e1 e2
     | E.E2 (WriteOWord LittleEndian, e1, e2) ->
-        binary_op "Pointer.writeOWord ~big_endian:false" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeOWord ~big_endian:false") e1 e2
     | E.E2 (WriteOWord BigEndian, e1, e2) ->
-        binary_op "Pointer.writeOWord ~big_endian:true" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeOWord ~big_endian:true") e1 e2
     | E.E2 (WriteBytes, e1, e2) ->
-        binary_op "Pointer.writeBytes" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".writeBytes") e1 e2
     | E.E2 (PokeByte, e1, e2) ->
         let ptr = print ?name emit p l e1
         and v = print emit p l e2 in
-        ppi p.P.def "Pointer.pokeByte %s %s;" ptr v ;
+        let m = mod_name (E.type_of l e1) in
+        ppi p.P.def "%s.pokeByte %s %s;" m ptr v ;
         ptr
     | E.E3 (BlitByte, e1, e2, e3) ->
-        any_op "Pointer.blitBytes" [ e1 ; e2 ; e3 ]
+        let m = mod_name (E.type_of l e1) in
+        any_op (m ^".blitBytes") [ e1 ; e2 ; e3 ]
     | E.E2 (DataPtrAdd, e1, e2) ->
-        binary_op "Pointer.skip" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".skip") e1 e2
     | E.E2 (DataPtrSub, e1, e2) ->
-        binary_op "Pointer.sub" e1 e2
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".sub") e1 e2
     | E.E1 (DataPtrPush, e1) ->
-        unary_op "Pointer.push" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".push") e1
     | E.E1 (DataPtrPop, e1) ->
-        unary_op "Pointer.pop" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".pop") e1
     | E.E1 (RemSize, e1) ->
-        unary_op "Pointer.remSize" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".remSize") e1
     | E.E1 (Offset, e1) ->
-        unary_op "Pointer.offset" e1
+        let m = mod_name (E.type_of l e1) in
+        unary_op (m ^".offset") e1
     | E.E2 (And, e1, e2) ->
         shortcutting_binary_infix_op e1 "&&" e2
     | E.E2 (Or, e1, e2) ->
@@ -1193,16 +1246,17 @@ struct
         and reduce = print emit p l e2
         and accum = print emit p l e3
         and ptr = print emit p l e4 in
+        let m = mod_name (E.type_of l e4) in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
           P.indent_more p (fun () ->
             ppi oc "let rec read_while_loop accum ptr =" ;
             P.indent_more p (fun () ->
-              ppi oc "if Pointer.remSize ptr <= 0 then (accum, ptr) else" ;
-              ppi oc "let next_byte = Pointer.peekByte ptr 0 in" ;
+              ppi oc "if %s.remSize ptr <= 0 then (accum, ptr) else" m ;
+              ppi oc "let next_byte = %s.peekByte ptr 0 in" m ;
               ppi oc "if not (%s next_byte) then (accum, ptr) else" cond ;
               ppi oc "let accum = %s accum next_byte in" reduce ;
-              ppi oc "let ptr = Pointer.skip ptr 1 in" ;
+              ppi oc "let ptr = %s.skip ptr 1 in" m ;
               ppi oc "read_while_loop accum ptr in") ;
             pp oc "%sread_while_loop %s %s" p.P.indent accum ptr))
     | E.E3 (LoopWhile, e1, e2, e3) ->

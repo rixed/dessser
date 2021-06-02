@@ -40,6 +40,7 @@ let to_u128 = function
   | E0 (U128 n | OWord n) -> Uint128.to_uint128 n
   | E0 (Float n) -> Uint128.of_float n
   | E0 (Size n) -> Uint128.of_int n
+  | E0 (Address n) -> Uint128.of_uint64 n
   | _ -> invalid_arg "to_u128"
 
 let to_i128 = function
@@ -63,6 +64,7 @@ let to_i128 = function
   | E0 (U128 n | OWord n) -> Uint128.to_int128 n
   | E0 (Float n) -> Int128.of_float n
   | E0 (Size n) -> Int128.of_int n
+  | E0 (Address n) -> Int128.of_uint64 n
   | _ -> invalid_arg "to_u128"
 
 let to_uint to_op e cst of_u128 =
@@ -128,6 +130,7 @@ let arith2' op e1 e2 op_float op_i128 op_u128 =
   | E0 (QWord _), _ -> arith2'' op e1 e2 op_i128 (qword % Int128.to_uint64)
   | E0 (OWord _), _ -> arith2'' op e1 e2 op_i128 (oword % Int128.to_uint128)
   | E0 (Size _), _ -> arith2'' op e1 e2 op_i128 (size % Int128.to_int)
+  | E0 (Address _), _ -> arith2'' op e1 e2 op_i128 (address % Int128.to_uint64)
   | E0 (Float a), E0 (Float b) -> float (op_float a b)
   | _ -> E.E2 (op, e1, e2)
 
@@ -158,7 +161,8 @@ let comp2' op e1 e2 op_gen op_i128 op_u128 =
   | E0 (U56 a), E0 (U56 b) ->
       op_i128 (Uint56.to_int128 a) (Uint56.to_int128 b)
   | E0 (U64 a), E0 (U64 b)
-  | E0 (QWord a), E0 (QWord b) ->
+  | E0 (QWord a), E0 (QWord b)
+  | E0 (Address a), E0 (Address b) ->
       op_i128 (Uint64.to_int128 a) (Uint64.to_int128 b)
   | E0 (U128 a), E0 (U128 b)
   | E0 (OWord a), E0 (OWord b) ->
@@ -410,6 +414,10 @@ let rec peval l e =
       | U32OfSize, E1 (SizeOfU32, e) -> e
       | SizeOfU32, E0 (U32 n) -> size (Uint32.to_int n)
       | SizeOfU32, E1 (U32OfSize, e) -> e
+      | U64OfAddress, E0 (Address n) -> u64 n
+      | U64OfAddress, E1 (AddressOfU64, e) -> e
+      | AddressOfU64, E0 (U64 n) -> address n
+      | AddressOfU64, E1 (U64OfAddress, e) -> e
       | Fst, E2 (Pair, e, _) -> e
       | Snd, E2 (Pair, _, e) -> e
       | Head, E2 (Cons, e, _) -> e

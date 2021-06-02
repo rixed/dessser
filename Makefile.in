@@ -53,8 +53,7 @@ INSTALLED_HEADERS = \
 	src/dessser/runtime.h \
 	src/dessser/SList.h \
 	src/dessser/typedefs.h \
-	src/dessser/Vec.h \
-	src/dessser_ocaml_ext_pointer.h
+	src/dessser/Vec.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \
@@ -133,8 +132,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserLeftistHeap.ml \
 	src/DessserOCamlBackEndHelpers.ml \
 	src/DessserQCheck.ml \
-	src/dessser_ocaml_ext_pointer.c \
-	src/dessser_ocaml_ext_pointer.h
+	src/dessser_ocaml_ext_pointer.c
 
 EXAMPLES_SOURCES = \
 	examples/simplest.ml \

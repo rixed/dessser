@@ -31,7 +31,8 @@ sig
   (* No need for a backend (BE) since we merely compute expressions *)
   (* RW state passed to every deserialization operations *)
   type state
-  val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr, or whatever really  *)
+  (* Wraps a DataPtr into whatever the DES needs *)
+  val ptr : T.maybe_nullable -> T.t
 
   val start : ?config:config -> T.maybe_nullable -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
@@ -108,7 +109,8 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
-  val ptr : T.maybe_nullable -> T.t (* either dataptr or valueptr *)
+  (* Wraps a DataPtr into whatever the SER needs *)
+  val ptr : T.maybe_nullable -> T.t
 
   val start : ?config:config -> T.maybe_nullable -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t

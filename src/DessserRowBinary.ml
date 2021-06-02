@@ -20,7 +20,7 @@ struct
 
   (* v must be a u32: *)
   let write_leb128 l p v =
-    let t_ptr_sz = T.Pair (DataPtr, T.u32) in
+    let t_ptr_sz = T.Pair (E.type_of l p, T.u32) in
     first (
       loop_until
         ~body:(comment "Loop body for write_leb128"
