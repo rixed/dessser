@@ -709,7 +709,7 @@ let rec peval l e =
               E2 (Pow, e1, e2)
           | a, b ->
               let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
-              (try C.conv ~to_ l (float (a ** b))
+              (try not_null (C.conv ~to_ l (float (a ** b)))
               with _ -> null to_))
       | BitAnd, e1, e2 ->
           arith2' BitAnd e1 e2 no_floats Int128.logand Uint128.logand
