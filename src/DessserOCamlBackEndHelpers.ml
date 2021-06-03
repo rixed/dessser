@@ -563,8 +563,8 @@ struct
   external size : t -> int = "ext_pointer_size" [@@noalloc]
   external peek : t -> int -> int = "ext_pointer_peek" [@@noalloc]
   external peekn : t -> int -> int -> Slice.t = "ext_pointer_peekn"
-  external poke : t -> int -> int -> unit = "ext_pointer_poke"
-  external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken"
+  external poke : t -> int -> int -> unit = "ext_pointer_poke" [@@noalloc]
+  external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken" [@@noalloc]
   external to_string : t -> string = "ext_pointer_to_string"
 end
 
