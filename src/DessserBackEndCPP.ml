@@ -175,6 +175,7 @@ struct
     | T.Void -> "void"
     | T.DataPtr -> "Pointer"
     | T.Size -> "Size"
+    | T.Address -> "Address"
     | T.Bit -> "bool"
     | T.Byte -> "uint8_t"
     | T.Word -> "uint16_t"
@@ -444,6 +445,8 @@ struct
             (Int64.to_string lo))
     | E.E0 (Size s) ->
         emit ?name p l e (fun oc -> pp oc "%dUL" s)
+    | E.E0 (Address a) ->
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint64.to_string a))
     | E.E2 (Gt, e1, e2) ->
         binary_infix_op e1 ">" e2
     | E.E2 (Ge, e1, e2) ->
@@ -678,6 +681,7 @@ struct
         n
     | E.E1 (U8OfChar, e1) | E.E1 (CharOfU8, e1)
     | E.E1 (SizeOfU32, e1) | E.E1 (U32OfSize, e1)
+    | E.E1 (AddressOfU64, e1) | E.E1 (U64OfAddress, e1)
     | E.E1 ((ToU8 | ToI8 | ToU16 | ToI16 | ToU24 | ToI24 | ToU32 | ToI32 |
              ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
              ToU128 | ToI128 | ToFloat), e1)
@@ -726,6 +730,10 @@ struct
     | E.E1 (DataPtrOfBuffer, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
+    | E.E2 (DataPtrOfAddress, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E1 (GetEnv, e1) ->
         let n1 = print emit p l e1 in
         let res = gen_sym "getenv_res_" in

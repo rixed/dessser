@@ -13,5 +13,6 @@ typedef uint64_t QWord;
 typedef uint128_t OWord;
 typedef size_t Size;
 typedef bool Bit;
+typedef void *Address;
 
 #endif

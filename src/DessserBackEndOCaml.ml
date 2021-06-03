@@ -561,8 +561,8 @@ struct
         emit ?name p l e (lift_i128 i)
     | E.E0 (Size s) ->
         emit ?name p l e (fun oc -> pp oc "Size.of_int (%d)" s)
-    | E.E0 (Address s) ->
-        emit ?name p l e (fun oc -> pp oc "%s" (Uint64.to_string s))
+    | E.E0 (Address a) ->
+        emit ?name p l e (fun oc -> pp oc "%s" (Uint64.to_string a))
     | E.E2 (Gt, e1, e2) ->
         binary_infix_op e1 ">" e2
     | E.E2 (Ge, e1, e2) ->
@@ -847,8 +847,8 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "pointer_of_buffer %s" n1)
     | E.E2 (DataPtrOfAddress, e1, e2) ->
-        let n1 = print emit p l e1 in
-        let n2 = print emit p l e2 in
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "pointer_of_address %s %s" n1 n2)
     | E.E1 (GetEnv, e1) ->
         let n1 = print emit p l e1 in

@@ -404,6 +404,7 @@ type e4 =
         Read whenever cond returns true, or the input stream is exhausted *)
   | Repeat (* From (incl.) * To (exlc.) * body (idx->'a->'a) * Init value *)
 
+(* FIXME: this should be untyped_t, and then t = DT.t * untyped_t *)
 type t =
   | E0 of e0
   | E0S of e0s * t list

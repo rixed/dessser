@@ -39,6 +39,15 @@ struct Bytes {
     memcpy(buffer.get(), s.c_str(), size);
   }
 
+  Bytes(Byte *bytes, size_t size_) :
+    buffer(new Byte[size_]),
+    capa(size_),
+    size(size_),
+    offset(0)
+  {
+    memcpy(buffer.get(), bytes, size_);
+  }
+
   // To be used by below constructors:
   void copyFrom(Bytes const &b)
   {
