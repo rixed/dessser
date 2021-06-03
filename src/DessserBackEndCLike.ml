@@ -145,8 +145,9 @@ struct
         U128OfPtr | I128OfPtr | FloatOfQWord | QWordOfFloat | U8OfByte |
         ByteOfU8 | U16OfWord | WordOfU16 | U32OfDWord | DWordOfU32 |
         U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
-        CharOfU8 | SizeOfU32 | U32OfSize | BitOfBool | BoolOfBit | U8OfBool |
-        BoolOfU8 | BitNot | StringLength | RemSize | Not | Abs | Neg |
+        CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
+        BitOfBool | BoolOfBit | U8OfBool | BoolOfU8 |
+        BitNot | StringLength | RemSize | Not | Abs | Neg |
         Fst | Snd | Head | Tail | Ignore | Identity), e1) ->
         can_inline e1
     | E2 ((
