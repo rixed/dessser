@@ -593,14 +593,27 @@ struct
               pp oc "Nullable.of_nan (%s %s %s)" op_name n1 n2
           | _ ->
               assert false)
+    | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          match E.type_of l e1 |> T.develop_user_types with
+          | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                               |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
+                     _ } as t ->
+              let op_name = match op with Div -> "div" | _ -> "rem" in
+              pp oc "%s.%s %s %s" (mod_name t) op_name n1 n2
+          | Data { vtyp = Base Float ; _ } ->
+              let op_name = match op with Div -> "(/.)" | _ -> "Float.rem" in
+              pp oc "%s %s %s" op_name n1 n2
+          | _ ->
+              assert false)
     | E.E2 (Pow, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base Float ; _ } ->
-              (* TODO: if e2 is constant and > 0 then do away with the
-               * Nullable.of_nan: *)
               pp oc "Nullable.of_nan (%s ** %s)" n1 n2
           | Data { vtyp = Base (I32 | I64) ; _ } as t ->
               pp oc "try NotNull (Bat%s.pow %s %s) \
@@ -613,6 +626,24 @@ struct
               let m = mod_name t in
               pp oc "Nullable.map %s.of_float \
                        (Nullable.of_nan (%s.to_float %s ** %s.to_float %s))"
+                m m n1 m n2
+          | _ ->
+              assert false (* because of type-checking *))
+    | E.E2 (UnsafePow, e1, e2) ->
+        let n1 = print emit p l e1
+        and n2 = print emit p l e2 in
+        emit ?name p l e (fun oc ->
+          match E.type_of l e1 |> T.develop_user_types with
+          | Data { vtyp = Base Float ; _ } ->
+              pp oc "%s ** %s" n1 n2
+          | Data { vtyp = Base (I32 | I64) ; _ } as t ->
+              pp oc "Bat%s.pow %s %s" (mod_name t) n1 n2
+          | Data {
+              vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                          |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
+              (* For through floats *)
+              let m = mod_name t in
+              pp oc "%s.of_float (%s.to_float %s ** %s.to_float %s)"
                 m m n1 m n2
           | _ ->
               assert false (* because of type-checking *))

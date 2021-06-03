@@ -313,9 +313,10 @@ let e1_of_int n =
 
 let e2_of_int n =
   let e2s =
-    E.[| Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; Rem ;
-         Pow ; BitAnd ; BitOr ; BitXor ; LeftShift ; RightShift ; AppendBytes ;
-         AppendString ; StartsWith ; EndsWith ; GetBit ; GetVec ;
+    E.[| Nth ; Gt ; Ge ; Eq ; Ne ; Add ; Sub ; Mul ; Div ; UnsafeDiv ;
+         Rem ; UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ;
+         LeftShift ; RightShift ; AppendBytes ; AppendString ;
+         StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;
          And ; Or ; Pair ; Map ; Min ; Max ; Member ; Insert ;

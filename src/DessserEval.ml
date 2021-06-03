@@ -86,8 +86,11 @@ let peval_to_float e =
   try float (float_of_num e)
   with _ -> to_float e
 
+let is_nan f =
+  f <> f
+
 let nullable_of_nan f =
-  if f <> f then null (Base Float) else not_null (float f)
+  if is_nan f then null (Base Float) else not_null (float f)
 
 let arith2'' op e1 e2 op_i128 cst =
   (* All but U128 ints can be safely converted into I128.
@@ -345,6 +348,9 @@ let rec peval l e =
       | IsNull, E1 (NotNull, _) -> false_
       | NotNull, E1 (Force _, e) -> e
       | Force _, E1 (NotNull, e) -> e
+      | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> p
+      | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> p
+      | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> p
       | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n)
       | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n)
       | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n)
@@ -695,6 +701,19 @@ let rec peval l e =
           | e ->
               (* Did replace by the result, make it nullable: *)
               not_null e)
+      | (UnsafeDiv | UnsafeRem as op), (E0 (Float a) as e1), (E0 (Float b) as e2) ->
+          let def = E.E2 (op, e1, e2) in
+          (try
+            let v = if op = Div then a /. b else Stdlib.Float.rem a b in
+            if is_nan v then def else float v
+          with Division_by_zero -> def)
+      | (UnsafeDiv | UnsafeRem as op), e1, e2 ->
+          let def = E.E2 (op, e1, e2) in
+          (try arith2' op e1 e2
+                       (if op = Div then (/.) else (mod_float))
+                       (if op = Div then Int128.div else Int128.rem)
+                       (if op = Div then Uint128.div else Uint128.rem)
+          with Division_by_zero -> def)
       | Pow, E0 (Float a), E0 (Float b) ->
           nullable_of_nan (a ** b)
       | Pow, E0 (I32 a), E0 (I32 b) ->
@@ -711,6 +730,25 @@ let rec peval l e =
               let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
               (try not_null (C.conv ~to_ l (float (a ** b)))
               with _ -> null to_))
+      | UnsafePow, (E0 (Float a) as e1), (E0 (Float b) as e2) ->
+          let def = E.E2 (UnsafePow, e1, e2) in
+          let v = a ** b in
+          if is_nan v then def else float a
+      | UnsafePow, (E0 (I32 a) as e1), (E0 (I32 b) as e2) ->
+          (try i32 (BatInt32.pow a b)
+          with Invalid_argument _ -> E2 (UnsafePow, e1, e2))
+      | UnsafePow, (E0 (I64 a) as e1), (E0 (I64 b) as e2) ->
+          (try i64 (BatInt64.pow a b)
+          with Invalid_argument _ -> E2 (UnsafePow, e1, e2))
+      | UnsafePow, e1, e2 ->
+          let def = E.E2 (UnsafePow, e1, e2) in
+          (match float_of_num e1, float_of_num e2 with
+          | exception _ ->
+              def
+          | a, b ->
+              let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
+              (try C.conv ~to_ l (float (a ** b))
+              with _ -> def))
       | BitAnd, e1, e2 ->
           arith2' BitAnd e1 e2 no_floats Int128.logand Uint128.logand
       | BitOr, e1, e2 ->

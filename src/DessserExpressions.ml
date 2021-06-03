@@ -299,8 +299,11 @@ type e2 =
   | Sub
   | Mul
   | Div (* Fails with Null *)
+  | UnsafeDiv (* Not nullable but fails for real *)
   | Rem (* Fails with Null *)
+  | UnsafeRem (* Not nullable but fails for real *)
   | Pow (* Fails with Null *)
+  | UnsafePow (* Not nullable but fails for real *)
   | BitAnd
   | BitOr
   | BitXor
@@ -901,8 +904,11 @@ let string_of_e2 = function
   | Sub -> "sub"
   | Mul -> "mul"
   | Div -> "div"
+  | UnsafeDiv -> "unsafe-div"
   | Rem -> "rem"
+  | UnsafeRem -> "unsafe-rem"
   | Pow -> "pow"
+  | UnsafePow -> "unsafe-pow"
   | BitAnd -> "bit-and"
   | BitOr -> "bit-or"
   | BitXor -> "bit-xor"
@@ -1496,8 +1502,11 @@ struct
     | Lst [ Sym "sub" ; x1 ; x2 ] -> E2 (Sub, e x1, e x2)
     | Lst [ Sym "mul" ; x1 ; x2 ] -> E2 (Mul, e x1, e x2)
     | Lst [ Sym "div" ; x1 ; x2 ] -> E2 (Div, e x1, e x2)
+    | Lst [ Sym "unsafe-div" ; x1 ; x2 ] -> E2 (UnsafeDiv, e x1, e x2)
     | Lst [ Sym "rem" ; x1 ; x2 ] -> E2 (Rem, e x1, e x2)
+    | Lst [ Sym "unsafe-rem" ; x1 ; x2 ] -> E2 (UnsafeRem, e x1, e x2)
     | Lst [ Sym "pow" ; x1 ; x2 ] -> E2 (Pow, e x1, e x2)
+    | Lst [ Sym "unsafe-pow" ; x1 ; x2 ] -> E2 (UnsafePow, e x1, e x2)
     | Lst [ Sym "bit-and" ; x1 ; x2 ] -> E2 (BitAnd, e x1, e x2)
     | Lst [ Sym "bit-or" ; x1 ; x2 ] -> E2 (BitOr, e x1, e x2)
     | Lst [ Sym "bit-xor" ; x1 ; x2 ] -> E2 (BitXor, e x1, e x2)
@@ -1735,9 +1744,9 @@ let rec type_of l e0 =
   | E1 (BitNot, e) ->
       type_of l e
   | E2 ((Div | Rem | Pow), e, _) ->
-      (* TODO: make it nullable only if it cannot be ascertained from e1 and e2
-       * that the result will never be null *)
       T.to_nullable (type_of l e)
+  | E2 ((UnsafeDiv | UnsafeRem | UnsafePow), e, _) ->
+      type_of l e
   | E1 (NotNull, e) ->
       T.to_nullable (type_of l e)
   | E1 (Force _, e) ->
@@ -2589,7 +2598,7 @@ let rec type_check l e =
     | E2 ((Add | Sub | Mul), e1, e2) ->
         check_numeric l e1 ;
         check_same_types l e1 e2
-    | E2 ((Div | Rem | Pow), e1, e2) ->
+    | E2 ((Div | UnsafeDiv | Rem | UnsafeRem | Pow | UnsafePow), e1, e2) ->
         check_numeric ~only_base:true l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
@@ -3557,9 +3566,15 @@ struct
 
   let div e1 e2 = E2 (Div, e1, e2)
 
+  let unsafe_div e1 e2 = E2 (UnsafeDiv, e1, e2)
+
   let rem e1 e2 = E2 (Rem, e1, e2)
 
+  let unsafe_rem e1 e2 = E2 (UnsafeRem, e1, e2)
+
   let pow e1 e2 = E2 (Pow, e1, e2)
+
+  let unsafe_pow e1 e2 = E2 (UnsafePow, e1, e2)
 
   let left_shift e1 e2 = E2 (LeftShift, e1, e2)
 
