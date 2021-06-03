@@ -2379,7 +2379,8 @@ let can_duplicate e =
       (* Similarly, sets and vec are mutable: *)
       | E0 (EmptySet _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
-             Heap), _) ->
+             Heap), _)
+      | E0S (MakeVec, _) ->
           raise Exit
       | _ -> ()
     ) e ;
