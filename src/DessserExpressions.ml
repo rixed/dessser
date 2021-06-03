@@ -2346,7 +2346,6 @@ let rec map_env l f e =
 let has_side_effect e =
   try
     iter (function
-      | E0 (ExtIdentifier _) (* As in (apply (ext-identifier "something")) *)
       | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
@@ -2354,6 +2353,7 @@ let has_side_effect e =
              U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
              I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
+      | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
              Insert | DelMin | PartialSort), _, _)
