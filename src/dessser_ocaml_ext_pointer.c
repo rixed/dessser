@@ -10,6 +10,8 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
+#include <uint64.h> // from stdint
+
 /* type ExtPointer.t.
  * User data is a pointer and size: */
 
@@ -31,9 +33,11 @@ static intnat ext_pointer_hash(value v)
 }
 
 /* Allocate a NULL pointer: */
-value ext_pointer_new(void *data, size_t len)
+value ext_pointer_new(value data_, value len_)
 {
-  CAMLparam0();
+  CAMLparam2(data_, len_);
+  void *data = (void *)Uint64_val(data_);
+  size_t len = Int_val(len_);
   CAMLlocal1(res);
 
   static struct custom_operations ext_pointer_ops = {

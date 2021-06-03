@@ -13,7 +13,9 @@ OCAMLOPTFLAGS = @OCAMLOPTFLAGS@ $(WARNS) -annot
 OCAMLCFLAGS =   @OCAMLCFLAGS@   $(WARNS)
 
 CFLAGS   += -std=gnu11 -Wall -W -Wno-parentheses -fPIC
-CPPFLAGS += -D_GNU_SOURCE -I '@OCAMLLIB@'
+CPPFLAGS += -D_GNU_SOURCE \
+            -I '@OCAMLLIB@' \
+            -I '$(shell ocamlfind query stdint)'
 
 ifdef NDEBUG
 OCAMLOPTFLAGS += -noassert -O2
