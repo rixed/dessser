@@ -1,5 +1,7 @@
 // vim: ft=c bs=2 ts=2 sts=2 sw=2 expandtab
 #include <assert.h>
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,6 +13,8 @@
 #include <caml/mlvalues.h>
 
 #include <uint64.h> // from stdint
+
+static bool debug = false;
 
 /* type ExtPointer.t.
  * User data is a pointer and size: */
@@ -53,6 +57,10 @@ value ext_pointer_new(value data_, value len_)
   res = caml_alloc_custom(&ext_pointer_ops, sizeof(struct ext_pointer_user_data), 0, 1);
   ExtPointerData_val(res) = data;
   ExtPointerLen_val(res) = len;
+
+  if (debug)
+    fprintf(stderr, "%s: new ext_pointer @%p, len:%zu\n",
+            __func__, data, len);
 
   CAMLreturn(res);
 }
@@ -100,6 +108,11 @@ CAMLprim value ext_pointer_poke(value v, value offset_, value x_)
   size_t offset = Int_val(offset_);
   assert(offset < ExtPointerLen_val(v));
   ExtPointerData_val(v)[offset] = Int_val(x_);
+
+  if (debug)
+    fprintf(stderr, "%s: poke @%p+%zu, val:0x%x\n",
+            __func__, ExtPointerData_val(v), offset, (unsigned)Int_val(x_));
+
   CAMLreturn(Val_unit);
 }
 
@@ -115,6 +128,11 @@ CAMLprim value ext_pointer_poken(value v, value offset_, value slice)
     ExtPointerData_val(v) + offset,
     Bytes_val(Field(slice, 0)) + slice_offset,
     len);
+
+  if (debug)
+    fprintf(stderr, "%s: poken @%p+%zu, len:%zu\n",
+            __func__, ExtPointerData_val(v), offset, len);
+
   CAMLreturn(Val_unit);
 }
 
