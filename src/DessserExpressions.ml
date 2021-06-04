@@ -2366,7 +2366,7 @@ let has_side_effect e =
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
-             Insert | DelMin | PartialSort), _, _)
+             Insert | DelMin | AllocLst | PartialSort), _, _)
       | E3 ((SetBit | SetVec | InsertWeighted), _, _, _)
       | E4 (ReadWhile, _, _, _, _) ->
           raise Exit
@@ -2390,6 +2390,8 @@ let can_duplicate e =
       | E0 (EmptySet _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
              Heap), _)
+      (* Expensive: *)
+      | E1 ((ListOfSList | ListOfSListRev | SetOfSList | ListOfVec | ListOfSet), _)
       | E0S (MakeVec, _) ->
           raise Exit
       | _ -> ()
