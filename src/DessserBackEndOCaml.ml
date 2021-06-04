@@ -600,11 +600,11 @@ struct
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                                |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-                     _ } as t ->
-              let op_name = match op with Div -> "div" | _ -> "rem" in
+                   _ } as t ->
+              let op_name = match op with UnsafeDiv -> "div" | _ -> "rem" in
               pp oc "%s.%s %s %s" (mod_name t) op_name n1 n2
           | Data { vtyp = Base Float ; _ } ->
-              let op_name = match op with Div -> "(/.)" | _ -> "Float.rem" in
+              let op_name = match op with UnsafeDiv -> "(/.)" | _ -> "Float.rem" in
               pp oc "%s %s %s" op_name n1 n2
           | _ ->
               assert false)

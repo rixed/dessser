@@ -479,7 +479,7 @@ struct
     | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        let op_name = match op with Div -> "/" | _ -> "%" in
+        let op_name = match op with UnsafeDiv -> "/" | _ -> "%" in
         (match E.type_of l e1 |> T.develop_user_types with
         | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                              |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
