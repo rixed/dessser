@@ -125,7 +125,7 @@ struct
    * compute them several times if required.
    * Arithmetic operators that fail with null are not inlinable (in C++)
    * but none of them count as cheap anyway. *)
-  let rec can_inline = function
+  let can_inline = function
     | E.E0 (
         Param _ | Null _ |
         EndOfList _ | Float _ | String _ | Bool _ | Bytes _ |
@@ -133,8 +133,7 @@ struct
         Bit _ | Char _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _ |
         U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _ |
         I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _ |
-        CopyField | SkipField | SetFieldNull) ->
-        true
+        CopyField | SkipField | SetFieldNull)
     | E1 ((
         GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force _ | ToFloat |
         ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
@@ -148,13 +147,14 @@ struct
         CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
         BitOfBool | BoolOfBit | U8OfBool | BoolOfU8 |
         BitNot | StringLength | RemSize | Not | Abs | Neg |
-        Fst | Snd | Head | Tail | Ignore | Identity), e1) ->
-        can_inline e1
+        Fst | Snd | Head | Tail | Ignore | Identity), _)
     | E2 ((
         Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Min | Max |
-        BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit | And |
-        Or), e1, e2) ->
-        can_inline e1 && can_inline e2
+        BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit), _, _) ->
+        true
+    (* And and Or can not be inlined because all or part of their argument
+     * may not be inlinable and would then escape the scope of the And/Or,
+     * thus defeating any shortcutting that should take place. *)
     | _ ->
         false
 
