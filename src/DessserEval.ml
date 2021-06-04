@@ -350,7 +350,12 @@ let rec peval l e =
         when i < Array.length mns && fst mns.(i) = n ->
           e
       | Ignore, e ->
-          if E.type_of l e = T.Void then e else E1 (op, e)
+          if E.type_of l e = T.Void then e
+          (* In theory any expression of type Void and with no side effect should
+           * be disposed of. Ignore is the only way to build such an expression,
+           * though, so it is enough to test this case only: *)
+          else if not (E.has_side_effect e) then seq []
+          else E1 (op, e)
       | IsNull, E0 (Null _) -> true_
       | IsNull, E1 (NotNull, _) -> false_
       | NotNull, E1 (Force _, e) -> e
