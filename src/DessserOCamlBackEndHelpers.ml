@@ -295,28 +295,6 @@ struct
     make (Bytes.of_string s) 0 (String.length s)
 end
 
-module type POINTER_IO =
-sig
-  type t
-
-  (* Tells whether two pointers cover the same bytes: *)
-  val eq : t -> t -> bool
-
-  (* Returns the number of covered bytes: *)
-  val size : t -> int
-
-  val peek : t -> int -> int
-
-  val peekn : t -> int -> int -> Slice.t
-
-  val poke : t -> int -> int -> unit
-
-  val poken : t -> int -> Slice.t -> unit
-
-  (* Required for I8OfPtr etc: *)
-  val to_string : t -> string
-end
-
 (* Pointers
  *
  * We want a data pointer to either points into an OCaml Bytes.t as well as
