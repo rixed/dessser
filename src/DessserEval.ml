@@ -296,13 +296,20 @@ let rec peval l e =
   | E0S (op, es) ->
       (match op, List.map p es with
       | Seq, es ->
-          let es =
-            List.filter_map (fun e ->
-              (* Type checking makes sure that it's a void if not last: *)
-              if E.type_of l e = T.Void && not (E.has_side_effect e) then None
-              else Some e
-            ) es in
-          (match es with
+          let rec loop es = function
+            | [] ->
+                List.rev es
+            | e :: [] ->
+                (* Last item might not be void: *)
+                let es =
+                  if E.type_of l e = T.Void && not (E.has_side_effect e) then es
+                  else e :: es in
+                loop es []
+            | e :: rest ->
+                (* Non last items have type Void if they type check: *)
+                let es = if not (E.has_side_effect e) then es else e :: es in
+                loop es rest in
+          (match loop [] es with
           | [ e ] -> e
           | es -> seq es )
       | op, es -> E0S (op, es))
