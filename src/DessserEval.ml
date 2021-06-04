@@ -537,7 +537,8 @@ let rec peval l e =
           u32_of_int (List.length es)
       | Cardinality, E0 (EndOfList _ | EmptySet _)
       | Cardinality, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
-                          HashTable _ | Heap), _) ->
+                          HashTable _ | Heap), _)
+      | Cardinality, E3 (Top _, _, _, _) ->
           u32_of_int 0
       | Assert, E0 (Bool true) -> nop
       | BitNot, e ->
