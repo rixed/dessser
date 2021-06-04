@@ -532,7 +532,7 @@ let expression =
 
 (*$Q expression & ~count:20
   expression (fun e -> \
-    let str = IO.to_string E.print e in \
+    let str = E.to_string e in \
     match E.Parser.expr str with \
     | [ e' ] -> E.eq e' e \
     | _ -> false)
