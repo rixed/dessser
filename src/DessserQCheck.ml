@@ -473,8 +473,8 @@ and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   frequency [
-    1, map3 (fun name e in_ ->
-               let_ ~name e (fun _ _ -> in_)) let_name_gen expr expr ;
+    (* Avoids using `let_` which requires [e] to be well typed: *)
+    1, map3 (fun name e in_ -> E.E2 (Let name, e, in_)) let_name_gen expr expr ;
     1, map3 peek_word endianness_gen expr expr ;
     1, map3 peek_dword endianness_gen expr expr ;
     1, map3 peek_qword endianness_gen expr expr ;
