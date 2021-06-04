@@ -324,9 +324,25 @@ struct
 
   and impl =
     { size : int ;
-      peek : int -> int ;
+      peek1 : int -> Uint8.t ;
+      peek2_le : int -> Uint16.t ;
+      peek2_be : int -> Uint16.t ;
+      peek4_le : int -> Uint32.t ;
+      peek4_be : int -> Uint32.t ;
+      peek8_le : int -> Uint64.t ;
+      peek8_be : int -> Uint64.t ;
+      peek16_le : int -> Uint128.t ;
+      peek16_be : int -> Uint128.t ;
       peekn : int -> int -> Slice.t ;
-      poke : int -> int -> unit ;
+      poke1 : int -> Uint8.t -> unit ;
+      poke2_le : int -> Uint16.t -> unit ;
+      poke2_be : int -> Uint16.t -> unit ;
+      poke4_le : int -> Uint32.t -> unit ;
+      poke4_be : int -> Uint32.t -> unit ;
+      poke8_le : int -> Uint64.t -> unit ;
+      poke8_be : int -> Uint64.t -> unit ;
+      poke16_le : int -> Uint128.t -> unit ;
+      poke16_be : int -> Uint128.t -> unit ;
       poken : int -> Slice.t -> unit ;
       to_string : unit -> string }
 
@@ -365,38 +381,23 @@ struct
 
   let peekByte p at =
     check_input_length (p.start + at + 1) p.stop ;
-    let c = p.impl.peek (p.start + at) in
-    if debug then
-      Printf.eprintf "PeekByte 0x%02x at %d\n%!" c (p.start + at) ;
-    Uint8.of_int c
+    p.impl.peek1 (p.start + at)
 
   let peekWord ?(big_endian=false) p at =
-    let cat b0 b1 =
-      Uint16.(logor (shift_left (of_uint8 b0) 8) (of_uint8 b1)) in
-    let b0 = peekByte p at in
-    let b1 = peekByte p (at+1) in
-    if big_endian then cat b0 b1 else cat b1 b0
+    check_input_length (p.start + at + 2) p.stop ;
+    (if big_endian then p.impl.peek2_be else p.impl.peek2_le) (p.start + at)
 
   let peekDWord ?(big_endian=false) p at =
-    let cat b0 b1 =
-      Uint32.(logor (shift_left (of_uint16 b0) 16) (of_uint16 b1)) in
-    let b0 = peekWord ~big_endian p at in
-    let b1 = peekWord ~big_endian p (at+2) in
-    if big_endian then cat b0 b1 else cat b1 b0
+    check_input_length (p.start + at + 4) p.stop ;
+    (if big_endian then p.impl.peek4_be else p.impl.peek4_le) (p.start + at)
 
   let peekQWord ?(big_endian=false) p at =
-    let cat b0 b1 =
-      Uint64.(logor (shift_left (of_uint32 b0) 32) (of_uint32 b1)) in
-    let b0 = peekDWord ~big_endian p at in
-    let b1 = peekDWord ~big_endian p (at+4) in
-    if big_endian then cat b0 b1 else cat b1 b0
+    check_input_length (p.start + at + 8) p.stop ;
+    (if big_endian then p.impl.peek8_be else p.impl.peek8_le) (p.start + at)
 
   let peekOWord ?(big_endian=false) p at =
-    let cat b0 b1 =
-      Uint128.(logor (shift_left (of_uint64 b0) 64) (of_uint64 b1)) in
-    let b0 = peekQWord ~big_endian p at in
-    let b1 = peekQWord ~big_endian p (at+8) in
-    if big_endian then cat b0 b1 else cat b1 b0
+    check_input_length (p.start + at + 8) p.stop ;
+    (if big_endian then p.impl.peek16_be else p.impl.peek16_le) (p.start + at)
 
   let getBit p o =
     let b = peekByte p (o/8) in
@@ -423,36 +424,28 @@ struct
     skip p sz
 
   let pokeByte p at v =
-    check_input_length (p.start + at) p.stop ;
-    p.impl.poke (p.start + at) (Uint8.to_int v)
+    check_input_length (p.start + at + 1) p.stop ;
+    p.impl.poke1 (p.start + at) v
 
   let pokeWord ?(big_endian=false) p at v =
-    let fst, snd = v, Uint16.shift_right_logical v 8 in
-    let fst, snd = if big_endian then snd, fst else fst, snd in
+    check_input_length (p.start + at + 2) p.stop ;
     if debug then
-      Printf.eprintf "PokeWord 0x%04x at %d\n%!" (Uint16.to_int v) (p.start + at) ;
-    pokeByte p at (Uint16.to_uint8 fst) ;
-    pokeByte p (at+1) (Uint16.to_uint8 snd)
+      Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) (p.start + at) ;
+    (if big_endian then p.impl.poke2_be else p.impl.poke2_le) (p.start + at) v
 
   let pokeDWord ?(big_endian=false) p at v =
-    let fst, snd = v, Uint32.shift_right_logical v 16 in
-    let fst, snd = if big_endian then snd, fst else fst, snd in
+    check_input_length (p.start + at + 4) p.stop ;
     if debug then
-      Printf.eprintf "PokeDWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (p.start + at) ;
-    pokeWord ~big_endian p at (Uint32.to_uint16 fst) ;
-    pokeWord ~big_endian p (at+2) (Uint32.to_uint16 snd)
+      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (p.start + at) ;
+    (if big_endian then p.impl.poke4_be else p.impl.poke4_le) (p.start + at) v
 
   let pokeQWord ?(big_endian=false) p at v =
-    let fst, snd = v, Uint64.shift_right_logical v 32 in
-    let fst, snd = if big_endian then snd, fst else fst, snd in
-    pokeDWord ~big_endian p at (Uint64.to_uint32 fst) ;
-    pokeDWord ~big_endian p (at+4) (Uint64.to_uint32 snd)
+    check_input_length (p.start + at + 8) p.stop ;
+    (if big_endian then p.impl.poke8_be else p.impl.poke8_le) (p.start + at) v
 
   let pokeOWord ?(big_endian=false) p at v =
-    let fst, snd = v, Uint128.shift_right_logical v 64 in
-    let fst, snd = if big_endian then snd, fst else fst, snd in
-    pokeQWord ~big_endian p at (Uint128.to_uint64 fst) ;
-    pokeQWord ~big_endian p (at+8) (Uint128.to_uint64 snd)
+    check_input_length (p.start + at + 16) p.stop ;
+    (if big_endian then p.impl.poke16_be else p.impl.poke16_le) (p.start + at) v
 
   let setBit p o v =
     let bit = Uint8.(shift_left one (o mod 8)) in
@@ -489,9 +482,8 @@ struct
     skip p len
 
   let blitBytes p v sz =
-    let c = Uint8.to_int v in
     for i = p.start to p.start + sz - 1 do
-      p.impl.poke i c
+      p.impl.poke1 i v
     done ;
     skip p sz
 
@@ -509,18 +501,89 @@ struct
 end
 
 let pointer_of_bytes t =
-  let size = Bytes.length t
-  and peek at =
-    Bytes.unsafe_get t at |> Char.code
-  and peekn at sz =
-    Slice.make t at sz
-  and poke at v =
-    Bytes.unsafe_set t at (Char.chr v)
-  and poken at slice =
-    Bytes.blit slice.Slice.bytes slice.offset t at slice.length
-  and to_string () =
+  let size = Bytes.length t in
+  let peek1 at =
+    Bytes.unsafe_get t at |> Char.code |> Uint8.of_int in
+  let peek2_le at =
+    let b0 = peek1 at
+    and b1 = peek1 (at+1) in
+    Uint16.(logor (shift_left (of_uint8 b1) 8) (of_uint8 b0)) in
+  let peek2_be at =
+    let b0 = peek1 at
+    and b1 = peek1 (at+1) in
+    Uint16.(logor (shift_left (of_uint8 b0) 8) (of_uint8 b1)) in
+  let peek4_le at =
+    let b0 = peek2_le at
+    and b1 = peek2_le (at+2) in
+    Uint32.(logor (shift_left (of_uint16 b1) 16) (of_uint16 b0)) in
+  let peek4_be at =
+    let b0 = peek2_be at
+    and b1 = peek2_be (at+2) in
+    Uint32.(logor (shift_left (of_uint16 b0) 16) (of_uint16 b1)) in
+  let peek8_le at =
+    let b0 = peek4_le at
+    and b1 = peek4_le (at+4) in
+    Uint64.(logor (shift_left (of_uint32 b1) 32) (of_uint32 b0)) in
+  let peek8_be at =
+    let b0 = peek4_be at
+    and b1 = peek4_be (at+4) in
+    Uint64.(logor (shift_left (of_uint32 b0) 32) (of_uint32 b1)) in
+  let peek16_le at =
+    let b0 = peek8_le at
+    and b1 = peek8_le (at+8) in
+    Uint128.(logor (shift_left (of_uint64 b1) 64) (of_uint64 b0)) in
+  let peek16_be at =
+    let b0 = peek8_be at
+    and b1 = peek8_be (at+8) in
+    Uint128.(logor (shift_left (of_uint64 b0) 64) (of_uint64 b1)) in
+  let peekn at sz =
+    Slice.make t at sz in
+  let poke1 at v =
+    Bytes.unsafe_set t at (Char.chr (Uint8.to_int v)) in
+  let poke2_le at v =
+    let fst, snd = v, Uint16.shift_right_logical v 8 in
+    poke1 at (Uint16.to_uint8 fst) ;
+    poke1 (at+1) (Uint16.to_uint8 snd) in
+  let poke2_be at v =
+    let fst, snd = v, Uint16.shift_right_logical v 8 in
+    poke1 at (Uint16.to_uint8 snd) ;
+    poke1 (at+1) (Uint16.to_uint8 fst) in
+  let poke4_le at v =
+    let fst, snd = v, Uint32.shift_right_logical v 16 in
+    poke2_le at (Uint32.to_uint16 fst) ;
+    poke2_le (at+2) (Uint32.to_uint16 snd) in
+  let poke4_be at v =
+    let fst, snd = v, Uint32.shift_right_logical v 16 in
+    poke2_be at (Uint32.to_uint16 snd) ;
+    poke2_be (at+2) (Uint32.to_uint16 fst) in
+  let poke8_le at v =
+    let fst, snd = v, Uint64.shift_right_logical v 32 in
+    poke4_le at (Uint64.to_uint32 fst) ;
+    poke4_le (at+4) (Uint64.to_uint32 snd) in
+  let poke8_be at v =
+    let fst, snd = v, Uint64.shift_right_logical v 32 in
+    poke4_be at (Uint64.to_uint32 snd) ;
+    poke4_be (at+4) (Uint64.to_uint32 fst) in
+  let poke16_le at v =
+    let fst, snd = v, Uint128.shift_right_logical v 64 in
+    poke8_le at (Uint128.to_uint64 fst) ;
+    poke8_le (at+8) (Uint128.to_uint64 snd) in
+  let poke16_be at v =
+    let fst, snd = v, Uint128.shift_right_logical v 64 in
+    poke8_be at (Uint128.to_uint64 snd) ;
+    poke8_be (at+8) (Uint128.to_uint64 fst) in
+  let poken at slice =
+    Bytes.blit slice.Slice.bytes slice.offset t at slice.length in
+  let to_string () =
     Bytes.unsafe_to_string t in
-  Pointer.make { size ; peek ; peekn ; poke ; poken ; to_string }
+  Pointer.make
+    { peek1 ; peekn ;
+      peek2_le ; peek4_le ; peek8_le ; peek16_le ;
+      peek2_be ; peek4_be ; peek8_be ; peek16_be ;
+      poke1 ; poken ;
+      poke2_le ; poke4_le ; poke8_le ; poke16_le ;
+      poke2_be ; poke4_be ; poke8_be ; poke16_be ;
+      size ; to_string }
 
 let pointer_of_buffer size =
   pointer_of_bytes (Bytes.create size)
@@ -529,7 +592,7 @@ let pointer_of_string str =
   pointer_of_bytes (Bytes.of_string str)
 
 let peek_char p o =
-  p.Pointer.impl.peek o |> Char.chr
+  p.Pointer.impl.peek1 o |> Uint8.to_int |> Char.chr
 
 (* A C impl of the above, that reads from any address *)
 
@@ -539,26 +602,60 @@ struct
 
   external make : Uint64.t -> Size.t -> t = "ext_pointer_new"
   external size : t -> int = "ext_pointer_size" [@@noalloc]
-  external peek : t -> int -> int = "ext_pointer_peek" [@@noalloc]
+  external peek1 : t -> int -> Uint8.t = "ext_pointer_peek1" [@@noalloc]
+  external peek2_le : t -> int -> Uint16.t = "ext_pointer_peek2_le" [@@noalloc]
+  external peek2_be : t -> int -> Uint16.t = "ext_pointer_peek2_be" [@@noalloc]
+  external peek4_le : t -> int -> Uint32.t = "ext_pointer_peek4_le"
+  external peek4_be : t -> int -> Uint32.t = "ext_pointer_peek4_be"
+  external peek8_le : t -> int -> Uint64.t = "ext_pointer_peek8_le"
+  external peek8_be : t -> int -> Uint64.t = "ext_pointer_peek8_be"
+  external peek16_le : t -> int -> Uint128.t = "ext_pointer_peek16_le"
+  external peek16_be : t -> int -> Uint128.t = "ext_pointer_peek16_be"
   external peekn : t -> int -> int -> Slice.t = "ext_pointer_peekn"
-  external poke : t -> int -> int -> unit = "ext_pointer_poke" [@@noalloc]
+  external poke1 : t -> int -> Uint8.t -> unit = "ext_pointer_poke1" [@@noalloc]
+  external poke2_le : t -> int -> Uint16.t -> unit = "ext_pointer_poke2_le" [@@noalloc]
+  external poke2_be : t -> int -> Uint16.t -> unit = "ext_pointer_poke2_be" [@@noalloc]
+  external poke4_le : t -> int -> Uint32.t -> unit = "ext_pointer_poke4_le" [@@noalloc]
+  external poke4_be : t -> int -> Uint32.t -> unit = "ext_pointer_poke4_be" [@@noalloc]
+  external poke8_le : t -> int -> Uint64.t -> unit = "ext_pointer_poke8_le" [@@noalloc]
+  external poke8_be : t -> int -> Uint64.t -> unit = "ext_pointer_poke8_be" [@@noalloc]
+  external poke16_le : t -> int -> Uint128.t -> unit = "ext_pointer_poke16_le" [@@noalloc]
+  external poke16_be : t -> int -> Uint128.t -> unit = "ext_pointer_poke16_be" [@@noalloc]
   external poken : t -> int -> Slice.t -> unit = "ext_pointer_poken" [@@noalloc]
   external to_string : t -> string = "ext_pointer_to_string"
 end
 
 let pointer_of_address addr size =
   let t = ExtPointer.make addr size in
-  let peek at =
-    ExtPointer.peek t at
-  and peekn at sz =
-    ExtPointer.peekn t at sz
-  and poke at v =
-    ExtPointer.poke t at v
-  and poken at slice =
-    ExtPointer.poken t at slice
-  and to_string () =
-    ExtPointer.to_string t in
-  Pointer.make { size ; peek ; peekn ; poke ; poken ; to_string }
+  let peek1 at = ExtPointer.peek1 t at
+  and peek2_le at = ExtPointer.peek2_le t at
+  and peek2_be at = ExtPointer.peek2_be t at
+  and peek4_le at = ExtPointer.peek4_le t at
+  and peek4_be at = ExtPointer.peek4_be t at
+  and peek8_le at = ExtPointer.peek8_le t at
+  and peek8_be at = ExtPointer.peek8_be t at
+  and peek16_le at = ExtPointer.peek16_le t at
+  and peek16_be at = ExtPointer.peek16_be t at
+  and peekn at sz = ExtPointer.peekn t at sz
+  and poke1 at v = ExtPointer.poke1 t at v
+  and poke2_le at v = ExtPointer.poke2_le t at v
+  and poke2_be at v = ExtPointer.poke2_be t at v
+  and poke4_le at v = ExtPointer.poke4_le t at v
+  and poke4_be at v = ExtPointer.poke4_be t at v
+  and poke8_le at v = ExtPointer.poke8_le t at v
+  and poke8_be at v = ExtPointer.poke8_be t at v
+  and poke16_le at v = ExtPointer.poke16_le t at v
+  and poke16_be at v = ExtPointer.poke16_be t at v
+  and poken at slice = ExtPointer.poken t at slice
+  and to_string () = ExtPointer.to_string t in
+  Pointer.make
+    { peek1 ; peekn ;
+      peek2_le ; peek4_le ; peek8_le ; peek16_le ;
+      peek2_be ; peek4_be ; peek8_be ; peek16_be ;
+      poke1 ; poken ;
+      poke2_le ; poke4_le ; poke8_le ; poke16_le ;
+      poke2_be ; poke4_be ; poke8_be ; poke16_be ;
+      size ; to_string }
 
 (* Once a set is constructed few operations are possible with it:
  * - insert an item
