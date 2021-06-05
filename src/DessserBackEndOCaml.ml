@@ -305,20 +305,59 @@ struct
     else if v = neg_infinity then String.print oc "neg_infinity"
     else Legacy.Printf.sprintf "%h" v |> String.print oc
 
+  let lift_i32 v oc =
+    if Int32.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Int32.of_int (%ld)" v
+    else
+      pp oc "Int32.of_int32 (%ldl)" v
+
+  let lift_i40 v oc =
+    if Int40.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Int40.of_int (%d)" (Int40.to_int v)
+    else
+      pp oc "Int40.of_int64 (%sL)" (Int40.to_string v)
+
+  let lift_i48 v oc =
+    if Int48.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Int48.of_int (%d)" (Int48.to_int v)
+    else
+      pp oc "Int48.of_int64 (%sL)" (Int48.to_string v)
+
+  let lift_i56 v oc =
+    if Int56.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Int56.of_int (%d)" (Int56.to_int v)
+    else
+      pp oc "Int56.of_int64 (%sL)" (Int56.to_string v)
+
   let lift_u32 v oc =
-    pp oc "Uint32.of_int32 (%ldl)" (Uint32.to_int32 v)
+    if Uint32.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Uint32.of_int %d" (Uint32.to_int v)
+    else
+      pp oc "Uint32.of_int32 (%ldl)" (Uint32.to_int32 v)
 
   let lift_u40 v oc =
-    pp oc "Uint40.of_int64 (%LdL)" (Uint40.to_int64 v)
+    if Uint40.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Uint40.of_int %d" (Uint40.to_int v)
+    else
+      pp oc "Uint40.of_int64 (%LdL)" (Uint40.to_int64 v)
 
   let lift_u48 v oc =
-    pp oc "Uint48.of_int64 (%LdL)" (Uint48.to_int64 v)
+    if Uint48.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Uint48.of_int %d" (Uint48.to_int v)
+    else
+      pp oc "Uint48.of_int64 (%LdL)" (Uint48.to_int64 v)
 
   let lift_u56 v oc =
-    pp oc "Uint56.of_int64 (%LdL)" (Uint56.to_int64 v)
+    if Uint56.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Uint56.of_int %d" (Uint56.to_int v)
+    else
+      pp oc "Uint56.of_int64 (%LdL)" (Uint56.to_int64 v)
 
   let lift_u64 v oc =
-    pp oc "Uint64.of_int64 (%LdL)" (Uint64.to_int64 v)
+    if Uint64.(compare v (of_int (to_int v))) = 0 then
+      pp oc "Uint64.of_int %d" (Uint64.to_int v)
+    else
+      pp oc "Uint64.of_int64 (%LdL)" (Uint64.to_int64 v)
 
   let lift_u128 v oc =
     if Uint128.compare v (Uint128.of_int max_int) < 0 then
@@ -548,15 +587,15 @@ struct
     | E.E0 (I24 i) ->
         emit ?name p l e (fun oc -> pp oc "Int24.of_int (%s)" (Int24.to_string i))
     | E.E0 (I32 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int32.of_int32 (%ldl)" i)
+        emit ?name p l e (lift_i32 i)
     | E.E0 (I40 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int40.of_int64 (%sL)" (Int40.to_string i))
+        emit ?name p l e (lift_i40 i)
     | E.E0 (I48 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int48.of_int64 (%sL)" (Int48.to_string i))
+        emit ?name p l e (lift_i48 i)
     | E.E0 (I56 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int56.of_int64 (%sL)" (Int56.to_string i))
+        emit ?name p l e (lift_i56 i)
     | E.E0 (I64 i) ->
-        emit ?name p l e (fun oc -> pp oc "Int64.of_int64 (%LdL)" i)
+        emit ?name p l e (fun oc -> pp oc "(%LdL)" i)
     | E.E0 (I128 i) ->
         emit ?name p l e (lift_i128 i)
     | E.E0 (Size s) ->
