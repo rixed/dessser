@@ -653,22 +653,26 @@ let rec peval l e =
       let value = p value in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
-      let l =
-        (E.E0 (Identifier n1), E.type_of l (first value)) ::
-        (E.E0 (Identifier n2), E.type_of l (secnd value)) :: l in
-      let body = peval l body in
-      let fst_count = count_id_uses n1 body
-      and snd_count = count_id_uses n2 body in
-      if fst_count = 0 then
-        if snd_count = 0 then body
-        else E.E2 (Let n2, secnd value, body) |> p
-      else if snd_count = 0 then
-        E.E2 (Let n1, first value, body) |> p
-      else (match value with
-        | E.E2 (Pair, e1, e2) ->
-            E.E2 (Let n1, e1, E2 (Let n2, e2, body)) |> p
-        | _ ->
-            E.E2 (LetPair (n1, n2), value, body))
+      (match E.type_of l value with
+      | T.Pair (f, s) ->
+          let l =
+            (E.E0 (Identifier n1), f) ::
+            (E.E0 (Identifier n2), s) :: l in
+          let body = peval l body in
+          let fst_count = count_id_uses n1 body
+          and snd_count = count_id_uses n2 body in
+          if fst_count = 0 then
+            if snd_count = 0 then body
+            else E.E2 (Let n2, secnd value, body) |> p
+          else if snd_count = 0 then
+            E.E2 (Let n1, first value, body) |> p
+          else (match value with
+            | E.E2 (Pair, e1, e2) ->
+                E.E2 (Let n1, e1, E2 (Let n2, e2, body)) |> p
+            | _ ->
+                E.E2 (LetPair (n1, n2), value, body))
+      | _ ->
+          E.E2 (LetPair (n1, n2), value, body))
    | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
       | Nth, e1, (E0S ((MakeVec | MakeLst _), es) as e2) ->
