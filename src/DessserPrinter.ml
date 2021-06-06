@@ -9,8 +9,8 @@ type t =
   { context : context ;
     decl : string IO.output ;
     def : string IO.output ;
-    mutable decls : string IO.output list ;
-    mutable defs : string  IO.output list ;
+    mutable decls : string list ;
+    mutable defs : string list ;
     mutable indent : string ;
     mutable declared : Set.String.t ;
     mutable external_types : (string * (t -> T.backend_id -> string)) list ;
@@ -33,8 +33,8 @@ let new_top_level p f =
   let p' = make ~declared:p.declared p.context p.type_names p.external_types in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
-  p.defs <- p'.def :: List.rev_append p'.defs p.defs ;
-  p.decls <- p'.decl :: List.rev_append p'.decls p.decls ;
+  p.defs <- IO.close_out p'.def :: List.rev_append p'.defs p.defs ;
+  p.decls <- IO.close_out p'.decl :: List.rev_append p'.decls p.decls ;
   p.declared <- Set.String.union p.declared p'.declared ;
   p.external_types <- assoc_merge p.external_types p'.external_types ;
   p.type_names <- assoc_merge p.type_names p'.type_names ;

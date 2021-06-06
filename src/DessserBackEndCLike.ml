@@ -280,8 +280,7 @@ struct
           ()
       | lst ->
           List.rev lst |>
-          List.iter (fun io ->
-            pp oc "%s" (IO.close_out io)) in
+          List.iter (String.print oc) in
     pp oc
       "%t%a%a%a%a%a%a%a%a%a%a%a%s"
       print_intro

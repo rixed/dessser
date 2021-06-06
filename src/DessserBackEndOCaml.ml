@@ -305,61 +305,64 @@ struct
     else if v = neg_infinity then String.print oc "neg_infinity"
     else Legacy.Printf.sprintf "%h" v |> String.print oc
 
-  let lift_i32 v oc =
+  let lift_i32 oc v =
     if Int32.(compare v (of_int (to_int v))) = 0 then
       pp oc "Int32.of_int (%ld)" v
     else
       pp oc "Int32.of_int32 (%ldl)" v
 
-  let lift_i40 v oc =
+  let lift_i40 oc v =
     if Int40.(compare v (of_int (to_int v))) = 0 then
       pp oc "Int40.of_int (%d)" (Int40.to_int v)
     else
       pp oc "Int40.of_int64 (%sL)" (Int40.to_string v)
 
-  let lift_i48 v oc =
+  let lift_i48 oc v =
     if Int48.(compare v (of_int (to_int v))) = 0 then
       pp oc "Int48.of_int (%d)" (Int48.to_int v)
     else
       pp oc "Int48.of_int64 (%sL)" (Int48.to_string v)
 
-  let lift_i56 v oc =
+  let lift_i56 oc v =
     if Int56.(compare v (of_int (to_int v))) = 0 then
       pp oc "Int56.of_int (%d)" (Int56.to_int v)
     else
       pp oc "Int56.of_int64 (%sL)" (Int56.to_string v)
 
-  let lift_u32 v oc =
+  (* Even for unsigned the parentheses are required because the relation
+   *   of_int (to_int v) = v
+   * might hold using a negative integer. *)
+  let lift_u32 oc v =
     if Uint32.(compare v (of_int (to_int v))) = 0 then
-      pp oc "Uint32.of_int %d" (Uint32.to_int v)
+      pp oc "Uint32.of_int (%d)" (Uint32.to_int v)
     else
       pp oc "Uint32.of_int32 (%ldl)" (Uint32.to_int32 v)
 
-  let lift_u40 v oc =
+  let lift_u40 oc v =
     if Uint40.(compare v (of_int (to_int v))) = 0 then
-      pp oc "Uint40.of_int %d" (Uint40.to_int v)
+      pp oc "Uint40.of_int (%d)" (Uint40.to_int v)
     else
       pp oc "Uint40.of_int64 (%LdL)" (Uint40.to_int64 v)
 
-  let lift_u48 v oc =
+  let lift_u48 oc v =
     if Uint48.(compare v (of_int (to_int v))) = 0 then
-      pp oc "Uint48.of_int %d" (Uint48.to_int v)
+      pp oc "Uint48.of_int (%d)" (Uint48.to_int v)
     else
       pp oc "Uint48.of_int64 (%LdL)" (Uint48.to_int64 v)
 
-  let lift_u56 v oc =
+  let lift_u56 oc v =
     if Uint56.(compare v (of_int (to_int v))) = 0 then
-      pp oc "Uint56.of_int %d" (Uint56.to_int v)
+      pp oc "Uint56.of_int (%d)" (Uint56.to_int v)
     else
       pp oc "Uint56.of_int64 (%LdL)" (Uint56.to_int64 v)
 
-  let lift_u64 v oc =
+  let lift_u64 oc v =
     if Uint64.(compare v (of_int (to_int v))) = 0 then
-      pp oc "Uint64.of_int %d" (Uint64.to_int v)
+      pp oc "Uint64.of_int (%d)" (Uint64.to_int v)
     else
       pp oc "Uint64.of_int64 (%LdL)" (Uint64.to_int64 v)
 
-  let lift_u128 v oc =
+  let lift_u128 oc v =
     if Uint128.compare v (Uint128.of_int max_int) < 0 then
       pp oc "Uint128.of_int (%d)" (Uint128.to_int v)
     else (
@@ -368,7 +371,7 @@ struct
       pp oc "Uint128.of_bytes_little_endian (Bytes.of_string %S) 0"
         (Bytes.to_string bytes))
 
-  let lift_i128 v oc =
+  let lift_i128 oc v =
     if Int128.compare v (Int128.of_int min_int) > 0 &&
        Int128.compare v (Int128.of_int max_int) < 0 then
       pp oc "Int128.of_int (%d)" (Int128.to_int v)
@@ -451,7 +454,13 @@ struct
         print ?name emit p l e
       else
         let n = print emit p l e in
-        "("^ m ^".to_float "^ n ^")"
+        "("^ m ^".to_float "^ n ^")" in
+    let preallocate printer i oc =
+      let value= IO.to_string printer i in
+      let uniq_id = "const_"^ Digest.(string value |> to_hex) in
+      let def = "let "^ uniq_id ^" = "^ value ^"\n" in
+      if not (List.mem def p.P.defs) then p.P.defs <- def :: p.P.defs ;
+      String.print oc uniq_id
     in
     match e with
     | E.E1S (Apply, f, es) ->
@@ -567,17 +576,17 @@ struct
     | E.E0 (U24 i) ->
         emit ?name p l e (fun oc -> pp oc "Uint24.of_int (%s)" (Uint24.to_string i))
     | E.E0 (DWord u) | E.E0 (U32 u) ->
-        emit ?name p l e (lift_u32 u)
+        emit ?name p l e (preallocate lift_u32 u)
     | E.E0 (U40 u) ->
-        emit ?name p l e (lift_u40 u)
+        emit ?name p l e (preallocate lift_u40 u)
     | E.E0 (U48 u) ->
-        emit ?name p l e (lift_u48 u)
+        emit ?name p l e (preallocate lift_u48 u)
     | E.E0 (U56 u) ->
-        emit ?name p l e (lift_u56 u)
+        emit ?name p l e (preallocate lift_u56 u)
     | E.E0 (QWord u) | E.E0 (U64 u) ->
-        emit ?name p l e (lift_u64 u)
+        emit ?name p l e (preallocate lift_u64 u)
     | E.E0 (OWord u) | E.E0 (U128 u) ->
-        emit ?name p l e (lift_u128 u)
+        emit ?name p l e (preallocate lift_u128 u)
     | E.E0 (Bytes s) ->
         emit ?name p l e (fun oc -> pp oc "Slice.of_string %S" (Bytes.to_string s))
     | E.E0 (I8 i) ->
@@ -587,17 +596,17 @@ struct
     | E.E0 (I24 i) ->
         emit ?name p l e (fun oc -> pp oc "Int24.of_int (%s)" (Int24.to_string i))
     | E.E0 (I32 i) ->
-        emit ?name p l e (lift_i32 i)
+        emit ?name p l e (preallocate lift_i32 i)
     | E.E0 (I40 i) ->
-        emit ?name p l e (lift_i40 i)
+        emit ?name p l e (preallocate lift_i40 i)
     | E.E0 (I48 i) ->
-        emit ?name p l e (lift_i48 i)
+        emit ?name p l e (preallocate lift_i48 i)
     | E.E0 (I56 i) ->
-        emit ?name p l e (lift_i56 i)
+        emit ?name p l e (preallocate lift_i56 i)
     | E.E0 (I64 i) ->
-        emit ?name p l e (fun oc -> pp oc "(%LdL)" i)
+        emit ?name p l e (preallocate (fun oc i -> pp oc "(%LdL)" i) i)
     | E.E0 (I128 i) ->
-        emit ?name p l e (lift_i128 i)
+        emit ?name p l e (preallocate lift_i128 i)
     | E.E0 (Size s) ->
         emit ?name p l e (fun oc -> pp oc "Size.of_int (%d)" s)
     | E.E0 (Address a) ->
