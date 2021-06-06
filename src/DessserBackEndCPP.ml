@@ -838,10 +838,6 @@ struct
         method_call e1 "skip" [ e2 ]
     | E.E2 (DataPtrSub, e1, e2) ->
         binary_infix_op e1 "-" e2
-    | E.E1 (DataPtrPush, e1) ->
-        method_call e1 "push" []
-    | E.E1 (DataPtrPop, e1) ->
-        method_call e1 "pop" []
     | E.E1 (RemSize, e1) ->
         method_call e1 "remSize" []
     | E.E1 (Offset, e1) ->

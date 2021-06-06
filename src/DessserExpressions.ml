@@ -219,8 +219,6 @@ type e1 =
   | BytesOfString
   | Cardinality (* of lists, vectors or sets *)
   | ReadByte
-  | DataPtrPush
-  | DataPtrPop
   | RemSize
   | Offset
   | Not
@@ -496,7 +494,7 @@ let rec can_precompute l i = function
       List.for_all (can_precompute l i) es
   | E1 (Function _, body) ->
       can_precompute l i body
-  | E1 ((Dump | DataPtrPush | DataPtrPop | Assert | MaskGet _), _) ->
+  | E1 ((Dump | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute l i e
   | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
@@ -840,8 +838,6 @@ let string_of_e1 = function
   | BytesOfString -> "bytes-of-string"
   | Cardinality -> "cardinality"
   | ReadByte -> "read-byte"
-  | DataPtrPush -> "data-ptr-push"
-  | DataPtrPop -> "data-ptr-pop"
   | RemSize -> "rem-size"
   | Offset -> "offset"
   | Not -> "not"
@@ -1428,8 +1424,6 @@ struct
     | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
     | Lst [ Sym "cardinality" ; x ] -> E1 (Cardinality, e x)
     | Lst [ Sym "read-byte" ; x ] -> E1 (ReadByte, e x)
-    | Lst [ Sym "data-ptr-push" ; x ] -> E1 (DataPtrPush, e x)
-    | Lst [ Sym "data-ptr-pop" ; x ] -> E1 (DataPtrPop, e x)
     | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
     | Lst [ Sym "offset" ; x ] -> E1 (Offset, e x)
     | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
@@ -1921,8 +1915,6 @@ let rec type_of l e0 =
   | E3 (BlitByte, _, _, _) -> T.DataPtr
   | E2 (DataPtrAdd, _, _) -> T.DataPtr
   | E2 (DataPtrSub, _, _) -> T.Size
-  | E1 (DataPtrPush, _) -> T.DataPtr
-  | E1 (DataPtrPop, _) -> T.DataPtr
   | E1 (RemSize, _) -> T.Size
   | E1 (Offset, _) -> T.Size
   | E2 (And, _, _) -> T.bool
@@ -2356,7 +2348,7 @@ let rec map_env l f e =
 let has_side_effect e =
   try
     iter (function
-      | E1 ((Dump | DataPtrPush | DataPtrPop | ReadByte | ReadWord _ |
+      | E1 ((Dump | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
              U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
@@ -2768,8 +2760,6 @@ let rec type_check l e =
     | E2 (DataPtrSub, e1, e2) ->
         check_eq l e1 T.DataPtr ;
         check_eq l e2 T.DataPtr
-    | E1 ((DataPtrPush | DataPtrPop), e1) ->
-        check_eq l e1 T.DataPtr
     | E1 ((RemSize | Offset), e) ->
         check_eq l e T.DataPtr
     | E3 (DataPtrOfPtr, e1, e2, e3) ->
@@ -3692,10 +3682,6 @@ struct
   let data_ptr_add e1 e2 = E2 (DataPtrAdd, e1, e2)
 
   let data_ptr_sub e1 e2 = E2 (DataPtrSub, e1, e2)
-
-  let data_ptr_push e = E1 (DataPtrPush, e)
-
-  let data_ptr_pop e = E1 (DataPtrPop, e)
 
   let data_ptr_of_string e = E1 (DataPtrOfString, e)
 

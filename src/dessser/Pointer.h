@@ -3,7 +3,6 @@
 #include <cassert>
 #include <memory>
 #include <cstring>
-#include <stack>
 #include "dessser/Bytes.h"
 #include "dessser/Pair.h"
 #include "dessser/typedefs.h"
@@ -29,8 +28,6 @@ struct Pointer {
   size_t size;
   // Current location of the read/write pointer inside the buffer/bytes:
   size_t offset;
-  // Stack of saved offset positions:
-  std::stack<size_t> stack;
 
   /* The type of pointer used to hold a heap allocated value.
    * If this is set then buffer must by null, and the other way around.
@@ -62,7 +59,6 @@ struct Pointer {
     bytes(that.bytes),
     size(that.size),
     offset(that.offset),
-    stack(that.stack),
     value(that.value)
   {}
 
@@ -72,7 +68,6 @@ struct Pointer {
     bytes(that.bytes),
     size(that.offset + size_),
     offset(that.offset + offset_),
-    stack(that.stack),
     value(that.value)
   {
     assert(size <= that.size);
@@ -452,22 +447,6 @@ struct Pointer {
     assert(bytes == that.bytes);
     assert(offset >= that.offset);
     return Size(offset - that.offset);
-  }
-
-  Pointer push()
-  {
-    Pointer ptr(*this);
-    ptr.stack.push(ptr.offset);
-    return ptr;
-  }
-
-  Pointer pop()
-  {
-    Pointer ptr(*this);
-    assert(! ptr.stack.empty());
-    ptr.offset = ptr.stack.top();
-    ptr.stack.pop();
-    return ptr;
   }
 
   Size remSize() const

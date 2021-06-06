@@ -318,7 +318,6 @@ struct
   type t =
     { start : int ;
       stop : int ;
-      stack : int list ;
       seq : int ;
       impl : impl }
 
@@ -349,7 +348,6 @@ struct
   let make impl =
     { start = 0 ;
       stop = impl.size ;
-      stack = [] ;
       seq = next_seq () ;
       impl }
 
@@ -486,18 +484,6 @@ struct
       p.impl.poke1 i v
     done ;
     skip p sz
-
-  let push p =
-    { p with stack = p.start :: p.stack }
-
-  let pop p =
-    let start, stack =
-      match p.stack with
-      | [] ->
-          Printf.eprintf "Cannot pop pointer offset from empty stack\n%!" ;
-          assert false
-      | o :: s -> o, s in
-    { p with start ; stack }
 end
 
 let pointer_of_bytes t =

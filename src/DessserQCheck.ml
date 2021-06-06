@@ -304,10 +304,9 @@ let e1_of_int n =
          U32OfSize ; BitOfBool ; BoolOfBit ; ListOfSList ; ListOfSListRev ;
          SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ; BoolOfU8 ;
          StringLength ; StringOfBytes ; BytesOfString ; Cardinality ; ReadByte
-         ; DataPtrPush ; DataPtrPop ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ;
-         Log10 ; Sqrt ; Ceil ; Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ;
-         ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ; Fst ; Snd ;
-         Identity ; GetEnv ; GetMin |]
+         ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; Log10 ; Sqrt ; Ceil ; Floor
+         ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ; SinH ; TanH ;
+         Lower ; Upper ; Hash ; Fst ; Snd ; Identity ; GetEnv ; GetMin |]
   in
   e1s.(n mod Array.length e1s)
 
