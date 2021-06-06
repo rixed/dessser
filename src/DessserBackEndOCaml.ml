@@ -297,7 +297,7 @@ struct
   let print_comment oc fmt =
     pp oc ("(* " ^^ fmt ^^ " *)\n")
 
-  let print_float_literal v oc =
+  let print_float_literal oc v =
     (* printf "%F" would not work for infinity:
      * https://caml.inria.fr/mantis/view.php?id=7685
      * and "%h" not for neg_infinity. *)
@@ -560,11 +560,11 @@ struct
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "Null")
     | E.E0 (Float f) ->
-        emit ?name p l e (print_float_literal f)
+        emit ?name p l e (preallocate print_float_literal f)
     | E.E0 Unit ->
         emit ?name p l e (fun oc -> pp oc "()")
     | E.E0 (String s) ->
-        emit ?name p l e (fun oc -> String.print_quoted oc s)
+        emit ?name p l e (preallocate String.print_quoted s)
     | E.E0 (Bit b) | E.E0 (Bool b) ->
         emit ?name p l e (fun oc -> Bool.print oc b)
     | E.E0 (Char c) ->
