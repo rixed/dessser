@@ -172,7 +172,7 @@ struct
                 (type_identifier p t)
                 (if is_mutable t then "&" else ""))
           ) args ^">"
-    | T.Void -> "void"
+    | T.Void -> "Void"
     | T.DataPtr -> "Pointer"
     | T.Size -> "Size"
     | T.Address -> "Address"
@@ -189,9 +189,8 @@ struct
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
   let print_binding n tn f oc =
-    if tn = "void" then (
-      (* Variables of type void are invalid: *)
-      pp oc "%t;" f
+    if tn = "Void" then (
+      pp oc "%s %s { (%t, VOID) };" tn n f
     ) else (
       (* Beware that this must not be parsed as a function declaration. Thus
        * the use of the "uniform initialization" syntax. But then a new issue
@@ -242,13 +241,8 @@ struct
 
   (* Print the code for returning the value [n] of expression [e].
    * This is merely `return n;` unless e has type void: *)
-  let print_return n p l e =
-    match E.type_of l e with
-    | T.Void ->
-        (* Then we could not have defined n, let's just return: *)
-        pp p.P.def "%sreturn;\n" p.P.indent
-    | _ ->
-        pp p.P.def "%sreturn %s;\n" p.P.indent n
+  let print_return n p =
+    pp p.P.def "%sreturn %s;\n" p.P.indent n
 
   let rec print ?name emit p l e =
     let gen_sym ?name pref =
@@ -327,6 +321,8 @@ struct
     | E.E1 (Comment c, e1) ->
         ppi p.P.def "/* %s */" c ;
         print ?name emit p l e1
+    | E.E0S (Seq, []) ->
+        "VOID"
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "" es
     | E.E0S ((MakeVec | MakeLst _ | MakeTup), es) ->
@@ -359,7 +355,7 @@ struct
         print ?name emit p l e1
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
-        ppi p.P.def "(void)%s;" n ;
+        ppi p.P.def "((void)%s, VOID);" n ;
         ""
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
@@ -1019,7 +1015,7 @@ struct
           let l = E.enter_function fid ts l in
           P.indent_more p (fun () ->
             let n = print emit p l e1 in
-            print_return n p l e1) ;
+            print_return n p) ;
           pp oc "%s}\n" p.P.indent ;
           pp oc "%s" p.P.indent)
     | E.E0 (Param (fid, n)) ->
@@ -1313,7 +1309,7 @@ struct
     pp p.P.def "%s{\n" p.P.indent ;
     P.indent_more p (fun () ->
       let n = print emit p l e in
-      print_return n p l e) ;
+      print_return n p) ;
     pp p.P.def "%s}\n" p.P.indent ;
     pp p.P.def "%s%s %s(%s_init());\n\n" p.P.indent tn n n
 

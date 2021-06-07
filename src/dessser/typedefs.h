@@ -15,4 +15,7 @@ typedef size_t Size;
 typedef bool Bit;
 typedef void *Address;
 
+typedef bool Void;
+#define VOID false
+
 #endif
