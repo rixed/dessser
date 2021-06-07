@@ -434,7 +434,8 @@ and e0s_eq e1 e2 = e1 = e2
 and e1_eq e1 e2 =
   match e1, e2 with
   | Function (fid1, typ1), Function (fid2, typ2) ->
-      fid1 = fid2 && Array.for_all2 T.eq typ1 typ2
+      fid1 = fid2 &&
+      array_for_all2_no_exc T.eq typ1 typ2
   | e1, e2 -> e1 = e2
 
 and e1s_eq e1 e2 = e1 = e2
