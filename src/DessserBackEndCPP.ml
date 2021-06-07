@@ -983,7 +983,7 @@ struct
         let t = E.type_of l e1 in
         let tn = type_identifier p t in
         let res = gen_sym ?name "let_res_" in
-        let l = (E.E0 (Identifier n), t) :: l in
+        let l = { l with local = (E.E0 (Identifier n), t) :: l.local } in
         let t2 = E.type_of l e2 in
         ppi p.P.def "%s %s;" (type_identifier p t2) res ;
         ppi p.P.def "{" ;
@@ -996,8 +996,8 @@ struct
     | E.E2 (LetPair (name1, name2), e1, e2) ->
         let n1 = print emit p l e1 in
         let res = gen_sym ?name "letpair_res_" in
-        let l = (E.E0 (Identifier name1), E.type_of l (E.Ops.first e1)) ::
-                (E.E0 (Identifier name2), E.type_of l (E.Ops.secnd e1)) :: l in
+        let l = E.add_local name1 (E.Ops.first e1) l |>
+                E.add_local name2 (E.Ops.secnd e1) in
         let t2 = E.type_of l e2 in
         ppi p.P.def "%s %s;" (type_identifier p t2) res ;
         ppi p.P.def "{" ;
@@ -1010,16 +1010,13 @@ struct
         res
     | E.E1 (Function (fid, ts), e1) ->
         emit ?name p l e (fun oc ->
-          array_print_i ~first:"[&](" ~last:") {\n" ~sep:", "
+          array_print_i ~first:"[](" ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier p t)
               (if is_mutable t then "&" else "")
               (param fid i))
             oc ts ;
-          let l =
-            Array.fold_lefti (fun l i t ->
-              (E.E0 (Param (fid, i)), t) :: l
-            ) l ts in
+          let l = E.enter_function fid ts l in
           P.indent_more p (fun () ->
             let n = print emit p l e1 in
             print_return n p l e1) ;
@@ -1104,7 +1101,7 @@ struct
           | T.Data { vtyp = Set _ ; _ } -> true
           | _ -> false in
         if is_set then
-          ppi p.P.def "%s->iter([&](%s &x_) {" lst item_tn
+          ppi p.P.def "%s->iter([&%s, &%s](%s &x_) {" lst res body item_tn
         else
           ppi p.P.def "for (%s x_ : %s) {" item_tn lst ;
         P.indent_more p (fun () ->

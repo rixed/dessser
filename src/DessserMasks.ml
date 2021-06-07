@@ -196,7 +196,7 @@ let rec project mn ma =
         match ma with
         | Skip -> mns', n, i + 1
         | Insert e ->
-            (match E.type_of [] e with
+            (match E.type_of E.no_env e with
             | T.Data mn ->
                 ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
             | t -> raise (Invalid_type_for_mask t))
@@ -239,7 +239,7 @@ let rec project mn ma =
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->
-      let te = E.type_of [] e in
+      let te = E.type_of E.no_env e in
       if te = Data mn then mn (* Does not change the type *)
       else raise (Types_do_not_match { expr = te ; mask = T.Data mn })
   | Insert _ ->

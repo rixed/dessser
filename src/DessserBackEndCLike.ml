@@ -24,7 +24,7 @@ let () =
         None)
 
 type emitter =
-  ?name:string -> P.t -> (E.t * T.t) list -> E.t -> (string IO.output -> unit) ->
+  ?name:string -> P.t -> E.env -> E.t -> (string IO.output -> unit) ->
     string
 
 (* Avoid modifying the name when it's valid: *)
@@ -58,14 +58,14 @@ sig
     P.t -> T.t -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_binding_toplevel :
-    emitter -> string -> P.t -> (E.t * T.t) list -> E.t -> unit
+    emitter -> string -> P.t -> E.env -> E.t -> unit
 
   val print_identifier_declaration :
-    string -> P.t -> (E.t * T.t) list -> E.t -> unit
+    string -> P.t -> E.env -> E.t -> unit
 
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
 
-  val print : ?name:string -> emitter -> P.t -> (E.t * T.t) list -> E.t -> string
+  val print : ?name:string -> emitter -> P.t -> E.env -> E.t -> string
 
   val source_intro : string
   val source_outro : string
@@ -109,7 +109,7 @@ struct
           assert (s <> "") ;
           if List.mem_assoc e ext (* already defined externally *) ||
              List.mem s lst (* already known to be undefined *) ||
-             not (List.mem_assoc e init_l) (* identifier defined in [e] itself *)
+             not (List.mem_assoc e init_l.E.global) (* identifier defined in [e] itself *)
           then (
             lst
           ) else (

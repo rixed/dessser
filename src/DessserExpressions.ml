@@ -468,9 +468,6 @@ and eq e1 e2 =
       e4_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23 && eq e14 e24
   | _ -> false
 
-(* Variables of that type are usually called "l" *)
-type env = (t * T.t) list
-
 (* Note re. Apply: even if the function can be precomputed (which it usually
  * can) and its parameters as well, the application can be precomputed only
  * if the function body can in a context where the parameters can.
@@ -1630,14 +1627,21 @@ let of_string s =
       Printf.sprintf2 "Cannot parse %S as a single expression" s |>
       failwith
 
+(* Global and local environment. Variables of that type are usually called "l".
+ * Notice that since there are no closures, the local environment is emptied
+ * at function entry. *)
+type env = { global : (t * T.t) list ; local : (t * T.t) list }
+
+let no_env = { global = [] ; local = [] }
+
 exception Type_error of t * t * T.t * string
 exception Type_error_param of t * t * int * T.t * string
 exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
 exception Apply_error of t * string
 exception Comparator_error of t * T.t * string
-exception Unbound_identifier of t * bool * string * (t * T.t) list
-exception Unbound_parameter of t * param_id * (t * T.t) list
+exception Unbound_identifier of t * bool * string * env
+exception Unbound_parameter of t * param_id * env
 exception Invalid_expression of t * string
 
 (* expr must be a plain string: *)
@@ -1645,11 +1649,19 @@ let field_name_of_expr = function
   | E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
+let enter_function fid ts l =
+  { l with local = Array.fold_lefti (fun l i t ->
+                     (E0 (Param (fid, i)), t) :: l
+                   ) [] ts }
+
+let rec add_local n e l =
+  { l with local = (E0 (Identifier n), type_of l e) :: l.local }
+
 (* Returns the type of [e0].
- * [l] is an association list of bound identifiers.
+ * [l] is the environment
  * [e0] must have been type checked already: *)
 (* FIXME: merge with type_check? *)
-let rec type_of l e0 =
+and type_of l e0 =
   let maybe_nullable_of l e =
     let t = type_of l e in
     try
@@ -1998,29 +2010,31 @@ let rec type_of l e0 =
       type_of l e
   | E2 (Member, _, _) -> T.bool
   | E0 (Identifier n) as e ->
-      (try List.assoc e l
+      (try List.assoc e l.local
       with Not_found ->
-        raise (Unbound_identifier (e0, false, n, l)))
+        try List.assoc e l.global
+        with Not_found ->
+          raise (Unbound_identifier (e0, false, n, l)))
   | E0 (ExtIdentifier n) as e ->
-      (try List.assoc e l
+      (try List.assoc e l.local
       with Not_found ->
-        raise (Unbound_identifier (e0, true, n, l)))
+        try List.assoc e l.global
+        with Not_found ->
+          raise (Unbound_identifier (e0, true, n, l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.Mask
   | E2 (Let n, e1, e2) ->
-      type_of ((E0 (Identifier n), type_of l e1) :: l) e2
+      let l = add_local n e1 l in
+      type_of l e2
   | E2 (LetPair (n1, n2), e1, e2) ->
-      let l = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
-              (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
+      let l = add_local n1 (E1 (Fst, e1)) l |>
+              add_local n2 (E1 (Snd, e1)) in
       type_of l e2
   | E1 (Function (fid, ts), e) ->
-      let l =
-        Array.fold_lefti (fun l i t ->
-          (E0 (Param (fid, i)), t) :: l
-        ) l ts in
+      let l = enter_function fid ts l in
       Function (ts, type_of l e)
   | E0 (Param p) as e ->
-      (try List.assoc e l
+      (try List.assoc e l.local
       with Not_found ->
         raise (Unbound_parameter (e0, p, l)))
   | E3 (If, _, e, _) ->
@@ -2114,7 +2128,7 @@ and register_user_constructor name out_vt ?print ?parse def =
   let def = id :: def in
   let _ =
     List.fold_left (fun prev f ->
-      match type_of [] f with
+      match type_of no_env f with
       | T.Function (ins, out_t') ->
           if not (T.eq out_t' out_t) then
             Printf.sprintf2 "register_user_constructor: constructors must \
@@ -2232,11 +2246,8 @@ let rec fold_env u l f e =
       u
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
-  | E1 (Function (id, ts), e1) ->
-      let l =
-        Array.fold_lefti (fun l i t ->
-          (E0 (Param (id, i)), t) :: l
-        ) l ts in
+  | E1 (Function (fid, ts), e1) ->
+      let l = enter_function fid ts l in
       fold_env u l f e1
   | E1 (_, e1) ->
       fold_env u l f e1
@@ -2244,11 +2255,11 @@ let rec fold_env u l f e =
       let u = fold_env u l f e1 in
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
   | E2 (Let n, e1, e2) ->
-      let l' = (E0 (Identifier n), type_of l e1) :: l in
+      let l' = add_local n e1 l in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (LetPair (n1, n2), e1, e2) ->
-      let l' = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
-               (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
+      let l' = add_local n1 (E1 (Fst, e1)) l |>
+               add_local n2 (E1 (Snd, e1)) in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
@@ -2304,13 +2315,10 @@ let rec map_env l f e =
   | E0S (op, es) ->
       let es = List.map (map_env l f) es in
       f l (E0S (op, es))
-  | E1 (Function (id, ts), e1) ->
-      let l =
-        Array.fold_lefti (fun l i t ->
-          (E0 (Param (id, i)), t) :: l
-        ) l ts in
+  | E1 (Function (fid, ts), e1) ->
+      let l = enter_function fid ts l in
       let e1 = map_env l f e1 in
-      f l (E1 (Function (id, ts), e1))
+      f l (E1 (Function (fid, ts), e1))
   | E1 (op, e1) ->
       let e1 = map_env l f e1 in
       f l (E1 (op, e1))
@@ -2320,13 +2328,13 @@ let rec map_env l f e =
       f l (E1S (op, e1, es))
   | E2 (Let n, e1, e2) ->
       let e1 = map_env l f e1 in
-      let l = (E0 (Identifier n), type_of l e1) :: l in
+      let l = add_local n e1 l in
       let e2 = map_env l f e2 in
       f l (E2 (Let n, e1, e2))
   | E2 (LetPair (n1, n2), e1, e2) ->
       let e1 = map_env l f e1 in
-      let l = (E0 (Identifier n1), type_of l (E1 (Fst, e1))) ::
-              (E0 (Identifier n2), type_of l (E1 (Snd, e1))) :: l in
+      let l = add_local n1 (E1 (Fst, e1)) l |>
+              add_local n2 (E1 (Snd, e1)) in
       let e2 = map_env l f e2 in
       f l (E2 (LetPair (n1, n2), e1, e2))
   | E2 (op, e1, e2) ->
@@ -2939,7 +2947,7 @@ let rec type_check l e =
 (*$inject
   let pass_type_check s =
     let e = Parser.expr s |> List.hd in
-    try type_check [] e ; true
+    try type_check no_env e ; true
     with _ -> false *)
 
 (*$T pass_type_check
@@ -2956,7 +2964,7 @@ let print_environment oc l =
     Printf.fprintf oc "%a:%a"
       (print ~max_depth:2) e
       T.print t in
-  pretty_list_print p oc l
+  pretty_list_print p oc (l.global @ l.local)
 
 let () =
   let max_depth = 5 in
@@ -3063,7 +3071,7 @@ let gen_id =
     incr seq ;
     prefix ^"_"^ string_of_int !seq
 
-let let_ ?(l=[]) ?name value f =
+let let_ ?name ~l value f =
   match value with
   (* If [value] is already an identifier (or a param) there is no need for a
    * new one: *)
@@ -3082,73 +3090,67 @@ let let_ ?(l=[]) ?name value f =
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
-        try (E0 (Identifier n), type_of l value) :: l
+        try add_local n value l
         with Unbound_identifier _ | Unbound_parameter _ -> l in
       E2 (Let n, value, f l (E0 (Identifier n)))
 
-let let_pair ?(l=[]) ?n1 ?n2 value f =
+let let_pair ?n1 ?n2 ~l value f =
   let name = function Some n -> gen_id n | None -> gen_id "gen" in
   let n1 = name n1 and n2 = name n2 in
+  let l = add_local n1 (E1 (Fst, value)) l |>
+          add_local n2 (E1 (Snd, value)) in
   let id n = E0 (Identifier n) in
-  let id1 = id n1 and id2 = id n2 in
-  let l = (id1, type_of l (E1 (Fst, value))) ::
-          (id2, type_of l (E1 (Snd, value))) :: l in
-  E2 (LetPair (n1, n2), value, f l id1 id2)
+  E2 (LetPair (n1, n2), value, f l (id n1) (id n2))
 
 (* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
-  let pair_id = gen_id "pair" ^"_"^ what in
-  let n1 = pair_id ^"_fst"
-  and n2 = pair_id ^"_snd" in
-  let_ ~l ~name:pair_id e (fun l pair_ ->
-    let_ ~l ~name:n1 (E1 (Fst, pair_)) (fun l n1_ ->
-      let_ ~l ~name:n2 (E1 (Snd, pair_)) (fun l n2_ ->
-        f l n1_ n2_)))
+  let n1 = what ^"_fst"
+  and n2 = what ^"_snd" in
+  let_ ~l ~name:what e (fun l p ->
+    let_pair ~n1 ~n2 ~l p f)
 
 (* Create a function expression: *)
 let func =
   let next_id = ref 0 in
-  fun ?(l=[]) typs f ->
+  fun ~l ts f ->
     let fid = !next_id in
     incr next_id ;
-    let l =
-      List.rev_append (List.init (Array.length typs) (fun i ->
-        E0 (Param (fid, i)), typs.(i))) l in
-    E1 (Function (fid, typs), f l fid)
+    let l = enter_function fid ts l in
+    E1 (Function (fid, ts), f l fid)
 
 (* Specialized to a given arity: *)
 
-let func0 ?l f =
-  func ?l [||] (fun l _fid -> f l)
+let func0 ~l f =
+  func ~l [||] (fun l _fid -> f l)
 
-let func1 ?l t1 f =
-  func ?l [| t1 |] (fun l fid ->
+let func1 ~l t1 f =
+  func ~l [| t1 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0)) in
     f l p1)
 
-let func2 ?l t1 t2 f =
-  func ?l [| t1 ; t2 |] (fun l fid ->
+let func2 ~l t1 t2 f =
+  func ~l [| t1 ; t2 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1)) in
     f l p1 p2)
 
-let func3 ?l t1 t2 t3 f =
-  func ?l [| t1 ; t2 ; t3 |] (fun l fid ->
+let func3 ~l t1 t2 t3 f =
+  func ~l [| t1 ; t2 ; t3 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2)) in
     f l p1 p2 p3)
 
-let func4 ?l t1 t2 t3 t4 f =
-  func ?l [| t1 ; t2 ; t3 ; t4 |] (fun l fid ->
+let func4 ~l t1 t2 t3 t4 f =
+  func ~l [| t1 ; t2 ; t3 ; t4 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2))
     and p4 = E0 (Param (fid, 3)) in
     f l p1 p2 p3 p4)
 
-let func5 ?l t1 t2 t3 t4 t5 f =
-  func ?l [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun l fid ->
+let func5 ~l t1 t2 t3 t4 t5 f =
+  func ~l [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun l fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2))
@@ -3165,7 +3167,7 @@ let is_identity = function
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(BatIO.to_string T.print)
   (Pair (u24, DataPtr)) \
-    (type_of [] Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
+    (type_of no_env Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
 *)
 
 (*
@@ -3828,19 +3830,19 @@ let () =
   and ip6_t = T.required (T.get_user_type "Ip6") in
   let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
   register_user_constructor "Ip" (Sum ip_mns)
-    [ func1 T.(Data ip4_t) (fun _l x -> construct ip_mns 0 x) ;
-      func1 T.(Data ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
+    [ func1 ~l:no_env T.(Data ip4_t) (fun _l x -> construct ip_mns 0 x) ;
+      func1 ~l:no_env T.(Data ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
   register_user_constructor "Cidr4"
     (Rec [| "ip", ip4_t ; "mask", T.required (Base U8) |])
-    [ func2 T.(Data ip4_t) T.u8 (fun _l ip mask ->
+    [ func2 ~l:no_env T.(Data ip4_t) T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   register_user_constructor "Cidr6"
     (Rec [| "ip", ip6_t ; "mask", T.required (Base U8) |])
-    [ func2 T.(Data ip6_t) T.u8 (fun _l ip mask ->
+    [ func2 ~l:no_env T.(Data ip6_t) T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   let cidr4_t = T.required (T.get_user_type "Cidr4")
   and cidr6_t = T.required (T.get_user_type "Cidr6") in
   let cidr_mns = [| "v4", cidr4_t ; "v6", cidr6_t |] in
   register_user_constructor "Cidr" (Sum cidr_mns)
-    [ func1 T.(Data cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
-      func1 T.(Data cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]
+    [ func1 ~l:no_env T.(Data cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
+      func1 ~l:no_env T.(Data cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]

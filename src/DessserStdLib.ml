@@ -51,7 +51,7 @@ let rec random_slist mn =
     force ~what:"random_slist rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length)
   and body =
-    E.func2 T.i32 T.(SList (Data mn)) (fun _l _idx lst ->
+    E.func2 ~l:E.no_env T.i32 T.(SList (Data mn)) (fun _l _idx lst ->
       cons (random mn) lst)
   and init = eol T.(Data mn) in
   repeat ~from ~to_ ~body ~init
@@ -79,7 +79,7 @@ and random mn =
       (* Just 5 random letters for now: *)
       repeat
         ~from:(i32 0l) ~to_:(i32 5l)
-        ~init:(string "") ~body:(E.func2 T.i32 T.string (fun _l _i s ->
+        ~init:(string "") ~body:(E.func2 ~l:E.no_env T.i32 T.string (fun _l _i s ->
           let c = std_random T.(required (Base Char)) in
           append_string s (string_of_char_ c)))
   | Base Char ->
@@ -334,7 +334,7 @@ let last_ip_of_cidr6 cidr =
  * Also handles the case where [lst] and/or [e] is null (note than null is known
  * not to be in a (non-null) empty set).
  * Return value is nullable whenever [item] or [lst] is. *)
-let rec is_in ?(l=[]) item lst =
+let rec is_in ?(l=E.no_env) item lst =
   let open E.Ops in
   let_ ~l ~name:"lst" lst (fun l lst ->
     let_ ~l ~name:"item" item (fun l item ->

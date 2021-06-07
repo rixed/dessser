@@ -1214,7 +1214,7 @@ struct
                 P.indent_more p (fun () ->
                   let ns =
                     List.map (fun e ->
-                      print emit p [] e
+                      print emit p E.no_env e
                     ) csts in
                   if csts = [] then (
                     ppi p.P.def "false"
@@ -1270,15 +1270,15 @@ struct
         if n1 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1)) ;
         let t = E.type_of l e1 in
-        let l = (E.E0 (Identifier n), t) :: l in
+        let l = { l with local = (E.E0 (Identifier n), t) :: l.local } in
         print ?name emit p l e2
     | E.E2 (LetPair (n1, n2), e1, e2) ->
         let n = "("^ valid_identifier n1 ^", "^ valid_identifier n2 ^")" in
         let n1_n2 = print ~name:n emit p l e1 in
         if n1_n2 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1_n2)) ;
-        let l = (E.E0 (Identifier n1), E.type_of l (E.Ops.first e1)) ::
-                (E.E0 (Identifier n2), E.type_of l (E.Ops.secnd e1)) :: l in
+        let l = E.add_local n1 (E.Ops.first e1) l |>
+                E.add_local n2 (E.Ops.secnd e1) in
         print ?name emit p l e2
     | E.E1 (Function (_fid, [||]), e1) ->
         emit ?name p l e (fun oc ->
@@ -1291,10 +1291,7 @@ struct
           array_print_i ~first:"(fun " ~last:" ->\n" ~sep:" "
             (fun i oc _t -> String.print oc (param fid i))
             oc ts ;
-          let l =
-            Array.fold_lefti (fun l i t ->
-              (E.E0 (Param (fid, i)), t) :: l
-            ) l ts in
+          let l = E.enter_function fid ts l in
           P.indent_more p (fun () ->
             let n = print emit p l e1 in
             pp oc "%s%s)" p.P.indent n))

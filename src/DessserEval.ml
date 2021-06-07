@@ -313,12 +313,9 @@ let rec peval l e =
           | [ e ] -> e
           | es -> seq es )
       | op, es -> E0S (op, es))
-  | E1 (Function (fid, ps), body) ->
-      let l =
-        Array.fold_lefti (fun l i p ->
-          (E.E0 (Param (fid, i)), p) :: l
-        ) l ps in
-      E1 (Function (fid, ps), peval l body)
+  | E1 (Function (fid, ts), body) ->
+      let l = E.enter_function fid ts l in
+      E1 (Function (fid, ts), peval l body)
   | E1 (op, e1) ->
       (match op, p e1 with
       | Comment _, e1 -> e1 (* FIXME: Would prevent further optimization *)
@@ -589,7 +586,7 @@ let rec peval l e =
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
       let l =
-        try (E.E0 (Identifier name), E.type_of l value) :: l
+        try E.add_local name value l
         with E.Unbound_identifier _ | E.Unbound_parameter _ -> l in
       let body = peval l body in
       let def = E.E2 (Let name, value, body) in
@@ -656,8 +653,8 @@ let rec peval l e =
       (match E.type_of l value with
       | T.Pair (f, s) ->
           let l =
-            (E.E0 (Identifier n1), f) ::
-            (E.E0 (Identifier n2), s) :: l in
+            { l with local = (E.E0 (Identifier n1), f) ::
+                             (E.E0 (Identifier n2), s) :: l.local } in
           let body = peval l body in
           let fst_count = count_id_uses n1 body
           and snd_count = count_id_uses n2 body in

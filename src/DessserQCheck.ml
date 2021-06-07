@@ -566,11 +566,11 @@ let expression =
 
 (*$Q expression & ~count:20
   expression (fun e -> \
-    match type_check [] e with \
+    match type_check E.no_env e with \
     | exception _ -> \
         true \
     | () -> \
-        type_of [] e = Void || can_be_compiled e)
+        type_of E.no_env e = Void || can_be_compiled e)
 *)
 
 (* Non regression tests: *)
@@ -713,8 +713,8 @@ let sexpr mn =
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
-        S2S.desser mn l src dst) in
+      func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+        (fun l src dst -> S2S.desser mn l src dst) in
     make_converter ~dev_mode:true be ~mn e
 
   let test_desser alloc_dst be mn des ser =
@@ -723,12 +723,13 @@ let sexpr mn =
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
-        Ops.let_ ~l alloc_dst (fun l tdst ->
-          with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
-            let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
-            let dst = secnd (T2S.desser mn l tdst dst) in
-            pair src dst))) in
+      func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+        (fun l src dst ->
+          Ops.let_ ~l alloc_dst (fun l tdst ->
+            with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
+              let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
+              let dst = secnd (T2S.desser mn l tdst dst) in
+              pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     make_converter ~dev_mode:true be ~mn e
@@ -781,11 +782,12 @@ let sexpr mn =
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr mn =
-    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn) (fun l src dst ->
-      let v_src = ToValue.make mn l src in
-      with_sploded_pair ~l "v_src" v_src (fun l v src ->
-        let dst = OfValue.serialize mn l copy_field v dst in
-        pair src dst))
+    func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      (fun l src dst ->
+        let v_src = ToValue.make mn l src in
+        with_sploded_pair ~l "v_src" v_src (fun l v src ->
+          let dst = OfValue.serialize mn l copy_field v dst in
+          pair src dst))
 *)
 (*$R
   let test_heap be mn =
@@ -927,7 +929,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        func2 T.DataPtr T.DataPtr (fun l src dst ->
+        func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -941,7 +943,7 @@ let sexpr mn =
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.DataPtr T.DataPtr (fun l src dst ->
+        func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -977,7 +979,7 @@ let sexpr mn =
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        func2 T.DataPtr T.DataPtr (fun l src dst ->
+        func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -989,7 +991,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        func2 T.DataPtr T.DataPtr (fun l src dst ->
+        func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
           DS.desser ?ser_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;

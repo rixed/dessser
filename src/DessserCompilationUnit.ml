@@ -43,29 +43,29 @@ let name_type compunit vtyp name =
       Printf.sprintf "name_type: type %S already named %S" name name' |>
       invalid_arg
 
-(* Extract the currently defined environment from the compunit: *)
+(* Extract the currently defined (global) environment from the compunit: *)
 let environment compunit =
   (* Start with external identifiers: *)
-  let l =
+  let g =
     List.map (fun (name, typ) ->
       E.Ops.ext_identifier name, typ
     ) compunit.external_identifiers in
   (* Then already defined identifiers: *)
-  let l =
-    List.fold_left (fun l (name, _, t) ->
-      (E.Ops.identifier name, t) :: l
-    ) l compunit.identifiers in
+  let g =
+    List.fold_left (fun g (name, _, t) ->
+      (E.Ops.identifier name, t) :: g
+    ) g compunit.identifiers in
   (* Finally, we also want to be able to access verbatim identifiers: *)
-  let l =
-    List.fold_left (fun l verb ->
+  let g =
+    List.fold_left (fun g verb ->
       (* Assume identifiers will be available in all relevant backends when
        * they are used. Also assume any named identifier is accessible from
        * everywhere (ie. including those already defined for Bottom location).
        *)
-      if verb.name = "" then l else
-        (E.Ops.identifier verb.name, verb.typ) :: l
-    ) l compunit.verbatim_definitions in
-  l
+      if verb.name = "" then g else
+        (E.Ops.identifier verb.name, verb.typ) :: g
+    ) g compunit.verbatim_definitions in
+  E.{ global = g ; local = [] }
 
 let add_external_identifier compunit name typ =
   { compunit with external_identifiers =

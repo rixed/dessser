@@ -461,11 +461,11 @@ struct
          * had_quote: *)
         (* FIXME: handle escaping the separator/newline! *)
         let cond =
-          E.func1 ~l T.Byte (fun l b ->
-            not_ (
-              if_ had_quote
-                ~then_:(eq b quote_byte)
-                ~else_:(is_sep_or_newline conf l b)))
+          if_ had_quote
+            ~then_:(
+              E.func1 ~l T.Byte (fun _l b -> ne b quote_byte))
+            ~else_:(
+              E.func1 ~l T.Byte (fun l b -> not_ (is_sep_or_newline conf l b)))
         and init = size 0
         and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
@@ -601,7 +601,7 @@ struct
       if i >= len then
         comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
-               (let_ ~name:"b" (peek_byte p (size len)) (fun _l b ->
+               (let_ ~l ~name:"b" (peek_byte p (size len)) (fun _l b ->
                  is_sep_or_newline conf l b)))
       else
         and_

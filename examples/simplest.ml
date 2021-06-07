@@ -170,7 +170,7 @@ let test_desser () =
                nullable = false } in
   let src = data_ptr_of_string (string "\001X")
   and dst = data_ptr_of_string (string "_____") in
-  E.Ops.let_ (TestDesSer.desser mn [] src dst) (fun _l e ->
+  E.Ops.let_ ~l:E.no_env (TestDesSer.desser mn E.no_env src dst) (fun _l e ->
     seq [ dump e ;
           dump (string "\n") ;
           e ])
@@ -178,7 +178,7 @@ let test_desser () =
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =
   let e = test_desser () in
-  E.type_check [] e ;
+  E.type_check E.no_env e ;
   let backend, exe_ext, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module DessserBackEndOCaml : BACKEND), ".opt", ""

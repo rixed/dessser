@@ -55,28 +55,28 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let convert =
     if has_convert then
       (* convert from encoding_in to encoding_out: *)
-      E.func2 DataPtr DataPtr (fun l p1 p2 ->
+      E.func2 ~l:E.no_env DataPtr DataPtr (fun l p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None l p1 p2)
     else nop in
   let to_value =
     (* convert from encoding_in into a heapvalue: *)
-    E.func1 DataPtr (fun l src ->
+    E.func1 ~l:E.no_env DataPtr (fun l src ->
       first (ToValue.make schema l src)) in
   let ma = copy_field in
   let value_sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 (Data schema) (fun l v ->
+    E.func1 ~l:E.no_env (Data schema) (fun l v ->
       OfValue.sersize schema l ma v) in
   let of_value =
     (* convert from a heapvalue into encoding_out. *)
-    E.func2 (Data schema) DataPtr (fun l v dst ->
+    E.func2 ~l:E.no_env (Data schema) DataPtr (fun l v dst ->
       OfValue.serialize schema l ma v dst) in
   if debug then (
-    if has_convert then E.type_check [] convert ;
-    E.type_check [] to_value ;
-    E.type_check [] value_sersize ;
-    E.type_check [] of_value) ;
+    if has_convert then E.type_check E.no_env convert ;
+    E.type_check E.no_env to_value ;
+    E.type_check E.no_env value_sersize ;
+    E.type_check E.no_env of_value) ;
   let compunit = U.make () in
   (* Christen the schema type with the user provided name: *)
   let compunit = U.name_type compunit schema.T.vtyp (type_name |? "t") in
@@ -114,8 +114,8 @@ let converter
     | _p, e -> apply e [v] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
-  if debug then E.type_check [] convert ;
+    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
+  if debug then E.type_check E.no_env convert ;
   let compunit = U.make () in
   let compunit, _, convert_name =
     U.add_identifier_of_expression compunit ~name:"convert" convert in
@@ -151,12 +151,12 @@ let lmdb main
   let module DS = DesSer (Des) (Ser) in
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 DataPtr DataPtr (fun l -> DS.desser key_schema l) in
+    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser key_schema l) in
   let convert_val =
-    E.func2 DataPtr DataPtr (fun l -> DS.desser val_schema l) in
+    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser val_schema l) in
   if debug then (
-    E.type_check [] convert_key ;
-    E.type_check [] convert_val
+    E.type_check E.no_env convert_key ;
+    E.type_check E.no_env convert_val
   ) ;
   let compunit = U.make () in
   let compunit, _, convert_key_name =
@@ -205,15 +205,15 @@ let aggregator
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let to_value =
-    E.func1 DataPtr (fun l -> ToValue.make schema l) in
+    E.func1 ~l:E.no_env DataPtr (fun l -> ToValue.make schema l) in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
-  E.type_check [] init_expr ;
-  let state_t = E.type_of [] init_expr in
+  E.type_check E.no_env init_expr ;
+  let state_t = E.type_of E.no_env init_expr in
   (* Then check the update expression, that must be a function of the state_t
    * and the input_t: *)
-  E.type_check [] update_expr ;
-  let update_t = E.type_of [] update_expr in
+  E.type_check E.no_env update_expr ;
+  let update_t = E.type_of E.no_env update_expr in
   if not (T.eq update_t (T.Function ([| state_t ; Data schema |], T.Void)))
   then
     Printf.sprintf2
@@ -225,9 +225,9 @@ let aggregator
       T.print update_t |>
     failwith ;
   (* Then check the finalizer: *)
-  E.type_check [] finalize_expr ;
+  E.type_check E.no_env finalize_expr ;
   let output_t =
-    match E.type_of [] finalize_expr with
+    match E.type_of E.no_env finalize_expr with
     | T.Function ([| a1 |], Data mn) when a1 = state_t -> mn
     | t ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
@@ -239,7 +239,7 @@ let aggregator
   let module OfValue = DessserHeapValue.Serialize (Ser) in
   let ma = copy_field in
   let of_value =
-    E.func2 (Data output_t) DataPtr (fun l v dst ->
+    E.func2 ~l:E.no_env (Data output_t) DataPtr (fun l v dst ->
       OfValue.serialize output_t l ma v dst) in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
