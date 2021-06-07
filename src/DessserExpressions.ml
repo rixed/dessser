@@ -2834,46 +2834,46 @@ let rec type_check l e =
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
-    | E4 (ReadWhile, e1 (*byte->bool*), e2 (*'a->byte->'a*), e3 (*'a*), e4 (*ptr*)) ->
-        check_params1 l e1 (fun t1 t2 ->
-          check_param e1 0 t1 T.Byte ;
-          check_param e1 1 t2 T.bool) ;
-        check_params2 l e2 (fun t1 t2 t3 ->
-          check_eq l e3 t1 ;
-          check_param e2 1 t2 T.Byte ;
-          check_eq l e3 t3) ;
-        check_eq l e4 T.DataPtr
-    | E3 (LoopWhile, e1 (*'a->bool*), e2 (*'a->'a*), e3 (*'a*)) ->
-        check_params1 l e1 (fun t1 t2 (* return type *)->
-          check_eq l e3 t1 ;
-          check_param e1 ~-1 t2 T.bool) ;
-        check_params1 l e2 (fun t1 t2 (* return type *)->
-          check_eq l e3 t1 ;
-          check_eq l e3 t2)
-    | E3 (LoopUntil, e1, e2, e3) ->
-        check_params1 l e1 (fun t1 t2 (* return type *)->
-          check_eq l e3 t1 ;
-          check_eq l e3 t2) ;
-        check_params1 l e2 (fun t1 t2 (* return type *)->
-          check_eq l e3 t1 ;
-          check_param e2 ~-1 t2 T.bool) ;
-    | E3 (Fold, e1, e2, e3) ->
+    | E4 (ReadWhile, cond, body, init, ptr) ->
+        check_params1 l cond (fun t1 t2 ->
+          check_param cond 0 t1 T.Byte ;
+          check_param cond 1 t2 T.bool) ;
+        check_params2 l body (fun t1 t2 t3 ->
+          check_eq l init t1 ;
+          check_param body 1 t2 T.Byte ;
+          check_eq l init t3) ;
+        check_eq l ptr T.DataPtr
+    | E3 (LoopWhile, cond, body, init) ->
+        check_params1 l cond (fun t1 t2 (* return type *)->
+          check_eq l init t1 ;
+          check_param cond ~-1 t2 T.bool) ;
+        check_params1 l body (fun t1 t2 (* return type *)->
+          check_eq l init t1 ;
+          check_eq l init t2)
+    | E3 (LoopUntil, body, cond, init) ->
+        check_params1 l body (fun t1 t2 (* return type *)->
+          check_eq l init t1 ;
+          check_eq l init t2) ;
+        check_params1 l cond (fun t1 t2 (* return type *)->
+          check_eq l init t1 ;
+          check_param cond ~-1 t2 T.bool) ;
+    | E3 (Fold, init, body, lst) ->
         (* Fold function first parameter is the result and second is the list
          * item *)
         let item_t =
-          T.Data (get_item_type ~lst:true ~vec:true ~set:true e0 l e3) in
-        check_params2 l e2 (fun p1 p2 ret ->
-          check_eq l e1 p1 ;
-          check_eq l e1 ret ;
-          check_param e2 1 p2 item_t)
-    | E4 (Repeat, e1 (*from*), e2 (*to*), e3 (*idx->'a->'a*), e4 (*'a*)) ->
+          T.Data (get_item_type ~lst:true ~vec:true ~set:true e0 l lst) in
+        check_params2 l body (fun p1 p2 ret ->
+          check_eq l init p1 ;
+          check_eq l init ret ;
+          check_param body 1 p2 item_t)
+    | E4 (Repeat, from, to_, body, init) ->
         (* TODO: any integer for from/to and body index *)
-        check_eq l e1 T.i32 ;
-        check_eq l e2 T.i32 ;
-        check_params2 l e3 (fun t1 t2 t3 ->
-          check_param e3 0 t1 T.i32 ;
-          check_eq l e4 t2 ;
-          check_eq l e4 t3)
+        check_eq l from T.i32 ;
+        check_eq l to_ T.i32 ;
+        check_params2 l body (fun t1 t2 t3 ->
+          check_param body 0 t1 T.i32 ;
+          check_eq l init t2 ;
+          check_eq l init t3)
     | E1 (MaskGet _, e1) ->
         check_eq l e1 T.Mask
     | E1 (LabelOf, e1) ->
