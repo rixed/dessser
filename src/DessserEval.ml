@@ -935,7 +935,7 @@ let rec peval l e =
       | op, e1, e2, e3 -> E3 (op, e1, e2, e3))
   | E4 (op, e1, e2, e3, e4) ->
       (match op, p e1, p e2, p e3, p e4 with
-      | ReadWhile, E0 (Bool false), _, init, pos -> pair init pos
+      | ReadWhile, E1 (Function _, E0 (Bool false)), _, init, pos -> pair init pos
       | Repeat, (E0 (I32 f) as from), (E0 (I32 t) as to_), body, init ->
           let c = Int32.compare f t in
           if c >= 0 then init
