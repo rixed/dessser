@@ -290,7 +290,6 @@ type e2 =
   | Gt
   | Ge
   | Eq
-  | Ne
   (* Arithmetic operators returning same type as their inputs, which must
    * be of the same type (namely, any numeric). *)
   | Add
@@ -888,7 +887,6 @@ let string_of_e2 = function
   | Gt -> "gt"
   | Ge -> "ge"
   | Eq -> "eq"
-  | Ne -> "ne"
   | Add -> "add"
   | Sub -> "sub"
   | Mul -> "mul"
@@ -1486,7 +1484,7 @@ struct
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
     | Lst [ Sym "eq" ; x1 ; x2 ] -> E2 (Eq, e x1, e x2)
-    | Lst [ Sym "ne" ; x1 ; x2 ] -> E2 (Ne, e x1, e x2)
+    | Lst [ Sym "ne" ; x1 ; x2 ] -> E1 (Not, E2 (Eq, e x1, e x2))
     | Lst [ Sym "add" ; x1 ; x2 ] -> E2 (Add, e x1, e x2)
     | Lst [ Sym "sub" ; x1 ; x2 ] -> E2 (Sub, e x1, e x2)
     | Lst [ Sym "mul" ; x1 ; x2 ] -> E2 (Mul, e x1, e x2)
@@ -1800,7 +1798,6 @@ and type_of l e0 =
   | E2 (Gt, _, _) -> T.bool
   | E2 (Ge, _, _) -> T.bool
   | E2 (Eq, _, _) -> T.bool
-  | E2 (Ne, _, _) -> T.bool
   | E1 (StringOfFloat, _)
   | E1 (StringOfChar, _)
   | E1 (StringOfInt, _) -> T.string
@@ -2595,7 +2592,7 @@ let rec type_check l e =
         check_nullable false l e
     | E1 (Force _, e) ->
         check_nullable true l e
-    | E2 ((Gt | Ge | Eq | Ne | Min | Max), e1, e2) ->
+    | E2 ((Gt | Ge | Eq | Min | Max), e1, e2) ->
         (* TODO: For Eq, also accept sets? *)
         check_comparable l e1 ;
         check_same_types l e1 e2

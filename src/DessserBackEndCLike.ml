@@ -149,7 +149,7 @@ struct
         BitNot | StringLength | RemSize | Not | Abs | Neg |
         Fst | Snd | Head | Tail | Ignore | Identity), _)
     | E2 ((
-        Nth | Gt | Ge | Eq | Ne | Add | Sub | Mul | Min | Max |
+        Nth | Gt | Ge | Eq | Add | Sub | Mul | Min | Max |
         BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit), _, _) ->
         true
     (* And and Or can not be inlined because all or part of their argument

@@ -617,8 +617,6 @@ struct
         binary_infix_op e1 ">=" e2
     | E.E2 (Eq, e1, e2) ->
         binary_infix_op e1 "=" e2
-    | E.E2 (Ne, e1, e2) ->
-        binary_infix_op e1 "<>" e2
     | E.E2 (Add, e1, e2) ->
         binary_mod_op "add" e1 e2
     | E.E2 (Sub, e1, e2) ->

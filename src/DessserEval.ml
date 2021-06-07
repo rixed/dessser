@@ -219,10 +219,6 @@ let comp2 op e1 e2 =
       comp2' op e1 e2 (fun a b -> bool (a = b))
                       (fun a b -> bool (Int128.compare a b = 0))
                       (fun a b -> bool (Uint128.compare a b = 0))
-  | Ne ->
-      comp2' op e1 e2 (fun a b -> bool (a <> b))
-                      (fun a b -> bool (Int128.compare a b <> 0))
-                      (fun a b -> bool (Uint128.compare a b <> 0))
   | _ ->
       E.E2 (op, e1, e2)
 
@@ -690,7 +686,7 @@ let rec peval l e =
       | Eq, E0 (Null _), E1 (NotNull, _)
       | Eq, E1 (NotNull, _), E0 (Null _) ->
           false_
-      | (Gt | Ge | Eq | Ne as op), e1, e2 -> comp2 op e1 e2
+      | (Gt | Ge | Eq as op), e1, e2 -> comp2 op e1 e2
       | Add, e1, e2 when is_zero e1 -> e2
       | (Add | Sub), e1, e2 when is_zero e2 -> e1
       | Sub, e1, e2 when is_zero e1 -> neg e2 |> p
