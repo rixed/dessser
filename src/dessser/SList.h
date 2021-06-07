@@ -29,8 +29,8 @@ struct SList {
     : cells(std::make_shared<Cell>(hd, tl)) {}
 
   // Mapped from another SList:
-  template<class T2>
-  SList(SList<T2> const that, std::function<T(T2)> f)
+  template<class TInit, class T2>
+  SList(TInit const init, std::function<T(TInit, T2)> f, SList<T2> const that)
   {
     // TODO
   }

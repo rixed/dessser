@@ -221,20 +221,24 @@ let percentiles ~l vs ps =
     | Ok p_t ->
         let_ ~name:"vs" ~l vs (fun l vs ->
           let ks =
-            map_ ps (E.func1 ~l (T.Data p_t) (fun _l p ->
-              seq [
-                assert_ (and_ (ge (to_float p) (float 0.))
-                              (le (to_float p) (float 100.))) ;
-                mul (mul (to_float p) (float 0.01))
-                    (to_float (sub (cardinality vs) (u32_of_int 1))) |>
-                round |>
-                to_u32 ])) in
+            let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
+            let_ ~l ~name:"card_vs" card_vs (fun l card_vs ->
+              map_ card_vs (E.func2 ~l T.float (T.Data p_t) (fun _l card_vs p ->
+                seq [
+                  assert_ (and_ (ge (to_float p) (float 0.))
+                                (le (to_float p) (float 100.))) ;
+                  mul (mul (to_float p) (float 0.01)) card_vs |>
+                  round |>
+                  to_u32 ])
+              ) ps) in
+          let vs_t = E.type_of l vs in
           let_ ~name:"perc_ks" ~l ks (fun l ks ->
             seq [
               (* Sort vs: *)
               partial_sort vs ks ;
-              map_ ks (E.func1 ~l T.u32 (fun _l k ->
-                get_vec k vs)) ])))
+              map_ vs (E.func2 ~l vs_t T.u32 (fun _l vs k ->
+                get_vec k vs)
+              ) ks ])))
 
 (* If [e] is not nullable, [to_nullable l e] is [not_null e].
  * If [e] is nullable already then [to_nullable l e] is just [e]. *)

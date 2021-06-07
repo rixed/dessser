@@ -21,9 +21,10 @@ let rec conv ?(depth=0) ~to_ l d =
   let conv = conv ~depth:(depth+1) in
   let conv_maybe_nullable = conv_maybe_nullable ~depth:(depth+1) in
   let map_items d mn1 mn2 =
-    map_ d (
-      E.func1 ~l (T.Data mn1)
-        (conv_maybe_nullable ~to_:mn2)) in
+    map_ nop (
+      E.func2 ~l T.Void (T.Data mn1) (fun l _void item ->
+        conv_maybe_nullable ~to_:mn2 l item)
+      ) d in
   let from = (T.mn_of_t (E.type_of l d)).T.vtyp in
   if T.value_eq from to_ then d else
   (* A null can be cast to whatever. Actually, type-checking will type nulls

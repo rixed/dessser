@@ -19,8 +19,8 @@ struct Vec : public std::vector<T> {
   }
 
   // Mapped from another Vec:
-  template<class T2>
-  Vec(Vec<DIM, T2> const that, std::function<T(T2)> f)
+  template<class TInit, class T2>
+  Vec(TInit const init, std::function<T(TInit, T2)> f, Vec<DIM, T2> const that)
   {
     // TODO
   }

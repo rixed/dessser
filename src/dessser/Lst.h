@@ -34,8 +34,8 @@ struct Lst : public std::vector<T> {
   }
 
   // Mapped from another Lst:
-  template<class T2>
-  Lst(Lst<T2> const that, std::function<T(T2)> f)
+  template<class TInit, class T2>
+  Lst(TInit const init, std::function<T(TInit, T2)> f, Lst<T2> const that)
   {
     // TODO
   }

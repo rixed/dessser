@@ -325,7 +325,6 @@ type e2 =
   | Or
   | Cons
   | Pair (* TODO: should be MakePair *)
-  | Map (* Map over any iterable (list, slist, vector) *)
   | Min
   | Max
   (* Membership test for vectors, lists and sets; Not for CIDRs nor strings.
@@ -379,6 +378,7 @@ type e3 =
   (* Unline LoopWhile, LoopUntil executes the body at least once *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
   | Fold (* args are: init, (res -> item -> res), list/vector/set *)
+  | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
   | DataPtrOfPtr
@@ -400,7 +400,7 @@ type e3 =
 
 type e4 =
   | ReadWhile
-      (* Cond (byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
+      (* Cond ('a->byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
            Result ('a*ptr)
         Read whenever cond returns true, or the input stream is exhausted *)
   | Repeat (* From (incl.) * To (exlc.) * body (idx->'a->'a) * Init value *)
@@ -506,9 +506,6 @@ let rec can_precompute f i = function
   | E2 (LetPair (n1, n2), e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f (n1 :: n2 :: i) e2
-  | E2 (Map, e1, e2) ->
-      can_precompute f i e1 &&
-      can_precompute f i e2
   | E2 (_, e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f i e2
@@ -926,7 +923,6 @@ let string_of_e2 = function
   | Or -> "or"
   | Cons -> "cons"
   | Pair -> "pair"
-  | Map -> "map"
   | Min -> "min"
   | Max -> "max"
   | Member -> "mem"
@@ -960,6 +956,7 @@ let string_of_e3 = function
   | LoopWhile -> "loop-while"
   | LoopUntil -> "loop-until"
   | Fold -> "fold"
+  | Map -> "map"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
   | FindSubstring -> "find-substring"
   | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
@@ -983,7 +980,7 @@ let rec print ?max_depth oc e =
     | E0 op ->
         pp oc "(%s)" (string_of_e0 op)
     | E0S (Seq, []) ->
-        pp oc "(nop)"
+        pp oc "nop"
     | E0S (op, es) ->
         pp oc "(%s%s%a)"
           (string_of_e0s op)
@@ -1021,6 +1018,8 @@ let rec pretty_print ?max_depth fmt e =
     match e with
     | E0 op ->
         p (string_of_e0 op) []
+    | E0S (Seq, []) ->
+        p "nop" []
     | E0S (op, es) ->
         p (string_of_e0s op) es
     | E1 (op, e1) ->
@@ -1269,7 +1268,7 @@ struct
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
-    | Lst [ Sym "nop" ] -> E0S (Seq, [])
+    | Sym "nop" -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
     | Lst (Sym "make-lst" :: Str mn :: xs) ->
         E0S (MakeLst (T.maybe_nullable_of_string mn), List.map e xs)
@@ -1522,7 +1521,6 @@ struct
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
     | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
-    | Lst [ Sym "map" ; x1 ; x2 ] -> E2 (Map, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
@@ -1576,6 +1574,7 @@ struct
     | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
     | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
     | Lst [ Sym "fold" ; x1 ; x2 ; x3 ] -> E3 (Fold, e x1, e x2, e x3)
+    | Lst [ Sym "map" ; x1 ; x2 ; x3 ] -> E3 (Map, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
     | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
@@ -1990,23 +1989,6 @@ and type_of l e0 =
       (match type_of l e |> T.develop_user_types with
       | SList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E2 (Map, set, f) ->
-      (match type_of l f |> T.develop_user_types with
-      | Function (_, ot) as f_t ->
-          let map_mn g =
-            match ot with
-            | T.Data mn -> T.(Data (required (g mn)))
-            | _ ->
-                let err = "be a function of a value type" in
-                raise (Type_error (e0, f, f_t, err)) in
-          (match type_of l set |> T.develop_user_types with
-          | T.Data { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
-          | T.Data { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
-          | T.Data { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
-          | T.SList _ -> SList ot
-          | t -> raise (Type_error (e0, set, t, "be an iterable")))
-      | t ->
-          raise (Type_error (e0, f, t, "be a function")))
   | E2 ((Min | Max), e, _) ->
       type_of l e
   | E2 (Member, _, _) -> T.bool
@@ -2047,6 +2029,24 @@ and type_of l e0 =
   | E3 (Fold, e, _, _)
   | E4 (Repeat, _, _, _, e) ->
       type_of l e
+  | E3 (Map, _, f, set) ->
+      (match type_of l f |> T.develop_user_types with
+      | Function (_, ot) as f_t ->
+          let map_mn g =
+            match ot with
+            | T.Data mn -> T.(Data (required (g mn)))
+            | _ ->
+                let err = "be a function of a value type" in
+                raise (Type_error (e0, f, f_t, err)) in
+          (match type_of l set |> T.develop_user_types with
+          | T.Data { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
+          | T.Data { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | T.Data { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
+          | T.SList _ -> SList ot
+          | t -> raise (Type_error (e0, set, t, "be an iterable")))
+      | t ->
+          raise (Type_error (e0, f, t, "be a function")))
+
   | E1 (MaskGet _, _) ->
       T.Mask
   | E1 (LabelOf, _) ->
@@ -2805,11 +2805,13 @@ let rec type_check l e =
         check_slist l e
     | E2 (Cons, e1, e2) ->
         check_slist_same_type e1 l e2
-    | E2 (Map, set, f) ->
+    | E3 (Map, init, f, set) ->
         (match type_of l f |> T.develop_user_types with
-        | Function ([| it |], ot) as f_t ->
+        | Function ([| init_t ; item_t |], ot) as f_t ->
+            check_eq l init init_t ;
             let check_fun_type_with t must_output_mn =
-              if not (T.eq t it) then (
+              (* FIXME: why isn't map allowed to change the item type?! *)
+              if not (T.eq t item_t) then (
                 let err = "be a function of "^ T.to_string t in
                 raise (Type_error (e0, f, f_t, err))) ;
               if must_output_mn then
@@ -2835,9 +2837,10 @@ let rec type_check l e =
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
     | E4 (ReadWhile, cond, body, init, ptr) ->
-        check_params1 l cond (fun t1 t2 ->
-          check_param cond 0 t1 T.Byte ;
-          check_param cond 1 t2 T.bool) ;
+        check_params2 l cond (fun t1 t2 ret ->
+          check_eq l init t1 ;
+          check_param cond 1 t2 T.Byte ;
+          check_param cond 2 ret T.bool) ;
         check_params2 l body (fun t1 t2 t3 ->
           check_eq l init t1 ;
           check_param body 1 t2 T.Byte ;
@@ -3084,7 +3087,8 @@ let let_ ?name ~l value f =
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Bit _ | Size _ | Address _
        | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-       | CopyField | SkipField | SetFieldNull)  ->
+       | CopyField | SkipField | SetFieldNull)
+  | E0S (Seq, []) ->
       f l value
   | _ ->
       let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
@@ -3159,9 +3163,10 @@ let func5 ~l t1 t2 t3 t4 t5 f =
     and p5 = E0 (Param (fid, 4)) in
     f l p1 p2 p3 p4 p5)
 
-let is_identity = function
-  | E1 (Function (fid, [| _ |]), E0 (Param (fid', 0))) when fid = fid' ->
-      true
+(* Tells is a function just return its [p]th argument: *)
+let is_identity p = function
+  | E1 (Function (fid, _), E0 (Param (fid', p'))) ->
+      fid = fid' && p = p'
   | _ ->
       false
 
@@ -3737,7 +3742,7 @@ struct
 
   let get_vec e1 e2 = E2 (GetVec, e1, e2)
 
-  let map_ lst f = E2 (Map, lst, f)
+  let map_ init f lst = E3 (Map, init, f, lst)
 
   let list_of_slist e1 = E1 (ListOfSList, e1)
 

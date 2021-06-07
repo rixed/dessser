@@ -220,7 +220,8 @@ struct
     let_ ~l ~name:"leb_shft_ptr"
       (read_while
         ~cond:(comment "Condition for read_leb128"
-          (E.func1 ~l T.Byte (fun _l b -> ge b (byte (Uint8.of_int 128)))))
+          (E.func2 ~l t_u32_u8 T.Byte (fun _l _ b ->
+            ge b (byte (Uint8.of_int 128)))))
         ~reduce:(comment "Reducer for read_leb128"
           (E.func2 ~l t_u32_u8 T.Byte (fun _l leb_shft b ->
             let byte = bit_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in

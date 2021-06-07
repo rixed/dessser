@@ -463,9 +463,11 @@ struct
         let cond =
           if_ had_quote
             ~then_:(
-              E.func1 ~l T.Byte (fun _l b -> ne b quote_byte))
+              E.func2 ~l T.Size T.Byte (fun _l _s b ->
+                ne b quote_byte))
             ~else_:(
-              E.func1 ~l T.Byte (fun l b -> not_ (is_sep_or_newline conf l b)))
+              E.func2 ~l T.Size T.Byte (fun l _s b ->
+                not_ (is_sep_or_newline conf l b)))
         and init = size 0
         and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
         let sz_p = read_while ~cond ~reduce ~init ~pos in
@@ -482,7 +484,7 @@ struct
   let dbytes conf op l p =
     (* Read up to next separator/newline *)
     let cond =
-      E.func1 ~l T.Byte (fun l b ->
+      E.func2 ~l T.Size T.Byte (fun l _s b ->
         not_ (is_sep_or_newline conf l b))
     and init = size 0
     and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in

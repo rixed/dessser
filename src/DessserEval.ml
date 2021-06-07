@@ -833,14 +833,6 @@ let rec peval l e =
           | _ -> E2 (AllocLst, e1, e2))
       | PartialSort, e1, E0S ((MakeVec | MakeLst _), [])
       | PartialSort, (E0S ((MakeVec | MakeLst _), []) as e1), _ -> e1
-      | Map, lst, f ->
-          (match lst with
-          | E0S (MakeVec, [ e ]) ->
-              (* Unearth the MakeVec might makes further optimisations possible: *)
-              make_vec [ apply f [ e ] ] |> p
-          | _ ->
-              if E.is_identity f then lst
-              else E2 (Map, lst, f))
       | SplitBy, E0 (String s1), E0 (String s2) ->
           String.split_on_string s1 s2 |>
           List.map string |>
@@ -911,6 +903,14 @@ let rec peval l e =
       | LoopWhile, E0 (Bool false), _, init -> init
       | Fold, init, body, E0S ((MakeVec | MakeLst _), [ e ]) ->
           apply body [ e ; init ] |> p
+      | Map, init, f, lst ->
+          (match lst with
+          | E0S (MakeVec, [ e ]) ->
+              (* Unearth the MakeVec might makes further optimisations possible: *)
+              make_vec [ apply f [ init ; e ] ] |> p
+          | _ ->
+              if E.is_identity 0 f then lst
+              else E3 (Map, init, f, lst))
       (* Do nothing if blitting nothing: *)
       | BlitByte, ptr, _, E0 (Size 0) -> ptr
       | FindSubstring, from_start, E0 (String s1), E0 (String s2) ->

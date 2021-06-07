@@ -272,7 +272,8 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = E.func1 ~l T.Byte (fun _l b -> not_ (eq b (byte_of_const_char '"')))
+    let cond = E.func2 ~l T.Bytes T.Byte (fun _l _ b ->
+      ne b (byte_of_const_char '"'))
     and init = bytes_of_string (string "")
     and reduce = E.func2 ~l T.Bytes T.Byte (fun _l -> append_byte) in
     let str_p = read_while ~cond ~reduce ~init ~pos:p in

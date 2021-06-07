@@ -318,14 +318,14 @@ let e2_of_int n =
          StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;
-         And ; Or ; Pair ; Map ; Min ; Max ; Member ; Insert ;
+         And ; Or ; Pair ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
          ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
   let e3s =
-    E.[| SetBit ; SetVec ; BlitByte ; If ; LoopWhile ; LoopUntil ; Fold ;
+    E.[| SetBit ; SetVec ; BlitByte ; If ; LoopWhile ; LoopUntil ; Fold ; Map ;
          FindSubstring ; InsertWeighted ; Substring |] in
   e3s.(n mod Array.length e3s)
 
@@ -594,13 +594,15 @@ let expression =
   compile_check "(to-float (u8 1))"
   compile_check "(to-u8 (u8 1))"
   compile_check "(to-float (float 1))"
-  compile_check \
-    "(map (make-vec (u8 1) (u8 2) (u8 3)) \
-          (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
-  compile_check \
-    "(map (make-lst \"u8\" (u8 1) (u8 2) (u8 3)) \
-          (fun 0 \"u8\" (mul (param 0 0) (param 0 0))))"
   compile_check "(string-of-ip (random-u128))"
+  compile_check \
+    "(map nop \
+          (fun 0 \"void\" \"u8\" (mul (param 0 1) (param 0 1))) \
+          (make-vec (u8 1) (u8 2) (u8 3)))"
+  compile_check \
+    "(map nop \
+          (fun 0 \"void\" \"u8\" (mul (param 0 1) (param 0 1))) \
+          (make-lst \"u8\" (u8 1) (u8 2) (u8 3)))"
 *)
 
 (*

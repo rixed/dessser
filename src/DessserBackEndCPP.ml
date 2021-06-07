@@ -940,10 +940,6 @@ struct
         member e1 "v1"
     | E.E1 (Snd, e1) ->
         member e1 "v2"
-    | E.E2 (Map, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 ((Min | Max as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1051,7 +1047,7 @@ struct
           ppi p.P.def "if (%s.rem() <= 0) { break; } else {" ptr ;
           P.indent_more p (fun () ->
             ppi p.P.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
-            ppi p.P.def "if (%s(next_byte_)) {" cond ;
+            ppi p.P.def "if (%s(%s, next_byte_)) {" cond res ;
             P.indent_more p (fun () ->
               ppi p.P.def "%s = %s(%s, next_byte_);" res reduce res ;
               ppi p.P.def "%s = %s.skip(1);" ptr ptr) ;
@@ -1107,6 +1103,11 @@ struct
         else
           ppi p.P.def "}" ;
         res
+    | E.E3 (Map, init, f, lst) ->
+        let init = print emit p l init
+        and f = print emit p l f
+        and lst = print emit p l lst in
+        emit ?name p l e (fun oc -> pp oc "%s, %s, %s" init f lst)
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2

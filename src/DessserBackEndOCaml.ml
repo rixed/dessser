@@ -1159,18 +1159,6 @@ struct
         unary_op "fst" e1
     | E.E1 (Snd, e1) ->
         unary_op "snd" e1
-    | E.E2 (Map, e1, e2) ->
-        let n1 = print emit p l e1 (* the iterable *)
-        and n2 = print emit p l e2 (* the function of 1 arg *) in
-        let t1 = E.type_of l e1 in
-        emit ?name p l e (fun oc ->
-          let mod_name =
-            match t1 with
-            | T.Data { vtyp = (Vec _ | Lst _) ; _ } -> "Array"
-            | T.Data { vtyp = Set _ ; _ } -> todo "map on sets"
-            | T.SList _ -> "List"
-            | _ -> assert false (* because of E.type_check *) in
-          pp oc "%s.map %s %s" mod_name n2 n1)
     | E.E2 (Min, e1, e2) ->
         binary_op "min" e1 e2
     | E.E2 (Max, e1, e2) ->
@@ -1324,7 +1312,7 @@ struct
             P.indent_more p (fun () ->
               ppi oc "if %s.remSize ptr <= 0 then (accum, ptr) else" m ;
               ppi oc "let next_byte = %s.peekByte ptr 0 in" m ;
-              ppi oc "if not (%s next_byte) then (accum, ptr) else" cond ;
+              ppi oc "if not (%s accum next_byte) then (accum, ptr) else" cond ;
               ppi oc "let accum = %s accum next_byte in" reduce ;
               ppi oc "let ptr = %s.skip ptr 1 in" m ;
               ppi oc "read_while_loop accum ptr in") ;
@@ -1369,6 +1357,19 @@ struct
               pp oc "%s.fold %s %s %s" m lst init body)
         | _ ->
             assert false (* Because type checking *))
+    | E.E3 (Map, init, f, lst) ->
+        let lst_t = E.type_of l lst in
+        let init = print emit p l init
+        and f = print emit p l f
+        and lst = print emit p l lst in
+        emit ?name p l e (fun oc ->
+          let mod_name =
+            match lst_t with
+            | T.Data { vtyp = (Vec _ | Lst _) ; _ } -> "Array"
+            | T.Data { vtyp = Set _ ; _ } -> todo "map on sets"
+            | T.SList _ -> "List"
+            | _ -> assert false (* because of E.type_check *) in
+          pp oc "%s.map (fun item_ -> %s %s item_) %s" mod_name f init lst)
     | E.E4 (Repeat, e1, e2, e3, e4) ->
         let from = print emit p l e1
         and to_ = print emit p l e2
