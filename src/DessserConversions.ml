@@ -242,48 +242,61 @@ let rec conv ?(depth=0) ~to_ l d =
       failwith
 
 and conv_list ?(depth=0) length_e l src =
-  (* [dst] is a ref cell storing the build up string: *)
-  let_ ~name:"dst_" ~l (make_vec [ string "[" ]) (fun _l dst ->
-    let set v = set_ref dst v
-    and get () = get_ref dst in
-    let idx_t = T.(Data (required (Base U32))) in
-    let cond =
-      E.func1 ~l idx_t (fun _l i -> lt i length_e)
-    and body =
-      E.func1 ~l idx_t (fun _l i ->
-        seq [
-          (* Append a delimiter? *)
-          if_ (gt i (u32_of_int 0))
-            ~then_:(set (append_string (get ()) (string ";")))
-            ~else_:nop ;
-          (* Next value: *)
-          (let s =
-            conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base String))
-                                l (get_vec i src) in
-          set (append_string (get ()) s)) ;
-          (* Loop: *)
-          add i (u32_of_int 1) ]) in
-    seq [ ignore_ (loop_while ~init:(u32_of_int 0) ~cond ~body) ;
-          set (append_string (get ()) (string "]")) ;
-          get () ])
+  let init = make_tup [ u32_of_int 0 ; length_e ; string "[" ; src ] in
+  let init_t = E.type_of l init in
+  let cond =
+    E.func1 ~l init_t (fun _l init ->
+      let i = get_item 0 init
+      and length_e = get_item 1 init in
+      lt i length_e)
+  and body =
+    E.func1 ~l init_t (fun l init ->
+      let i = get_item 0 init
+      and dst = get_item 2 init
+      and src = get_item 3 init in
+      (* Append a delimiter? *)
+      let dst =
+        if_ (gt i (u32_of_int 0))
+          ~then_:(append_string dst (string ";"))
+          ~else_:dst in
+      (* Next value: *)
+      let dst =
+        conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base String))
+                            l (get_vec i src) |>
+        append_string dst in
+      make_tup [ add i (u32_of_int 1) ;
+                 get_item 1 init ;
+                 dst ;
+                 get_item 3 init ]) in
+  let dst =
+    loop_while ~init ~cond ~body |>
+    get_item 2 in
+  append_string dst (string "]")
 
 and conv_charseq ?(depth=0) length_e l src =
-  (* We use a one entry vector as a ref cell: *)
-  let_ ~name:"dst_" ~l (make_vec [ string "" ]) (fun _l dst ->
-    let set v = set_vec (u32_of_int 0) dst v
-    and get () = get_vec (u32_of_int 0) dst in
-    let idx_t = T.(Data (required (Base U32))) in
-    let cond =
-      E.func1 ~l idx_t (fun _l i -> lt i length_e)
-    and body =
-      E.func1 ~l idx_t (fun _l i ->
-        let s =
-          conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base Char))
-                              l (get_vec i src) in
-        seq [ set (append_string (get ()) (string_of_char s)) ;
-              add i (u32_of_int 1) ]) in
-    seq [ ignore_ (loop_while ~init:(u32_of_int 0) ~cond ~body) ;
-          get () ])
+  let init = make_tup [ u32_of_int 0 ; length_e ; string "" ; src ] in
+  let init_t = E.type_of l init in
+  let cond =
+    E.func1 ~l init_t (fun _l init ->
+      let i = get_item 0 init
+      and length_e = get_item 1 init in
+      lt i length_e)
+  and body =
+    E.func1 ~l init_t (fun l init ->
+      let i = get_item 0 init
+      and dst = get_item 2 init
+      and src = get_item 3 init in
+      let dst =
+        conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base Char))
+                            l (get_vec i src) |>
+        string_of_char |>
+        append_string dst in
+      make_tup [ add i (u32_of_int 1) ;
+                 get_item 1 init ;
+                 dst ;
+                 get_item 3 init ]) in
+  loop_while ~init ~cond ~body |>
+  get_item 2
 
 and conv_maybe_nullable ?(depth=0) ~to_ l d =
   if debug then (
