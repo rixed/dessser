@@ -474,9 +474,9 @@ type env = (t * T.t) list
 (* Note re. Apply: even if the function can be precomputed (which it usually
  * can) and its parameters as well, the application can be precomputed only
  * if the function body can in a context where the parameters can.
- * Here, p is a list of parameters (function id) that can be precomputed
- * and i a set of identifiers (names) that can. *)
-let rec can_precompute l i = function
+ * Here, [f] is a list of function ids which parameters can be precomputed
+ * and [i] a set of identifiers (names) that can. *)
+let rec can_precompute f i = function
   | E0 (Now | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128) ->
       false
   | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
@@ -487,41 +487,41 @@ let rec can_precompute l i = function
        | Bytes _ | CopyField | SkipField | SetFieldNull) ->
       true
   | E0 (Param (fid, _)) ->
-      List.mem fid l
+      (match f with last::_ -> last = fid | _ -> false)
   | E0 (Identifier n | ExtIdentifier n) ->
       List.mem n i
   | E0S (_, es) ->
-      List.for_all (can_precompute l i) es
+      List.for_all (can_precompute f i) es
   | E1 (Function _, body) ->
-      can_precompute l i body
+      can_precompute f i body
   | E1 ((Dump | Assert | MaskGet _), _) ->
       false
-  | E1 (_, e) -> can_precompute l i e
+  | E1 (_, e) -> can_precompute f i e
   | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
-      List.for_all (can_precompute l i) e2s &&
-      can_precompute (fid :: l) i body
+      List.for_all (can_precompute f i) e2s &&
+      can_precompute (fid :: f) i body
   | E1S (Apply, _, _) ->
       false
   | E2 (Let n, e1, e2) ->
-      can_precompute l i e1 &&
-      can_precompute l (n :: i) e2
+      can_precompute f i e1 &&
+      can_precompute f (n :: i) e2
   | E2 (LetPair (n1, n2), e1, e2) ->
-      can_precompute l i e1 &&
-      can_precompute l (n1 :: n2 :: i) e2
+      can_precompute f i e1 &&
+      can_precompute f (n1 :: n2 :: i) e2
   | E2 (Map, e1, e2) ->
-      can_precompute l i e1 &&
-      can_precompute l i e2
+      can_precompute f i e1 &&
+      can_precompute f i e2
   | E2 (_, e1, e2) ->
-      can_precompute l i e1 &&
-      can_precompute l i e2
+      can_precompute f i e1 &&
+      can_precompute f i e2
   | E3 ((LoopWhile | LoopUntil | Fold), _, _, _) ->
       false (* TODO *)
   | E3 (Top _, _, _, _) ->
       false
   | E3 (_, e1, e2, e3) ->
-      can_precompute l i e1 &&
-      can_precompute l i e2 &&
-      can_precompute l i e3
+      can_precompute f i e1 &&
+      can_precompute f i e2 &&
+      can_precompute f i e3
   | E4 ((ReadWhile | Repeat), _, _, _, _) ->
       false
 
