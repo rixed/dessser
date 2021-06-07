@@ -509,10 +509,8 @@ let rec can_precompute f i = function
   | E2 (_, e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f i e2
-  | E3 ((LoopWhile | LoopUntil | Fold), _, _, _) ->
+  | E3 ((LoopWhile | LoopUntil | Fold | Top _), _, _, _) ->
       false (* TODO *)
-  | E3 (Top _, _, _, _) ->
-      false
   | E3 (_, e1, e2, e3) ->
       can_precompute f i e1 &&
       can_precompute f i e2 &&
@@ -2512,12 +2510,12 @@ let rec type_check l e =
       raise (Type_error (e0, e, t, s)) in
     let check_params1 l e f =
       match type_of l e |> T.develop_user_types with
-      | Function ([|t1|], t2) -> f t1 t2
+      | Function ([|t1|], ret) -> f t1 ret
       | Function _ as t -> bad_arity 1 e t
       | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params2 l e f =
       match type_of l e |> T.develop_user_types with
-      | Function ([|t1; t2|], t3) -> f t1 t2 t3
+      | Function ([|t1; t2|], ret) -> f t1 t2 ret
       | Function _ as t -> bad_arity 2 e t
       | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_slist_of_maybe_nullable l e =
@@ -2841,25 +2839,25 @@ let rec type_check l e =
           check_eq l init t1 ;
           check_param cond 1 t2 T.Byte ;
           check_param cond 2 ret T.bool) ;
-        check_params2 l body (fun t1 t2 t3 ->
+        check_params2 l body (fun t1 t2 ret ->
           check_eq l init t1 ;
           check_param body 1 t2 T.Byte ;
-          check_eq l init t3) ;
+          check_eq l init ret) ;
         check_eq l ptr T.DataPtr
     | E3 (LoopWhile, cond, body, init) ->
-        check_params1 l cond (fun t1 t2 (* return type *)->
+        check_params1 l cond (fun t1 ret ->
           check_eq l init t1 ;
-          check_param cond ~-1 t2 T.bool) ;
-        check_params1 l body (fun t1 t2 (* return type *)->
+          check_param cond ~-1 ret T.bool) ;
+        check_params1 l body (fun t1 ret ->
           check_eq l init t1 ;
-          check_eq l init t2)
+          check_eq l init ret)
     | E3 (LoopUntil, body, cond, init) ->
-        check_params1 l body (fun t1 t2 (* return type *)->
+        check_params1 l body (fun t1 ret ->
           check_eq l init t1 ;
-          check_eq l init t2) ;
-        check_params1 l cond (fun t1 t2 (* return type *)->
+          check_eq l init ret) ;
+        check_params1 l cond (fun t1 ret ->
           check_eq l init t1 ;
-          check_param cond ~-1 t2 T.bool) ;
+          check_param cond ~-1 ret T.bool) ;
     | E3 (Fold, init, body, lst) ->
         (* Fold function first parameter is the result and second is the list
          * item *)
@@ -2873,10 +2871,10 @@ let rec type_check l e =
         (* TODO: any integer for from/to and body index *)
         check_eq l from T.i32 ;
         check_eq l to_ T.i32 ;
-        check_params2 l body (fun t1 t2 t3 ->
+        check_params2 l body (fun t1 t2 ret ->
           check_param body 0 t1 T.i32 ;
           check_eq l init t2 ;
-          check_eq l init t3)
+          check_eq l init ret)
     | E1 (MaskGet _, e1) ->
         check_eq l e1 T.Mask
     | E1 (LabelOf, e1) ->
