@@ -585,10 +585,10 @@ let rec peval l e =
       let value = p value in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
-      let l =
+      let l' =
         try E.add_local name value l
         with E.Unbound_identifier _ | E.Unbound_parameter _ -> l in
-      let body = peval l body in
+      let body = peval l' body in
       let def = E.E2 (Let name, value, body) in
       (* The identifier is useless in  that case: *)
       if body = E.E0 (Identifier name) then value else
@@ -669,6 +669,9 @@ let rec peval l e =
             | _ ->
                 E.E2 (LetPair (n1, n2), value, body))
       | _ ->
+          let l = E.add_local n1 (first value) l |>
+                  E.add_local n2 (secnd value) in
+          let body = peval l body in
           E.E2 (LetPair (n1, n2), value, body))
    | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
@@ -944,8 +947,11 @@ let rec peval l e =
 
 (*$inject
   let test_peval opt_lvl s =
+    let lvl = !inline_level in
     inline_level := opt_lvl ;
-    peval [] (E.of_string s) |> E.to_string ?max_depth:None
+    let e = peval E.no_env (E.of_string s) |> E.to_string ?max_depth:None in
+    inline_level := lvl ;
+    e
 *)
 (*$= test_peval & ~printer:BatPervasives.identity
   "(pair (size 4) (size 0))" \
