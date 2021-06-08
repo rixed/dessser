@@ -239,8 +239,7 @@ struct
         if char_is_printable c then String.of_char c
         else Printf.sprintf "\\%03o" n
 
-  (* Print the code for returning the value [n] of expression [e].
-   * This is merely `return n;` unless e has type void: *)
+  (* Print the code for returning the value [n] of expression [e]. *)
   let print_return n p =
     pp p.P.def "%sreturn %s;\n" p.P.indent n
 
@@ -331,7 +330,7 @@ struct
     | E.E0S (Seq, []) ->
         "VOID"
     | E.E0S (Seq, es) ->
-        List.fold_left (fun _ e -> print emit p l e) "" es
+        List.fold_left (fun _ e -> print emit p l e) "VOID" es
     | E.E0S ((MakeVec | MakeLst _ | MakeTup), es) ->
         let inits = List.map (print emit p l) es in
         emit ?name p l e (fun oc ->
@@ -363,11 +362,11 @@ struct
     | E.E1 (Ignore, e1) ->
         let n = print emit p l e1 in
         ppi p.P.def "((void)%s, VOID);" n ;
-        ""
+        "VOID"
     | E.E1 (Dump, e1) ->
         let n = print emit p l e1 in
         ppi p.P.def "std::cout << %s;" n ;
-        ""
+        "VOID"
     | E.E1 (IsNull, e1) ->
         if E.is_const_null e1 then
           (* Cannot call has_value on nullopt: *)
@@ -1217,12 +1216,12 @@ struct
         let x = print emit p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insert(%s);" set x ;
-        ""
+        "VOID"
     | E.E2 (DelMin, set, n) ->
         let set = print emit p l set in
         let n = print emit p l n in
         ppi p.P.def "%s->delMin(%s);" set n ;
-        ""
+        "VOID"
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
@@ -1255,7 +1254,7 @@ struct
         let set = print emit p l set in
         let d = print emit p l d in
         ppi p.P.def "%s->scale(%s);" set d ;
-        ""
+        "VOID"
     | E.E2 (CharOfString, idx, str) ->
         let idx = print emit p l idx
         and str = print emit p l str in
@@ -1296,7 +1295,7 @@ struct
         and x = print emit p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insertWeighted(%s, %s);" set w x ;
-        ""
+        "VOID"
     | E.E3 (Substring, str, start, stop) ->
         let str = print emit p l str
         and start = print emit p l start
