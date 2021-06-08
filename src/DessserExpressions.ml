@@ -1666,6 +1666,16 @@ and type_of l e0 =
       T.to_maybe_nullable t
     with Invalid_argument _ ->
       raise (Type_error (e0, e, t, "be a possibly nullable value type")) in
+  let check_get_item n max_n =
+    if n < 0 || n >= max_n then
+      raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
+                               string_of_int max_n ^" items)")) in
+  let no_such_field name names =
+    let msg =
+      Printf.sprintf2 "no field named %s (have %a)"
+        name
+        (pretty_enum_print String.print) names in
+    raise (Struct_error (e0, msg)) in
   match e0 with
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
@@ -1702,26 +1712,34 @@ and type_of l e0 =
       (match type_of l f with
       | Function (_, t) -> t
       | t -> raise (Type_error (e0, f, t, "be a function")))
+  | E1 (GetItem n, E0S (MakeTup, es)) -> (* Shortcut: *)
+      check_get_item n (List.length es) ;
+      type_of l (List.nth es n)
   | E1 (GetItem n, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Data { vtyp = Tup mns ; nullable = false } ->
           let num_n = Array.length mns in
-          if n < 0 || n >= num_n then
-            raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
-                                     string_of_int num_n ^" items)")) ;
+          check_get_item n num_n ;
           Data mns.(n)
       | t ->
           raise (Type_error (e0, e1, t, "be a tuple")))
-  | E1 ((GetField name), e1) ->
+  | E1 (GetField name, E0S (MakeRec, es)) ->
+      let rec loop = function
+        | E0 (String n) :: e :: rest ->
+            if n = name then e else loop rest
+        | _ ->
+            let names =
+              (List.enum es |> Enum.mapi (fun i e -> i, e)) //@
+              (fun (i, e) ->
+                if i mod 2 = 0 then Some (field_name_of_expr e) else None) in
+            no_such_field name names in
+      type_of l (loop es)
+  | E1 (GetField name, e1) ->
       (match type_of l e1 |> T.develop_user_types with
       | Data { vtyp = Rec mns ; nullable = false } ->
           (match array_assoc name mns with
           | exception Not_found ->
-              let msg =
-                Printf.sprintf2 "no field named %s (have %a)"
-                  name
-                  (pretty_enum_print String.print) (Array.enum mns /@ fst) in
-              raise (Struct_error (e0, msg))
+              no_such_field name (Array.enum mns /@ fst)
           | mn ->
               Data mn)
       | t ->
