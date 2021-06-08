@@ -438,8 +438,6 @@ struct
    * Ser module.
    *)
 
-  let sizes_t = T.Pair (Size, Size)
-
   let add_size l sizes sz =
 (*    map_pair sizes
       (E.func2 T.size T.size (fun _l s1 s2 ->
@@ -474,12 +472,17 @@ struct
     (* TODO: a way to ask only for the dynsize, and compute the constsize
      * as len * const_size of mn *)
     let subpath = T.path_append 0 path in (* good enough *)
-    repeat ~from:(i32 0l) ~to_:(to_i32 len)
+    let init = pair sizes v in
+    let init_t = E.type_of l init in
+    repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
       ~body:
-        (E.func2 ~l T.i32 sizes_t (fun l n sizes ->
+        (E.func2 ~l T.i32 init_t (fun l n init ->
+          let sizes = first init
+          and v = secnd init in
           let v' = nth n v in
-          sersz1 mn mn0 subpath l v' copy_field sizes))
-      ~init:sizes
+          let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
+          pair sizes v)) |>
+    first
 
   and sstup mns ma mn0 path l v sizes =
     let sizes =
