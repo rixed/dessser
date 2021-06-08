@@ -1248,23 +1248,22 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E.E2 (Let n, e1, e2) ->
+    | E.E2 (Let (n, t), e1, e2) ->
         (* Most of definitions we can actually choose the name (with ?name),
          * so we save a let. But for a few [e1] we will have no such choice,
          * so then another let is required: *)
         let n1 = print ~name:n emit p l e1 in
         if n1 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1)) ;
-        let t = E.type_of l e1 in
-        let l = { l with local = (E.E0 (Identifier n), t) :: l.local } in
+        let l = E.add_local n t l in
         print ?name emit p l e2
-    | E.E2 (LetPair (n1, n2), e1, e2) ->
+    | E.E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
         let n = "("^ valid_identifier n1 ^", "^ valid_identifier n2 ^")" in
         let n1_n2 = print ~name:n emit p l e1 in
         if n1_n2 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1_n2)) ;
-        let l = E.add_local n1 (E.Ops.first e1) l |>
-                E.add_local n2 (E.Ops.secnd e1) in
+        let l = E.add_local n1 t1 l |>
+                E.add_local n2 t2 in
         print ?name emit p l e2
     | E.E1 (Function (_fid, [||]), e1) ->
         emit ?name p l e (fun oc ->

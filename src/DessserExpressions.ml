@@ -282,8 +282,8 @@ type e1s =
   | Apply
 
 type e2 =
-  | Let of string
-  | LetPair of string * string
+  | Let of string * T.t (* the type is cached here *)
+  | LetPair of string * T.t * string * T.t
   (* Deconstructor for vectors/lists: *)
   | Nth
   (* Comparators: *)
@@ -404,7 +404,6 @@ type e4 =
         Read whenever cond returns true, or the input stream is exhausted *)
   | Repeat (* From (incl.) * To (exlc.) * body (idx->'a->'a) * Init value *)
 
-(* FIXME: this should be untyped_t, and then t = DT.t * untyped_t *)
 type t =
   | E0 of e0
   | E0S of e0s * t list
@@ -499,10 +498,10 @@ let rec can_precompute f i = function
       can_precompute (fid :: f) i body
   | E1S (Apply, _, _) ->
       false
-  | E2 (Let n, e1, e2) ->
+  | E2 (Let (n, _), e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f (n :: i) e2
-  | E2 (LetPair (n1, n2), e1, e2) ->
+  | E2 (LetPair (n1, _, n2, _), e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f (n1 :: n2 :: i) e2
   | E2 (_, e1, e2) ->
@@ -652,8 +651,8 @@ let backend_of_string s =
 
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Null vt -> "null "^ String.quote (IO.to_string T.print_value vt)
-  | EndOfList t -> "end-of-list "^ String.quote (IO.to_string T.print t)
+  | Null vt -> "null "^ String.quote (T.string_of_value vt)
+  | EndOfList t -> "end-of-list "^ String.quote (T.to_string t)
   | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
   | Now -> "now"
   | RandomFloat -> "random-float"
@@ -721,13 +720,13 @@ let string_of_e1 = function
       "fun "^ string_of_int fid ^
       (if typs = [||] then "" else
        IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
-         Printf.fprintf oc "%S" (IO.to_string T.print t))) typs)
+         Printf.fprintf oc "%S" (T.to_string t))) typs)
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
   | GetAlt s -> "get-alt "^ String.quote s
   | Construct (mns, i) ->
-      "construct "^ String.quote (IO.to_string T.print_value (Sum mns))
+      "construct "^ String.quote (T.string_of_value (Sum mns))
                   ^" "^ string_of_int i
   | Dump -> "dump"
   | Identity -> "identity"
@@ -881,8 +880,11 @@ let string_of_e1 = function
   | GetMin -> "get-min"
 
 let string_of_e2 = function
-  | Let n -> "let "^ String.quote n
-  | LetPair (n1, n2) -> "let-pair "^ String.quote n1 ^" "^ String.quote n2
+  | Let (n, t) ->
+      "let "^ String.quote n ^" "^ String.quote (T.to_string t)
+  | LetPair (n1, t1, n2, t2) ->
+      "let-pair "^ String.quote n1 ^" "^ String.quote (T.to_string t1)
+             ^" "^ String.quote n2 ^" "^ String.quote (T.to_string t2)
   | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
@@ -1478,8 +1480,13 @@ struct
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
-    | Lst [ Sym "let" ; Str n ; x1 ; x2 ] -> E2 (Let n, e x1, e x2)
-    | Lst [ Sym "let-pair" ; Str n1 ; Str n2 ; x1 ; x2 ] -> E2 (LetPair (n1, n2), e x1, e x2)
+    | Lst [ Sym "let" ; Str n ; Str t ; x1 ; x2 ] ->
+        let t = T.Parser.of_string t in
+        E2 (Let (n, t), e x1, e x2)
+    | Lst [ Sym "let-pair" ; Str n1 ; Str t1 ; Str n2 ; Str t2 ; x1 ; x2 ] ->
+        let t1 = T.Parser.of_string t1
+        and t2 = T.Parser.of_string t2 in
+        E2 (LetPair (n1, t1, n2, t2), e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "lt" ; x1 ; x2 ] -> E2 (Gt, e x2, e x1)
@@ -1652,8 +1659,8 @@ let enter_function fid ts l =
                      (E0 (Param (fid, i)), t) :: l
                    ) [] ts }
 
-let rec add_local n e l =
-  { l with local = (E0 (Identifier n), type_of l e) :: l.local }
+let rec add_local n t l =
+  { l with local = (E0 (Identifier n), t) :: l.local }
 
 (* Returns the type of [e0].
  * [l] is the environment
@@ -2021,12 +2028,12 @@ and type_of l e0 =
           raise (Unbound_identifier (e0, true, n, l)))
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.Mask
-  | E2 (Let n, e1, e2) ->
-      let l = add_local n e1 l in
+  | E2 (Let (n, t), _, e2) ->
+      let l = add_local n t l in
       type_of l e2
-  | E2 (LetPair (n1, n2), e1, e2) ->
-      let l = add_local n1 (E1 (Fst, e1)) l |>
-              add_local n2 (E1 (Snd, e1)) in
+  | E2 (LetPair (n1, t1, n2, t2), _, e2) ->
+      let l = add_local n1 t1 l |>
+              add_local n2 t2 in
       type_of l e2
   | E1 (Function (fid, ts), e) ->
       let l = enter_function fid ts l in
@@ -2193,7 +2200,7 @@ and check_fun_sign e0 l f ps =
       List.iteri (fun i p ->
         let act = type_of l p in
         if not (T.eq act ts.(i)) then
-          let expected = IO.to_string T.print ts.(i) in
+          let expected = T.to_string ts.(i) in
           raise (Type_error (e0, p, act, "be a "^ expected))
       ) ps
   | t ->
@@ -2270,12 +2277,12 @@ let rec fold_env u l f e =
   | E1S (_, e1, es) ->
       let u = fold_env u l f e1 in
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
-  | E2 (Let n, e1, e2) ->
-      let l' = add_local n e1 l in
+  | E2 (Let (n, t), e1, e2) ->
+      let l' = add_local n t l in
       fold_env (fold_env u l f e1) l' f e2
-  | E2 (LetPair (n1, n2), e1, e2) ->
-      let l' = add_local n1 (E1 (Fst, e1)) l |>
-               add_local n2 (E1 (Snd, e1)) in
+  | E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
+      let l' = add_local n1 t1 l |>
+               add_local n2 t2 in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
@@ -2342,17 +2349,20 @@ let rec map_env l f e =
       let e1 = map_env l f e1
       and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
-  | E2 (Let n, e1, e2) ->
+  | E2 (Let (n, _), e1, e2) ->
       let e1 = map_env l f e1 in
-      let l = add_local n e1 l in
+      let t = type_of l e1 in
+      let l = add_local n t l in
       let e2 = map_env l f e2 in
-      f l (E2 (Let n, e1, e2))
-  | E2 (LetPair (n1, n2), e1, e2) ->
+      f l (E2 (Let (n, t), e1, e2))
+  | E2 (LetPair (n1, _, n2, _), e1, e2) ->
       let e1 = map_env l f e1 in
-      let l = add_local n1 (E1 (Fst, e1)) l |>
-              add_local n2 (E1 (Snd, e1)) in
+      let t1 = type_of l (E1 (Fst, e1))
+      and t2 = type_of l (E1 (Snd, e2)) in
+      let l = add_local n1 t1 l |>
+              add_local n2 t2 in
       let e2 = map_env l f e2 in
-      f l (E2 (LetPair (n1, n2), e1, e2))
+      f l (E2 (LetPair (n1, t1, n2, t2), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
@@ -2483,12 +2493,12 @@ let rec type_check l e =
         raise (Type_error (e0, e, t, "be an unsigned integer")) in
     let check_param fe n act exp =
       if not (T.eq act exp) then
-        let expected = IO.to_string T.print act in
+        let expected = T.to_string act in
         raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
     let check_eq l e exp =
       let act = type_of l e in
       if not (T.eq act exp) then
-        let expected = IO.to_string T.print exp in
+        let expected = T.to_string exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
@@ -3107,20 +3117,19 @@ let let_ ?name ~l value f =
       f l value
   | _ ->
       let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
-      (* Best effort, as sometime we cannot provide the environment but
-       * do not need it in the [body]: *)
-      let l =
-        try add_local n value l
-        with Unbound_identifier _ | Unbound_parameter _ -> l in
-      E2 (Let n, value, f l (E0 (Identifier n)))
+      let t = type_of l value in
+      let l = add_local n t l in
+      E2 (Let (n, t), value, f l (E0 (Identifier n)))
 
 let let_pair ?n1 ?n2 ~l value f =
   let name = function Some n -> gen_id n | None -> gen_id "gen" in
   let n1 = name n1 and n2 = name n2 in
-  let l = add_local n1 (E1 (Fst, value)) l |>
-          add_local n2 (E1 (Snd, value)) in
+  let t1 = type_of l (E1 (Fst, value))
+  and t2 = type_of l (E1 (Snd, value)) in
+  let l = add_local n1 t1 l |>
+          add_local n2 t2 in
   let id n = E0 (Identifier n) in
-  E2 (LetPair (n1, n2), value, f l (id n1) (id n2))
+  E2 (LetPair (n1, t1, n2, t2), value, f l (id n1) (id n2))
 
 (* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
@@ -3186,7 +3195,7 @@ let is_identity p = function
       false
 
 (*$< DessserTypes *)
-(*$= type_of & ~printer:(BatIO.to_string T.print)
+(*$= type_of & ~printer:(T.to_string)
   (Pair (u24, DataPtr)) \
     (type_of no_env Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
 *)

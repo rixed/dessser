@@ -422,7 +422,9 @@ and e0s_gen l depth =
 and pick_from_env l depth f =
   let open Gen in
   let es =
-    List.filter_map (fun (e, _t) -> if f e then Some e else None) l in
+    List.filter_map (fun (e, _t) ->
+      if f e then Some e else None
+    ) (List.rev_append l.E.local l.E.global) in
   if es <> [] then
     oneofl es
   else
@@ -439,10 +441,7 @@ and e1_gen l depth =
         map (fun ts ->
           let ts = Array.map (fun mn -> T.Data mn) ts in
           let fid = get_next_fid () in
-          let l =
-            Array.fold_lefti (fun l i t ->
-              (param fid i, t) :: l
-            ) l ts in
+          let l = E.enter_function fid ts l in
           map (fun e ->
             E.E1 (Function (fid, ts), e)
           ) (expression_gen (l, depth - 1))
@@ -472,8 +471,14 @@ and e2_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   frequency [
-    (* Avoids using `let_` which requires [e] to be well typed: *)
-    1, map3 (fun name e in_ -> E.E2 (Let name, e, in_)) let_name_gen expr expr ;
+    1, map2 (fun name e ->
+              try
+                let l = E.add_local name (E.type_of l e) l in
+                let body = generate1 (expression_gen (l, depth - 1)) in
+                let_ ~name ~l e (fun _l _e -> body)
+              with _ ->
+                generate1 (e2_gen l depth)
+            ) let_name_gen expr ;
     1, map3 peek_word endianness_gen expr expr ;
     1, map3 peek_dword endianness_gen expr expr ;
     1, map3 peek_qword endianness_gen expr expr ;
@@ -517,7 +522,7 @@ and expression_gen (l, depth) =
   ) (l, depth)
 
 let expression_gen =
-  Gen.(sized_size (int_bound 3) (fun n -> expression_gen ([], n)))
+  Gen.(sized_size (int_bound 3) (fun n -> expression_gen (E.no_env, n)))
 
 let size_of_expression e =
   E.fold 0 (fun n _ -> n + 1) e

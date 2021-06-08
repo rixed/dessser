@@ -980,12 +980,11 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E.E2 (Let n, e1, e2) ->
+    | E.E2 (Let (n, t), e1, e2) ->
         let n1 = print emit p l e1 in
-        let t = E.type_of l e1 in
         let tn = type_identifier p t in
         let res = gen_sym ?name "let_res_" in
-        let l = { l with local = (E.E0 (Identifier n), t) :: l.local } in
+        let l = E.add_local n t l in
         let t2 = E.type_of l e2 in
         ppi p.P.def "%s %s;" (type_identifier p t2) res ;
         ppi p.P.def "{" ;
@@ -995,11 +994,11 @@ struct
           ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
-    | E.E2 (LetPair (name1, name2), e1, e2) ->
+    | E.E2 (LetPair (name1, t1, name2, t2), e1, e2) ->
         let n1 = print emit p l e1 in
         let res = gen_sym ?name "letpair_res_" in
-        let l = E.add_local name1 (E.Ops.first e1) l |>
-                E.add_local name2 (E.Ops.secnd e1) in
+        let l = E.add_local name1 t1 l |>
+                E.add_local name2 t2 in
         let t2 = E.type_of l e2 in
         ppi p.P.def "%s %s;" (type_identifier p t2) res ;
         ppi p.P.def "{" ;

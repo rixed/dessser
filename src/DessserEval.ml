@@ -577,15 +577,13 @@ let rec peval l e =
   (*
    * Let expressions
    *)
-  | E2 (Let name, value, body) ->
+  | E2 (Let (name, value_t), value, body) ->
       let value = p value in
       (* Best effort, as sometime we cannot provide the environment but
        * do not need it in the [body]: *)
-      let l' =
-        try E.add_local name value l
-        with E.Unbound_identifier _ | E.Unbound_parameter _ -> l in
+      let l' = E.add_local name value_t l in
       let body = peval l' body in
-      let def = E.E2 (Let name, value, body) in
+      let def = E.E2 (Let (name, value_t), value, body) in
       (* The identifier is useless in  that case: *)
       if body = E.E0 (Identifier name) then value else
       (* Also avoid introducing aliases: *)
@@ -628,47 +626,39 @@ let rec peval l e =
           (* If the let binds a pair, and this binding appears only in Fst or Snd
            * expression, then use a LetPair instead and save the intermediary
            * bindings: *)
-          else if E.type_of l value |> T.is_pair then
-            (* Also count how many times the identifier is used to find out if
-             * the identifier is used outside of fst/snd: *)
-            let fst_count, snd_count, tot_count = count_pair_uses name body in
-            if tot_count > fst_count + snd_count then def else
-            let n1 = "fst_"^ name and n2 = "snd_"^ name in
-            let body =
-              E.map (function
-                | E1 (Fst, E0 (Identifier n)) when n = name -> E0 (Identifier n1)
-                | E1 (Snd, E0 (Identifier n)) when n = name -> E0 (Identifier n2)
-                | e -> e
-              ) body in
-            E.E2 (LetPair (n1, n2), value, body) |> p
-          else def)
-  | E2 (LetPair (n1, n2), value, body) ->
+          else match value_t with
+          | T.Pair (t1, t2) ->
+              (* Also count how many times the identifier is used to find out if
+               * the identifier is used outside of fst/snd: *)
+              let fst_count, snd_count, tot_count = count_pair_uses name body in
+              if tot_count > fst_count + snd_count then def else
+              let n1 = "fst_"^ name and n2 = "snd_"^ name in
+              let body =
+                E.map (function
+                  | E1 (Fst, E0 (Identifier n)) when n = name -> E0 (Identifier n1)
+                  | E1 (Snd, E0 (Identifier n)) when n = name -> E0 (Identifier n2)
+                  | e -> e
+                ) body in
+              E.E2 (LetPair (n1, t1, n2, t2), value, body) |> p
+          | _ ->
+              def)
+  | E2 (LetPair (n1, t1, n2, t2), value, body) ->
       let value = p value in
-      (* Best effort, as sometime we cannot provide the environment but
-       * do not need it in the [body]: *)
-      (match E.type_of l value with
-      | T.Pair (f, s) ->
-          let l =
-            { l with local = (E.E0 (Identifier n1), f) ::
-                             (E.E0 (Identifier n2), s) :: l.local } in
-          let body = peval l body in
-          let fst_count = count_id_uses n1 body
-          and snd_count = count_id_uses n2 body in
-          if fst_count = 0 then
-            if snd_count = 0 then body
-            else E.E2 (Let n2, secnd value, body) |> p
-          else if snd_count = 0 then
-            E.E2 (Let n1, first value, body) |> p
-          else (match value with
-            | E.E2 (Pair, e1, e2) ->
-                E.E2 (Let n1, e1, E2 (Let n2, e2, body)) |> p
-            | _ ->
-                E.E2 (LetPair (n1, n2), value, body))
-      | _ ->
-          let l = E.add_local n1 (first value) l |>
-                  E.add_local n2 (secnd value) in
-          let body = peval l body in
-          E.E2 (LetPair (n1, n2), value, body))
+      let l = E.add_local n1 t1 l |>
+              E.add_local n2 t2 in
+      let body = peval l body in
+      let fst_count = count_id_uses n1 body
+      and snd_count = count_id_uses n2 body in
+      if fst_count = 0 then
+        if snd_count = 0 then body
+        else E.E2 (Let (n2, t2), secnd value, body) |> p
+      else if snd_count = 0 then
+        E.E2 (Let (n1, t1), first value, body) |> p
+      else (match value with
+        | E.E2 (Pair, e1, e2) ->
+            E.E2 (Let (n1, t1), e1, E2 (Let (n2, t2), e2, body)) |> p
+        | _ ->
+            E.E2 (LetPair (n1, t1, n2, t2), value, body))
    | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
       | Nth, e1, (E0S ((MakeVec | MakeLst _), es) as e2) ->
@@ -952,20 +942,20 @@ let rec peval l e =
 (*$= test_peval & ~printer:BatPervasives.identity
   "(pair (size 4) (size 0))" \
     (test_peval 3 \
-      "(let \"useless\" (pair (add (size 0) (size 0)) (size 0)) \
+      "(let \"useless\" \"(SIZE * SIZE)\" (pair (add (size 0) (size 0)) (size 0)) \
           (pair (add (size 4) (fst (identifier \"useless\"))) \
           (snd (identifier \"useless\"))))")
 
   "(pair (size 8) (size 0))" \
     (test_peval 3 "(pair (add (size 4) (size 4)) (size 0))")
 
-  "(let \"a\" (u8 1) (let \"b\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
-    (test_peval 0 "(let-pair \"a\" \"b\" (pair (u8 1) (u8 2)) \
+  "(let \"a\" \"U8\" (u8 1) (let \"b\" \"U8\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
+    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (pair (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
   "(dump (u8 6))" \
-    (test_peval 1 "(let-pair \"a\" \"b\" (pair (u8 1) (u8 2)) \
+    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (pair (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 *)
