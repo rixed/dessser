@@ -283,7 +283,9 @@ let is_empty l e =
       BatPrintf.sprintf2 "is_empty for %a" T.print t |>
       invalid_arg
 
-let exists ~l lst f =
+(* Tells if any item [i] from the container [lst] matches [f u i].
+ * [u] can be anything and is transferred unmodified to [f]. *)
+let exists ~l lst u f =
   let open E.Ops in
   match E.get_item_type_err ~vec:true ~lst:true ~set:true l lst with
   | Error t ->
@@ -292,11 +294,15 @@ let exists ~l lst f =
       invalid_arg
   | Ok item_t ->
       (* FIXME: a way to exit the loop that iterates through a container *)
+      let init = pair (bool false) u in
+      let init_t = E.type_of l init in
       fold
-        ~init:(bool false)
-        ~body:(E.func2 ~l T.bool T.(Data item_t) (fun l res item ->
-          or_ res (f l item)))
-        ~list:lst
+        ~init
+        ~body:(E.func2 ~l init_t T.(Data item_t) (fun l res_u item ->
+          E.let_pair ~l ~n1:"exists_res" ~n2:"exists_u" res_u (fun l res u ->
+            pair (or_ res (f l u item)) u)))
+        ~list:lst |>
+      first
 
 let first_ip_of_cidr width all_ones cidr =
   let open E.Ops in
@@ -417,7 +423,7 @@ let rec is_in ?(l=E.no_env) item lst =
                   let op l =
                     if T.value_eq item_vtyp lst_vtyp then eq
                                                      else is_in ~l in
-                  exists ~l lst (fun l i ->
+                  exists ~l lst item (fun l item i ->
                     if nullable then
                       if_null i
                         ~then_:(bool false)
