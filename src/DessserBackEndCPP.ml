@@ -263,6 +263,13 @@ struct
       emit ?name p l e (fun oc ->
         (* Prevent integer promotion by casting to type_of e: *)
         print_cast p t (fun oc -> pp oc "%s %s %s" n1 op n2) oc) in
+    let binary_op op e1 e2 =
+      let n1 = print emit p l e1
+      and n2 = print emit p l e2 in
+      let t = E.type_of l e in
+      emit ?name p l e (fun oc ->
+        (* Prevent integer promotion by casting to type_of e: *)
+        print_cast p t (fun oc -> pp oc "%s(%s, %s)" op n1 n2) oc) in
     let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
       let n1 = print emit p l e1 in
       let res = gen_sym ?name "shortcut_res_" in
@@ -458,29 +465,35 @@ struct
     | E.E2 ((Div | Rem as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        let op_name = match op with Div -> "/" | _ -> "%" in
         (match E.type_of l e1 |> T.develop_user_types with
         | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                              |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
                    _ } ->
+            let op_name = if op = Div then "/" else "%" in
             emit ?name p l e (fun oc ->
               pp oc "%s == 0 ? std::nullopt : std::make_optional(%s %s %s)"
                 n2 n1 op_name n2)
         | Data { vtyp = Base Float ; _ } ->
-            binary_infix_op e1 op_name e2 |> null_of_nan
+            if op = Div then
+              binary_infix_op e1 "/" e2 |> null_of_nan
+            else
+              binary_op "fmod" e1 e2 |> null_of_nan
         | _ ->
             assert false)
     | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
-        let op_name = match op with UnsafeDiv -> "/" | _ -> "%" in
         (match E.type_of l e1 |> T.develop_user_types with
         | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                              |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
                    _ } ->
+            let op_name = if op = UnsafeDiv then "/" else "%" in
             emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op_name n2)
         | Data { vtyp = Base Float ; _ } ->
-            binary_infix_op e1 op_name e2
+            if op = UnsafeDiv then
+              binary_infix_op e1 "/" e2
+            else
+              binary_op "fmod" e1 e2
         | _ ->
             assert false)
     | E.E2 ((Pow | UnsafePow) as op, e1, e2) ->
