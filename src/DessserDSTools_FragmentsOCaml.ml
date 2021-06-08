@@ -63,8 +63,8 @@ let main () =
     ) else (
       let dst = pointer_of_buffer %d in
       let src, dst = DessserGen.%s src dst in
-      assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
+      assert (snd dst <= (fst dst).Pointer.stop) ;
+      String.print stdout ((fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string) ;
       if !delim <> '\000' then Char.print stdout !delim ;
       flush stdout ;
       if !single_input <> "" && Pointer.remSize src > 0 then
@@ -143,14 +143,14 @@ let main () =
       let src = pointer_of_string k in
       let dst = pointer_of_buffer out_buf_sz in
       let src, dst = DessserGen.%s src dst in
-      assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
+      assert (snd dst <= (fst dst).Pointer.stop) ;
+      String.print stdout ((fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string) ;
       String.print stdout !kv_delim ;
       let src = pointer_of_string v in
       let dst = pointer_of_buffer out_buf_sz in
       let src, dst = DessserGen.%s src dst in
-      assert (dst.Pointer.start <= dst.Pointer.stop) ;
-      String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
+      assert (snd dst <= (fst dst).Pointer.stop) ;
+      String.print stdout ((fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string) ;
       String.print stdout !eov_delim ;
       flush stdout
     ) map
@@ -257,15 +257,15 @@ let main () =
     let dst = pointer_of_buffer out_buf_sz in
     let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
-    assert (dst.Pointer.start <= dst.Pointer.stop) ;
-    let key = dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string in
+    assert (snd dst <= (fst dst).Pointer.stop) ;
+    let key = (fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string in
 
     let src = pointer_of_string v in
     let dst = pointer_of_buffer out_buf_sz in
     let src, dst = DessserGen.%s src dst in
     assert (Pointer.remSize src = 0) ;
-    assert (dst.Pointer.start <= dst.Pointer.stop) ;
-    let value = dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string in
+    assert (snd dst <= (fst dst).Pointer.stop) ;
+    let value = (fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string in
 
     Map.set map key value ;
   )
@@ -324,8 +324,8 @@ let main () =
   (* Output the finalized state: *)
   let dst = pointer_of_buffer %d in
   let dst = DessserGen.%s dst in
-  assert (dst.Pointer.start <= dst.Pointer.stop) ;
-  String.print stdout (dst.Pointer.impl.peekn 0 dst.start |> Slice.to_string) ;
+  assert (snd dst <= (fst dst).Pointer.stop) ;
+  String.print stdout ((fst dst).Pointer.impl.peekn 0 (snd dst) |> Slice.to_string) ;
   Char.print stdout !delim ;
   flush stdout
 

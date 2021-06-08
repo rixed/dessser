@@ -765,26 +765,26 @@ struct
         let n1 = print emit p l e1 in
         (* Note: Scanf uses two distinct format specifiers for "normal"
          * and hex notations so detect it and pick the proper one: *)
-        pp p.P.def "%slet len_ = %s.Pointer.stop - %s.start in\n"
+        pp p.P.def "%slet len_ = (fst %s).Pointer.stop - snd %s in\n"
           p.P.indent n1 n1 ;
         pp p.P.def "%slet is_hex_ = len_ > 2 && (\n" p.P.indent ;
         P.indent_more p (fun () ->
           pp p.P.def "%slet o_ =\n" p.P.indent ;
           P.indent_more p (fun () ->
-            pp p.P.def "%slet c_ = peek_char %s %s.start in\n"
+            pp p.P.def "%slet c_ = peek_char %s (snd %s) in\n"
               p.P.indent n1 n1 ;
             pp p.P.def "%sif c_ = '-' || c_ = '+' then 1 else 0 in\n" p.P.indent) ;
           pp p.P.def "%slen_ > 2 + o_ && \
-                      peek_char %s (%s.start + o_) = '0' && \
-                      (let c2_ = peek_char %s (%s.start + o_ + 1) in \
+                      peek_char %s (snd %s + o_) = '0' && \
+                      (let c2_ = peek_char %s (snd %s + o_ + 1) in \
                        c2_ = 'x' || c2_ = 'X')) in\n"
             p.P.indent n1 n1 n1 n1) ;
         pp p.P.def "%slet s_ =\n" p.P.indent ;
         P.indent_more p (fun () ->
-          pp p.P.def "%slet off_ = ref %s.Pointer.start in\n" p.P.indent n1 ;
+          pp p.P.def "%slet off_ = ref (snd %s) in\n" p.P.indent n1 ;
           pp p.P.def "%sScanf.Scanning.from_function (fun () ->\n" p.P.indent ;
           P.indent_more p (fun () ->
-            pp p.P.def "%sif !off_ >= %s.stop then raise End_of_file ;\n"
+            pp p.P.def "%sif !off_ >= (fst %s).stop then raise End_of_file ;\n"
               p.P.indent n1 ;
             pp p.P.def "%slet c_ = peek_char %s !off_ in\n"
               p.P.indent n1 ;
@@ -822,11 +822,11 @@ struct
         let m1 = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           P.indent_more p (fun () ->
-            pp oc "\n%slet s_ = %s.%s.impl.to_string () in\n"
+            pp oc "\n%slet s_ = (fst %s).%s.impl.to_string () in\n"
               p.P.indent n1 m1 ;
-            pp oc "%slet n_, o_ = %s.of_substring ~pos:(%s.%s.start) s_ in\n"
-              p.P.indent m n1 m1 ;
-            pp oc "%sn_, %s.skip %s (o_ - %s.start)" p.P.indent m1 n1 n1))
+            pp oc "%slet n_, o_ = %s.of_substring ~pos:(snd %s) s_ in\n"
+              p.P.indent m n1 ;
+            pp oc "%sn_, %s.skip %s (o_ - snd %s)" p.P.indent m1 n1 n1))
     | E.E1 (FloatOfQWord, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc ->
