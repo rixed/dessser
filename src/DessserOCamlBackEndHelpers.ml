@@ -366,7 +366,6 @@ struct
     let o' = o + n in
     if debug then
       Printf.eprintf "Advance from %d to %d\n%!" o o' ;
-    check_input_length o' p.stop ;
     p, o'
 
   let sub (p1, o1) (p2, o2) =
@@ -380,27 +379,41 @@ struct
   let offset (_, o) =
     Size.of_int o
 
-  (* FIXME: are the offsets needed? *)
   let peekByte (p, o) at =
     check_input_length (o + at + 1) p.stop ;
     p.impl.peek1 (o + at)
 
-  (* FIXME: different functions for BE and LE *)
-  let peekWord ?(big_endian=false) (p, o) at =
-    check_input_length (o + at + 2) p.stop ;
-    (if big_endian then p.impl.peek2_be else p.impl.peek2_le) (o + at)
+  let peekWordLittle (p, o) =
+    check_input_length (o + 2) p.stop ;
+    p.impl.peek2_le o
 
-  let peekDWord ?(big_endian=false) (p, o) at =
-    check_input_length (o + at + 4) p.stop ;
-    (if big_endian then p.impl.peek4_be else p.impl.peek4_le) (o + at)
+  let peekWordBig (p, o) =
+    check_input_length (o + 2) p.stop ;
+    p.impl.peek2_be o
 
-  let peekQWord ?(big_endian=false) (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
-    (if big_endian then p.impl.peek8_be else p.impl.peek8_le) (o + at)
+  let peekDWordLittle (p, o) =
+    check_input_length (o + 4) p.stop ;
+    p.impl.peek4_le o
 
-  let peekOWord ?(big_endian=false) (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
-    (if big_endian then p.impl.peek16_be else p.impl.peek16_le) (o + at)
+  let peekDWordBig (p, o) =
+    check_input_length (o + 4) p.stop ;
+    p.impl.peek4_be o
+
+  let peekQWordLittle (p, o) =
+    check_input_length (o + 8) p.stop ;
+    p.impl.peek8_le o
+
+  let peekQWordBig (p, o) =
+    check_input_length (o + 8) p.stop ;
+    p.impl.peek8_be o
+
+  let peekOWordLittle (p, o) =
+    check_input_length (o + 8) p.stop ;
+    p.impl.peek16_le o
+
+  let peekOWordBig (p, o) =
+    check_input_length (o + 8) p.stop ;
+    p.impl.peek16_be o
 
   let getBit p_o bi =
     let b = peekByte p_o (bi/8) in
@@ -409,74 +422,122 @@ struct
   let readByte p_o =
     peekByte p_o 0, skip p_o 1
 
-  let readWord ?(big_endian=false) p_o =
-    peekWord ~big_endian p_o 0, skip p_o 2
+  let readWordLittle p_o =
+    peekWordLittle p_o, skip p_o 2
 
-  let readDWord ?(big_endian=false) p_o =
-    peekDWord ~big_endian p_o 0, skip p_o 4
+  let readWordBig p_o =
+    peekWordBig p_o, skip p_o 2
 
-  let readQWord ?(big_endian=false) p_o =
-    peekQWord ~big_endian p_o 0, skip p_o 8
+  let readDWordLittle p_o =
+    peekDWordLittle p_o, skip p_o 4
 
-  let readOWord ?(big_endian=false) p_o =
-    peekOWord ~big_endian p_o 0, skip p_o 16
+  let readDWordBig p_o =
+    peekDWordBig p_o, skip p_o 4
+
+  let readQWordLittle p_o =
+    peekQWordLittle p_o, skip p_o 8
+
+  let readQWordBig p_o =
+    peekQWordBig p_o, skip p_o 8
+
+  let readOWordLittle p_o =
+    peekOWordLittle p_o, skip p_o 16
+
+  let readOWordBig p_o =
+    peekOWordBig p_o, skip p_o 16
 
   let readBytes (p, o) sz =
     check_input_length (o + sz) p.stop ;
     p.impl.peekn o sz,
     (p, o + sz)
 
-  let pokeByte (p, o) at v =
-    check_input_length (o + at + 1) p.stop ;
-    p.impl.poke1 (o + at) v
+  let pokeByte (p, o) v =
+    check_input_length (o + 1) p.stop ;
+    p.impl.poke1 o v
 
-  let pokeWord ?(big_endian=false) (p, o) at v =
-    check_input_length (o + at + 2) p.stop ;
+  let pokeWordLittle (p, o) v =
+    check_input_length (o + 2) p.stop ;
     if debug then
-      Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) (o + at) ;
-    (if big_endian then p.impl.poke2_be else p.impl.poke2_le) (o + at) v
+      Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
+    p.impl.poke2_le o v
 
-  let pokeDWord ?(big_endian=false) (p, o) at v =
-    check_input_length (o + at + 4) p.stop ;
+  let pokeWordBig (p, o) v =
+    check_input_length (o + 2) p.stop ;
     if debug then
-      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) (o + at) ;
-    (if big_endian then p.impl.poke4_be else p.impl.poke4_le) (o + at) v
+      Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
+    p.impl.poke2_be o v
 
-  let pokeQWord ?(big_endian=false) (p, o) at v =
-    check_input_length (o + at + 8) p.stop ;
-    (if big_endian then p.impl.poke8_be else p.impl.poke8_le) (o + at) v
+  let pokeDWordLittle (p, o) v =
+    check_input_length (o + 4) p.stop ;
+    if debug then
+      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
+    p.impl.poke4_le o v
 
-  let pokeOWord ?(big_endian=false) (p, o) at v =
-    check_input_length (o + at + 16) p.stop ;
-    (if big_endian then p.impl.poke16_be else p.impl.poke16_le) (o + at) v
+  let pokeDWordBig (p, o) v =
+    check_input_length (o + 4) p.stop ;
+    if debug then
+      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
+    p.impl.poke4_be o v
 
-  let setBit p bi v =
+  let pokeQWordLittle (p, o) v =
+    check_input_length (o + 8) p.stop ;
+    p.impl.poke8_le o v
+
+  let pokeQWordBig (p, o) v =
+    check_input_length (o + 8) p.stop ;
+    p.impl.poke8_be o v
+
+  let pokeOWordLittle (p, o) v =
+    check_input_length (o + 16) p.stop ;
+    p.impl.poke16_le o v
+
+  let pokeOWordBig (p, o) v =
+    check_input_length (o + 16) p.stop ;
+    p.impl.poke16_be o v
+
+  let setBit (p, o) bi v =
     let bit = Uint8.(shift_left one (bi mod 8)) in
-    let at = bi/8 in
-    let b = peekByte p at in
+    let o' = o + bi/8 in
+    let b = peekByte (p, o') 0 in
     let b =
       if v then Uint8.(logor b bit)
            else Uint8.(logand b (lognot bit)) in
-    pokeByte p at b
+    pokeByte (p, o') b
 
   let writeByte p v =
-    pokeByte p 0 v ;
+    pokeByte p v ;
     skip p 1
 
-  let writeWord ?(big_endian=false) p v =
-    pokeWord ~big_endian p 0 v ;
+  let writeWordLittle p v =
+    pokeWordLittle p v ;
     skip p 2
 
-  let writeDWord ?(big_endian=false) p v =
-    pokeDWord ~big_endian p 0 v ;
+  let writeWordBig p v =
+    pokeWordBig p v ;
+    skip p 2
+
+  let writeDWordLittle p v =
+    pokeDWordLittle p v ;
     skip p 4
 
-  let writeQWord ?(big_endian=false) p v =
-    pokeQWord ~big_endian p 0 v ;
+  let writeDWordBig p v =
+    pokeDWordBig p v ;
+    skip p 4
+
+  let writeQWordLittle p v =
+    pokeQWordLittle p v ;
     skip p 8
 
-  let writeOWord ?(big_endian=false) p v =
-    pokeOWord ~big_endian p 0 v ;
+  let writeQWordBig p v =
+    pokeQWordBig p v ;
+    skip p 8
+
+  let writeOWordLittle p v =
+    pokeOWordLittle p v ;
+    skip p 16
+
+  let writeOWordBig p v =
+    pokeOWordBig p v ;
     skip p 16
 
   let writeBytes (p, o) v =

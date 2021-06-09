@@ -759,7 +759,7 @@ struct
         let n = print emit p l e1 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "Char.chr (Uint8.to_int (%s.peekByte %s 0)), %s.skip %s 1"
+          pp oc "Char.chr (Uint8.to_int (%s.peekByte %s)), %s.skip %s 1"
             m n m n)
     | E.E1 (FloatOfPtr, e1) ->
         let n1 = print emit p l e1 in
@@ -962,28 +962,28 @@ struct
         unary_op (m ^".readByte") e1
     | E.E1 (ReadWord LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readWord ~big_endian:false") e1
+        unary_op (m ^".readWordLittle") e1
     | E.E1 (ReadWord BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readWord ~big_endian:true") e1
+        unary_op (m ^".readWordBig") e1
     | E.E1 (ReadDWord LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readDWord ~big_endian:false") e1
+        unary_op (m ^".readDWordLittle") e1
     | E.E1 (ReadDWord BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readDWord ~big_endian:true") e1
+        unary_op (m ^".readDWordBig") e1
     | E.E1 (ReadQWord LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readQWord ~big_endian:false") e1
+        unary_op (m ^".readQWordLittle") e1
     | E.E1 (ReadQWord BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readQWord ~big_endian:true") e1
+        unary_op (m ^".readQWordBig") e1
     | E.E1 (ReadOWord LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readOWord ~big_endian:false") e1
+        unary_op (m ^".readOWordLittle") e1
     | E.E1 (ReadOWord BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readOWord ~big_endian:true") e1
+        unary_op (m ^".readOWordBig") e1
     | E.E2 (ReadBytes, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".readBytes") e1 e2
@@ -992,55 +992,55 @@ struct
         binary_op (m ^".peekByte") e1 e2
     | E.E2 (PeekWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekWord ~big_endian:false") e1 e2
+        binary_op (m ^".peekWordLittle") e1 e2
     | E.E2 (PeekWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekWord ~big_endian:true") e1 e2
+        binary_op (m ^".peekWordBig") e1 e2
     | E.E2 (PeekDWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekDWord ~big_endian:false") e1 e2
+        binary_op (m ^".peekDWordLittle") e1 e2
     | E.E2 (PeekDWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekDWord ~big_endian:true") e1 e2
+        binary_op (m ^".peekDWordBig") e1 e2
     | E.E2 (PeekQWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekQWord ~big_endian:false") e1 e2
+        binary_op (m ^".peekQWordLittle") e1 e2
     | E.E2 (PeekQWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekQWord ~big_endian:true") e1 e2
+        binary_op (m ^".peekQWordBig") e1 e2
     | E.E2 (PeekOWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekOWord ~big_endian:false") e1 e2
+        binary_op (m ^".peekOWordLittle") e1 e2
     | E.E2 (PeekOWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekOWord ~big_endian:true") e1 e2
+        binary_op (m ^".peekOWordBig") e1 e2
     | E.E2 (WriteByte, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".writeByte") e1 e2
     | E.E2 (WriteWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeWord ~big_endian:false") e1 e2
+        binary_op (m ^".writeWordLittle") e1 e2
     | E.E2 (WriteWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeWord ~big_endian:true") e1 e2
+        binary_op (m ^".writeWordBig") e1 e2
     | E.E2 (WriteDWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeDWord ~big_endian:false") e1 e2
+        binary_op (m ^".writeDWordLittle") e1 e2
     | E.E2 (WriteDWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeDWord ~big_endian:true") e1 e2
+        binary_op (m ^".writeDWordBig") e1 e2
     | E.E2 (WriteQWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeQWord ~big_endian:false") e1 e2
+        binary_op (m ^".writeQWordLittle") e1 e2
     | E.E2 (WriteQWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeQWord ~big_endian:true") e1 e2
+        binary_op (m ^".writeQWordBig") e1 e2
     | E.E2 (WriteOWord LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeOWord ~big_endian:false") e1 e2
+        binary_op (m ^".writeOWordLittle") e1 e2
     | E.E2 (WriteOWord BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeOWord ~big_endian:true") e1 e2
+        binary_op (m ^".writeOWordBig") e1 e2
     | E.E2 (WriteBytes, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".writeBytes") e1 e2
