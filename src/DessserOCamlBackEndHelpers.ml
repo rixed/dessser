@@ -383,37 +383,37 @@ struct
     check_input_length (o + at + 1) p.stop ;
     p.impl.peek1 (o + at)
 
-  let peekWordLittle (p, o) =
-    check_input_length (o + 2) p.stop ;
-    p.impl.peek2_le o
+  let peekWordLittle (p, o) at =
+    check_input_length (o + at + 2) p.stop ;
+    p.impl.peek2_le (o + at)
 
-  let peekWordBig (p, o) =
-    check_input_length (o + 2) p.stop ;
-    p.impl.peek2_be o
+  let peekWordBig (p, o) at =
+    check_input_length (o + at + 2) p.stop ;
+    p.impl.peek2_be (o + at)
 
-  let peekDWordLittle (p, o) =
-    check_input_length (o + 4) p.stop ;
-    p.impl.peek4_le o
+  let peekDWordLittle (p, o) at =
+    check_input_length (o + at + 4) p.stop ;
+    p.impl.peek4_le (o + at)
 
-  let peekDWordBig (p, o) =
-    check_input_length (o + 4) p.stop ;
-    p.impl.peek4_be o
+  let peekDWordBig (p, o) at =
+    check_input_length (o + at + 4) p.stop ;
+    p.impl.peek4_be (o + at)
 
-  let peekQWordLittle (p, o) =
-    check_input_length (o + 8) p.stop ;
-    p.impl.peek8_le o
+  let peekQWordLittle (p, o) at =
+    check_input_length (o + at + 8) p.stop ;
+    p.impl.peek8_le (o + at)
 
-  let peekQWordBig (p, o) =
-    check_input_length (o + 8) p.stop ;
-    p.impl.peek8_be o
+  let peekQWordBig (p, o) at =
+    check_input_length (o + at + 8) p.stop ;
+    p.impl.peek8_be (o + at)
 
-  let peekOWordLittle (p, o) =
-    check_input_length (o + 8) p.stop ;
-    p.impl.peek16_le o
+  let peekOWordLittle (p, o) at =
+    check_input_length (o + at + 8) p.stop ;
+    p.impl.peek16_le (o + at)
 
-  let peekOWordBig (p, o) =
-    check_input_length (o + 8) p.stop ;
-    p.impl.peek16_be o
+  let peekOWordBig (p, o) at =
+    check_input_length (o + at + 8) p.stop ;
+    p.impl.peek16_be (o + at)
 
   let getBit p_o bi =
     let b = peekByte p_o (bi/8) in
@@ -423,28 +423,28 @@ struct
     peekByte p_o 0, skip p_o 1
 
   let readWordLittle p_o =
-    peekWordLittle p_o, skip p_o 2
+    peekWordLittle p_o 0, skip p_o 2
 
   let readWordBig p_o =
-    peekWordBig p_o, skip p_o 2
+    peekWordBig p_o 0, skip p_o 2
 
   let readDWordLittle p_o =
-    peekDWordLittle p_o, skip p_o 4
+    peekDWordLittle p_o 0, skip p_o 4
 
   let readDWordBig p_o =
-    peekDWordBig p_o, skip p_o 4
+    peekDWordBig p_o 0, skip p_o 4
 
   let readQWordLittle p_o =
-    peekQWordLittle p_o, skip p_o 8
+    peekQWordLittle p_o 0, skip p_o 8
 
   let readQWordBig p_o =
-    peekQWordBig p_o, skip p_o 8
+    peekQWordBig p_o 0, skip p_o 8
 
   let readOWordLittle p_o =
-    peekOWordLittle p_o, skip p_o 16
+    peekOWordLittle p_o 0, skip p_o 16
 
   let readOWordBig p_o =
-    peekOWordBig p_o, skip p_o 16
+    peekOWordBig p_o 0, skip p_o 16
 
   let readBytes (p, o) sz =
     check_input_length (o + sz) p.stop ;
