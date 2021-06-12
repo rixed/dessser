@@ -1079,10 +1079,16 @@ struct
         unary_op "exp" e1
     | E.E1 (Log, e1) ->
         unary_op "(Nullable.of_nan % log)" e1
+    | E.E1 (UnsafeLog, e1) ->
+        unary_op "log" e1
     | E.E1 (Log10, e1) ->
         unary_op "(Nullable.of_nan % log10)" e1
+    | E.E1 (UnsafeLog10, e1) ->
+        unary_op "log10" e1
     | E.E1 (Sqrt, e1) ->
         unary_op "(Nullable.of_nan % sqrt)" e1
+    | E.E1 (UnsafeSqrt, e1) ->
+        unary_op "sqrt" e1
     | E.E1 (Ceil, e1) ->
         unary_op "ceil" e1
     | E.E1 (Floor, e1) ->

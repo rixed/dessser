@@ -226,8 +226,11 @@ type e1 =
   | Neg
   | Exp
   | Log
+  | UnsafeLog
   | Log10
+  | UnsafeLog10
   | Sqrt
+  | UnsafeSqrt
   | Ceil
   | Floor
   | Round
@@ -836,8 +839,11 @@ let string_of_e1 = function
   | Neg -> "neg"
   | Exp -> "exp"
   | Log -> "log"
+  | UnsafeLog -> "unsafe-log"
   | Log10 -> "log10"
+  | UnsafeLog10 -> "unsafe-log10"
   | Sqrt -> "sqrt"
+  | UnsafeSqrt -> "unsafe-sqrt"
   | Ceil -> "ceil"
   | Floor -> "floor"
   | Round -> "round"
@@ -1426,8 +1432,11 @@ struct
     | Lst [ Sym "neg" ; x ] -> E1 (Neg, e x)
     | Lst [ Sym "exp" ; x ] -> E1 (Exp, e x)
     | Lst [ Sym "log" ; x ] -> E1 (Log, e x)
+    | Lst [ Sym "unsafe-log" ; x ] -> E1 (UnsafeLog, e x)
     | Lst [ Sym "log10" ; x ] -> E1 (Log10, e x)
+    | Lst [ Sym "unsafe-log10" ; x ] -> E1 (UnsafeLog10, e x)
     | Lst [ Sym "sqrt" ; x ] -> E1 (Sqrt, e x)
+    | Lst [ Sym "unsafe-sqrt" ; x ] -> E1 (UnsafeSqrt, e x)
     | Lst [ Sym "ceil" ; x ] -> E1 (Ceil, e x)
     | Lst [ Sym "floor" ; x ] -> E1 (Floor, e x)
     | Lst [ Sym "round" ; x ] -> E1 (Round, e x)
@@ -1959,9 +1968,8 @@ and type_of l e0 =
          Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), _) ->
       T.float
   | E1 ((Log | Log10 | Sqrt), _) ->
-      (* TODO: make it nullable only if it cannot be ascertained from e1
-       * that the result will never be null *)
       T.to_nullable T.float
+  | E1 ((UnsafeLog | UnsafeLog10 | UnsafeSqrt), _) -> T.float
   | E1 ((Lower | Upper), _) -> T.string
   | E1 (Hash, _) -> T.u64
   | E1 (ToU8, _) -> T.u8
@@ -2697,7 +2705,8 @@ let rec type_check l e =
         check_eq l e T.bool
     | E1 ((Abs | Neg), e) ->
         check_numeric l e
-    | E1 ((Exp | Log | Log10 | Sqrt | Ceil | Floor | Round |
+    | E1 ((Exp | Log | UnsafeLog | Log10 | UnsafeLog10 | Sqrt | UnsafeSqrt |
+           Ceil | Floor | Round |
            Cos | Sin | Tan | ACos | ASin | ATan | CosH | SinH | TanH), e) ->
         check_eq l e T.float
     | E1 ((Lower | Upper), e) ->
@@ -3671,9 +3680,15 @@ struct
 
   let log_ e = E1 (Log, e)
 
+  let unsafe_log e = E1 (UnsafeLog, e)
+
   let log10_ e = E1 (Log10, e)
 
+  let unsafe_log10 e = E1 (UnsafeLog10, e)
+
   let sqrt_ e = E1 (Sqrt, e)
+
+  let unsafe_sqrt e = E1 (UnsafeSqrt, e)
 
   let ceil_ e = E1 (Ceil, e)
 

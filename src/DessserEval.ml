@@ -255,15 +255,67 @@ let arith1' op e op_float op_i128 op_u128 =
   | E0 (Float a) -> float (op_float a)
   | _ -> E.E1 (op, e)
 
-let is_zero e =
+let known_zero e =
   e = E.E0 (Float 0.) ||
   (try E.to_cst_int e = 0
   with _ -> false)
 
-let is_one e =
+let known_one e =
   e = E.E0 (Float 1.) ||
   (try E.to_cst_int e = 1
   with _ -> false)
+
+let known_not_zero = function
+  | E.E0 (Float n) -> n <> 0.
+  | E0 (U8 n) -> n <> Uint8.zero
+  | E0 (U16 n) -> n <> Uint16.zero
+  | E0 (U24 n) -> n <> Uint24.zero
+  | E0 (U32 n) -> n <> Uint32.zero
+  | E0 (U40 n) -> n <> Uint40.zero
+  | E0 (U48 n) -> n <> Uint48.zero
+  | E0 (U56 n) -> n <> Uint56.zero
+  | E0 (U64 n) -> n <> Uint64.zero
+  | E0 (U128 n) -> n <> Uint128.zero
+  | E0 (I8 n) -> n <> Int8.zero
+  | E0 (I16 n) -> n <> Int16.zero
+  | E0 (I24 n) -> n <> Int24.zero
+  | E0 (I32 n) -> n <> Int32.zero
+  | E0 (I40 n) -> n <> Int40.zero
+  | E0 (I48 n) -> n <> Int48.zero
+  | E0 (I56 n) -> n <> Int56.zero
+  | E0 (I64 n) -> n <> Int64.zero
+  | E0 (I128 n) -> n <> Int128.zero
+  | _ -> false
+
+let rec known_positive ~strict =
+  let known_int_positive cmp zero n =
+    (if strict then (>) else (>=)) (cmp n zero) 0 in
+  function
+  | E.E1 (Exp, _) -> true
+  | E1 (Ceil, e) -> known_positive ~strict e
+  | E1 (Floor, e) when not strict -> known_positive ~strict:false e
+  | E1 (Abs, e) -> not strict || known_not_zero e
+  | E1 ((StringLength | Cardinality | RemSize | Offset), _) -> not strict
+  | E0 (Float n) -> (if strict then (>) else (>=)) n 0.
+  | E0 (U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ |
+        U56 _ | U64 _ | U128 _) as e ->
+      not strict || known_not_zero e
+  | E0 (I8 n) -> known_int_positive Int8.compare Int8.zero n
+  | E0 (I16 n) -> known_int_positive Int16.compare Int16.zero n
+  | E0 (I24 n) -> known_int_positive Int24.compare Int24.zero n
+  | E0 (I32 n) -> known_int_positive Int32.compare Int32.zero n
+  | E0 (I40 n) -> known_int_positive Int40.compare Int40.zero n
+  | E0 (I48 n) -> known_int_positive Int48.compare Int48.zero n
+  | E0 (I56 n) -> known_int_positive Int56.compare Int56.zero n
+  | E0 (I64 n) -> known_int_positive Int64.compare Int64.zero n
+  | E0 (I128 n) -> known_int_positive Int128.compare Int128.zero n
+  | E2 (Add, e1, e2) ->
+      if strict then
+        known_positive ~strict:true e1 && known_positive ~strict:false e2 ||
+        known_positive ~strict:false e1 && known_positive ~strict:true e2
+      else
+        known_positive ~strict:false e1 && known_positive ~strict:false e2
+  | _ -> false
 
 (* Returns how many time the pair identified by [name] is used with First,
  * Secnd, and in total: *)
@@ -511,8 +563,17 @@ let rec peval l e =
       | BytesOfString, E1 (StringOfBytes, e) -> e
       | Exp, E0 (Float n) -> float (exp n)
       | Log, E0 (Float n) -> nullable_of_nan (log n)
+      | Log, e when known_positive ~strict:true e ->
+          not_null (E1 (UnsafeLog, e)) |> p
+      | UnsafeLog, E0 (Float n) -> float (log n)
       | Log10, E0 (Float n) -> nullable_of_nan (log10 n)
+      | Log10, e when known_positive ~strict:true e ->
+          not_null (E1 (UnsafeLog10, e)) |> p
+      | UnsafeLog10, E0 (Float n) -> float (log10 n)
       | Sqrt, E0 (Float n) -> nullable_of_nan (sqrt n)
+      | Sqrt, e when known_positive ~strict:false e ->
+          not_null (E1 (UnsafeSqrt, e)) |> p
+      | UnsafeSqrt, E0 (Float n) -> float (sqrt n)
       | Ceil, E0 (Float n) -> float (ceil n)
       | Floor, E0 (Float n) -> float (floor n)
       | Round, E0 (Float n) -> float (Float.round n)
@@ -677,13 +738,13 @@ let rec peval l e =
       | Eq, E1 (NotNull, _), E0 (Null _) ->
           false_
       | (Gt | Ge | Eq as op), e1, e2 -> comp2 op e1 e2
-      | Add, e1, e2 when is_zero e1 -> e2
-      | (Add | Sub), e1, e2 when is_zero e2 -> e1
-      | Sub, e1, e2 when is_zero e1 -> neg e2 |> p
-      | Mul, e1, e2 when is_one e1 -> e2
-      | Mul, e1, e2 when is_one e2 -> e1
-      | Mul, e1, _ when is_zero e1 -> e1
-      | Mul, _, e2 when is_zero e2 -> e2
+      | Add, e1, e2 when known_zero e1 -> e2
+      | (Add | Sub), e1, e2 when known_zero e2 -> e1
+      | Sub, e1, e2 when known_zero e1 -> neg e2 |> p
+      | Mul, e1, e2 when known_one e1 -> e2
+      | Mul, e1, e2 when known_one e2 -> e1
+      | Mul, e1, _ when known_zero e1 -> e1
+      | Mul, _, e2 when known_zero e2 -> e2
       | (Add | Sub | Mul as op), e1, e2 -> arith2 op e1 e2
       | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
           (try
@@ -958,4 +1019,9 @@ let rec peval l e =
     (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-pair (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
+
+  "(fun 0 \"FLOAT\" (unsafe-log (add (float 0x1p+0) (abs (param 0 0)))))" \
+    (test_peval 3 "(fun 0 \"float\" \
+                     (force \"\" (log (add (force \"\" (sqrt (float 1))) \
+                                           (abs (param 0 0))))))")
 *)

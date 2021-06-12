@@ -862,10 +862,16 @@ struct
         unary_func "std::exp" e1
     | E.E1 (Log, e1) ->
         unary_func "std::log" e1 |> null_of_nan
+    | E.E1 (UnsafeLog, e1) ->
+        unary_func "std::log" e1
     | E.E1 (Log10, e1) ->
         unary_func "std::log10" e1 |> null_of_nan
+    | E.E1 (UnsafeLog10, e1) ->
+        unary_func "std::log10" e1
     | E.E1 (Sqrt, e1) ->
         unary_func "std::sqrt" e1 |> null_of_nan
+    | E.E1 (UnsafeSqrt, e1) ->
+        unary_func "std::sqrt" e1
     | E.E1 (Ceil, e1) ->
         unary_func "std::ceil" e1
     | E.E1 (Floor, e1) ->
