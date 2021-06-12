@@ -21,7 +21,7 @@ struct
   let from_byte v1 v2 _ _ l src =
     let b_src = read_byte src in
     E.with_sploded_pair ~l "from_byte" b_src (fun _l b src ->
-      pair
+      make_pair
         (if_ (bool_of_u8 (u8_of_byte b)) ~then_:v1 ~else_:v2)
         src)
 
@@ -30,7 +30,7 @@ struct
   let dbool () = from_byte true_ false_
   let dchar () _ _ l src =
     E.with_sploded_pair ~l "dchar" (read_byte src) (fun _l b src ->
-      pair (char_of_u8 (u8_of_byte b)) src)
+      make_pair (char_of_u8 (u8_of_byte b)) src)
   let di8 () = from_byte (i8 Int8.one) (i8 Int8.zero)
   let di16 () = from_byte (i16 Int16.one) (i16 Int16.zero)
   let di24 () = from_byte (i24 Int24.one) (i24 Int24.zero)
@@ -63,7 +63,7 @@ struct
   let list_opn () =
     KnownSize (fun _ _ _ l src ->
       E.with_sploded_pair ~l "b_src" (read_byte src) (fun _l b src ->
-        pair (to_u32 (u8_of_byte b)) src))
+        make_pair (to_u32 (u8_of_byte b)) src))
   let list_cls () _ _ _ src = src
   let list_sep () _ _ _ src = src
   let is_null () _ _ _ src =

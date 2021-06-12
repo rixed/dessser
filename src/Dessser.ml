@@ -220,7 +220,7 @@ struct
         let open E.Ops in
         (* dessser handle nulls itself, so that DES/SER implementations
          * do not have to care for nullability. *)
-        pair
+        make_pair
           (comment ("Desserialize a "^ what) src)
           (comment ("Serialize a "^ what) (ser sstate mn0 path l v dst))))
 
@@ -249,13 +249,13 @@ struct
 
   let dsnull t sstate dstate mn0 path l src dst =
     let open E.Ops in
-    pair
+    make_pair
       (comment "Desserialize NULL" (Des.dnull t dstate mn0 path l src))
       (comment "Serialize NULL" (Ser.snull t sstate mn0 path l dst))
 
   let dsnotnull t sstate dstate mn0 path l src dst =
     let open E.Ops in
-    pair
+    make_pair
       (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path l src))
       (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path l dst))
 
@@ -265,7 +265,7 @@ struct
     let open E.Ops in
     let src_dst = comment "Convert a Tuple"
       (E.with_sploded_pair ~l "dstup1" src_dst (fun l src dst ->
-        pair
+        make_pair
           (Des.tup_opn dstate mn0 path mns l src)
           (Ser.tup_opn sstate mn0 path mns l dst))) in
     let src_dst =
@@ -277,13 +277,13 @@ struct
           else
             let src_dst =
               E.with_sploded_pair ~l "dstup2" src_dst (fun l src dst ->
-                pair
+                make_pair
                   (Des.tup_sep dstate mn0 path l src)
                   (Ser.tup_sep sstate mn0 path l dst)) in
             desser_ transform sstate dstate mn0 subpath l src_dst)
       ) src_dst mns in
     E.with_sploded_pair ~l "dstup3" src_dst (fun l src dst ->
-      pair
+      make_pair
         (Des.tup_cls dstate mn0 path l src)
         (Ser.tup_cls sstate mn0 path l dst))
 
@@ -291,7 +291,7 @@ struct
     let open E.Ops in
     let src_dst =
       E.with_sploded_pair ~l "dsrec1" src_dst (fun l src dst ->
-        pair
+        make_pair
           (Des.rec_opn dstate mn0 path mns l src)
           (Ser.rec_opn sstate mn0 path mns l dst)) in
     let src_dst =
@@ -303,14 +303,14 @@ struct
             else
               let src_dst =
                 E.with_sploded_pair ~l "dsrec2" src_dst (fun l src dst ->
-                  pair
+                  make_pair
                     (Des.rec_sep dstate mn0 path l src)
                     (Ser.rec_sep sstate mn0 path l dst)) in
               desser_ transform sstate dstate mn0 subpath l src_dst)
       ) src_dst mns in
     let src_dst = comment "Convert a Record" src_dst in
     E.with_sploded_pair ~l "dsrec3" src_dst (fun l src dst ->
-      pair
+      make_pair
         (Des.rec_cls dstate mn0 path l src)
         (Ser.rec_cls sstate mn0 path l dst))
 
@@ -321,7 +321,7 @@ struct
       let src_dst =
         E.with_sploded_pair ~l "dssum2" cstr_src (fun l cstr src ->
           let dst = Ser.sum_opn sstate mn0 path mns l cstr dst in
-          let src_dst = pair src dst in
+          let src_dst = make_pair src dst in
           let rec choose_cstr i =
             let max_lbl = Array.length mns - 1 in
             let subpath = T.path_append i path in
@@ -335,7 +335,7 @@ struct
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0) in
       E.with_sploded_pair ~l "dssum3" src_dst (fun l src dst ->
-        pair
+        make_pair
           (Des.sum_cls dstate mn0 path l src)
           (Ser.sum_cls sstate mn0 path l dst)))
 
@@ -344,7 +344,7 @@ struct
     let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     let src_dst =
       E.with_sploded_pair ~l "dsvec1" src_dst (fun l src dst ->
-        pair
+        make_pair
           (Des.vec_opn dstate mn0 path dim mn l src)
           (Ser.vec_opn sstate mn0 path dim mn l dst)) in
     (* TODO: Same comment as in dslist apply: we would like to be able to keep
@@ -361,13 +361,13 @@ struct
                 ~then_:src_dst
                 ~else_:(
                   E.with_sploded_pair ~l "dsvec2" src_dst (fun l src dst ->
-                    pair
+                    make_pair
                       (Des.vec_sep dstate mn0 subpath l src)
                       (Ser.vec_sep sstate mn0 subpath l dst))) in
             desser_ transform sstate dstate mn0 subpath l src_dst)))
     in
     E.with_sploded_pair ~l "dsvec3" src_dst (fun l src dst ->
-      pair
+      make_pair
         (Des.vec_cls dstate mn0 path l src)
         (Ser.vec_cls sstate mn0 path l dst))
 
@@ -423,7 +423,7 @@ struct
               E.with_sploded_pair ~l "dslist2" dim_src (fun l dim src ->
                 let dst = Ser.list_opn sstate mn0 path mn (Some dim) l dst in
                 repeat
-                  ~init:(pair src dst)
+                  ~init:(make_pair src dst)
                   ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
                     (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
@@ -432,7 +432,7 @@ struct
                           ~then_:src_dst
                           ~else_:(
                             E.with_sploded_pair ~l "dslist3" src_dst (fun l psrc pdst ->
-                              pair
+                              make_pair
                                 (Des.list_sep dstate mn0 subpath l psrc)
                                 (Ser.list_sep sstate mn0 subpath l pdst))
                           ) in
@@ -455,17 +455,17 @@ struct
                             ~then_:src_dst
                             ~else_:(
                               E.with_sploded_pair ~l "dslist5" src_dst (fun l psrc pdst ->
-                                pair
+                                make_pair
                                   (Des.list_sep dstate mn0 subpath l psrc)
                                   (Ser.list_sep sstate mn0 subpath l pdst))) in
-                        pair
+                        make_pair
                           false_
                           (desser_ transform sstate dstate mn0 subpath l src_dst)))))
-                  ~init:(pair true_ (pair src dst)) in
+                  ~init:(make_pair true_ (make_pair src dst)) in
               secnd fst_src_dst
         in
         E.with_sploded_pair ~l "dslist6" src_dst (fun l src dst ->
-          pair
+          make_pair
             (Des.list_cls dstate mn0 path l src)
             (Ser.list_cls sstate mn0 path l dst))))
 
@@ -530,10 +530,10 @@ struct
     let open E.Ops in
     let sstate, dst = Ser.start mn0 ?config:ser_config l dst
     and dstate, src = Des.start mn0 ?config:des_config l src in
-    let src_dst = pair src dst in
+    let src_dst = make_pair src dst in
     let src_dst = desser_ transform sstate dstate mn0 [] l src_dst in
     E.with_sploded_pair ~l "desser" src_dst (fun l src dst ->
-      pair
+      make_pair
         (Des.stop dstate l src)
         (Ser.stop sstate l dst))
 end

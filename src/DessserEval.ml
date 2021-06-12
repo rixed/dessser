@@ -429,8 +429,8 @@ let rec peval l e =
       | U64OfAddress, E1 (AddressOfU64, e) -> e
       | AddressOfU64, E0 (U64 n) -> address n
       | AddressOfU64, E1 (U64OfAddress, e) -> e
-      | Fst, E2 (Pair, e, _) -> e
-      | Snd, E2 (Pair, _, e) -> e
+      | Fst, E2 (MakePair, e, _) -> e
+      | Snd, E2 (MakePair, _, e) -> e
       | Head, E2 (Cons, e, _) -> e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
       | Tail, E2 (Cons, _, e) -> e |> p
@@ -655,7 +655,7 @@ let rec peval l e =
       else if snd_count = 0 then
         E.E2 (Let (n1, t1), first value, body) |> p
       else (match value with
-        | E.E2 (Pair, e1, e2) ->
+        | E.E2 (MakePair, e1, e2) ->
             E.E2 (Let (n1, t1), e1, E2 (Let (n2, t2), e2, body)) |> p
         | _ ->
             E.E2 (LetPair (n1, t1, n2, t2), value, body))
@@ -805,7 +805,7 @@ let rec peval l e =
       | Or, E0 (Bool true), _ -> bool true  (* [e2] not evaluated *)
       (* Cannot ignore [e1] event if e2 is demonstrably true because if its
        * possible side effects! *)
-      | Pair, E1 (Fst, a), E1 (Snd, b) when E.eq a b -> a
+      | MakePair, E1 (Fst, a), E1 (Snd, b) when E.eq a b -> a
       (* Those are created empty: *)
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) -> bool false
@@ -921,7 +921,7 @@ let rec peval l e =
       | op, e1, e2, e3 -> E3 (op, e1, e2, e3))
   | E4 (op, e1, e2, e3, e4) ->
       (match op, p e1, p e2, p e3, p e4 with
-      | ReadWhile, E1 (Function _, E0 (Bool false)), _, init, pos -> pair init pos
+      | ReadWhile, E1 (Function _, E0 (Bool false)), _, init, pos -> make_pair init pos
       | Repeat, (E0 (I32 f) as from), (E0 (I32 t) as to_), body, init ->
           let c = Int32.compare f t in
           if c >= 0 then init
@@ -940,22 +940,22 @@ let rec peval l e =
     e
 *)
 (*$= test_peval & ~printer:BatPervasives.identity
-  "(pair (size 4) (size 0))" \
+  "(make-pair (size 4) (size 0))" \
     (test_peval 3 \
-      "(let \"useless\" \"(SIZE * SIZE)\" (pair (add (size 0) (size 0)) (size 0)) \
-          (pair (add (size 4) (fst (identifier \"useless\"))) \
+      "(let \"useless\" \"(SIZE * SIZE)\" (make-pair (add (size 0) (size 0)) (size 0)) \
+          (make-pair (add (size 4) (fst (identifier \"useless\"))) \
           (snd (identifier \"useless\"))))")
 
-  "(pair (size 8) (size 0))" \
-    (test_peval 3 "(pair (add (size 4) (size 4)) (size 0))")
+  "(make-pair (size 8) (size 0))" \
+    (test_peval 3 "(make-pair (add (size 4) (size 4)) (size 0))")
 
   "(let \"a\" \"U8\" (u8 1) (let \"b\" \"U8\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
-    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (pair (u8 1) (u8 2)) \
+    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-pair (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
   "(dump (u8 6))" \
-    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (pair (u8 1) (u8 2)) \
+    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-pair (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 *)

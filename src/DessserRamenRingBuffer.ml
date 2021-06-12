@@ -90,7 +90,7 @@ let t_frame = T.(pair DataPtr Size)
 
 let leave_frame l p_stk =
   E.with_sploded_pair ~l "leave_frame" p_stk (fun _l p stk ->
-    pair p (tail stk))
+    make_pair p (tail stk))
 
 (* Set the next nullbit and return the new stack with increased nullbit
  * position: *)
@@ -100,7 +100,7 @@ let set_nullbit l stk =
           debug (string_of_int_ bi) ;
           debug (char '\n') ;
           set_bit p bi (bit true) ;
-          let frame = pair p (add bi (size 1)) in
+          let frame = make_pair p (add bi (size 1)) in
           cons frame (tail stk) ])
 
 let skip_nullbit l stk =
@@ -108,7 +108,7 @@ let skip_nullbit l stk =
     seq [ debug (string "skip nullbit at ") ;
           debug (string_of_int_ bi) ;
           debug (char '\n') ;
-          let frame = pair p (add bi (size 1)) in
+          let frame = make_pair p (add bi (size 1)) in
           cons frame (tail stk) ])
 
 let set_nullbit_to bit l stk =
@@ -152,7 +152,7 @@ let may_skip_nullbit mn0 path l p_stk =
       if T.(type_of_path mn0 path |> develop_maybe_nullable).nullable then
         E.with_sploded_pair ~l "may_skip_nullbit" p_stk (fun l p stk ->
           let stk = skip_nullbit l stk in
-          pair p stk)
+          make_pair p stk)
       else
         p_stk
 
@@ -246,13 +246,13 @@ struct
                   ~has_nullmask nullmask_bits mn0 path l p_stk =
     E.with_sploded_pair ~l "enter_frame" p_stk (fun l p stk ->
       let stk = may_set_nullbit true mn0 path l stk in
-      let new_frame = pair p (size 8 (* width of the length prefix *)) in
+      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
             debug (string " with ") ;
             debug (string_of_int_ (to_expr nullmask_bits)) ;
             debug (string " nullbits\n") ;
-            pair
+            make_pair
               (if has_nullmask then zero_nullmask l nullmask_bits p else p)
               (cons new_frame stk) ])
 
@@ -265,10 +265,10 @@ struct
     E.with_sploded_pair ~l "with_nullbit_done1" p_stk (fun l p stk ->
       let stk = may_set_nullbit true mn0 path l stk in
       let p = f l p in
-      pair p stk)
+      make_pair p stk)
 
   let start ?(config=()) _mn _l p =
-    config, pair p (end_of_list t_frame)
+    config, make_pair p (end_of_list t_frame)
 
   let stop () _l p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -432,14 +432,14 @@ struct
       (* Set my own nulbit if needed: *)
       let stk = may_set_nullbit true mn0 path l stk in
       (* Prepare the new frame: *)
-      let new_frame = pair p (size 0) in
+      let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
       (* And zero that nullmask: *)
       let p = write_word LittleEndian p (word_of_u16 (u16 Uint16.zero)) in
       (* Then the label: *)
       let p = write_word LittleEndian p (word_of_u16 lbl) in
       let p = align_const l p 4 in
-      pair p stk)
+      make_pair p stk)
 
   let sum_cls () _ _ l p_stk =
     leave_frame l p_stk
@@ -465,7 +465,7 @@ struct
     let p_stk =
       E.with_sploded_pair ~l "with_data_ptr" p_stk (fun _l p stk ->
         let p = write_dword LittleEndian p (dword_of_u32 n) in
-        pair p stk) in
+        make_pair p stk) in
     (* Nullmask must still be present for an empty list of nullable items: *)
     enter_frame_dyn ~has_nullmask nullmask_bits mn0 path l p_stk
 
@@ -623,7 +623,7 @@ struct
     let stk = may_set_nullbit false mn0 path l stk in
     (* The following [8] is the size of the length prefix. Notice we could
      * always use 8 since bit offset should not be used when not nullable. *)
-    let new_frame = pair p (size (if has_nullmask then 8 else 0)) in
+    let new_frame = make_pair p (size (if has_nullmask then 8 else 0)) in
     seq [ debug (string "des: enter a new frame at ") ;
           debug (string_of_int_ (offset p)) ;
           debug (string "\n") ;
@@ -635,10 +635,10 @@ struct
               data_ptr_add p (size_of_u32 bytes)
             else p
           and stk = cons new_frame stk in
-          pair p stk ]
+          make_pair p stk ]
 
   let start ?(config=()) _mn _l p =
-    config, pair p (end_of_list t_frame)
+    config, make_pair p (end_of_list t_frame)
 
   let stop () _l p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -653,7 +653,7 @@ struct
     E.with_sploded_pair ~l "with_nullbit_done2" p_stk (fun l p stk ->
       let stk = may_set_nullbit false mn0 path l stk in
       E.with_sploded_pair ~l "with_nullbit_done3" (f l p) (fun _l v p ->
-        pair v (pair p stk)))
+        make_pair v (make_pair p stk)))
 
   let dfloat () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
@@ -661,7 +661,7 @@ struct
             debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
             E.with_sploded_pair ~l "dfloat" (read_qword LittleEndian p) (fun _l w p ->
-              pair (float_of_qword w) p) ])
+              make_pair (float_of_qword w) p) ])
 
   let dstring () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
@@ -671,107 +671,107 @@ struct
             E.with_sploded_pair ~l "dstring1" (read_dword LittleEndian p) (fun l len p ->
               let len = size_of_dword len in
               E.with_sploded_pair ~l "dstring2" (read_bytes p len) (fun l bs p ->
-                pair (string_of_bytes bs) (align_dyn l p len))) ])
+                make_pair (string_of_bytes bs) (align_dyn l p len))) ])
 
   let dbool () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "dbool" (read_byte p) (fun l b p ->
-        pair (bool_of_byte b) (align_const l p 1)))
+        make_pair (bool_of_byte b) (align_const l p 1)))
 
   let dchar () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "dchar" (read_byte p) (fun l b p ->
-        pair (char_of_byte b) (align_const l p 1)))
+        make_pair (char_of_byte b) (align_const l p 1)))
 
   let du8 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du8" (read_byte p) (fun l b p ->
-        pair (u8_of_byte b) (align_const l p 1)))
+        make_pair (u8_of_byte b) (align_const l p 1)))
 
   let du16 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du16" (read_word LittleEndian p) (fun l w p ->
-        pair (u16_of_word w) (align_const l p 2)))
+        make_pair (u16_of_word w) (align_const l p 2)))
 
   let du24 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du24" (read_dword LittleEndian p) (fun l w p ->
-        pair (to_u24 (u32_of_dword w)) (align_const l p 4)))
+        make_pair (to_u24 (u32_of_dword w)) (align_const l p 4)))
 
   let du32 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du32" (read_dword LittleEndian p) (fun l w p ->
-        pair (u32_of_dword w) (align_const l p 4)))
+        make_pair (u32_of_dword w) (align_const l p 4)))
 
   let du40 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du40" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_u40 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_u40 (u64_of_qword w)) (align_const l p 8)))
 
   let du48 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du48" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_u48 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_u48 (u64_of_qword w)) (align_const l p 8)))
 
   let du56 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du56" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_u56 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_u56 (u64_of_qword w)) (align_const l p 8)))
 
   let du64 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du64" (read_qword LittleEndian p) (fun l w p ->
-        pair (u64_of_qword w) (align_const l p 8)))
+        make_pair (u64_of_qword w) (align_const l p 8)))
 
   let du128 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "du128" (read_oword LittleEndian p) (fun l w p ->
-        pair (u128_of_oword w) (align_const l p 8)))
+        make_pair (u128_of_oword w) (align_const l p 8)))
 
   let di8 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di8" (read_byte p) (fun l b p ->
-        pair (to_i8 (u8_of_byte b)) (align_const l p 1)))
+        make_pair (to_i8 (u8_of_byte b)) (align_const l p 1)))
 
   let di16 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di16" (read_word LittleEndian p) (fun l w p ->
-        pair (to_i16 (u16_of_word w)) (align_const l p 2)))
+        make_pair (to_i16 (u16_of_word w)) (align_const l p 2)))
 
   let di24 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di24" (read_dword LittleEndian p) (fun l w p ->
-        pair (to_i24 (u32_of_dword w)) (align_const l p 4)))
+        make_pair (to_i24 (u32_of_dword w)) (align_const l p 4)))
 
   let di32 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di32" (read_dword LittleEndian p) (fun l w p ->
-        pair (to_i32 (u32_of_dword w)) (align_const l p 4)))
+        make_pair (to_i32 (u32_of_dword w)) (align_const l p 4)))
 
   let di40 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di40" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_i40 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_i40 (u64_of_qword w)) (align_const l p 8)))
 
   let di48 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di48" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_i48 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_i48 (u64_of_qword w)) (align_const l p 8)))
 
   let di56 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di56" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_i56 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_i56 (u64_of_qword w)) (align_const l p 8)))
 
   let di64 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di64" (read_qword LittleEndian p) (fun l w p ->
-        pair (to_i64 (u64_of_qword w)) (align_const l p 8)))
+        make_pair (to_i64 (u64_of_qword w)) (align_const l p 8)))
 
   let di128 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       E.with_sploded_pair ~l "di128" (read_oword LittleEndian p) (fun l w p ->
-        pair (to_i128 (u128_of_oword w)) (align_const l p 8)))
+        make_pair (to_i128 (u128_of_oword w)) (align_const l p 8)))
 
   let tup_rec_opn mn0 path _mns l p_stk =
     E.with_sploded_pair ~l
@@ -811,7 +811,7 @@ struct
       (* Skip my own nullbit if needed: *)
       let stk = may_set_nullbit false mn0 path l stk in
       (* Prepare the new frame: *)
-      let new_frame = pair p (size 0) in
+      let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
       (* Skip that nullmask: *)
       let p = data_ptr_add p (size 2) in
@@ -820,7 +820,7 @@ struct
       E.with_sploded_pair ~l "sum_opn3" w_p (fun l w p ->
         let lbl = u16_of_word w in
         let p = align_const l p 4 in
-        pair lbl (pair p stk)))
+        make_pair lbl (make_pair p stk)))
 
   let sum_cls () _ _ l p_stk =
     leave_frame l p_stk
@@ -832,7 +832,7 @@ struct
           let n = u32_of_dword n in
           let has_nullmask = mn.T.nullable in
           let p_stk = enter_frame ~has_nullmask mn0 path l p stk in
-          pair n p_stk)))
+          make_pair n p_stk)))
 
   let list_cls () _ _ l p_stk =
     leave_frame l p_stk

@@ -264,7 +264,7 @@ struct
 
   let dbool _conf _ _ l p =
     E.with_sploded_pair ~l "dbool" (read_byte p) (fun _l b p ->
-      pair (eq b (byte_of_const_char 'T')) p)
+      make_pair (eq b (byte_of_const_char 'T')) p)
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes conv l p =
@@ -280,7 +280,7 @@ struct
     E.with_sploded_pair ~l "dbytes" str_p (fun _l str p ->
       (* Skip the closing double-quote: *)
       let p = skip1 p in
-      pair (conv str) p)
+      make_pair (conv str) p)
 
   let dstring _conf _ _ l p = dbytes string_of_bytes l p
   (* Chars are encoded as single char strings *)
@@ -326,7 +326,7 @@ struct
     let c_p = du16 st mn0 path l p in
     E.with_sploded_pair ~l "sum_opn" c_p (fun l c p ->
       let p = tup_sep st mn0 path l p in
-      pair c p)
+      make_pair c p)
 
   let sum_cls st mn0 path l p =
     tup_cls st mn0 path l p
@@ -341,7 +341,7 @@ struct
     if conf.list_prefix_length then
       KnownSize (fun vtyp0 path _ l p ->
         E.with_sploded_pair ~l "list_opn" (du32 conf vtyp0 path l p) (fun _l v p ->
-          pair v (skip 2 p)))
+          make_pair v (skip 2 p)))
     else
       UnknownSize (
         (fun _ _ _ _ p -> skip1 p),

@@ -98,7 +98,7 @@ let () =
                   comment "Now convert the heap value into an SExpr:" (
                     let dst' =
                       OfValue2.serialize ~config:sexpr_config typ l ma v dst in
-                    pair src dst') ])))))
+                    make_pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in

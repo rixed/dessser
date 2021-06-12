@@ -294,13 +294,13 @@ let exists ~l lst u f =
       invalid_arg
   | Ok item_t ->
       (* FIXME: a way to exit the loop that iterates through a container *)
-      let init = pair (bool false) u in
+      let init = make_pair (bool false) u in
       let init_t = E.type_of l init in
       fold
         ~init
         ~body:(E.func2 ~l init_t T.(Data item_t) (fun l res_u item ->
           E.let_pair ~l ~n1:"exists_res" ~n2:"exists_u" res_u (fun l res u ->
-            pair (or_ res (f l u item)) u)))
+            make_pair (or_ res (f l u item)) u)))
         ~list:lst |>
       first
 

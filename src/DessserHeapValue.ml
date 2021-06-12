@@ -32,7 +32,7 @@ struct
     let src = Des.vec_opn dstate mn0 path dim mn l src in
     let rec loop ids i l src =
       if i >= dim then
-        pair
+        make_pair
           (make_vec (List.rev ids))
           (Des.vec_cls dstate mn0 path l src)
       else
@@ -76,12 +76,12 @@ struct
                         ~else_:(Des.list_sep dstate mn0 path l src) in
                     let v_src = make1 dstate mn0 subpath mn l src in
                     E.with_sploded_pair ~l "dlist3" v_src (fun _l v src ->
-                      pair (cons v inits) src))))
-              ~init:(pair (end_of_list init_t) src)) in
+                      make_pair (cons v inits) src))))
+              ~init:(make_pair (end_of_list init_t) src)) in
         E.with_sploded_pair ~l "dlist4" inits_src (fun l inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path l src in
-          pair v src)
+          make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let fst_inits_src_t = T.Pair (T.bool, inits_src_t) in
         let src = list_opn mn0 path mn l src in
@@ -102,19 +102,19 @@ struct
                     let v_src = make1 dstate mn0 subpath mn l src in
                     let inits_src =
                       E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
-                        pair (cons v inits) src) in
-                    pair false_ inits_src))))
-            ~init:(pair true_ (pair (end_of_list init_t) src)) in
+                        make_pair (cons v inits) src) in
+                    make_pair false_ inits_src))))
+            ~init:(make_pair true_ (make_pair (end_of_list init_t) src)) in
         E.with_sploded_pair ~l "dlist9" (secnd fst_inits_src) (fun l inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path l src in
-          pair v src)
+          make_pair v src)
 
   and dtup mns dstate mn0 path l src =
     let src = Des.tup_opn dstate mn0 path mns l src in
     let rec loop ids i l src =
       if i >= Array.length mns then
-        pair
+        make_pair
           (make_tup (List.rev ids))
           (Des.tup_cls dstate mn0 path l src)
       else
@@ -131,7 +131,7 @@ struct
     let len = Array.length mns in
     let rec loop ids i l src =
       if i >= len then
-        pair
+        make_pair
           (make_rec (List.mapi (fun i id ->
              fst mns.(len - i - 1), id) ids))
           (Des.rec_cls dstate mn0 path l src)
@@ -155,7 +155,7 @@ struct
           let _, subtyp = mns.(i) in
           let v_src = make1 dstate mn0 subpath subtyp l src in
           E.with_sploded_pair ~l "dsum2" v_src (fun l v src ->
-            pair
+            make_pair
               (construct mns i v)
               (Des.sum_cls dstate mn0 path l src))
         in
@@ -170,7 +170,7 @@ struct
       choose_cstr 0)
 
   and dunit _ _ _ _ src =
-    pair unit src
+    make_pair unit src
 
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
@@ -204,7 +204,7 @@ struct
           fun state mn path l ptr ->
             let v_src = des_of_vt vt.def state mn path l ptr in
             E.with_sploded_pair ~l "des_usr_type" v_src (fun _l v src ->
-              pair (make_usr vt.name [ v ]) src)
+              make_pair (make_usr vt.name [ v ]) src)
       | T.Tup mns -> dtup mns
       | T.Rec mns -> drec mns
       | T.Sum mns -> dsum mns
@@ -217,13 +217,13 @@ struct
     let vt = mn.vtyp in
     if mn.nullable then (
       if_ (Des.is_null dstate mn0 path l src)
-        ~then_:(pair (null vt) (Des.dnull vt dstate mn0 path l src))
+        ~then_:(make_pair (null vt) (Des.dnull vt dstate mn0 path l src))
         ~else_:(
           let src = Des.dnotnull vt dstate mn0 path l src in
           let des = des_of_vt vt in
           let v_src = des dstate mn0 path l src in
           E.with_sploded_pair ~l "make1_1" v_src (fun _l v src ->
-            pair (not_null v) src))
+            make_pair (not_null v) src))
     ) else (
       let des = des_of_vt vt in
       des dstate mn0 path l src
@@ -233,7 +233,7 @@ struct
     let_ ~name:"src" ~l src (fun l src ->
       let dstate, src = Des.start ?config mn0 l src in
       E.with_sploded_pair ~l "make" (make1 dstate mn0 [] mn0 l src) (fun l v src ->
-        pair v (Des.stop dstate l src)))
+        make_pair v (Des.stop dstate l src)))
 end
 
 (* The other way around: given a heap value of some type and a serializer,
@@ -285,7 +285,7 @@ struct
     let dst_n =
       let subpath = T.path_append 0 path in
       fold ~list:v
-        ~init:(pair dst (i32 0l))
+        ~init:(make_pair dst (i32 0l))
         ~body:
           (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32))
                    (T.Data mn)
@@ -296,7 +296,7 @@ struct
                     ~then_:(Ser.list_sep sstate mn0 subpath l dst)
                     ~else_:dst)
                 (fun l dst ->
-                  pair
+                  make_pair
                     (ser1 sstate mn0 subpath mn l x copy_field dst)
                     (add (i32 1l) n))))) in
     Ser.list_cls sstate mn0 path l (first dst_n)
@@ -443,15 +443,15 @@ struct
       (E.func2 T.size T.size (fun _l s1 s2 ->
         match sz with
         | ConstSize s ->
-            pair (add (size s) s1) s2
+            make_pair (add (size s) s1) s2
         | DynSize s ->
-            pair s1 (add s s2))) *)
+            make_pair s1 (add s s2))) *)
     E.with_sploded_pair ~l "add_size" sizes (fun _l cstsz dynsz ->
       match sz with
       | ConstSize s ->
-          pair (add (size s) cstsz) dynsz
+          make_pair (add (size s) cstsz) dynsz
       | DynSize s ->
-          pair cstsz (add s dynsz))
+          make_pair cstsz (add s dynsz))
 
   let rec ssvec dim mn mn0 path l v sizes =
     let sizes =
@@ -472,7 +472,7 @@ struct
     (* TODO: a way to ask only for the dynsize, and compute the constsize
      * as len * const_size of mn *)
     let subpath = T.path_append 0 path in (* good enough *)
-    let init = pair sizes v in
+    let init = make_pair sizes v in
     let init_t = E.type_of l init in
     repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
       ~body:
@@ -481,7 +481,7 @@ struct
           and v = secnd init in
           let v' = nth n v in
           let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
-          pair sizes v)) |>
+          make_pair sizes v)) |>
     first
 
   and sstup mns ma mn0 path l v sizes =
@@ -588,7 +588,7 @@ struct
               ssz_of_vt vt mn0 path l v sizes))
 
   let sersize ?config mn l ma v =
-    let sizes = pair (size 0) (size 0) in
+    let sizes = make_pair (size 0) (size 0) in
     let sizes = add_size l sizes (Ser.ssize_start ?config mn) in
     let_ ~name:"ma" ~l ma (fun l ma ->
       let_ ~name:"v" ~l v (fun l v ->

@@ -433,8 +433,8 @@ struct
      * may not be in position 0) and test only that one *)
     assert (String.length conf.true_ > 0) ;
     if_ (eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
-      ~then_:(pair true_ (skip (String.length conf.true_) p))
-      ~else_:(pair false_ (skip (String.length conf.false_) p))
+      ~then_:(make_pair true_ (skip (String.length conf.true_) p))
+      ~else_:(make_pair false_ (skip (String.length conf.false_) p))
 
   let is_sep_or_newline conf _l b =
     let sep_byte = byte_of_const_char conf.separator in
@@ -479,7 +479,7 @@ struct
             if_ had_quote
               ~then_:(skip_byte quote_byte p')
               ~else_:p' in
-          pair (op (first bytes_p)) p'))
+          make_pair (op (first bytes_p)) p'))
 
   let dbytes conf op l p =
     (* Read up to next separator/newline *)
@@ -491,7 +491,7 @@ struct
     let sz_p = read_while ~cond ~reduce ~init ~pos:p in
     E.with_sploded_pair ~l "dbytes" sz_p (fun _l sz p' ->
       let bytes_p = read_bytes p sz in
-      pair (op (first bytes_p)) p')
+      make_pair (op (first bytes_p)) p')
 
   let dstring conf _ _ l p =
     (if conf.quote = None then dbytes else dbytes_quoted)
@@ -501,7 +501,7 @@ struct
   let dchar conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
       E.with_sploded_pair ~l "dchar" (read_byte p) (fun _l b p ->
-        pair (char_of_byte b) p)
+        make_pair (char_of_byte b) p)
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
         conf (fun e ->
@@ -544,7 +544,7 @@ struct
   let sum_opn conf mn0 path _ l p =
     let c_p = du16 conf mn0 path l p in
     E.with_sploded_pair ~l "sum_opn" c_p (fun _l c p ->
-      pair c (skip_sep conf p))
+      make_pair c (skip_sep conf p))
 
   let sum_cls _conf _ _ _ p = p
 
@@ -581,7 +581,7 @@ struct
     if not conf.clickhouse_syntax then
       KnownSize (fun mn0 path _ l p ->
         E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
-          pair v (skip_sep conf p)))
+          make_pair v (skip_sep conf p)))
     else
       UnknownSize (
         (fun _ _ _ _ p -> p),

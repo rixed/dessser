@@ -323,7 +323,7 @@ type e2 =
   | And
   | Or
   | Cons
-  | Pair (* TODO: should be MakePair *)
+  | MakePair
   | Min
   | Max
   (* Membership test for vectors, lists and sets; Not for CIDRs nor strings.
@@ -920,7 +920,7 @@ let string_of_e2 = function
   | And -> "and"
   | Or -> "or"
   | Cons -> "cons"
-  | Pair -> "pair"
+  | MakePair -> "make-pair"
   | Min -> "min"
   | Max -> "max"
   | Member -> "mem"
@@ -1525,7 +1525,7 @@ struct
     | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
-    | Lst [ Sym "pair" ; x1 ; x2 ] -> E2 (Pair, e x1, e x2)
+    | Lst [ Sym "make-pair" ; x1 ; x2 ] -> E2 (MakePair, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
@@ -1993,7 +1993,7 @@ and type_of l e0 =
       | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
-  | E2 (Pair, e1, e2) ->
+  | E2 (MakePair, e1, e2) ->
       T.pair (type_of l e1) (type_of l e2)
   | E1 (Fst, e) ->
       (match type_of l e |> T.develop_user_types with
@@ -2579,7 +2579,7 @@ let rec type_check l e =
     | E0S (Verbatim _, _)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _
           | Hash), _)
-    | E2 ((Pair | Let _ | LetPair _), _, _) ->
+    | E2 ((MakePair | Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
     | E0S (Seq, es) ->
@@ -3197,7 +3197,7 @@ let is_identity p = function
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(T.to_string)
   (Pair (u24, DataPtr)) \
-    (type_of no_env Ops.(pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
+    (type_of no_env Ops.(make_pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
 *)
 
 (*
@@ -3538,7 +3538,9 @@ struct
 
   let random_u128 = E0 RandomU128
 
-  let pair e1 e2 = E2 (Pair, e1, e2)
+  let make_pair e1 e2 = E2 (MakePair, e1, e2)
+
+  let pair = make_pair
 
   let first e = E1 (Fst, e)
 

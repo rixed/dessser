@@ -1149,7 +1149,7 @@ struct
         unary_op "List.hd" e1
     | E.E1 (Tail, e1) ->
         unary_op "List.tl" e1
-    | E.E2 (Pair, e1, e2) ->
+    | E.E2 (MakePair, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)

@@ -318,7 +318,7 @@ let e2_of_int n =
          StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
          DataPtrAdd ; DataPtrSub ;
-         And ; Or ; Pair ; Min ; Max ; Member ; Insert ;
+         And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
          ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
   e2s.(n mod Array.length e2s)
@@ -736,7 +736,7 @@ let sexpr mn =
             with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
               let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
               let dst = secnd (T2S.desser mn l tdst dst) in
-              pair src dst))) in
+              make_pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     make_converter ~dev_mode:true be ~mn e
@@ -794,7 +794,7 @@ let sexpr mn =
         let v_src = ToValue.make mn l src in
         with_sploded_pair ~l "v_src" v_src (fun l v src ->
           let dst = OfValue.serialize mn l copy_field v dst in
-          pair src dst))
+          make_pair src dst))
 *)
 (*$R
   let test_heap be mn =

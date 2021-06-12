@@ -942,7 +942,7 @@ struct
         method_call e1 "head" []
     | E.E1 (Tail, e1) ->
         method_call e1 "tail" []
-    | E.E2 (Pair, e1, e2) ->
+    | E.E2 (MakePair, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
