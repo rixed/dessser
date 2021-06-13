@@ -377,7 +377,7 @@ type e3 =
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
-  (* Unline LoopWhile, LoopUntil executes the body at least once *)
+  (* Unlike LoopWhile, LoopUntil executes the body at least once *)
   | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
   | Fold (* args are: init, (res -> item -> res), list/vector/set *)
   | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
@@ -405,7 +405,7 @@ type e4 =
       (* Cond ('a->byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
            Result ('a*ptr)
         Read whenever cond returns true, or the input stream is exhausted *)
-  | Repeat (* From (incl.) * To (exlc.) * body (idx->'a->'a) * Init value *)
+  | Repeat (* From (incl.) * To (excl.) * body (idx->'a->'a) * Init value *)
 
 type t =
   | E0 of e0
