@@ -2270,6 +2270,7 @@ let rec fold u f e =
   | E4 (_, e1, e2, e3, e4) ->
       fold (fold (fold (fold u f e1) f e2) f e3) f e4
 
+(* Folding a tree of 100M nodes takes ~30s :-< *)
 let rec fold_env u l f e =
   let u = f u l e in
   match e with
@@ -2986,12 +2987,33 @@ let rec type_check l e =
   let pass_type_check s =
     let e = Parser.expr s |> List.hd in
     try type_check no_env e ; true
-    with _ -> false *)
+    with _ -> false
+
+  let sum_times ps =
+    Unix.(ps.tms_utime +. ps.tms_stime +. ps.tms_cutime +. ps.tms_cstime)
+
+  let tot_time f =
+    let t1 = Unix.times () in
+    f () ;
+    let t2 = Unix.times () in
+    sum_times t2 -. sum_times t1
+*)
 
 (*$T pass_type_check
    not (pass_type_check "(get-item 2 (read-qword big-endian (u64 17)))")
    not (pass_type_check "(get-alt \"pejh\" (random-float))")
    not (pass_type_check "(apply (string \"blabla\") (bool false))")
+*)
+
+(*ST type_check
+  tot_time (fun () -> \
+    let z = Ops.u8_of_int 0 in \
+    let rec loop l n e = \
+      if n <= 0 then e else \
+      let_ ~l (loop l (n-1) z) (fun l v -> \
+        Ops.add v (loop l (n-1) e)) in \
+    let e = loop no_env 25 z in \
+    type_check no_env e) < 10.
 *)
 
 let size_of_expr e =
