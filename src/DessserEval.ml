@@ -1024,4 +1024,30 @@ let rec peval l e =
     (test_peval 3 "(fun 0 \"float\" \
                      (force \"\" (log (add (force \"\" (sqrt (float 1))) \
                                            (abs (param 0 0))))))")
+
+  "(bool true)" \
+    (test_peval 3 \
+      "(apply \
+        (fun 0 \"U32\" \
+          (gt (cardinality (make-vec (char \"f\") (char \"o\") (char \"o\"))) \
+              (param 0 0))) \
+          (u32 2))")
+*)
+(* This one is but a wish for now:
+  "(fun 0 \"u32\" \
+    (repeat (u32_of_int 0) (param 0 0) \
+      (fun 1 \"u32\" \"string\" \
+        (append-string (param 1 1) (string \"x\"))) \
+      (string \"\")))" \
+    (test_peval 3 \
+      "(fun 0 \"u32\" \
+        (get-item 1 \
+          (loop-while \
+            (fun 1 \"(U32;String;U32)\" \
+              (lt (get-item 0 (param 1 0)) (get-item 2 (param 1 0)))) \
+            (fun 1 \"(U32;String;U32)\" \
+              (make-tup (get-item 0 (param 1 0)) \
+                        (append-string (get-item 1 (param 1 0)) (string \"x\")) \
+                        (get-item 2 (param 1 0)))) \
+            (make-tup (u32 0) (string \"\") (param 0 0)))))")
 *)
