@@ -2,6 +2,8 @@ module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
 
+let debug = false
+
 type t =
   (* FIXME: maps not lists *)
   { identifiers : (string * identifier * T.t) list ;
@@ -87,15 +89,24 @@ let add_identifier_of_expression compunit ?name expr =
     | Some name ->
         name, true in
   let l = environment compunit in
+  if debug then
+    BatPrintf.eprintf "add_identifier_of_expression: type checking%s\n"
+      (E.to_pretty_string expr) ;
   E.type_check l expr ;
   let t = E.type_of l expr in
+  if debug then
+    BatPrintf.eprintf "  …of type: %a\n" T.print t ;
   let expr =
-    if !DessserEval.inline_level > 0 then
-      DessserEval.peval l expr
-    else expr in
-  (* Check that the expression types are equivalent: *)
-  E.type_check l expr ;
-  assert (T.eq t (E.type_of l expr)) ;
+    if !DessserEval.inline_level > 0 then (
+      let expr = DessserEval.peval l expr in
+      if debug then (
+        BatPrintf.eprintf "  …simplified into%s\n" (E.to_pretty_string expr) ;
+        (* Check that the expression types are equivalent: *)
+        E.type_check l expr
+      ) ;
+      assert (T.eq t (E.type_of l expr)) ;
+      expr
+    ) else expr in
   let identifier = { public ; expr } in
   { compunit with
       identifiers = (name, identifier, t) :: compunit.identifiers },
