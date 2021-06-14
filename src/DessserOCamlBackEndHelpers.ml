@@ -252,7 +252,11 @@ struct
   let shift_right_logical v1 s = v1 lsr s
 end
 
-(* Persistent data container => not to be used as a buffer! *)
+(* Persistent data container => not to be used as a buffer!
+ * We use bytes but we could as well use strings, as they are
+ * never externally modified. Bytes allow us to construct
+ * values more efficiently though (initializing and blitting
+ * in several steps). Thus the many unsafe operations. *)
 module Slice =
 struct
   type t = { bytes : Bytes.t ; offset : int ; length : int }
@@ -270,29 +274,32 @@ struct
     else
       let length = s1.length + s2.length in
       let bytes = Bytes.create length in
-      Bytes.blit s1.bytes s1.offset bytes 0 s1.length ;
-      Bytes.blit s2.bytes s2.offset bytes s1.length s2.length ;
+      Bytes.unsafe_blit s1.bytes s1.offset bytes 0 s1.length ;
+      Bytes.unsafe_blit s2.bytes s2.offset bytes s1.length s2.length ;
       { bytes ; offset = 0 ; length }
 
   let add s1 b =
     let b = Char.chr (Uint8.to_int b) in
     if s1.offset + s1.length < Bytes.length s1.bytes &&
-       Bytes.get s1.bytes (s1.offset + s1.length) = b
+       Bytes.unsafe_get s1.bytes (s1.offset + s1.length) = b
     then
       { s1 with length = s1.length + 1 }
     else
       let length = s1.length + 1 in
       let bytes = Bytes.create length in
-      Bytes.blit s1.bytes s1.offset bytes 0 s1.length ;
-      Bytes.set bytes s1.length b ;
+      Bytes.unsafe_blit s1.bytes s1.offset bytes 0 s1.length ;
+      Bytes.unsafe_set bytes s1.length b ;
       { bytes ; offset = 0 ; length }
 
   (* FIXME: the string type should be implemented as a slice *)
   let to_string s =
-    Bytes.sub_string s.bytes s.offset s.length
+    if s.offset = 0 && s.length = Bytes.length s.bytes then
+      Bytes.unsafe_to_string s.bytes
+    else
+      Bytes.sub_string s.bytes s.offset s.length
 
   let of_string s =
-    make (Bytes.of_string s) 0 (String.length s)
+    make (Bytes.unsafe_of_string s) 0 (String.length s)
 end
 
 (* Pointers
