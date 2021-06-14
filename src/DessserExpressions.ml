@@ -285,7 +285,12 @@ type e1s =
   | Apply
 
 type e2 =
-  | Let of string * T.t (* the type is cached here *)
+  (* Notes:
+   * - It is forbidden to shadow a previously defined identifier, to make
+   *   optimisation simpler (ie. it can be assumed that all instance of
+   *   `(idetifier name)` in the let body refers to that definition.
+   * - The type is cached here for performance reason *)
+  | Let of string * T.t
   | LetPair of string * T.t * string * T.t
   (* Deconstructor for vectors/lists: *)
   | Nth
@@ -1657,6 +1662,7 @@ exception Comparator_error of t * T.t * string
 exception Unbound_identifier of t * bool * string * env
 exception Unbound_parameter of t * param_id * env
 exception Invalid_expression of t * string
+exception Redefinition of string
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -1668,7 +1674,16 @@ let enter_function fid ts l =
                      (E0 (Param (fid, i)), t) :: l
                    ) [] ts }
 
+let defined n l =
+  let def =
+    List.exists (function
+      | E0 (Identifier n' | ExtIdentifier n'), _ when n' = n -> true
+      | _ -> false) in
+  def l.local || def l.global
+
 let rec add_local n t l =
+  (* Make sure there is no shadowing: *)
+  if defined n l then raise (Redefinition n) ;
   { l with local = (E0 (Identifier n), t) :: l.local }
 
 (* Returns the type of [e0].
@@ -3118,6 +3133,9 @@ let () =
              %s"
             (to_pretty_string ~max_depth e0)
             msg)
+    | Redefinition n ->
+        Some (
+          "Identifier "^ String.quote n ^" shadows a previous definition")
     | _ ->
         None)
 
