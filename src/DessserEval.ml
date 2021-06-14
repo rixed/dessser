@@ -321,10 +321,21 @@ let rec known_positive ~strict =
  * Secnd, and in total: *)
 let count_pair_uses name e =
   E.fold (0, 0, 0) (fun (fst, snd, tot as prev) -> function
-    | E.E1 (Fst, E0 (Identifier n)) when n = name -> fst + 1, snd, tot
-    | E.E1 (Snd, E0 (Identifier n)) when n = name -> fst, snd + 1, tot
-    | E.E0 (Identifier n) when n = name -> fst, snd, tot + 1
-    | _ -> prev
+    | E.E1 (Fst, E0 (Identifier n)) when n = name ->
+        (* Note: leave tot as is since fold is going to iterate on the
+         * Identifier independently *)
+        fst + 1, snd, tot
+    | E.E1 (Snd, E0 (Identifier n)) when n = name ->
+        fst, snd + 1, tot
+    | E.E2 (LetPair _, E0 (Identifier n), _) when n = name ->
+        (* A LetPair using this pair count both for First and Secnd, but we
+         * must also count the identifier twice in [tot] (as a double let
+         * would do:): *)
+        fst + 1, snd + 1, tot + 1
+    | E.E0 (Identifier n) when n = name ->
+        fst, snd, tot + 1
+    | _ ->
+        prev
   ) e
 
 let count_id_uses name e =
@@ -696,8 +707,15 @@ let rec peval l e =
               let n1 = "fst_"^ name and n2 = "snd_"^ name in
               let body =
                 E.map (function
-                  | E1 (Fst, E0 (Identifier n)) when n = name -> E0 (Identifier n1)
-                  | E1 (Snd, E0 (Identifier n)) when n = name -> E0 (Identifier n2)
+                  | E1 (Fst, E0 (Identifier n)) when n = name ->
+                      E0 (Identifier n1)
+                  | E1 (Snd, E0 (Identifier n)) when n = name ->
+                      E0 (Identifier n2)
+                  | E2 (LetPair _ as letpair, E0 (Identifier n), body)
+                    when n = name ->
+                      (* This will be further simplified: *)
+                      E.E2 (letpair, E2 (MakePair, E0 (Identifier n1),
+                                                   E0 (Identifier n2)), body)
                   | e -> e
                 ) body in
               E.E2 (LetPair (n1, t1, n2, t2), value, body) |> p
