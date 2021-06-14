@@ -1032,6 +1032,14 @@ let rec peval l e =
           (gt (cardinality (make-vec (char \"f\") (char \"o\") (char \"o\"))) \
               (param 0 0))) \
           (u32 2))")
+
+  "(fun 0 \"U16\" (add (u16 1) (param 0 0)))" \
+    (test_peval 3 \
+      "(fun 0 \"U16\" \
+        (let \"p\" \"(U8*U16)\" (make-pair (u8 1) (param 0 0)) \
+          (let-pair \"a\" \"U8\" \"b\" \"U16\" (identifier \"p\") \
+            (add (to-u16 (identifier \"a\")) \
+                 (identifier \"b\")))))")
 *)
 (* This one is but a wish for now:
   "(fun 0 \"u32\" \
