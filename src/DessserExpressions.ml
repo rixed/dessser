@@ -2406,6 +2406,7 @@ let rec map_env l f e =
 let has_side_effect e =
   try
     iter (function
+      | E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
       | E1 ((Dump | ReadByte | ReadWord _ |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
