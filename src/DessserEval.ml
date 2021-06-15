@@ -345,6 +345,11 @@ let count_id_uses name e =
     | _ -> count
   ) e
 
+let rec final_expression = function
+  | E.E2 (Let _, _, e) -> final_expression e
+  | E2 (LetPair _, _, e) -> final_expression e
+  | e -> e
+
 let rec peval l e =
   (* For when some operations are invalid on floats: *)
   let no_floats _ _ = assert false in
@@ -738,7 +743,40 @@ let rec peval l e =
         | E.E2 (MakePair, e1, e2) ->
             E.E2 (Let (n1, t1), e1, E2 (Let (n2, t2), e2, body)) |> p
         | _ ->
-            E.E2 (LetPair (n1, t1, n2, t2), value, body))
+            (* The value could still result in a MakePair after some
+             * intermediary let/let-pair definitions. In that case, if the
+             * identifiers n1 and n2 are used only a few times then it is
+             * beneficial to inline the MakePair arguments into the body,
+             * despite we cannot split the pair as easily as above. *)
+            let def = E.E2 (LetPair (n1, t1, n2, t2), value, body) in
+            match final_expression value with
+            | E.E2 (MakePair, e1, e2) as final_make_pair ->
+                (* So this makepair would be replaced with the body, where
+                 * each occurances of n1/n2 have been replaced by the full
+                 * e1/e2: *)
+                let body_swap =
+                  E.map (function
+                    | E.E0 (Identifier n) when n = n1 -> e1
+                    | E.E0 (Identifier n) when n = n2 -> e2
+                    | e -> e
+                  ) body in
+                (* The new expression would then be [value], where that final
+                 * MakePair is replaced by that new body, and the initial
+                 * let-pair is gone: *)
+                let new_e =
+                  E.map (fun e ->
+                    if e == final_make_pair then body_swap else e
+                  ) value in
+                (* Is that worth it? *)
+                let def_sz = E.size def
+                and new_sz = E.size new_e in
+                if new_sz <= def_sz + max_inline_size () then
+                  new_e
+                else
+                  def
+            | _ ->
+                (* never mind then *)
+                def)
    | E2 (op, e1, e2) ->
       (match op, p e1, p e2 with
       | Nth, e1, (E0S ((MakeVec | MakeLst _), es) as e2) ->
@@ -1059,6 +1097,16 @@ let rec peval l e =
           (let-pair \"a\" \"U8\" \"b\" \"U16\" (identifier \"p\") \
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
+
+  "(fun 0 \"DataPtr\" \"DataPtr\" (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"DataPtr\" (read-dword little-endian (param 0 0)) (make-pair (u32-of-dword (identifier \"inner1\")) (data-ptr-add (identifier \"innerPtr\") (size 4)))))" \
+    (test_peval 3 \
+      "(fun 0 \"DataPtr\" \"DataPtr\" \
+        (let-pair \"outer1\" \"U32\" \"outerPtr\" \"DataPtr\" \
+          (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"DataPtr\" \
+            (read-dword little-endian (param 0 0)) \
+            (make-pair (u32-of-dword (identifier \"inner1\")) (identifier \"innerPtr\"))) \
+          (make-pair (identifier \"outer1\") \
+                     (data-ptr-add (identifier \"outerPtr\") (size 4)))))")
 *)
 (* This one is but a wish for now:
   "(fun 0 \"u32\" \

@@ -2324,36 +2324,46 @@ let iter_env l f e =
 let size e =
   fold 0 (fun c _ -> c + 1) e
 
-(* depth first expression transformation: *)
+(* Depth first expression transformation.
+ * It is important that when [f] returns the same [e] then the expression
+ * is not rebuild, both for performance and to allow the use of the ==
+ * operator, for instance in DessserEval.ml: *)
 let rec map f e =
+  let same = List.for_all2 (==) in
   match e with
   | E0 _ ->
       f e
   | E0S (op, es) ->
-      let es = List.map (map f) es in
-      f (E0S (op, es))
+      let es' = List.map (map f) es in
+      if same es' es then f e else
+      f (E0S (op, es'))
   | E1 (op, e1) ->
-      let e1 = map f e1 in
-      f (E1 (op, e1))
+      let e1' = map f e1 in
+      if e1 == e1' then f e else
+      f (E1 (op, e1'))
   | E1S (op, e1, es) ->
-      let e1 = map f e1
-      and es = List.map (map f) es in
-      f (E1S (op, e1, es))
+      let e1' = map f e1
+      and es' = List.map (map f) es in
+      if e1' == e1 && same es' es then f e else
+      f (E1S (op, e1', es'))
   | E2 (op, e1, e2) ->
-      let e1 = map f e1
-      and e2 = map f e2 in
-      f (E2 (op, e1, e2))
+      let e1' = map f e1
+      and e2' = map f e2 in
+      if e1' == e1 && e2' == e2 then f e else
+      f (E2 (op, e1', e2'))
   | E3 (op, e1, e2, e3) ->
-      let e1 = map f e1
-      and e2 = map f e2
-      and e3 = map f e3 in
-      f (E3 (op, e1, e2, e3))
+      let e1' = map f e1
+      and e2' = map f e2
+      and e3' = map f e3 in
+      if e1' == e1 && e2' == e2 && e3' == e3 then f e else
+      f (E3 (op, e1', e2', e3'))
   | E4 (op, e1, e2, e3, e4) ->
-      let e1 = map f e1
-      and e2 = map f e2
-      and e3 = map f e3
-      and e4 = map f e4 in
-      f (E4 (op, e1, e2, e3, e4))
+      let e1' = map f e1
+      and e2' = map f e2
+      and e3' = map f e3
+      and e4' = map f e4 in
+      if e1' == e1 && e2' == e2 && e3' == e3 && e4' == e4 then f e else
+      f (E4 (op, e1', e2', e3', e4'))
 
 let rec map_env l f e =
   match e with
