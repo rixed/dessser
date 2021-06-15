@@ -18,7 +18,8 @@ oUnit-anon.cache
 *.byte
 *.top
 .depend
-all_tests.*
+slow_tests.*
+quick_tests.*
 perf.data*
 gmon.out
 core
