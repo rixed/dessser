@@ -13,7 +13,8 @@ let inline_level = ref 1
 let max_inline_size () =
   match !inline_level with
   | 0 -> 0
-  | 1 -> 4
+  (* -O1 does not inflate the code but can still perform some simplification *)
+  | 1 -> 1
   | 2 -> 8
   | 3 -> 16
   | 4 -> 32
@@ -689,7 +690,7 @@ let rec peval l e =
             else p (seq [ ignore_ value ; body ])
           else if use_count = 1 ||
                   E.can_duplicate value &&
-                  (use_count - 1) * E.size value < max_inline_size ()
+                  (use_count - 1) * E.size value <= max_inline_size ()
                then
             E.map (function
               | E0 (Identifier n) when n = name -> value
