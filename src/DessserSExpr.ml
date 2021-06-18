@@ -110,12 +110,12 @@ struct
   let vec_sep _conf _ _ _ p =
     write_byte p (byte_of_const_char ' ')
 
-  let list_opn conf vtyp0 path _ n l p =
+  let list_opn conf mn0 path _ n l p =
     let p =
       if conf.list_prefix_length then
         match n with
         | Some n ->
-            let p = su32 conf vtyp0 path l n p in
+            let p = su32 conf mn0 path l n p in
             write_byte p (byte_of_const_char ' ')
         | None ->
             failwith "SExpr.Ser needs list length upfront"
@@ -340,8 +340,8 @@ struct
 
   let list_opn conf =
     if conf.list_prefix_length then
-      KnownSize (fun vtyp0 path _ l p ->
-        E.with_sploded_pair ~l "list_opn" (du32 conf vtyp0 path l p) (fun _l v p ->
+      KnownSize (fun mn0 path _ l p ->
+        E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
           make_pair v (skip 2 p)))
     else
       UnknownSize (
