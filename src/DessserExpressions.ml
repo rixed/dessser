@@ -643,8 +643,6 @@ let rec default_value ?(allow_null=true) = function
   | { vtyp = Map _ ; _ } ->
       assert false (* no value of map type *)
 
-let string_of_path = IO.to_string T.print_path
-
 let string_of_backend = function
   | T.DIL -> "DIL"
   | T.OCaml -> "OCaml"
@@ -1655,7 +1653,6 @@ let no_env = { global = [] ; local = [] }
 
 exception Type_error of t * t * T.t * string
 exception Type_error_param of t * t * int * T.t * string
-exception Type_error_path of t * t * T.path * string
 exception Struct_error of t * string
 exception Apply_error of t * string
 exception Comparator_error of t * T.t * string
@@ -3080,18 +3077,6 @@ let () =
             (to_pretty_string ~max_depth e)
             s
             T.print t)
-    | Type_error_path (e0, e, path, s) ->
-        Some (
-          Printf.sprintf2
-            "Type Error: In expression\
-             %s\
-             path %a of expression\
-             %s\
-             should %s"
-            (to_pretty_string ~max_depth e0)
-            T.print_path path
-            (to_pretty_string ~max_depth e)
-            s)
     | Struct_error (e0, s) ->
         Some (
           Printf.sprintf2

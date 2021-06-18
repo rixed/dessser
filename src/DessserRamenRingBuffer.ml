@@ -4,6 +4,7 @@ open DessserTools
 open Dessser
 module T = DessserTypes
 module E = DessserExpressions
+module Path = DessserPath
 open E.Ops
 
 (* Size of the word stored in the ringbuffer, in bytes. *)
@@ -136,7 +137,7 @@ let may_set_nullbit bit mn0 path l stk =
   | _ ->
       (* This is an item of some compound (top level or inner), which have a
        * nullbit if it is nullable: *)
-      if T.(type_of_path mn0 path |> develop_maybe_nullable).nullable then
+      if (Path.type_of_path mn0 path |> T.develop_maybe_nullable).nullable then
         set_nullbit_to bit l stk
       else
         stk
@@ -149,7 +150,7 @@ let may_skip_nullbit mn0 path l p_stk =
       assert (not mn0.T.nullable) ;
       p_stk
   | _ ->
-      if T.(type_of_path mn0 path |> develop_maybe_nullable).nullable then
+      if (Path.type_of_path mn0 path |> T.develop_maybe_nullable).nullable then
         E.with_sploded_pair ~l "may_skip_nullbit" p_stk (fun l p stk ->
           let stk = skip_nullbit l stk in
           make_pair p stk)
@@ -274,7 +275,7 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let with_debug p what write =
     seq [ debug (string ("ser a "^ what ^" at ")) ;
@@ -483,7 +484,7 @@ struct
   (* nullbits are set when actual values are written: *)
   let snotnull _t () _ _ _ p_stk = p_stk
 
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
 
   (* SerSize of the whole string: *)
   let ssize_of_string _mn0 _path _l id =
@@ -503,7 +504,7 @@ struct
                    nullmask_bytes)
     and without_nullmask () =
       ConstSize word_size in
-    match T.(type_of_path mn0 path |> develop_maybe_nullable).vtyp with
+    match (Path.type_of_path mn0 path |> T.develop_maybe_nullable).vtyp with
     | Lst vt ->
         (* If the items are not nullable then there is no nullmask. *)
         if vt.nullable then
@@ -581,13 +582,13 @@ struct
   let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
     ConstSize (nullmask_words * word_size)
 
   let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
     ConstSize (nullmask_words * word_size)
 
   (* Just the additional label: *)
@@ -596,7 +597,7 @@ struct
 
   let ssize_of_vec mn0 path _ _ =
     let nullmask_words =
-      NullMaskWidth.words_of_type (T.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
     ConstSize (nullmask_words * word_size)
 
   let ssize_of_null _mn0 _path = ConstSize 0
@@ -644,7 +645,7 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   (* When we deserialize any value, we may have to increment the nullbit
    * pointer depending on the current type of position in the global type

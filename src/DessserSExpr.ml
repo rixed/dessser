@@ -3,6 +3,7 @@ open Stdint
 open Dessser
 module T = DessserTypes
 module E = DessserExpressions
+module Path = DessserPath
 open E.Ops
 
 let debug = false
@@ -33,7 +34,7 @@ struct
     | Some c ->
         write_byte p (byte_of_const_char c)
 
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
@@ -136,7 +137,7 @@ struct
   let snotnull _t _conf _ _ _ p = p
 
   (* Overestimate some of them: *)
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
 
   let ssize_start ?(config=default_config) _ =
     ConstSize (if config.newline = None then 0 else 1)
@@ -188,7 +189,7 @@ struct
 
   let ssize_of_tup mn path _ _ =
     let num_items =
-      match (T.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).vtyp with
       | Tup mns -> Array.length mns
       | Rec mns -> Array.length mns
       | _ -> assert false in
@@ -198,7 +199,7 @@ struct
 
   let ssize_of_sum mn path _ _ =
     let max_label =
-      match (T.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).vtyp with
       | Sum mns ->
           Array.fold_left (fun m (label, _) ->
             max m (String.length label)
@@ -208,7 +209,7 @@ struct
 
   let ssize_of_vec mn path _ _ =
     let dim =
-      match (T.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).vtyp with
       | Vec (dim, _) -> dim
       | _ -> assert false in
     ConstSize (2 + dim - 1)
@@ -253,7 +254,7 @@ struct
           ~then_:(skip_char c p)
           ~else_:p
 
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   let tup_cls _conf _ _ _ p = skip1 p
 

@@ -38,7 +38,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.vec_sep dstate mn0 path l src in
-        let subpath = T.path_append i path in
+        let subpath = Path.append i path in
         let v_src = make1 dstate mn0 subpath mn l src in
         E.with_sploded_pair ~l "dvec" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -60,7 +60,7 @@ struct
     let inits_src_t =
       T.Pair (init_list_t, Des.ptr mn0) in
     (* good enough to determine the item type but not much more: *)
-    let subpath = T.path_append 0 path in
+    let subpath = Path.append 0 path in
     match Des.list_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
@@ -120,7 +120,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.tup_sep dstate mn0 path l src in
-        let subpath = T.path_append i path in
+        let subpath = Path.append i path in
         let v_src = make1 dstate mn0 subpath mns.(i) l src in
         E.with_sploded_pair ~l "dtup" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -138,7 +138,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.rec_sep dstate mn0 path l src in
-        let subpath = T.path_append i path in
+        let subpath = Path.append i path in
         let v_src = make1 dstate mn0 subpath (snd mns.(i)) l src in
         E.with_sploded_pair ~l "drec" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -151,7 +151,7 @@ struct
       let rec choose_cstr i =
         assert (i <= max_lbl) ;
         let res () =
-          let subpath = T.path_append i path in
+          let subpath = Path.append i path in
           let _, subtyp = mns.(i) in
           let v_src = make1 dstate mn0 subpath subtyp l src in
           E.with_sploded_pair ~l "dsum2" v_src (fun l v src ->
@@ -267,7 +267,7 @@ struct
   let rec svec dim mn sstate mn0 path l v dst =
     let dst = Ser.vec_opn sstate mn0 path dim mn l dst in
     let rec loop i l dst =
-      let subpath = T.path_append i path in
+      let subpath = Path.append i path in
       if i >= dim then
         Ser.vec_cls sstate mn0 path l dst
       else
@@ -283,7 +283,7 @@ struct
     let len = cardinality v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
     let dst_n =
-      let subpath = T.path_append 0 path in
+      let subpath = Path.append 0 path in
       fold ~list:v
         ~init:(make_pair dst (i32 0l))
         ~body:
@@ -305,7 +305,7 @@ struct
     let dst = Ser.tup_opn sstate mn0 path mns l dst in
     let dst =
       Array.fold_lefti (fun dst i mn ->
-        let subpath = T.path_append i path in
+        let subpath = Path.append i path in
         let_ ~name:"stup_dst" ~l
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath l dst)
@@ -318,7 +318,7 @@ struct
     let dst = Ser.rec_opn sstate mn0 path mns l dst in
     let dst =
       Array.fold_lefti (fun dst i (fname, mn) ->
-        let subpath = T.path_append i path in
+        let subpath = Path.append i path in
         let_ ~name:"srec_dst" ~l
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath l dst)
@@ -342,7 +342,7 @@ struct
             (Ser.sum_opn sstate mn0 path mns l label dst)
             (fun l dst ->
               let rec choose_cstr i =
-                let subpath = T.path_append i path in
+                let subpath = Path.append i path in
                 assert (i <= max_lbl) ;
                 let field, mn = mns.(i) in
                 let v' = get_alt field v in
@@ -458,7 +458,7 @@ struct
       Ser.ssize_of_vec mn0 path l v |> add_size l sizes in
     let rec loop l sizes i =
       if i >= dim then sizes else
-      let subpath = T.path_append i path in
+      let subpath = Path.append i path in
       let v' = nth (u32_of_int i) v in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
@@ -471,7 +471,7 @@ struct
     let len = cardinality v in
     (* TODO: a way to ask only for the dynsize, and compute the constsize
      * as len * const_size of mn *)
-    let subpath = T.path_append 0 path in (* good enough *)
+    let subpath = Path.append 0 path in (* good enough *)
     let init = make_pair sizes v in
     let init_t = E.type_of l init in
     repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
@@ -490,7 +490,7 @@ struct
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
       let ma = mask_get i ma in
-      let subpath = T.path_append i path in
+      let subpath = Path.append i path in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         sersz1 mn mn0 subpath l v' ma sizes)
     ) sizes mns
@@ -501,7 +501,7 @@ struct
     Array.fold_lefti (fun sizes i (fname, mn) ->
       let v' = get_field fname v in
       let ma = mask_get i ma in
-      let subpath = T.path_append i path in
+      let subpath = Path.append i path in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         comment ("sersize of field "^ fname)
                 (sersz1 mn mn0 subpath l v' ma sizes))
@@ -517,7 +517,7 @@ struct
         let rec choose_cstr i =
           let name, mn = mns.(i) in
           let v' = get_alt name v in
-          let subpath = T.path_append i path in
+          let subpath = Path.append i path in
           assert (i <= max_lbl) ;
           if i = max_lbl then
             seq [

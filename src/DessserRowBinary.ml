@@ -3,6 +3,7 @@ open Stdint
 open Dessser
 module T = DessserTypes
 module E = DessserExpressions
+module Path = DessserPath
 open E.Ops
 
 module Ser : SER with type config = unit =
@@ -13,7 +14,7 @@ struct
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat () _ _ _ v p =
     write_qword LittleEndian p (qword_of_float v)
@@ -136,7 +137,7 @@ struct
   let snotnull _t () _ _ _ p =
     write_byte p (byte Uint8.zero)
 
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
 
   let ssize_of_float _ _ _ _ = ConstSize 8
   let ssize_of_bool _ _ _ _ = ConstSize 1
@@ -207,7 +208,7 @@ struct
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   let dfloat () _ _ l p =
     let w_p = read_qword LittleEndian p in

@@ -397,13 +397,13 @@ let path_expression =
     let path, expr =
       match String.split s ~by:":" with
       | exception Not_found -> [], s
-      | p, e -> String.trim p |> T.path_of_string, e in
+      | p, e -> String.trim p |> Path.of_string, e in
     match parse_expression expr with
     | Stdlib.Error _ as err -> err
     | Stdlib.Ok e -> Stdlib.Ok (path, e)
   and print fmt (path, expr) =
     Legacy.Format.fprintf fmt "%s:%a"
-      (T.string_of_path path)
+      (Path.to_string path)
       (E.pretty_print ?max_depth:None) expr in
   Arg.conv ~docv:"PATH:FUNCTION" (parse, print)
 

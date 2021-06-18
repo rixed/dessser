@@ -3,20 +3,21 @@ open Stdint
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
-module P = DessserPrinter
+module Printer = DessserPrinter
+module Path = DessserPath
 
 (* Used by deserializers to "open" lists: *)
 type list_opener =
   (* When a list size is known from the beginning, implement this that
    * returns both the list size and the new src pointer: *)
-  | KnownSize of (T.maybe_nullable -> T.path -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
+  | KnownSize of (T.maybe_nullable -> Path.t -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the list size is not known beforehand, rather implement
    * this pair of functions, one to parse the list header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the list is finished: *)
   | UnknownSize of
-      (T.maybe_nullable -> T.path -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
-      (T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
+      (T.maybe_nullable -> Path.t -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
+      (T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
 
 (* Given the above we can built interesting expressions.
  * A DES(serializer) is a module that implements a particular serialization
@@ -45,7 +46,7 @@ sig
    * The [maybe_nullable] and [path] values are in the fully fledged global
    * type and therefore must be used cautiously! *)
   (* FIXME: make this type "private": *)
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*v*ptr*) E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*v*ptr*) E.t
 
   val dfloat : des
   val dstring : des
@@ -76,25 +77,25 @@ sig
   (* Get rid of the _seps (in SExpr, use a state to add a separator before any
    * value instead). That would make the code generated for dessser significantly
    * simpler, and even more so when runtime fieldmasks enter the stage! *)
-  val tup_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Returns the label as an u16 and the new pointer: *)
-  val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
-  val sum_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
+  val sum_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : state -> T.maybe_nullable -> Path.t -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val list_opn : state -> list_opener
-  val list_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val is_null : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*bool*) E.t
-  val dnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val dnotnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val is_null : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
+  val dnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnotnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
 (* Same goes for SER(rializers), with the addition that it is also possible to
@@ -116,7 +117,7 @@ sig
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val sfloat : ser
   val sstring : ser
@@ -147,29 +148,29 @@ sig
    * fieldmask. RingBuff SER still does need it to compute the width of the
    * bitmask though. So the SER will need to be given the full representation
    * of the current fieldmask (as in CodeGen_OCaml). *)
-  val tup_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Takes the label as an u16: *)
-  val sum_opn : state -> T.maybe_nullable -> T.path -> (string * T.maybe_nullable) array -> E.env -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val sum_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.maybe_nullable -> T.path -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_opn : state -> T.maybe_nullable -> T.path -> T.maybe_nullable -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_cls : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : state -> T.maybe_nullable -> Path.t -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val nullable : state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snotnull : T.value -> state -> T.maybe_nullable -> T.path -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val nullable : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snotnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> (*value*) E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*value*) E.t -> ssize
   val ssize_of_float : ssizer
   val ssize_of_string : ssizer
   val ssize_of_bool : ssizer
@@ -198,7 +199,7 @@ sig
   val ssize_of_sum : ssizer
   val ssize_of_vec : ssizer
   val ssize_of_list : ssizer
-  val ssize_of_null : T.maybe_nullable -> T.path -> ssize
+  val ssize_of_null : T.maybe_nullable -> Path.t -> ssize
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
   val ssize_start : ?config:config -> T.maybe_nullable -> ssize
@@ -271,7 +272,7 @@ struct
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Stdlib.string_of_int i)
-          (let subpath = T.path_append i path in
+          (let subpath = Path.append i path in
           if i = 0 then
             desser_ transform sstate dstate mn0 subpath l src_dst
           else
@@ -297,7 +298,7 @@ struct
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
-            (let subpath = T.path_append i path in
+            (let subpath = Path.append i path in
             if i = 0 then
               desser_ transform sstate dstate mn0 subpath l src_dst
             else
@@ -324,7 +325,7 @@ struct
           let src_dst = make_pair src dst in
           let rec choose_cstr i =
             let max_lbl = Array.length mns - 1 in
-            let subpath = T.path_append i path in
+            let subpath = Path.append i path in
             if i >= max_lbl then
               seq [
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
@@ -349,7 +350,7 @@ struct
           (Ser.vec_opn sstate mn0 path dim mn l dst)) in
     (* TODO: Same comment as in dslist apply: we would like to be able to keep
      * track of a runtime path index: *)
-    let subpath = T.path_append 0 path in
+    let subpath = Path.append 0 path in
     let src_dst =
       repeat
         ~init:src_dst
@@ -376,7 +377,7 @@ struct
     let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
-    let subpath = T.path_append 0 path in
+    let subpath = Path.append 0 path in
     (* FIXME: nope. The code emitted in the function below (repeat's body)
      * need to be able to count the nullmask bit index. For this it needs
      * either an accurate path or a distinct call to Ser.nullable (to maintain
@@ -507,7 +508,7 @@ struct
 
   and desser_ transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
-    let mn = T.type_of_path mn0 path in
+    let mn = Path.type_of_path mn0 path in
     if mn.nullable then (
       E.with_sploded_pair ~l "desser_" src_dst (fun l src dst ->
         (* Des can use [is_null] to prepare for a nullable, but Ser might also
@@ -566,5 +567,5 @@ sig
   val preferred_decl_extension : string
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
-  val type_identifier : P.t -> T.t -> string
+  val type_identifier : Printer.t -> T.t -> string
 end

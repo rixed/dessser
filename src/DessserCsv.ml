@@ -5,6 +5,7 @@ open Dessser
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
+module Path = DessserPath
 open E.Ops
 
 (*$inject
@@ -156,7 +157,7 @@ let make_serializable =
  * then clickhouse expects to receive them in CSV as strings, so we do
  * the same) *)
 let is_fixed_string mn0 path =
-  match T.type_of_path mn0 path with
+  match Path.type_of_path mn0 path with
   | { vtyp = Vec (_, { vtyp = Base Char ; nullable = false } ) ; _ } ->
       true
   | _ ->
@@ -203,7 +204,7 @@ struct
     | Some c ->
         write_byte p (byte_of_const_char c)
 
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
@@ -339,7 +340,7 @@ struct
 
   let snotnull _t _conf _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
   let todo_ssize () = failwith "TODO: ssize for CSV"
   let ssize_of_float _ _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ _ = todo_ssize ()
@@ -386,7 +387,7 @@ struct
 
   let start ?(config=default_config) _mn _l p = config, p
 
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> E.t -> E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   let skip n p = data_ptr_add p (size n)
 

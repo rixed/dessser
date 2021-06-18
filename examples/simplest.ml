@@ -5,6 +5,7 @@ open DessserTools
 open DessserDSTools
 module T = DessserTypes
 module E = DessserExpressions
+module Path = DessserPath
 open E.Ops
 
 (* The simplest possible deserializer *)
@@ -16,7 +17,7 @@ struct
 
   let start ?(config=()) _vtyp _l src = config, src
   let stop () _l src = src
-  type des = state -> T.maybe_nullable -> T.path -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
+  type des = state -> T.maybe_nullable -> Path.t -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
   let from_byte v1 v2 _ _ l src =
     let b_src = read_byte src in
@@ -81,7 +82,7 @@ struct
 
   let start ?(config=()) _l _v dst = config, dst
   let stop () _l dst = dst
-  type ser = state -> T.maybe_nullable -> T.path -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
+  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
     write_byte dst (byte_of_u8 (u8_of_bool b))
@@ -127,7 +128,7 @@ struct
   let snull _t () _ _ _ dst = write_byte dst (byte Uint8.one)
   let snotnull _t () _ _ _ dst = write_byte dst (byte Uint8.zero)
 
-  type ssizer = T.maybe_nullable -> T.path -> E.env -> (*valueptr*) E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*valueptr*) E.t -> ssize
   let ssize_of_float _ _ _ _ = ConstSize 1
   let ssize_of_string _ _ _ _ = ConstSize 1
   let ssize_of_bool _ _ _ _ = ConstSize 1
