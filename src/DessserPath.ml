@@ -9,20 +9,26 @@ open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 
-type t = int list
+type comp = CompTime of int | RunTime of E.t
+
+let print_comp oc = function
+  | CompTime i -> Int.print oc i
+  | RunTime e -> Printf.fprintf oc "<%a>" (E.print ?max_depth:None) e
+
+type t = comp list
 
 (* FIXME: a data structure that can be appended/prepended/matched from both ends *)
 let append i path = path @ [i]
 
 let print oc p =
-  List.print ~first:"/" ~last:"" ~sep:"/" Int.print oc p
+  List.print ~first:"/" ~last:"" ~sep:"/" print_comp oc p
 
 let of_string s =
   if s = "" || s.[0] <> '/' then
     Printf.sprintf "%S" s |> invalid_arg ;
   String.lchop s |>
   String.split_on_char '/' |>
-  List.map int_of_string
+  List.map (fun i -> CompTime (int_of_string i))
 
 let to_string = IO.to_string print
 
@@ -30,7 +36,7 @@ let to_string = IO.to_string print
 let type_and_name_of_path t path =
   let rec loop field_name t = function
     | [] -> t, field_name
-    | i :: path ->
+    | CompTime i :: path ->
         let rec type_of = function
           | T.(Unknown | Base _ | Ext _ | Map _) ->
               assert false
@@ -52,6 +58,26 @@ let type_and_name_of_path t path =
           | Sum cs ->
               assert (i < Array.length cs) ;
               loop (fst cs.(i)) (snd cs.(i)) path in
+        type_of t.vtyp
+    | RunTime _ :: path ->
+        (* For some of those types we can compute the subtype but not the
+         * associated field name, which therefore must not be used.
+         * Here it's given a caracteristic name for debugging purposes only: *)
+        let no_fieldname = "__no_fieldname_at_runtime__" in
+        let rec type_of = function
+          | T.(Unknown | Base _ | Ext _ | Map _) ->
+              assert false
+          | Usr t ->
+              type_of t.def
+          | Vec (_, mn) ->
+              loop no_fieldname mn path
+          | Lst mn ->
+              loop no_fieldname mn path
+          | Set (_, mn) ->
+              loop no_fieldname mn path
+          | Tup _ | Rec _ | Sum _ ->
+              invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"
+        in
         type_of t.vtyp in
   loop "" t path
 
@@ -73,8 +99,8 @@ let type_of_parent mn path =
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_maybe_nullable)
   test_t (type_of_path test_t [])
-  (required (Base U8)) (type_of_path test_t [0])
-  (optional (Base String)) (type_of_path test_t [1])
-  (optional (Vec (2, required (Base Char)))) (type_of_path test_t [2])
-  (required (Base Char)) (type_of_path test_t [2; 0])
+  (required (Base U8)) (type_of_path test_t [CompTime 0])
+  (optional (Base String)) (type_of_path test_t [CompTime 1])
+  (optional (Vec (2, required (Base Char)))) (type_of_path test_t [CompTime 2])
+  (required (Base Char)) (type_of_path test_t [CompTime 2; CompTime 0])
 *)

@@ -38,7 +38,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.vec_sep dstate mn0 path l src in
-        let subpath = Path.append i path in
+        let subpath = Path.(append (CompTime i) path) in
         let v_src = make1 dstate mn0 subpath mn l src in
         E.with_sploded_pair ~l "dvec" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -59,8 +59,6 @@ struct
     let init_list_t = T.SList init_t in
     let inits_src_t =
       T.Pair (init_list_t, Des.ptr mn0) in
-    (* good enough to determine the item type but not much more: *)
-    let subpath = Path.append 0 path in
     match Des.list_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
@@ -74,6 +72,7 @@ struct
                       if_ (eq n (i32 0l))
                         ~then_:src
                         ~else_:(Des.list_sep dstate mn0 path l src) in
+                    let subpath = Path.(append (RunTime n) path) in
                     let v_src = make1 dstate mn0 subpath mn l src in
                     E.with_sploded_pair ~l "dlist3" v_src (fun _l v src ->
                       make_pair (cons v inits) src))))
@@ -83,29 +82,30 @@ struct
           and src = Des.list_cls dstate mn0 path l src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
-        let fst_inits_src_t = T.Pair (T.bool, inits_src_t) in
+        let n_inits_src_t = T.Pair (T.u32, inits_src_t) in
         let src = list_opn mn0 path mn l src in
-        let fst_inits_src =
+        let n_inits_src =
           loop_while
             ~cond:
-              (E.func1 ~l fst_inits_src_t (fun l fst_inits_src ->
-                let src = secnd (secnd fst_inits_src) in
+              (E.func1 ~l n_inits_src_t (fun l n_inits_src ->
+                let src = secnd (secnd n_inits_src) in
                 not_ (is_end_of_list mn0 path l src)))
             ~body:
-              (E.func1 ~l fst_inits_src_t (fun l fst_inits_src ->
-                E.with_sploded_pair ~l "dlist5" fst_inits_src (fun l is_fst inits_src ->
+              (E.func1 ~l n_inits_src_t (fun l n_inits_src ->
+                E.with_sploded_pair ~l "dlist5" n_inits_src (fun l n inits_src ->
                   E.with_sploded_pair ~l "dlist6" inits_src (fun l inits src ->
+                    let subpath = Path.(append (RunTime n) path) in
                     let src =
-                      if_ is_fst
+                      if_ (eq n (u32_of_int 0))
                         ~then_:src
-                        ~else_:(Des.list_sep dstate mn0 path l src) in
+                        ~else_:(Des.list_sep dstate mn0 subpath l src) in
                     let v_src = make1 dstate mn0 subpath mn l src in
                     let inits_src =
                       E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
                         make_pair (cons v inits) src) in
-                    make_pair false_ inits_src))))
-            ~init:(make_pair true_ (make_pair (end_of_list init_t) src)) in
-        E.with_sploded_pair ~l "dlist9" (secnd fst_inits_src) (fun l inits src ->
+                    make_pair (add n (u32_of_int 1)) inits_src))))
+            ~init:(make_pair (u32_of_int 0) (make_pair (end_of_list init_t) src)) in
+        E.with_sploded_pair ~l "dlist9" (secnd n_inits_src) (fun l inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path l src in
           make_pair v src)
@@ -120,7 +120,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.tup_sep dstate mn0 path l src in
-        let subpath = Path.append i path in
+        let subpath = Path.(append (CompTime i) path) in
         let v_src = make1 dstate mn0 subpath mns.(i) l src in
         E.with_sploded_pair ~l "dtup" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -138,7 +138,7 @@ struct
       else
         let src = if i = 0 then src else
                     Des.rec_sep dstate mn0 path l src in
-        let subpath = Path.append i path in
+        let subpath = Path.(append (CompTime i) path) in
         let v_src = make1 dstate mn0 subpath (snd mns.(i)) l src in
         E.with_sploded_pair ~l "drec" v_src (fun l v src ->
           loop (v :: ids) (i + 1) l src) in
@@ -151,7 +151,7 @@ struct
       let rec choose_cstr i =
         assert (i <= max_lbl) ;
         let res () =
-          let subpath = Path.append i path in
+          let subpath = Path.(append (CompTime i) path) in
           let _, subtyp = mns.(i) in
           let v_src = make1 dstate mn0 subpath subtyp l src in
           E.with_sploded_pair ~l "dsum2" v_src (fun l v src ->
@@ -267,7 +267,7 @@ struct
   let rec svec dim mn sstate mn0 path l v dst =
     let dst = Ser.vec_opn sstate mn0 path dim mn l dst in
     let rec loop i l dst =
-      let subpath = Path.append i path in
+      let subpath = Path.(append (CompTime i) path) in
       if i >= dim then
         Ser.vec_cls sstate mn0 path l dst
       else
@@ -283,7 +283,6 @@ struct
     let len = cardinality v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
     let dst_n =
-      let subpath = Path.append 0 path in
       fold ~list:v
         ~init:(make_pair dst (i32 0l))
         ~body:
@@ -291,6 +290,7 @@ struct
                    (T.Data mn)
                    (fun l dst_n x ->
             E.with_sploded_pair ~l "dst_n" dst_n (fun l dst n ->
+              let subpath = Path.(append (RunTime n) path) in
               let_ ~name:"slist_dst" ~l (
                 if_ (gt n (i32 0l))
                     ~then_:(Ser.list_sep sstate mn0 subpath l dst)
@@ -305,7 +305,7 @@ struct
     let dst = Ser.tup_opn sstate mn0 path mns l dst in
     let dst =
       Array.fold_lefti (fun dst i mn ->
-        let subpath = Path.append i path in
+        let subpath = Path.(append (CompTime i) path) in
         let_ ~name:"stup_dst" ~l
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath l dst)
@@ -318,7 +318,7 @@ struct
     let dst = Ser.rec_opn sstate mn0 path mns l dst in
     let dst =
       Array.fold_lefti (fun dst i (fname, mn) ->
-        let subpath = Path.append i path in
+        let subpath = Path.(append (CompTime i) path) in
         let_ ~name:"srec_dst" ~l
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath l dst)
@@ -342,7 +342,7 @@ struct
             (Ser.sum_opn sstate mn0 path mns l label dst)
             (fun l dst ->
               let rec choose_cstr i =
-                let subpath = Path.append i path in
+                let subpath = Path.(append (CompTime i) path) in
                 assert (i <= max_lbl) ;
                 let field, mn = mns.(i) in
                 let v' = get_alt field v in
@@ -458,7 +458,7 @@ struct
       Ser.ssize_of_vec mn0 path l v |> add_size l sizes in
     let rec loop l sizes i =
       if i >= dim then sizes else
-      let subpath = Path.append i path in
+      let subpath = Path.(append (CompTime i) path) in
       let v' = nth (u32_of_int i) v in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
@@ -469,9 +469,6 @@ struct
     let sizes =
       Ser.ssize_of_list mn0 path l v |> add_size l sizes in
     let len = cardinality v in
-    (* TODO: a way to ask only for the dynsize, and compute the constsize
-     * as len * const_size of mn *)
-    let subpath = Path.append 0 path in (* good enough *)
     let init = make_pair sizes v in
     let init_t = E.type_of l init in
     repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
@@ -480,6 +477,7 @@ struct
           let sizes = first init
           and v = secnd init in
           let v' = nth n v in
+          let subpath = Path.(append (RunTime n) path) in
           let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
           make_pair sizes v)) |>
     first
@@ -490,7 +488,7 @@ struct
     Array.fold_lefti (fun sizes i mn ->
       let v' = get_item i v in
       let ma = mask_get i ma in
-      let subpath = Path.append i path in
+      let subpath = Path.(append (CompTime i) path) in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         sersz1 mn mn0 subpath l v' ma sizes)
     ) sizes mns
@@ -501,7 +499,7 @@ struct
     Array.fold_lefti (fun sizes i (fname, mn) ->
       let v' = get_field fname v in
       let ma = mask_get i ma in
-      let subpath = Path.append i path in
+      let subpath = Path.(append (CompTime i) path) in
       let_ ~name:"sizes" ~l sizes (fun l sizes ->
         comment ("sersize of field "^ fname)
                 (sersz1 mn mn0 subpath l v' ma sizes))
@@ -517,7 +515,7 @@ struct
         let rec choose_cstr i =
           let name, mn = mns.(i) in
           let v' = get_alt name v in
-          let subpath = Path.append i path in
+          let subpath = Path.(append (CompTime i) path) in
           assert (i <= max_lbl) ;
           if i = max_lbl then
             seq [

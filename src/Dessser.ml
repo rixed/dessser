@@ -272,7 +272,7 @@ struct
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Stdlib.string_of_int i)
-          (let subpath = Path.append i path in
+          (let subpath = Path.(append (CompTime i) path) in
           if i = 0 then
             desser_ transform sstate dstate mn0 subpath l src_dst
           else
@@ -298,7 +298,7 @@ struct
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
-            (let subpath = Path.append i path in
+            (let subpath = Path.(append (CompTime i) path) in
             if i = 0 then
               desser_ transform sstate dstate mn0 subpath l src_dst
             else
@@ -317,6 +317,7 @@ struct
 
   and dssum mns transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
+    let max_lbl = Array.length mns - 1 in
     E.with_sploded_pair ~l "dssum1" src_dst (fun l src dst ->
       let cstr_src = Des.sum_opn dstate mn0 path mns l src in
       let src_dst =
@@ -324,8 +325,7 @@ struct
           let dst = Ser.sum_opn sstate mn0 path mns l cstr dst in
           let src_dst = make_pair src dst in
           let rec choose_cstr i =
-            let max_lbl = Array.length mns - 1 in
-            let subpath = Path.append i path in
+            let subpath = Path.(append (CompTime i) path) in
             if i >= max_lbl then
               seq [
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
@@ -348,15 +348,13 @@ struct
         make_pair
           (Des.vec_opn dstate mn0 path dim mn l src)
           (Ser.vec_opn sstate mn0 path dim mn l dst)) in
-    (* TODO: Same comment as in dslist apply: we would like to be able to keep
-     * track of a runtime path index: *)
-    let subpath = Path.append 0 path in
     let src_dst =
       repeat
         ~init:src_dst
         ~from:(i32 0l) ~to_:(i32 (Int32.of_int dim))
         ~body:(comment "Convert vector item"
           (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
+            let subpath = Path.(append (RunTime (to_u32 n)) path) in
             let src_dst =
               if_ (eq n (i32 0l))
                 ~then_:src_dst
@@ -377,36 +375,6 @@ struct
     let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
-    let subpath = Path.append 0 path in
-    (* FIXME: nope. The code emitted in the function below (repeat's body)
-     * need to be able to count the nullmask bit index. For this it needs
-     * either an accurate path or a distinct call to Ser.nullable (to maintain
-     * sstate) per element.
-     * So, given we generate a loop, the easier and cleaner is actually to have
-     * a dynamic path (ie a path component can be either a compile time int
-     * or a run time int).
-     * Like we have a runtime fieldmask index in CodeGen_OCaml.
-     * Actually, this whole dynamic fieldmask is still missing. We would like
-     * dessser to use and maintain a _runtime_ fieldmask and DES should then have
-     * a skip method).
-     * So for each des/ser callback, it would provide:
-     * 1. the typ0 of the underlying fully populated type (compile type)
-     * 2. the compile time known path to the current value (as of now) with
-     *    unset indices for lists/vectors (ie -1) because they are not needed
-     *    to find out the type and field name
-     * 3. a runtime unsigned integer giving the actual index in the current
-     *    compound container, with which RingBuffer.SER need no state any longer,
-     *    therefore we can do away with that state!
-     *    Actually, instead of passing it to each type callback it's enough to
-     *    pass it to the null/notnull callback but why not all callbacks since
-     *    we have it anyway
-     * 4. the SER must have a skip in addition to the null callback
-     * 5. the DES must also have a skip function called instead of isnull
-     * In the short term when fieldmask is just a copy-all, we can keep dessser
-     * like it is and merely implements points 3. alone so RingBuffer works
-     * and will need no more states.
-     * Yet we must not remove states, as heapvalue will need one once fieldmask
-     * enter the stage. *)
     comment "Convert a List"
       (E.with_sploded_pair ~l "dslist1" src_dst (fun l src dst ->
         (* FIXME: for some deserializers (such as SExpr) it's not easy to
@@ -428,6 +396,7 @@ struct
                   ~from:(i32 0l) ~to_:(to_i32 dim)
                   ~body:(comment "Convert a list item"
                     (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
+                      let subpath = Path.(append (RunTime (to_u32 n)) path) in
                       let src_dst =
                         if_ (eq n (i32 0l))
                           ~then_:src_dst
@@ -439,20 +408,21 @@ struct
                           ) in
                       desser_ transform sstate dstate mn0 subpath l src_dst))))
           | UnknownSize (list_opn, end_of_list) ->
-              let t_fst_src_dst = T.Pair (T.bool, pair_ptrs) in
+              let n_src_dst_t = T.Pair (T.u32, pair_ptrs) in
               let src = list_opn mn0 path mn l src in
               let dst = Ser.list_opn sstate mn0 path mn None l dst in
-              let fst_src_dst =
+              let n_src_dst =
                 loop_while
                   ~cond:(comment "Test end of list"
-                    (E.func1 ~l t_fst_src_dst (fun l fst_src_dst ->
-                      let src_dst = secnd fst_src_dst in
+                    (E.func1 ~l n_src_dst_t (fun l n_src_dst ->
+                      let src_dst = secnd n_src_dst in
                       not_ (end_of_list mn0 path l (first src_dst)))))
                   ~body:(comment "Convert a list item"
-                    (E.func1 ~l t_fst_src_dst (fun l fst_src_dst ->
-                      E.with_sploded_pair ~l "dslist4" fst_src_dst (fun l is_first src_dst ->
+                    (E.func1 ~l n_src_dst_t (fun l n_src_dst ->
+                      E.with_sploded_pair ~l "dslist4" n_src_dst (fun l n src_dst ->
+                        let subpath = Path.(append (RunTime n) path) in
                         let src_dst =
-                          if_ is_first
+                          if_ (eq n (u32_of_int 0))
                             ~then_:src_dst
                             ~else_:(
                               E.with_sploded_pair ~l "dslist5" src_dst (fun l psrc pdst ->
@@ -460,10 +430,10 @@ struct
                                   (Des.list_sep dstate mn0 subpath l psrc)
                                   (Ser.list_sep sstate mn0 subpath l pdst))) in
                         make_pair
-                          false_
+                          (add n (u32_of_int 1))
                           (desser_ transform sstate dstate mn0 subpath l src_dst)))))
-                  ~init:(make_pair true_ (make_pair src dst)) in
-              secnd fst_src_dst
+                  ~init:(make_pair (u32_of_int 0) (make_pair src dst)) in
+              secnd n_src_dst
         in
         E.with_sploded_pair ~l "dslist6" src_dst (fun l src dst ->
           make_pair
