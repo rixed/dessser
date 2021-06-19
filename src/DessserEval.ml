@@ -503,6 +503,7 @@ let rec peval l e =
       | Head, E2 (Cons, e, _) -> e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
       | Tail, E2 (Cons, _, e) -> e |> p
+      | MaskGet _, (E0 (CopyField | SkipField | SetFieldNull) as m) -> m
       | LabelOf, E1 (Construct (_, i), _) -> u16 (Uint16.of_int i)
       | FloatOfQWord, E0 (QWord n) ->
           float (BatInt64.float_of_bits (Uint64.to_int64 n))
