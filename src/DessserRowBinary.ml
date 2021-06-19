@@ -188,12 +188,12 @@ struct
 
   let ssize_of_null _ _ = ConstSize 1
 
-  (* Size of a string is it's length in bytes + the size of the LEB128 prefix,
+  (* Size of a string is its length in bytes + the size of the LEB128 prefix,
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ l v =
     DynSize (
       let_ ~l ~name:"wlen" (string_length v) (fun l wlen ->
-        add (ssize_of_leb128 l wlen) wlen))
+        add (ssize_of_leb128 l wlen) (size_of_u32 wlen)))
 
   let ssize_start ?(config=()) _ =
     ignore config ;
