@@ -44,7 +44,8 @@ let ser_of_encoding = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib schema backend encoding_in encoding_out _fieldmask dest_fname
-        type_name () =
+        type_name optim () =
+  DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -103,6 +104,7 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
 let converter
       schema backend encoding_in encoding_out _fieldmask
       modifier_exprs dest_fname dev_mode optim () =
+  DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -144,6 +146,7 @@ let destruct_pair = function
 let lmdb main
       key_schema val_schema backend encoding_in encoding_out dest_fname
       dev_mode optim () =
+  DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -198,6 +201,7 @@ let aggregator
       schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
+  DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
@@ -450,7 +454,8 @@ let dev_mode =
 
 let optim =
   let doc = "Optimization level" in
-  let i = Arg.info ~doc [ "O" ] in
+  let env = Term.env_info "DESSSER_OPTIMIZATION_LEVEL" in
+  let i = Arg.info ~env ~doc [ "O" ] in
   Arg.(opt int 3 i)
 
 let converter_cmd =
@@ -479,7 +484,8 @@ let lib_cmd =
      $ Arg.value encoding_out
      $ Arg.value comptime_fieldmask
      $ Arg.required dest_fname
-     $ Arg.value type_name),
+     $ Arg.value type_name
+     $ Arg.value optim),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =
