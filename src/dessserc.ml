@@ -313,13 +313,12 @@ let maybe_nullable =
 
 let val_schema =
   let doc = "schema for values (inline or @file)" in
-  let i = Arg.info ~doc ~docs:Manpage.s_common_options
-            [ "schema" ; "value-schema" ] in
+  let i = Arg.info ~doc [ "schema" ; "value-schema" ] in
   Arg.(opt (some maybe_nullable) None i)
 
 let key_schema =
   let doc = "file or inline schema for keys" in
-  let i = Arg.info ~doc ~docs:Manpage.s_common_options [ "key-schema" ] in
+  let i = Arg.info ~doc [ "key-schema" ] in
   Arg.(opt (some maybe_nullable) None i)
 
 let type_name =

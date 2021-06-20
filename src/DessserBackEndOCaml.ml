@@ -102,11 +102,19 @@ struct
    | _ ->
        invalid_arg "mod_of_set_type_of_expr"
 
+  let open_module m p oc f =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
+    (match p.context with
+    | P.Definition -> ppi oc "module %s = struct" m
+    | P.Declaration -> ppi oc "module %s : sig" m) ;
+    P.indent_more p f ;
+    ppi oc "end"
+
   let rec print_record p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%smodule %s = struct\n" p.P.indent m ;
-    P.indent_more p (fun () ->
+    open_module m p oc (fun () ->
       pp oc "%stype t = {\n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (field_name, mn) ->
@@ -117,15 +125,13 @@ struct
       ) ;
       pp oc "%s}\n" p.P.indent
     ) ;
-    pp oc "%send\n" p .indent ;
     (* Also define the type alias: *)
-    pp oc "%stype %s = %s.t\n\n" p.P.indent id m
+    ppi oc "type %s = %s.t\n" id m
 
   and print_sum p oc id mns =
     let m = valid_module_name id in
     let id = valid_identifier id in
-    pp oc "%smodule %s = struct\n" p.P.indent m ;
-    P.indent_more p (fun () ->
+    open_module m p oc (fun () ->
       pp oc "%stype t =\n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (n, mn) ->
@@ -149,7 +155,6 @@ struct
             ) mns
           )
     ) ;
-    pp oc "%send\n" p.P.indent ;
     (* Also define the type alias: *)
     pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 

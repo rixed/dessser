@@ -447,13 +447,6 @@ struct
    *)
 
   let add_size l sizes sz =
-(*    map_pair sizes
-      (E.func2 T.size T.size (fun _l s1 s2 ->
-        match sz with
-        | ConstSize s ->
-            make_pair (add (size s) s1) s2
-        | DynSize s ->
-            make_pair s1 (add s s2))) *)
     E.with_sploded_pair ~l "add_size" sizes (fun _l cstsz dynsz ->
       match sz with
       | ConstSize s ->
