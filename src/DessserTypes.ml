@@ -315,8 +315,11 @@ let rec print_value ?(sorted=false) oc = function
       pp oc "UNKNOWN"
   | Base t ->
       print_base_type oc t
+  (* To having having to accept any valid identifiers as an external type when
+   * parsing a type, we denote external types with a dollar sign, evicative of
+   * some reference/placeholder. *)
   | Ext n ->
-      pp oc "%s" n
+      pp oc "$%s" n
   | Usr t ->
       (match Hashtbl.find user_types t.name with
       | exception Not_found ->
@@ -541,6 +544,7 @@ struct
     (
       (
         unit_typ ||| scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
+        ext_typ |||
         (!user_type ++ opt_question_mark >>:
           fun (vtyp, nullable) -> { vtyp ; nullable })
       ) ++
@@ -630,6 +634,14 @@ struct
         fun (ts, nullable) ->
           (* TODO: check that all constructors are case insensitively distinct *)
           { nullable ; vtyp = Sum (Array.of_list ts) }
+    ) m
+
+  and ext_typ m =
+    let m = "external type" :: m in
+    (
+      char '$' -+ identifier ++ opt_question_mark >>:
+        fun (n, nullable) ->
+          { nullable ; vtyp = Ext n }
     ) m
 
   let value m =
