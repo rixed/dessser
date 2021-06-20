@@ -346,7 +346,7 @@ let rec print_value ?(sorted=false) oc = function
       (* Parenthesis are required to distinguish external from internal
        * nullable: *)
       pp oc "%a"
-        (Array.print ~first:"(" ~last:")" ~sep:" | "
+        (Array.print ~first:"[" ~last:"]" ~sep:" | "
           (fun oc (n, mn) ->
             pp oc "%s %a" n (print_maybe_nullable ~sorted) mn)
         ) (if sorted then sorted_rec cs else cs)
@@ -624,9 +624,9 @@ struct
     and sep =
       opt_blanks -- char '|' -- opt_blanks in
     (
-      char '(' -- opt_blanks -+
+      char '[' -- opt_blanks -+
       several ~sep constructor +-
-      opt_blanks +- char ')' ++ opt_question_mark >>:
+      opt_blanks +- char ']' ++ opt_question_mark >>:
         fun (ts, nullable) ->
           (* TODO: check that all constructors are case insensitively distinct *)
           { nullable ; vtyp = Sum (Array.of_list ts) }
@@ -731,7 +731,7 @@ struct
     (Ok ((required (Rec [| "f2", required (Base Bool) ; "f1", optional (Base U8) |])), (19,[]))) \
       (test_p pmn "{f2: Bool; f1: U8?}")
     (Ok ((required (Sum [| "c1", required (Base Bool) ; "c2", optional (Base U8) |])), (18,[]))) \
-      (test_p pmn "(c1 Bool | c2 U8?)")
+      (test_p pmn "[c1 Bool | c2 U8?]")
     (Ok ((required (Vec (1, required (Base Bool)))), (7,[]))) \
       (test_p pmn "Bool[1]")
   *)

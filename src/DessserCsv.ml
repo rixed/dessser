@@ -97,11 +97,11 @@ let rec nullable_at_first mn =
       ) mns
 
 (*$T nullable_at_first
-  nullable_at_first (T.maybe_nullable_of_string "(a BOOL? | b BOOL)")
-  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)")
-  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)[]")
-  nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL?)[1]")
-  not (nullable_at_first (T.maybe_nullable_of_string "(a BOOL | b BOOL)"))
+  nullable_at_first (T.maybe_nullable_of_string "[a BOOL? | b BOOL]")
+  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?]")
+  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?][]")
+  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?][1]")
+  not (nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL]"))
 *)
 
 (* Take a maybe-nullable and make it serializable by making some compound
@@ -179,8 +179,8 @@ let is_in_fixed_string mn0 path =
 *)
 (*$= make_serializable_str & ~printer:identity
   "BOOL?[4][5]" ("BOOL?[4][5]?" |> make_serializable_str)
-  "(gnlj BOOL | jdlg BOOL?)[]" \
-                ("(gnlj BOOL | jdlg BOOL?)[]?" |> make_serializable_str)
+  "[gnlj BOOL | jdlg BOOL?][]" \
+                ("[gnlj BOOL | jdlg BOOL?][]?" |> make_serializable_str)
   "{b: {e: U32; f: (U64[]?; CHAR)[1]}[2]}" \
                 ("{b: {e: U32; f: (U64[]?; CHAR)?[1]?}[2]}" |> make_serializable_str)
 *)

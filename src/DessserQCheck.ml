@@ -592,7 +592,7 @@ let expression =
   compile_check \
     "(is-null (null \"Bool\"))"
   compile_check \
-    "(null \"(opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?)\")"
+    "(null \"[opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?]\")"
   compile_check "(make-vec ())"
   compile_check "(make-lst \"U8\" (u8 63))"
   compile_check "(to-u8 (float 1))"
@@ -905,7 +905,7 @@ let sexpr mn =
   "4 (null 1 2 3)" (check_ringbuffer ocaml_be "u8?[]" "4 (null 1 2 3)")
   "0 ()" (check_ringbuffer cpp_be "Bool[]" "0 ()")
   "(T)" (check_ringbuffer cpp_be "Bool[1]" "(T)")
-  "(1 null)" (check_ringbuffer ocaml_be "(a U32 | b String?)" "(1 null)")
+  "(1 null)" (check_ringbuffer ocaml_be "[a U32 | b String?]" "(1 null)")
 *)
 (*$= check_heapvalue & ~printer:BatPervasives.identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
@@ -915,7 +915,7 @@ let sexpr mn =
   "2 (214 null)" (check_heapvalue ocaml_be "U8?{}" "2 (214 null)")
   "2 (214 null)" (check_heapvalue cpp_be "U8?{}" "2 (214 null)")
   "((1 T) (0 null))" \
-    (check_heapvalue ocaml_be "(a U8? | b BOOL)[2]" "((1 T) (0 null))")
+    (check_heapvalue ocaml_be "[a U8? | b BOOL][2]" "((1 T) (0 null))")
 *)
 (*$= check_ringbuffer & ~printer:BatPervasives.identity
   "-5424105" (check_ringbuffer ocaml_be "I24" "-5424105")
@@ -970,13 +970,13 @@ let sexpr mn =
   "01 03 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)" "(42 58)")
   "00 00 00 00 2a 00 00 00" \
-    (check_ser ringbuf_ser ocaml_be "(small u8 | big u16)" "(0 42)")
+    (check_ser ringbuf_ser ocaml_be "[small u8 | big u16]" "(0 42)")
   "00 00 00 00 2a 00 00 00" \
-    (check_ser ringbuf_ser ocaml_be "(small u8 | big u16?)" "(0 42)")
+    (check_ser ringbuf_ser ocaml_be "[small u8 | big u16?]" "(0 42)")
   "01 00 00 00 2a 00 00 00" \
-    (check_ser ringbuf_ser ocaml_be "(small u8? | big u16)" "(0 42)")
+    (check_ser ringbuf_ser ocaml_be "[small u8? | big u16]" "(0 42)")
   "30 2c 34 32" \
-    (check_ser csv_ser ocaml_be "(small u8? | big u16)" "(0 42)")
+    (check_ser csv_ser ocaml_be "[small u8? | big u16]" "(0 42)")
 *)
 
 (* Special version of check_des with a custom CSV configuration: *)
