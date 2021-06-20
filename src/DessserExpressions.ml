@@ -31,6 +31,25 @@ type param_id = int (* function id *) * int (* param number *)
 let param_print oc (f, n) =
   Printf.fprintf oc "%d:%d" f n
 
+type type_method = Ser | Des | SSize
+
+let string_of_type_method = function
+  | Ser -> "write"
+  | Des -> "read"
+  | SSize -> "sersize"
+
+let type_method_of_string s =
+  let s = String.lowercase_ascii s in
+  if s = "ser" then Ser else
+  if s = "des" then Des else
+  if s = "ssize" then SSize else
+  invalid_arg ("type_method_of_string: "^ s)
+
+type ext_identifier =
+  | Verbatim of string (* Used as is by any back-end, no question asked *)
+  | TypeMethod of { typ : string ; meth : type_method }
+  (* TODO: converter method from one type to another *)
+
 type e0 =
   | Param of param_id
   (* Identifier are set with `Let` expressions, or obtained from the code
@@ -39,7 +58,7 @@ type e0 =
   (* Contrary to identifiers which name can be arbitrary, an external identifier
    * name is used verbatim by the backend and must therefore correspond to a
    * valid object. *)
-  | ExtIdentifier of string
+  | ExtIdentifier of ext_identifier
   | Null of T.value
   | EndOfList of T.t (* T.t being the type of list items *)
   | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
@@ -488,11 +507,12 @@ let rec can_precompute f i = function
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Bit _ | Size _ | Address _
        | Byte _ | Word _ | DWord _ | QWord _ | OWord _
-       | Bytes _ | CopyField | SkipField | SetFieldNull) ->
+       | Bytes _ | CopyField | SkipField | SetFieldNull
+       | ExtIdentifier _) ->
       true
   | E0 (Param (fid, _)) ->
       (match f with last::_ -> last = fid | _ -> false)
-  | E0 (Identifier n | ExtIdentifier n) ->
+  | E0 (Identifier n) ->
       List.mem n i
   | E0S (_, es) ->
       List.for_all (can_precompute f i) es
@@ -699,7 +719,9 @@ let string_of_e0 = function
   | OWord n -> "oword "^ Uint128.to_string n
   | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
   | Identifier s -> "identifier "^ String.quote s
-  | ExtIdentifier s -> "ext-identifier "^ String.quote s
+  | ExtIdentifier (Verbatim s) -> "ext-identifier "^ String.quote s
+  | ExtIdentifier (TypeMethod { typ ; meth }) ->
+      "ext-identifier "^ typ ^" "^ string_of_type_method meth
   | CopyField -> "copy-field"
   | SkipField -> "skip-field"
   | SetFieldNull -> "set-field-null"
@@ -1269,7 +1291,10 @@ struct
     | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
-    | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier s)
+    | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier (Verbatim s))
+    | Lst [ Sym "ext-identifier" ; Sym typ ; Sym ("ser"|"des"|"ssize" as meth) ] ->
+        let meth = type_method_of_string meth in
+        E0 (ExtIdentifier (TypeMethod { typ ; meth }))
     | Lst [ Sym "copy-field" ] -> E0 CopyField
     | Lst [ Sym "skip-field" ] -> E0 SkipField
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
@@ -1674,7 +1699,7 @@ let enter_function fid ts l =
 let defined n l =
   let def =
     List.exists (function
-      | E0 (Identifier n' | ExtIdentifier n'), _ when n' = n -> true
+      | E0 (Identifier n' | ExtIdentifier (Verbatim n')), _ when n' = n -> true
       | _ -> false) in
   def l.local || def l.global
 
@@ -2040,12 +2065,18 @@ and type_of l e0 =
         try List.assoc e l.global
         with Not_found ->
           raise (Unbound_identifier (e0, false, n, l)))
-  | E0 (ExtIdentifier n) as e ->
+  | E0 (ExtIdentifier (Verbatim n)) as e ->
       (try List.assoc e l.local
       with Not_found ->
         try List.assoc e l.global
         with Not_found ->
           raise (Unbound_identifier (e0, true, n, l)))
+  | E0 (ExtIdentifier (TypeMethod { typ ; meth = Ser ; _ })) ->
+      T.func2 T.(Data (required (ext typ))) T.DataPtr T.DataPtr
+  | E0 (ExtIdentifier (TypeMethod { typ ; meth = Des ; _ })) ->
+      T.func1 T.DataPtr T.(pair (Data (required (ext typ))) T.DataPtr)
+  | E0 (ExtIdentifier (TypeMethod { typ ; meth = SSize ; _ })) ->
+      T.func1 T.(Data (required (ext typ))) T.Size
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.Mask
   | E2 (Let (n, t), _, e2) ->
@@ -3668,7 +3699,9 @@ struct
 
   let identifier n = E0 (Identifier n)
 
-  let ext_identifier n = E0 (ExtIdentifier n)
+  let ext_identifier n = E0 (ExtIdentifier (Verbatim n))
+
+  let type_method typ meth = E0 (ExtIdentifier (TypeMethod { typ ; meth }))
 
   let to_i8 e = E1 (ToI8, e)
   let to_i16 e = E1 (ToI16, e)

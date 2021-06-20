@@ -60,24 +60,24 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None l p1 p2)
     else nop in
-  let to_value =
+  let des =
     (* convert from encoding_in into a heapvalue: *)
     E.func1 ~l:E.no_env DataPtr (fun l src ->
       first (ToValue.make schema l src)) in
   let ma = copy_field in
-  let value_sersize =
+  let sersize =
     (* compute the serialization size of a heap value: *)
     E.func1 ~l:E.no_env (Data schema) (fun l v ->
       OfValue.sersize schema l ma v) in
-  let of_value =
+  let ser =
     (* convert from a heapvalue into encoding_out. *)
     E.func2 ~l:E.no_env (Data schema) DataPtr (fun l v dst ->
       OfValue.serialize schema l ma v dst) in
   if debug then (
     if has_convert then E.type_check E.no_env convert ;
-    E.type_check E.no_env to_value ;
-    E.type_check E.no_env value_sersize ;
-    E.type_check E.no_env of_value) ;
+    E.type_check E.no_env des ;
+    E.type_check E.no_env sersize ;
+    E.type_check E.no_env ser ) ;
   let compunit = U.make () in
   (* Christen the schema type with the user provided name: *)
   let compunit = U.name_type compunit schema.T.vtyp (type_name |? "t") in
@@ -87,11 +87,14 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
         U.add_identifier_of_expression compunit ~name:"convert" convert in c
     else compunit in
   let compunit, _, _ =
-    U.add_identifier_of_expression compunit ~name:"to_value" to_value in
+    let name = E.string_of_type_method E.Des in
+    U.add_identifier_of_expression compunit ~name des in
   let compunit, _, _ =
-    U.add_identifier_of_expression compunit ~name:"value_sersize" value_sersize in
+    let name = E.string_of_type_method E.SSize in
+    U.add_identifier_of_expression compunit ~name sersize in
   let compunit, _, _ =
-    U.add_identifier_of_expression compunit ~name:"of_value" of_value in
+    let name = E.string_of_type_method E.Ser in
+    U.add_identifier_of_expression compunit ~name ser in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
   write_source ~src_fname:def_fname (fun oc ->
@@ -208,7 +211,7 @@ let aggregator
   let module ToValue = DessserHeapValue.Materialize (Des) in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
-  let to_value =
+  let des =
     E.func1 ~l:E.no_env DataPtr (fun l -> ToValue.make schema l) in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
@@ -242,7 +245,7 @@ let aggregator
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
   let ma = copy_field in
-  let of_value =
+  let ser =
     E.func2 ~l:E.no_env (Data output_t) DataPtr (fun l v dst ->
       OfValue.serialize output_t l ma v dst) in
   (* Let's now assemble all this into just three functions:
@@ -255,7 +258,7 @@ let aggregator
     U.add_identifier_of_expression compunit ~name:"init" init_expr in
   let input_expr =
     E.func1 ~l:(U.environment compunit) DataPtr (fun l src ->
-      let v_src = apply to_value [ src ] in
+      let v_src = apply des [ src ] in
       E.with_sploded_pair ~l "input_expr" v_src (fun _l v src ->
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
@@ -264,7 +267,7 @@ let aggregator
   let output_expr =
     E.func1 ~l:(U.environment compunit) DataPtr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
-      apply of_value [ v ; dst ]) in
+      apply ser [ v ; dst ]) in
   let compunit, _, output_name =
     U.add_identifier_of_expression compunit ~name:"output" output_expr in
   let def_fname =

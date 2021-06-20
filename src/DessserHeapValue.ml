@@ -172,9 +172,13 @@ struct
   and dunit _ _ _ _ src =
     make_pair unit src
 
+  and dext name _dstate _mn0 _path _l src =
+    apply (type_method name E.Des) [ src ]
+
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
-      | T.Unknown | T.Ext _ -> invalid_arg "make1"
+      | T.Unknown -> invalid_arg "make1"
+      | T.Ext n -> dext n
       | T.Base Unit -> dunit
       | T.Base Float -> Des.dfloat
       | T.Base String -> Des.dstring
@@ -359,9 +363,13 @@ struct
 
   and sunit _ _ _ _ _ dst = dst
 
+  and sext name _ _ _ _ v dst =
+    apply (type_method name E.Ser) [ v ; dst ]
+
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
-      | T.Unknown | T.Ext _ -> invalid_arg "ser1"
+      | T.Unknown -> invalid_arg "ser1"
+      | T.Ext n -> sext n
       | T.Base Unit -> sunit
       | T.Base Float -> Ser.sfloat
       | T.Base String -> Ser.sstring
@@ -527,13 +535,19 @@ struct
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
+  and ssunit _ _ _ _ sizes = sizes
+
+  and ssext name _ _ _ v =
+    DynSize (apply (type_method name E.SSize) [ v ])
+
   and sersz1 mn mn0 path l v ma sizes =
     let to_dyn ssizer mn0 path l v sizes =
       let sz = ssizer mn0 path l v in
       add_size l sizes sz in
     let rec ssz_of_vt = function
-      | T.Unknown | T.Ext _ -> invalid_arg "sersz1"
-      | T.Base Unit -> fun _ _ _ _ sizes -> sizes
+      | T.Unknown -> invalid_arg "sersz1"
+      | T.Ext n -> to_dyn (ssext n)
+      | T.Base Unit -> ssunit
       | T.Base Float -> to_dyn Ser.ssize_of_float
       | T.Base String -> to_dyn Ser.ssize_of_string
       | T.Base Bool -> to_dyn Ser.ssize_of_bool
