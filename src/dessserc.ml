@@ -51,35 +51,36 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
+  let l = E.no_env in
   let has_convert = encoding_in <> encoding_out in
   let convert =
     if has_convert then
       (* convert from encoding_in to encoding_out: *)
-      E.func2 ~l:E.no_env DataPtr DataPtr (fun l p1 p2 ->
+      E.func2 ~l DataPtr DataPtr (fun l p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None l p1 p2)
     else nop in
   let des =
     (* convert from encoding_in into a heapvalue: *)
-    E.func1 ~l:E.no_env DataPtr (fun l src ->
+    E.func1 ~l DataPtr (fun l src ->
       ToValue.make schema l src) in
   let ma = copy_field in
   let sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 ~l:E.no_env (Data schema) (fun l v ->
+    E.func1 ~l (Data schema) (fun l v ->
       OfValue.sersize schema l ma v) in
   let ser =
     (* convert from a heapvalue into encoding_out. *)
-    E.func2 ~l:E.no_env (Data schema) DataPtr (fun l v dst ->
-      OfValue.serialize schema l ma v dst) in
+    OfValue.serialize schema l in
   if debug then (
     if has_convert then E.type_check E.no_env convert ;
     E.type_check E.no_env des ;
     E.type_check E.no_env sersize ;
-    E.type_check E.no_env ser ) ;
+    E.type_check E.no_env ser) ;
   let compunit = U.make () in
   (* Christen the schema type with the user provided name: *)
-  let compunit = U.name_type compunit schema.T.vtyp (type_name |? "t") in
+  let type_name = type_name |? "t" in
+  let compunit = U.name_type compunit schema.T.vtyp type_name in
   (* Then declare all referenced external types as if we had the same methods
    * than those we are generating for this type: *)
   let compunit =
@@ -126,7 +127,7 @@ let converter
   let transform _mn0 path _l v =
     match List.find (fun (p, _) -> p = path) modifier_exprs with
     | exception Not_found -> v
-    | _p, e -> apply e [v] in
+    | _p, e -> apply e [ v ] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
     E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
@@ -219,10 +220,11 @@ let aggregator
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
+  let l = E.no_env in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let des =
-    E.func1 ~l:E.no_env DataPtr (fun l -> ToValue.make schema l) in
+    E.func1 ~l DataPtr (fun l -> ToValue.make schema l) in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
   E.type_check E.no_env init_expr ;
@@ -254,10 +256,7 @@ let aggregator
    * in the given encoding: *)
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
-  let ma = copy_field in
-  let ser =
-    E.func2 ~l:E.no_env (Data output_t) DataPtr (fun l v dst ->
-      OfValue.serialize output_t l ma v dst) in
+  let ser = OfValue.serialize output_t l in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source
@@ -277,7 +276,7 @@ let aggregator
   let output_expr =
     E.func1 ~l:(U.environment compunit) DataPtr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
-      apply ser [ v ; dst ]) in
+      apply ser [ copy_field ; v ; dst ]) in
   let compunit, _, output_name =
     U.add_identifier_of_expression compunit ~name:"output" output_expr in
   let def_fname =

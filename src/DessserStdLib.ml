@@ -5,6 +5,7 @@ open DessserTools
 module C = DessserConversions
 module E = DessserExpressions
 module T = DessserTypes
+open BatOption.Infix
 
 (* [coalesce es] build an expression that selects the first non null
  * expression in [rs].
@@ -58,7 +59,8 @@ let rec random_slist mn =
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
-and random mn =
+and random ?mn0 mn =
+  let mn0 = mn0 |? mn in
   (* this [random] is going to be shaddowed by E.Ops: *)
   let std_random = random in
   let open E.Ops in
@@ -69,6 +71,8 @@ and random mn =
   else match mn.vtyp with
   | T.Unknown ->
       invalid_arg "random for unknown type"
+  | This ->
+      std_random mn0
   | Base Unit ->
       unit
   | Base Float ->

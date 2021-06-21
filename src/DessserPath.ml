@@ -33,13 +33,17 @@ let of_string s =
 let to_string = IO.to_string print
 
 (* Return both the type and field name: *)
-let type_and_name_of_path t path =
-  let rec loop field_name t = function
+let type_and_name_of_path t0 path =
+  let rec loop field_name t path =
+    if t.T.vtyp = T.This then loop field_name t0 path else
+    match path with
     | [] -> t, field_name
     | CompTime i :: path ->
         let rec type_of = function
           | T.(Unknown | Base _ | Ext _ | Map _) ->
               assert false
+          | This ->
+              assert false (* Already handled above *)
           | Usr t ->
               type_of t.def
           | Vec (dim, mn) ->
@@ -67,6 +71,8 @@ let type_and_name_of_path t path =
         let rec type_of = function
           | T.(Unknown | Base _ | Ext _ | Map _) ->
               assert false
+          | This ->
+              assert false (* Already handled above *)
           | Usr t ->
               type_of t.def
           | Vec (_, mn) ->
@@ -79,7 +85,7 @@ let type_and_name_of_path t path =
               invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"
         in
         type_of t.vtyp in
-  loop "" t path
+  loop "" t0 path
 
 let type_of_path mn path =
   fst (type_and_name_of_path mn path)

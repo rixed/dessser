@@ -55,6 +55,8 @@ and user_type =
 
 and value =
   | Unknown
+  (* Refers to the top-level type that's being defined: *)
+  | This
   | Base of base_type
   (* Aliases with custom representations: *)
   | Usr of user_type
@@ -145,6 +147,10 @@ let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
   | Base mt1, Base mt2 ->
       base_type_eq mt1 mt2
+  | This, This ->
+      (* In case we are comparing deep "this" from different types, other fields
+       * that make them different will make [value_eq] fail: *)
+      true
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
   | Ext n1, Ext n2 ->
@@ -208,7 +214,7 @@ let rec eq t1 t2 =
  *)
 
 let rec develop_value = function
-  | (Unknown | Base _ | Ext _) as v ->
+  | (Unknown | This | Base _ | Ext _) as v ->
       v
   | Usr { def ; _ } ->
       develop_value def
@@ -248,7 +254,7 @@ let rec develop_user_types = function
 let rec fold_value u f v =
   let u = f u v in
   match v with
-  | Unknown | Base _ | Ext _ ->
+  | Unknown | This | Base _ | Ext _ ->
       u
   | Usr { def ; _ } ->
       fold_value u f def
@@ -334,6 +340,8 @@ let print_base_type oc =
 let rec print_value ?(sorted=false) oc = function
   | Unknown ->
       pp oc "UNKNOWN"
+  | This ->
+      pp oc "THIS"
   | Base t ->
       print_base_type oc t
   (* To having having to accept any valid identifiers as an external type when
@@ -564,13 +572,19 @@ struct
     let m = "type" :: m in
     (
       (
-        unit_typ ||| scalar_typ ||| tuple_typ ||| record_typ ||| sum_typ |||
-        ext_typ |||
+        this_typ ||| unit_typ ||| scalar_typ ||| tuple_typ ||| record_typ |||
+        sum_typ ||| ext_typ |||
         (!user_type ++ opt_question_mark >>:
           fun (vtyp, nullable) -> { vtyp ; nullable })
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
         reduce_dims t dims
+    ) m
+
+  and this_typ m =
+    let m = "this type" :: m in
+    (
+      strinG "this" >>: fun () -> { nullable = false ; vtyp = This }
     ) m
 
   and unit_typ m =
@@ -938,6 +952,10 @@ let value_of_string ?what =
  * generators. *)
 let rec depth ?(opaque_user_type=true) = function
   | Unknown -> invalid_arg "depth"
+  | This ->
+      (* For this purpose assume This is not going to be recursed into,
+       * and behave like a scalar: *)
+      0
   | Base _ | Ext _ -> 0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def

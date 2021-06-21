@@ -64,6 +64,11 @@ type ext_identifier =
 
 type e0 =
   | Param of param_id
+  (* Special identifier referencing the currently executing function.
+   * Allows to encode recursive calls even though the name of the enclosing
+   * function is unknown. The specified type is the output type (the input
+   * type of the function can be retrieved from the environment). *)
+  | Myself of T.t
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -524,6 +529,8 @@ let rec can_precompute f i = function
       true
   | E0 (Param (fid, _)) ->
       (match f with last::_ -> last = fid | _ -> false)
+  | E0 (Myself _) ->
+      true
   | E0 (Identifier n) ->
       List.mem n i
   | E0S (_, es) ->
@@ -573,10 +580,16 @@ let is_const_null = function
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-let rec default_value ?(allow_null=true) mn =
-  let default_value = default_value ~allow_null in
+let rec default_value ?(allow_null=true) ?mn0 mn =
+  let mn0 = mn0 |? mn.T.vtyp in
+  let default_value = default_value ~allow_null ~mn0 in
   match mn with
-  | T.{ vtyp ; nullable = true } ->
+  | T.{ vtyp = This ; nullable } ->
+      if nullable && allow_null then
+        E0 (Null mn0)
+      else
+        invalid_arg "default_value: recursive type"
+  | { vtyp ; nullable = true } ->
       (* In some places we want the whole tree of values to be populated. *)
       if allow_null then
         E0 (Null vtyp)
@@ -691,6 +704,7 @@ let backend_of_string s =
 
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
+  | Myself t -> "myself "^ String.quote (T.to_string t)
   | Null vt -> "null "^ String.quote (T.string_of_value vt)
   | EndOfList t -> "end-of-list "^ String.quote (T.to_string t)
   | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
@@ -1260,6 +1274,8 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
+    | Lst [ Sym "myself" ; Str t ] ->
+        E0 (Myself (T.Parser.of_string t))
     | Lst [ Sym "null" ; Str vt ] ->
         E0 (Null (T.value_of_string vt))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
@@ -1696,7 +1712,7 @@ exception Type_error_param of t * t * int * T.t * string
 exception Struct_error of t * string
 exception Apply_error of t * string
 exception Comparator_error of t * T.t * string
-exception Unbound_identifier of t * bool * string * env
+exception Unbound_identifier of t * env
 exception Unbound_parameter of t * param_id * env
 exception Invalid_expression of t * string
 exception Redefinition of string
@@ -1718,15 +1734,21 @@ let defined n l =
       | _ -> false) in
   def l.local || def l.global
 
+let find_identifier l e =
+  try List.assoc e l.local
+  with Not_found ->
+    try List.assoc e l.global
+    with Not_found ->
+      raise (Unbound_identifier (e, l))
+
 let rec add_local n t l =
   (* Make sure there is no shadowing: *)
   if defined n l then raise (Redefinition n) ;
   { l with local = (E0 (Identifier n), t) :: l.local }
 
-(* Returns the type of [e0].
- * [l] is the environment
- * [e0] must have been type checked already: *)
-(* FIXME: merge with type_check? *)
+(* Returns the type of [e0]. [l] is the environment.
+ * Will try hard to find a type, even in the presence of unbound identifiers.
+ * This is how recursive functions are typed. *)
 and type_of l e0 =
   let maybe_nullable_of l e =
     let t = type_of l e in
@@ -1744,7 +1766,63 @@ and type_of l e0 =
         name
         (pretty_enum_print String.print) names in
     raise (Struct_error (e0, msg)) in
+  let either e1 e2 =
+    try type_of l e1
+    with Unbound_parameter _ -> type_of l e2
+  in
   match e0 with
+  | E0 (Null vt) -> Data { vtyp = vt ; nullable = true }
+  | E0 (Myself out) ->
+      let num_params =
+        List.fold_left (fun n (e, _) ->
+          match e with E0 (Param _) -> n + 1 | _ -> n
+        ) 0 l.local in
+      let ins = Array.make num_params T.Void in
+      List.iter (function
+        | E0 (Param (_, n)), t -> ins.(n) <- t
+        | _ -> ()
+      ) l.local ;
+      T.Function (ins, out)
+  | E0 (EndOfList t) -> SList t
+  | E0 (EmptySet mn) -> Data (T.required (T.Set (Simple, mn)))
+  | E0 Now -> T.float
+  | E0 RandomFloat -> T.float
+  | E0 RandomU8 -> T.u8
+  | E0 RandomU32 -> T.u32
+  | E0 RandomU64 -> T.u64
+  | E0 RandomU128 -> T.u128
+  | E0 (Float _) -> T.float
+  | E0 Unit -> T.unit
+  | E0 (String _) -> T.string
+  | E0 (Bool _) -> T.bool
+  | E0 (Char _) -> T.char
+  | E0 (U8 _) -> T.u8
+  | E0 (U16 _) -> T.u16
+  | E0 (U24 _) -> T.u24
+  | E0 (U32 _) -> T.u32
+  | E0 (U40 _) -> T.u40
+  | E0 (U48 _) -> T.u48
+  | E0 (U56 _) -> T.u56
+  | E0 (U64 _) -> T.u64
+  | E0 (U128 _) -> T.u128
+  | E0 (I8 _) -> T.i8
+  | E0 (I16 _) -> T.i16
+  | E0 (I24 _) -> T.i24
+  | E0 (I32 _) -> T.i32
+  | E0 (I40 _) -> T.i40
+  | E0 (I48 _) -> T.i48
+  | E0 (I56 _) -> T.i56
+  | E0 (I64 _) -> T.i64
+  | E0 (I128 _) -> T.i128
+  | E0 (Bit _) -> T.Bit
+  | E0 (Size _) -> T.Size
+  | E0 (Address _) -> T.Address
+  | E0 (Byte _) -> T.Byte
+  | E0 (Word _) -> T.Word
+  | E0 (DWord _) -> T.DWord
+  | E0 (QWord _) -> T.QWord
+  | E0 (OWord _) -> T.OWord
+  | E0 (Bytes _) -> T.Bytes
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
       T.Void
@@ -1827,62 +1905,21 @@ and type_of l e0 =
           Data mn
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
-  | E1 (Comment _, e)
   | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
-         LeftShift | RightShift), e, _) ->
+         UnsafeDiv | UnsafeRem | UnsafePow), e1, e2) ->
+      either e1 e2
+  | E1 (Comment _, e)
+  | E2 ((LeftShift | RightShift), e, _) ->
       type_of l e
   | E1 (BitNot, e) ->
       type_of l e
-  | E2 ((Div | Rem | Pow), e, _) ->
-      T.to_nullable (type_of l e)
-  | E2 ((UnsafeDiv | UnsafeRem | UnsafePow), e, _) ->
-      type_of l e
+  | E2 ((Div | Rem | Pow), e1, e2) ->
+      T.to_nullable (either e1 e2)
   | E1 (NotNull, e) ->
       T.to_nullable (type_of l e)
   | E1 (Force _, e) ->
       T.force (type_of l e)
   | E1 (IsNull, _) -> T.bool
-  | E0 (Null vt) -> Data { vtyp = vt ; nullable = true }
-  | E0 (EndOfList t) -> SList t
-  | E0 (EmptySet mn) -> Data (T.required (T.Set (Simple, mn)))
-  | E0 Now -> T.float
-  | E0 RandomFloat -> T.float
-  | E0 RandomU8 -> T.u8
-  | E0 RandomU32 -> T.u32
-  | E0 RandomU64 -> T.u64
-  | E0 RandomU128 -> T.u128
-  | E0 (Float _) -> T.float
-  | E0 Unit -> T.unit
-  | E0 (String _) -> T.string
-  | E0 (Bool _) -> T.bool
-  | E0 (Char _) -> T.char
-  | E0 (U8 _) -> T.u8
-  | E0 (U16 _) -> T.u16
-  | E0 (U24 _) -> T.u24
-  | E0 (U32 _) -> T.u32
-  | E0 (U40 _) -> T.u40
-  | E0 (U48 _) -> T.u48
-  | E0 (U56 _) -> T.u56
-  | E0 (U64 _) -> T.u64
-  | E0 (U128 _) -> T.u128
-  | E0 (I8 _) -> T.i8
-  | E0 (I16 _) -> T.i16
-  | E0 (I24 _) -> T.i24
-  | E0 (I32 _) -> T.i32
-  | E0 (I40 _) -> T.i40
-  | E0 (I48 _) -> T.i48
-  | E0 (I56 _) -> T.i56
-  | E0 (I64 _) -> T.i64
-  | E0 (I128 _) -> T.i128
-  | E0 (Bit _) -> T.Bit
-  | E0 (Size _) -> T.Size
-  | E0 (Address _) -> T.Address
-  | E0 (Byte _) -> T.Byte
-  | E0 (Word _) -> T.Word
-  | E0 (DWord _) -> T.DWord
-  | E0 (QWord _) -> T.QWord
-  | E0 (OWord _) -> T.OWord
-  | E0 (Bytes _) -> T.Bytes
   | E2 (Gt, _, _) -> T.bool
   | E2 (Ge, _, _) -> T.bool
   | E2 (Eq, _, _) -> T.bool
@@ -2071,21 +2108,11 @@ and type_of l e0 =
       (match type_of l e |> T.develop_user_types with
       | SList _ as t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E2 ((Min | Max), e, _) ->
-      type_of l e
+  | E2 ((Min | Max), e1, e2) ->
+      either e1 e2
   | E2 (Member, _, _) -> T.bool
-  | E0 (Identifier n) as e ->
-      (try List.assoc e l.local
-      with Not_found ->
-        try List.assoc e l.global
-        with Not_found ->
-          raise (Unbound_identifier (e0, false, n, l)))
-  | E0 (ExtIdentifier (Verbatim n)) as e ->
-      (try List.assoc e l.local
-      with Not_found ->
-        try List.assoc e l.global
-        with Not_found ->
-          raise (Unbound_identifier (e0, true, n, l)))
+  | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
+      find_identifier l e
   | E0 (ExtIdentifier (Method { typ ; meth = Ser _ })) ->
       T.func2 T.(Data (required (ext typ))) T.DataPtr T.DataPtr
   | E0 (ExtIdentifier (Method { typ ; meth = Des _ })) ->
@@ -2110,8 +2137,8 @@ and type_of l e0 =
       (try List.assoc e l.local
       with Not_found ->
         raise (Unbound_parameter (e0, p, l)))
-  | E3 (If, _, e, _) ->
-      type_of l e
+  | E3 (If, _, e1, e2) ->
+      either e1 e2
   | E4 (ReadWhile, _, _, e, _) ->
       T.pair (type_of l e) T.DataPtr
   | E3 (LoopWhile, _, _, e)
@@ -2647,7 +2674,7 @@ let rec type_check l e =
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Data mn)) mns
       | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
-    | E0 (Null _ | EndOfList _ | EmptySet _ | Now
+    | E0 (Null _ | Myself _ | EndOfList _ | EmptySet _ | Now
          | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128
          | Unit | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
@@ -3150,14 +3177,12 @@ let () =
             (to_pretty_string ~max_depth e0)
             s
             T.print t)
-    | Unbound_identifier (e0, ext, n, l) ->
+    | Unbound_identifier (e0, l) ->
         Some (
-          let ext = if ext then "external " else "" in
           Printf.sprintf2
-            "Unbound %sidentifier %S: In expression\
+            "Unbound identifier:\
              %s\
              environment is %a"
-            ext n
             (to_pretty_string ~max_depth e0)
             print_environment l)
     | Unbound_parameter (e0, p, l) ->
@@ -3679,6 +3704,8 @@ struct
   let ne e1 e2 = not_ (eq e1 e2)
 
   let param fid n = E0 (Param (fid, n))
+
+  let myself t = E0 (Myself t)
 
   let add e1 e2 = E2 (Add, e1, e2)
 

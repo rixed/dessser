@@ -178,6 +178,7 @@ struct
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
       | T.Unknown -> invalid_arg "make1"
+      | T.This -> des_of_vt mn0.T.vtyp
       | T.Ext n -> dext n
       | T.Base Unit -> dunit
       | T.Base Float -> Des.dfloat
@@ -205,8 +206,8 @@ struct
       | T.Usr vt ->
           (* Deserialize according to vt.def, then make a new user value to
            * keep the user type: *)
-          fun state mn path l ptr ->
-            let v_src = des_of_vt vt.def state mn path l ptr in
+          fun state mn0 path l ptr ->
+            let v_src = des_of_vt vt.def state mn0 path l ptr in
             E.with_sploded_pair ~l "des_usr_type" v_src (fun _l v src ->
               make_pair (make_usr vt.name [ v ]) src)
       | T.Tup mns -> dtup mns
@@ -250,10 +251,7 @@ sig
   val serialize : ?config:Ser.config ->
                   T.maybe_nullable ->
                   E.env ->
-                  E.t (*ma*) ->
-                  E.t (*v*) ->
-                  (*dst*) E.t ->
-                  (*dst*) E.t
+                  E.t (* mask->value->dataptr->dataptr *)
 
   val sersize : ?config:Ser.config ->
                 T.maybe_nullable ->
@@ -369,6 +367,10 @@ struct
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
       | T.Unknown -> invalid_arg "ser1"
+      | T.This ->
+          fun _sstate _mn0 _path _l v dst ->
+            (* Call ourself recursively *)
+            apply (myself T.DataPtr) [ ma ; v ; dst ]
       | T.Ext n -> sext n
       | T.Base Unit -> sunit
       | T.Base Float -> Ser.sfloat
@@ -428,14 +430,13 @@ struct
               let ser = ser_of_vt vt in
               ser sstate mn0 path l v dst))
 
-  and serialize ?config mn0 l ma v dst =
-    let path = [] in
-    let_ ~name:"ma" ~l ma (fun l ma ->
-      let_ ~name:"v" ~l v (fun l v ->
-        let_ ~name:"ser_dst" ~l dst (fun l dst ->
-          let sstate, dst = Ser.start ?config mn0 l dst in
-          let dst = ser1 sstate mn0 path mn0 l v ma dst in
-          Ser.stop sstate l dst)))
+  (* [l] may contain serializers for external types *)
+  and serialize ?config mn0 l =
+    E.func3 ~l Mask (Data mn0) DataPtr (fun l ma v dst ->
+      let path = [] in
+      let sstate, dst = Ser.start ?config mn0 l dst in
+      let dst = ser1 sstate mn0 path mn0 l v ma dst in
+      Ser.stop sstate l dst)
 
   (*
    * Compute the sersize of a expression:
@@ -525,6 +526,7 @@ struct
       add sz (ssizer mn0 path l v) in
     let rec ssz_of_vt = function
       | T.Unknown -> invalid_arg "sersz1"
+      | T.This -> ssz_of_vt mn0.T.vtyp
       | T.Ext n -> cumul (ssext n)
       | T.Base Unit -> ssunit
       | T.Base Float -> cumul Ser.ssize_of_float

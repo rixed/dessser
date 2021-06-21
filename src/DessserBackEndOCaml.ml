@@ -187,12 +187,13 @@ struct
     (* Also define the type alias: *)
     pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 
-  and value_type_identifier ?friendly_name p mn =
-    let value_type_identifier = value_type_identifier ?friendly_name p in
+  and value_type_identifier p ?friendly_name mn0 mn =
+    let value_type_identifier = value_type_identifier p ?friendly_name mn0 in
     match mn with
     | T.{ vtyp ; nullable = true } ->
         value_type_identifier { vtyp ; nullable = false } ^" nullable"
     | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
+    | { vtyp = This ; _ } -> value_type_identifier mn0
     | { vtyp = Base Unit ; _ } -> "unit"
     | { vtyp = Base Char ; _ } -> "char"
     | { vtyp = Base String ; _ } -> "string"
@@ -247,7 +248,7 @@ struct
   and type_identifier p ?friendly_name mn =
     let type_identifier = type_identifier p ?friendly_name in
     match mn with
-    | T.Data mn -> value_type_identifier p ?friendly_name mn
+    | T.Data mn -> value_type_identifier p ?friendly_name mn mn
     | T.Void -> "unit"
     | T.DataPtr -> "Pointer.t"
     | T.Size -> "Size.t"
@@ -1334,6 +1335,8 @@ struct
             pp oc "%s%s)" p.P.indent n))
     | E.E0 (Param (fid, n)) ->
         param fid n
+    | E.E0 (Myself _) ->
+        todo "C++ for Myself"
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         emit ?name p l e (fun oc ->

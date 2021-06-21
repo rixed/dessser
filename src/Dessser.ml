@@ -441,6 +441,7 @@ struct
 
   and desser_value = function
     | T.Unknown | T.Ext _ -> invalid_arg "desser_value"
+    | T.This -> assert false (* Because of Path.type_of_path *)
     | T.Base Unit -> fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
     | T.Base Float -> dsfloat
     | T.Base String -> dsstring

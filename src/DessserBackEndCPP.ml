@@ -59,7 +59,7 @@ struct
    * to use inheritance) *)
   let is_pointy t =
     match T.develop_user_types t with
-    | T.Data { vtyp = Set _ ; _ } ->
+    | T.Data { vtyp = (This | Set _) ; _ } ->
         true
     | _ ->
         false
@@ -108,74 +108,84 @@ struct
     ) ;
     pp oc "%s> %s;\n\n" p.P.indent id
 
-  and type_identifier p ?friendly_name mn =
-    let type_identifier = type_identifier p ?friendly_name in
+  and value_type_identifier p ?friendly_name mn0 mn =
+    let value_type_identifier = value_type_identifier p ?friendly_name mn0 in
     match mn with
-    | T.Data { vtyp ; nullable = true } ->
+    | T.{ vtyp ; nullable = true } ->
         "std::optional<"^
-          type_identifier (Data { vtyp ; nullable = false })
+          value_type_identifier { vtyp ; nullable = false }
         ^">"
-    | T.Data { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
-    | T.Data { vtyp = Base Unit ; _ } -> "Unit"
-    | T.Data { vtyp = Base Float ; _ } -> "double"
-    | T.Data { vtyp = Base String ; _ } -> "std::string"
-    | T.Data { vtyp = Base Bool ; _ } -> "bool"
-    | T.Data { vtyp = Base Char ; _ } -> "char"
-    | T.Data { vtyp = Base I8 ; _ } -> "int8_t"
-    | T.Data { vtyp = Base U8 ; _ } -> "uint8_t"
-    | T.Data { vtyp = Base I16 ; _ } -> "int16_t"
-    | T.Data { vtyp = Base U16 ; _ } -> "uint16_t"
-    | T.Data { vtyp = Base I24 ; _ } -> "int32_t"
-    | T.Data { vtyp = Base U24 ; _ } -> "uint32_t"
-    | T.Data { vtyp = Base I32 ; _ } -> "int32_t"
-    | T.Data { vtyp = Base U32 ; _ } -> "uint32_t"
-    | T.Data { vtyp = Base I40 ; _ } -> "int64_t"
-    | T.Data { vtyp = Base U40 ; _ } -> "uint64_t"
-    | T.Data { vtyp = Base I48 ; _ } -> "int64_t"
-    | T.Data { vtyp = Base U48 ; _ } -> "uint64_t"
-    | T.Data { vtyp = Base I56 ; _ } -> "int64_t"
-    | T.Data { vtyp = Base U56 ; _ } -> "uint64_t"
-    | T.Data { vtyp = Base I64 ; _ } -> "int64_t"
-    | T.Data { vtyp = Base U64 ; _ } -> "uint64_t"
-    | T.Data { vtyp = Base I128 ; _ } -> "int128_t"
-    | T.Data { vtyp = Base U128 ; _ } -> "uint128_t"
-    | T.Data { vtyp = Usr t ; _ } ->
-        type_identifier (Data { vtyp = t.def ; nullable = false })
-    | T.Data { vtyp = Ext n ; _ } ->
+    | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
+    | { vtyp = This ; _ } -> value_type_identifier mn0 ^"*"
+    | { vtyp = Base Unit ; _ } -> "Unit"
+    | { vtyp = Base Float ; _ } -> "double"
+    | { vtyp = Base String ; _ } -> "std::string"
+    | { vtyp = Base Bool ; _ } -> "bool"
+    | { vtyp = Base Char ; _ } -> "char"
+    | { vtyp = Base I8 ; _ } -> "int8_t"
+    | { vtyp = Base U8 ; _ } -> "uint8_t"
+    | { vtyp = Base I16 ; _ } -> "int16_t"
+    | { vtyp = Base U16 ; _ } -> "uint16_t"
+    | { vtyp = Base I24 ; _ } -> "int32_t"
+    | { vtyp = Base U24 ; _ } -> "uint32_t"
+    | { vtyp = Base I32 ; _ } -> "int32_t"
+    | { vtyp = Base U32 ; _ } -> "uint32_t"
+    | { vtyp = Base I40 ; _ } -> "int64_t"
+    | { vtyp = Base U40 ; _ } -> "uint64_t"
+    | { vtyp = Base I48 ; _ } -> "int64_t"
+    | { vtyp = Base U48 ; _ } -> "uint64_t"
+    | { vtyp = Base I56 ; _ } -> "int64_t"
+    | { vtyp = Base U56 ; _ } -> "uint64_t"
+    | { vtyp = Base I64 ; _ } -> "int64_t"
+    | { vtyp = Base U64 ; _ } -> "uint64_t"
+    | { vtyp = Base I128 ; _ } -> "int128_t"
+    | { vtyp = Base U128 ; _ } -> "uint128_t"
+    | { vtyp = Usr mn ; _ } ->
+        value_type_identifier { vtyp = mn.def ; nullable = false }
+    | { vtyp = Ext n ; _ } ->
         P.get_external_type p n Cpp
-    | T.Data { vtyp = Tup mns ; _ } as t ->
+    | { vtyp = Tup mns ; _ } as mn ->
+        let t = T.Data mn in
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         P.declared_type p t (fun oc type_id ->
           print_struct p ?friendly_name oc type_id mns) |>
         valid_identifier
-    | T.Data { vtyp = Rec mns ; _ } as t ->
+    | { vtyp = Rec mns ; _ } as mn ->
+        let t = T.Data mn in
         P.declared_type p t (fun oc type_id ->
           print_struct p ?friendly_name oc type_id mns) |>
         valid_identifier
-    | T.Data { vtyp = Sum mns ; _ } as t ->
+    | { vtyp = Sum mns ; _ } as mn ->
+        let t = T.Data mn in
         P.declared_type p t (fun oc type_id ->
           print_variant p ?friendly_name oc type_id mns) |>
         valid_identifier
-    | T.Data { vtyp = Vec (dim, typ) ; _ } ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier (Data typ))
-    | T.Data { vtyp = Lst typ ; _ } ->
-        Printf.sprintf "Lst<%s>" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Simple, typ) ; _ } ->
-        Printf.sprintf "Set<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Sliding, typ) ; _ } ->
-        Printf.sprintf "SlidingWindow<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Tumbling, typ) ; _ } ->
-        Printf.sprintf "TumblingWindow<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Sampling, typ) ; _ } ->
-        Printf.sprintf "Sampling<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (HashTable, typ) ; _ } ->
-        Printf.sprintf "HashTable<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Heap, typ) ; _ } ->
-        Printf.sprintf "Heap<%s> *" (type_identifier (Data typ))
-    | T.Data { vtyp = Set (Top, _) ; _ } ->
+    | { vtyp = Vec (dim, mn) ; _ } ->
+        Printf.sprintf "Vec<%d, %s>" dim (value_type_identifier mn)
+    | { vtyp = Lst mn ; _ } ->
+        Printf.sprintf "Lst<%s>" (value_type_identifier mn)
+    | { vtyp = Set (Simple, mn) ; _ } ->
+        Printf.sprintf "Set<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (Sliding, mn) ; _ } ->
+        Printf.sprintf "SlidingWindow<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (Tumbling, mn) ; _ } ->
+        Printf.sprintf "TumblingWindow<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (Sampling, mn) ; _ } ->
+        Printf.sprintf "Sampling<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (HashTable, mn) ; _ } ->
+        Printf.sprintf "HashTable<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (Heap, mn) ; _ } ->
+        Printf.sprintf "Heap<%s> *" (value_type_identifier mn)
+    | { vtyp = Set (Top, _) ; _ } ->
         todo "C++ back-end for TOPs"
-    | T.Data { vtyp = Map _ ; _ } ->
+    | { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
+
+  and type_identifier p ?friendly_name mn =
+    let type_identifier = type_identifier p ?friendly_name in
+    match mn with
+    | T.Data mn ->
+        value_type_identifier p ?friendly_name mn mn
     | T.Pair (t1, t2) ->
         "Pair<"^ type_identifier t1 ^", "^ type_identifier t2 ^">"
     | T.SList t1 ->
@@ -1054,6 +1064,8 @@ struct
           pp oc "%s" p.P.indent)
     | E.E0 (Param (fid, n)) ->
         param fid n
+    | E.E0 (Myself _) ->
+        todo "C++ for Myself"
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         let res = gen_sym ?name "choose_res_" in

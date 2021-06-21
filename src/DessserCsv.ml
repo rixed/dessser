@@ -55,6 +55,10 @@ let rec is_serializable ?(to_first_concrete=false) mn =
   match mn.T.vtyp with
   | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       false
+  | This ->
+      (* If everything else is serializable then This is also serializable.
+       * Or let any non-serializable field fails. *)
+      true
   | Base _ ->
       true
   | Usr { def ; _ } ->
@@ -79,7 +83,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.vtyp with
-  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
+  | Unknown | This | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "nullable_at_first"
   | Base _ ->
       false
@@ -110,6 +114,8 @@ let rec make_serializable mn =
   match mn.T.vtyp with
   | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
       invalid_arg "make_serializable"
+  | This ->
+      todo "make_serializable for This"
   | Base _ ->
       mn
   | Usr { def ; _ } ->

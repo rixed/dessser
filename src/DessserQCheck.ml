@@ -144,6 +144,8 @@ let maybe_nullable_gen =
 
 let rec size_of_value_type = function
   | T.Unknown | T.Ext _ -> invalid_arg "size_of_value_type"
+  (* Or the question has little practical interest: *)
+  | T.This -> 1
   | T.Base _ | T.Usr _ -> 1
   | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_maybe_nullable mn
   | T.Tup mns ->
@@ -184,7 +186,7 @@ let rec shrink_value_type =
       Iter.map make_typ in
     shrink_mns f in
   function
-  | T.Unknown | T.Ext _ ->
+  | T.Unknown | T.This | T.Ext _ ->
       Iter.empty
   | T.Base Unit ->
       Iter.empty
@@ -629,11 +631,14 @@ let int_string_gen mi ma =
 
 let to_sexpr lst = "("^ String.join " " lst ^")"
 
-let rec sexpr_of_vtyp_gen vtyp =
+let rec sexpr_of_vtyp_gen ?this vtyp =
+  let this = this |? vtyp in
   let open Gen in
   match vtyp with
   | T.Unknown | T.Ext _ ->
       invalid_arg "sexpr_of_vtyp_gen"
+  | T.This ->
+      sexpr_of_vtyp_gen ~this this
   | T.Base Unit ->
       return "()"
   | T.Base Float ->
@@ -663,49 +668,50 @@ let rec sexpr_of_vtyp_gen vtyp =
   | T.Base I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
   | T.Base I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
   | T.Base I128 -> map Int128.to_string i128_gen
-  | T.Usr ut -> sexpr_of_vtyp_gen ut.def
+  | T.Usr ut -> sexpr_of_vtyp_gen ~this ut.def
   | T.Vec (dim, mn) ->
-      list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
+      list_repeat dim (sexpr_of_mn_gen ~this mn) |> map to_sexpr
   | T.Lst mn ->
-      tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
+      tiny_list (sexpr_of_mn_gen ~this mn) |> map (fun lst ->
         (* FIXME: make list_prefix_length a parameter of this function *)
         (if DessserSExpr.default_config.list_prefix_length then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
   | T.Set (_, mn) ->
-      sexpr_of_vtyp_gen (Lst mn)
+      sexpr_of_vtyp_gen ~this (Lst mn)
   | T.Tup mns ->
-      tup_gen mns
+      tup_gen ~this mns
   | T.Rec mns ->
-      tup_gen (Array.map snd mns)
+      tup_gen ~this (Array.map snd mns)
   | T.Sum mns ->
       join (
         map (fun i ->
           let i = (Stdlib.abs i) mod (Array.length mns) in
-          sexpr_of_mn_gen (snd mns.(i)) |>
+          sexpr_of_mn_gen ~this (snd mns.(i)) |>
           map (fun se -> "("^ Stdlib.string_of_int i ^" "^ se ^")")
         ) int
       )
   | T.Map (k, v) ->
-      sexpr_of_vtyp_gen (Lst { vtyp = Tup [| k ; v |] ; nullable = false })
+      sexpr_of_vtyp_gen ~this (Lst { vtyp = Tup [| k ; v |] ; nullable = false })
 
-and tup_gen mns st =
+and tup_gen ~this mns st =
   "("^ (
     Array.fold_left (fun sexpr mn ->
-      (if sexpr = "" then "" else (sexpr ^ " ")) ^ sexpr_of_mn_gen mn st
+      (if sexpr = "" then "" else (sexpr ^ " ")) ^ sexpr_of_mn_gen ~this mn st
     ) "" mns
   ) ^")"
 
-and sexpr_of_mn_gen mn =
+and sexpr_of_mn_gen ?this mn =
+  let this = this |? mn.T.vtyp in
   let open Gen in
   if mn.nullable then
     join (
       (* Note: This "null" must obviously match the one used in DessserSExpr.ml *)
       map (function true -> return "null"
-                 | false -> sexpr_of_vtyp_gen mn.vtyp) bool)
+                 | false -> sexpr_of_vtyp_gen ~this mn.vtyp) bool)
   else
-    sexpr_of_vtyp_gen mn.vtyp
+    sexpr_of_vtyp_gen ~this mn.vtyp
 
 let sexpr mn =
   let print = BatPervasives.identity
@@ -789,11 +795,13 @@ let sexpr mn =
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr mn =
-    E.func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+    let l = E.no_env in
+    let ser_func = OfValue.serialize mn l in
+    E.func2 ~l (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
       (fun l src dst ->
         let v_src = ToValue.make mn l src in
-        E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
-          let dst = OfValue.serialize mn l copy_field v dst in
+        E.with_sploded_pair ~l "v_src" v_src (fun _l v src ->
+          let dst = apply ser_func [ copy_field ; v ; dst ] in
           make_pair src dst))
 *)
 (*$R

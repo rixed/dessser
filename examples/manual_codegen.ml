@@ -94,8 +94,8 @@ let () =
                   dump sz ;
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
-                    let dst' =
-                      OfValue2.serialize ~config:sexpr_config typ l ma v dst in
+                    let ser_func = OfValue2.serialize ~config:sexpr_config typ l in
+                    let dst' = apply ser_func [ ma ; v ; dst ] in
                     make_pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
