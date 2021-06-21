@@ -799,7 +799,8 @@ let sexpr mn =
     let ser_func = OfValue.serialize mn l in
     E.func2 ~l (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
       (fun l src dst ->
-        let v_src = ToValue.make mn l src in
+        let des = ToValue.make mn l in
+        let v_src = apply des [ src ] in
         E.with_sploded_pair ~l "v_src" v_src (fun _l v src ->
           let dst = apply ser_func [ copy_field ; v ; dst ] in
           make_pair src dst))

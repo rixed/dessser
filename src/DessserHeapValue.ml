@@ -16,11 +16,12 @@ module type MATERIALIZE =
 sig
   module Des : DES
 
+  (* TODO: This should also accept a runtime fieldmask as parameter. *)
+
   val make : ?config:Des.config ->
              T.maybe_nullable ->
              E.env ->
-             (*src*) E.t ->
-             (*e*src*) E.t
+             E.t (* src -> e*src *)
 end
 
 module Materialize (Des : DES) :
@@ -178,7 +179,10 @@ struct
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
       | T.Unknown -> invalid_arg "make1"
-      | T.This -> des_of_vt mn0.T.vtyp
+      | T.This ->
+          fun _dstate mn0 _path _l src ->
+            (* Call ourself recursively *)
+            apply (myself T.(Pair (Data mn0, DataPtr))) [ src ]
       | T.Ext n -> dext n
       | T.Base Unit -> dunit
       | T.Base Float -> Des.dfloat
@@ -234,15 +238,18 @@ struct
       des dstate mn0 path l src
     )
 
-  let make ?config mn0 l src =
-    let_ ~name:"src" ~l src (fun l src ->
+  let make ?config mn0 l =
+    E.func1 ~l DataPtr (fun l src ->
       let dstate, src = Des.start ?config mn0 l src in
       E.with_sploded_pair ~l "make" (make1 dstate mn0 [] mn0 l src) (fun l v src ->
         make_pair v (Des.stop dstate l src)))
 end
 
 (* The other way around: given a heap value of some type and a serializer,
- * serialize that value: *)
+ * serialize that value.
+ * The generated function accept a runtime fieldmask.
+ * We could also have a version with a compile time fieldmask that would be
+ * optimized compared to that one. TODO *)
 
 module type SERIALIZE =
 sig
@@ -251,14 +258,12 @@ sig
   val serialize : ?config:Ser.config ->
                   T.maybe_nullable ->
                   E.env ->
-                  E.t (* mask->value->dataptr->dataptr *)
+                  E.t (* mask -> value -> dataptr -> dataptr *)
 
   val sersize : ?config:Ser.config ->
                 T.maybe_nullable ->
                 E.env ->
-                E.t (*ma*) ->
-                E.t (*v*) ->
-                E.t (*size*)
+                E.t (* mask -> v -> size *)
 end
 
 module Serialize (Ser : SER) :
@@ -526,7 +531,10 @@ struct
       add sz (ssizer mn0 path l v) in
     let rec ssz_of_vt = function
       | T.Unknown -> invalid_arg "sersz1"
-      | T.This -> ssz_of_vt mn0.T.vtyp
+      | T.This ->
+          fun _mn0 _path _l v sz ->
+            (* Call ourself recursively *)
+            add sz (apply (myself T.Size) [ ma ; v ])
       | T.Ext n -> cumul (ssext n)
       | T.Base Unit -> ssunit
       | T.Base Float -> cumul Ser.ssize_of_float
@@ -580,9 +588,8 @@ struct
             else
               ssz_of_vt vt mn0 path l v sz))
 
-  let sersize ?config mn l ma v =
-    let sz = Ser.ssize_start ?config mn in
-    let_ ~name:"ma" ~l ma (fun l ma ->
-      let_ ~name:"v" ~l v (fun l v ->
-        sersz1 mn mn [] l v ma sz))
+  let sersize ?config mn l =
+    E.func2 ~l Mask (T.Data mn) (fun l ma v ->
+      let sz = Ser.ssize_start ?config mn in
+      sersz1 mn mn [] l v ma sz)
 end

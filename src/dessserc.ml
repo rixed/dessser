@@ -62,13 +62,10 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
     else nop in
   let des =
     (* convert from encoding_in into a heapvalue: *)
-    E.func1 ~l DataPtr (fun l src ->
-      ToValue.make schema l src) in
-  let ma = copy_field in
+    ToValue.make schema l in
   let sersize =
     (* compute the serialization size of a heap value: *)
-    E.func1 ~l (Data schema) (fun l v ->
-      OfValue.sersize schema l ma v) in
+    OfValue.sersize schema l in
   let ser =
     (* convert from a heapvalue into encoding_out. *)
     OfValue.serialize schema l in
@@ -223,8 +220,7 @@ let aggregator
   let l = E.no_env in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
-  let des =
-    E.func1 ~l DataPtr (fun l -> ToValue.make schema l) in
+  let des = ToValue.make schema l in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
   E.type_check E.no_env init_expr ;

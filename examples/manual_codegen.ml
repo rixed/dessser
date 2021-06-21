@@ -84,10 +84,12 @@ let () =
       let ma = copy_field in
       E.func2 ~l:E.no_env DataPtr DataPtr (fun l src dst ->
         comment "Convert from RowBinary into a heap value:" (
-          let v_src = ToValue.make typ l src in
+          let des = ToValue.make typ l in
+          let v_src = apply des [ src ] in
           E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
             comment "Compute the serialized size of this tuple:" (
-              let sz = OfValue1.sersize typ l ma v in
+              let sersize = OfValue1.sersize typ l in
+              let sz = apply sersize [ ma ; v ] in
               E.let_ ~name:"sz" ~l sz (fun l sz ->
                 seq [
                   dump (string "Size: ") ;
