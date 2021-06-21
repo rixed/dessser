@@ -62,7 +62,7 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let des =
     (* convert from encoding_in into a heapvalue: *)
     E.func1 ~l:E.no_env DataPtr (fun l src ->
-      first (ToValue.make schema l src)) in
+      ToValue.make schema l src) in
   let ma = copy_field in
   let sersize =
     (* compute the serialization size of a heap value: *)

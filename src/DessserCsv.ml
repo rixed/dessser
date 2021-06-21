@@ -342,7 +342,7 @@ struct
 
   let snotnull _t _conf _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
   let todo_ssize () = failwith "TODO: ssize for CSV"
   let ssize_of_float _ _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ _ = todo_ssize ()

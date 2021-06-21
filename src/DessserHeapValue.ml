@@ -260,7 +260,7 @@ sig
                 E.env ->
                 E.t (*ma*) ->
                 E.t (*v*) ->
-                (*size*size*) E.t
+                E.t (*size*)
 end
 
 module Serialize (Ser : SER) :
@@ -439,76 +439,63 @@ struct
 
   (*
    * Compute the sersize of a expression:
-   *
-   * Returns a pair of size identifier holding the const and dyn size of
-   * the heap value pointed to by the pointer identifier [src].
-   * [src] must be a pointer to a heap value, as returned by the above
-   * Ser module.
    *)
 
-  let add_size l sizes sz =
-    E.with_sploded_pair ~l "add_size" sizes (fun _l cstsz dynsz ->
-      match sz with
-      | ConstSize s ->
-          make_pair (add (size s) cstsz) dynsz
-      | DynSize s ->
-          make_pair cstsz (add s dynsz))
-
-  let rec ssvec dim mn mn0 path l v sizes =
-    let sizes =
-      Ser.ssize_of_vec mn0 path l v |> add_size l sizes in
-    let rec loop l sizes i =
-      if i >= dim then sizes else
+  let rec ssvec dim mn mn0 path l v sz =
+    let sz =
+      Ser.ssize_of_vec mn0 path l v |> add sz in
+    let rec loop l sz i =
+      if i >= dim then sz else
       let subpath = Path.(append (CompTime i) path) in
       let v' = nth (u32_of_int i) v in
-      let_ ~name:"sizes" ~l sizes (fun l sizes ->
-        let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
-        loop l sizes (i + 1)) in
-    loop l sizes 0
+      let_ ~name:"sz" ~l sz (fun l sz ->
+        let sz = sersz1 mn mn0 subpath l v' copy_field sz in
+        loop l sz (i + 1)) in
+    loop l sz 0
 
-  and sslist mn mn0 path l v sizes =
-    let sizes =
-      Ser.ssize_of_list mn0 path l v |> add_size l sizes in
+  and sslist mn mn0 path l v sz =
+    let sz =
+      Ser.ssize_of_list mn0 path l v |> add sz in
     let len = cardinality v in
-    let init = make_pair sizes v in
+    let init = make_pair sz v in
     let init_t = E.type_of l init in
     repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
       ~body:
         (E.func2 ~l T.i32 init_t (fun l n init ->
-          let sizes = first init
+          let sz = first init
           and v = secnd init in
           let v' = nth n v in
           let subpath = Path.(append (RunTime n) path) in
-          let sizes = sersz1 mn mn0 subpath l v' copy_field sizes in
-          make_pair sizes v)) |>
+          let sz = sersz1 mn mn0 subpath l v' copy_field sz in
+          make_pair sz v)) |>
     first
 
-  and sstup mns ma mn0 path l v sizes =
-    let sizes =
-      Ser.ssize_of_tup mn0 path l v |> add_size l sizes in
-    Array.fold_lefti (fun sizes i mn ->
+  and sstup mns ma mn0 path l v sz =
+    let sz =
+      Ser.ssize_of_tup mn0 path l v |> add sz in
+    Array.fold_lefti (fun sz i mn ->
       let v' = get_item i v in
       let ma = mask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
-      let_ ~name:"sizes" ~l sizes (fun l sizes ->
-        sersz1 mn mn0 subpath l v' ma sizes)
-    ) sizes mns
+      let_ ~name:"sz" ~l sz (fun l sz ->
+        sersz1 mn mn0 subpath l v' ma sz)
+    ) sz mns
 
-  and ssrec mns ma mn0 path l v sizes =
-    let sizes =
-      Ser.ssize_of_rec mn0 path l v |> add_size l sizes in
-    Array.fold_lefti (fun sizes i (fname, mn) ->
+  and ssrec mns ma mn0 path l v sz =
+    let sz =
+      Ser.ssize_of_rec mn0 path l v |> add sz in
+    Array.fold_lefti (fun sz i (fname, mn) ->
       let v' = get_field fname v in
       let ma = mask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
-      let_ ~name:"sizes" ~l sizes (fun l sizes ->
+      let_ ~name:"sz" ~l sz (fun l sz ->
         comment ("sersize of field "^ fname)
-                (sersz1 mn mn0 subpath l v' ma sizes))
-    ) sizes mns
+                (sersz1 mn mn0 subpath l v' ma sz))
+    ) sz mns
 
-  and sssum mns mn0 path l v sizes =
-    let sizes =
-      Ser.ssize_of_sum mn0 path l v |> add_size l sizes in
+  and sssum mns mn0 path l v sz =
+    let sz =
+      Ser.ssize_of_sum mn0 path l v |> add sz in
     let max_lbl = Array.length mns - 1 in
     let_ ~name:"label2" ~l
       (label_of v)
@@ -521,48 +508,47 @@ struct
           if i = max_lbl then
             seq [
               assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-              sersz1 mn mn0 subpath l v' copy_field sizes ]
+              sersz1 mn mn0 subpath l v' copy_field sz ]
           else
             if_ (eq (u16 (Uint16.of_int i)) label)
-              ~then_:(sersz1 mn mn0 subpath l v' copy_field sizes)
+              ~then_:(sersz1 mn mn0 subpath l v' copy_field sz)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
-  and ssunit _ _ _ _ sizes = sizes
+  and ssunit _ _ _ _ sz = sz
 
   and ssext name _ _ _ v =
-    DynSize (apply (type_method name (E.SSize Ser.id)) [ v ])
+    apply (type_method name (E.SSize Ser.id)) [ v ]
 
-  and sersz1 mn mn0 path l v ma sizes =
-    let to_dyn ssizer mn0 path l v sizes =
-      let sz = ssizer mn0 path l v in
-      add_size l sizes sz in
+  and sersz1 mn mn0 path l v ma sz =
+    let cumul ssizer mn0 path l v sz =
+      add sz (ssizer mn0 path l v) in
     let rec ssz_of_vt = function
       | T.Unknown -> invalid_arg "sersz1"
-      | T.Ext n -> to_dyn (ssext n)
+      | T.Ext n -> cumul (ssext n)
       | T.Base Unit -> ssunit
-      | T.Base Float -> to_dyn Ser.ssize_of_float
-      | T.Base String -> to_dyn Ser.ssize_of_string
-      | T.Base Bool -> to_dyn Ser.ssize_of_bool
-      | T.Base Char -> to_dyn Ser.ssize_of_char
-      | T.Base I8 -> to_dyn Ser.ssize_of_i8
-      | T.Base I16 -> to_dyn Ser.ssize_of_i16
-      | T.Base I24 -> to_dyn Ser.ssize_of_i24
-      | T.Base I32 -> to_dyn Ser.ssize_of_i32
-      | T.Base I40 -> to_dyn Ser.ssize_of_i40
-      | T.Base I48 -> to_dyn Ser.ssize_of_i48
-      | T.Base I56 -> to_dyn Ser.ssize_of_i56
-      | T.Base I64 -> to_dyn Ser.ssize_of_i64
-      | T.Base I128 -> to_dyn Ser.ssize_of_i128
-      | T.Base U8 -> to_dyn Ser.ssize_of_u8
-      | T.Base U16 -> to_dyn Ser.ssize_of_u16
-      | T.Base U24 -> to_dyn Ser.ssize_of_u24
-      | T.Base U32 -> to_dyn Ser.ssize_of_u32
-      | T.Base U40 -> to_dyn Ser.ssize_of_u40
-      | T.Base U48 -> to_dyn Ser.ssize_of_u48
-      | T.Base U56 -> to_dyn Ser.ssize_of_u56
-      | T.Base U64 -> to_dyn Ser.ssize_of_u64
-      | T.Base U128 -> to_dyn Ser.ssize_of_u128
+      | T.Base Float -> cumul Ser.ssize_of_float
+      | T.Base String -> cumul Ser.ssize_of_string
+      | T.Base Bool -> cumul Ser.ssize_of_bool
+      | T.Base Char -> cumul Ser.ssize_of_char
+      | T.Base I8 -> cumul Ser.ssize_of_i8
+      | T.Base I16 -> cumul Ser.ssize_of_i16
+      | T.Base I24 -> cumul Ser.ssize_of_i24
+      | T.Base I32 -> cumul Ser.ssize_of_i32
+      | T.Base I40 -> cumul Ser.ssize_of_i40
+      | T.Base I48 -> cumul Ser.ssize_of_i48
+      | T.Base I56 -> cumul Ser.ssize_of_i56
+      | T.Base I64 -> cumul Ser.ssize_of_i64
+      | T.Base I128 -> cumul Ser.ssize_of_i128
+      | T.Base U8 -> cumul Ser.ssize_of_u8
+      | T.Base U16 -> cumul Ser.ssize_of_u16
+      | T.Base U24 -> cumul Ser.ssize_of_u24
+      | T.Base U32 -> cumul Ser.ssize_of_u32
+      | T.Base U40 -> cumul Ser.ssize_of_u40
+      | T.Base U48 -> cumul Ser.ssize_of_u48
+      | T.Base U56 -> cumul Ser.ssize_of_u56
+      | T.Base U64 -> cumul Ser.ssize_of_u64
+      | T.Base U128 -> cumul Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
       | T.Vec (dim, mn) -> ssvec dim mn
       | T.Tup mns -> sstup mns ma
@@ -574,28 +560,27 @@ struct
       | T.Map _ -> assert false (* No value of map type *)
     in
     if_ (eq ma skip_field)
-      ~then_:sizes
+      ~then_:sz
       ~else_:(
         if_ (eq ma set_field_null)
           ~then_:(
             if mn.nullable then
-              add_size l sizes (Ser.ssize_of_null mn0 path)
+              add sz (Ser.ssize_of_null mn0 path)
             else
               seq [ assert_ false_ ;
-                    sizes ])
+                    sz ])
           ~else_:(
             let vt = mn.vtyp in
             if mn.nullable then
               if_null v
-                ~then_:(add_size l sizes (Ser.ssize_of_null mn0 path))
-                ~else_:(ssz_of_vt vt mn0 path l (force v) sizes)
+                ~then_:(add sz (Ser.ssize_of_null mn0 path))
+                ~else_:(ssz_of_vt vt mn0 path l (force v) sz)
             else
-              ssz_of_vt vt mn0 path l v sizes))
+              ssz_of_vt vt mn0 path l v sz))
 
   let sersize ?config mn l ma v =
-    let sizes = make_pair (size 0) (size 0) in
-    let sizes = add_size l sizes (Ser.ssize_start ?config mn) in
+    let sz = Ser.ssize_start ?config mn in
     let_ ~name:"ma" ~l ma (fun l ma ->
       let_ ~name:"v" ~l v (fun l v ->
-        sersz1 mn mn [] l v ma sizes))
+        sersz1 mn mn [] l v ma sz))
 end

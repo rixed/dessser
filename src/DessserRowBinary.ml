@@ -138,34 +138,34 @@ struct
   let snotnull _t () _ _ _ p =
     write_byte p (byte Uint8.zero)
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
-  let ssize_of_float _ _ _ _ = ConstSize 8
-  let ssize_of_bool _ _ _ _ = ConstSize 1
-  let ssize_of_char _ _ _ _ = ConstSize 1
-  let ssize_of_i8 _ _ _ _ = ConstSize 1
-  let ssize_of_u8 _ _ _ _ = ConstSize 1
-  let ssize_of_i16 _ _ _ _ = ConstSize 2
-  let ssize_of_u16 _ _ _ _ = ConstSize 2
-  let ssize_of_i32 _ _ _ _ = ConstSize 4
-  let ssize_of_u32 _ _ _ _ = ConstSize 4
+  let ssize_of_float _ _ _ _ = size 8
+  let ssize_of_bool _ _ _ _ = size 1
+  let ssize_of_char _ _ _ _ = size 1
+  let ssize_of_i8 _ _ _ _ = size 1
+  let ssize_of_u8 _ _ _ _ = size 1
+  let ssize_of_i16 _ _ _ _ = size 2
+  let ssize_of_u16 _ _ _ _ = size 2
+  let ssize_of_i32 _ _ _ _ = size 4
+  let ssize_of_u32 _ _ _ _ = size 4
   let ssize_of_i24 = ssize_of_i32
   let ssize_of_u24 = ssize_of_u32
-  let ssize_of_i64 _ _ _ _ = ConstSize 8
-  let ssize_of_u64 _ _ _ _ = ConstSize 8
+  let ssize_of_i64 _ _ _ _ = size 8
+  let ssize_of_u64 _ _ _ _ = size 8
   let ssize_of_i40 = ssize_of_i64
   let ssize_of_u40 = ssize_of_u64
   let ssize_of_i48 = ssize_of_i64
   let ssize_of_u48 = ssize_of_u64
   let ssize_of_i56 = ssize_of_i64
   let ssize_of_u56 = ssize_of_u64
-  let ssize_of_i128 _ _ _ _ = ConstSize 16
-  let ssize_of_u128 _ _ _ _ = ConstSize 16
+  let ssize_of_i128 _ _ _ _ = size 16
+  let ssize_of_u128 _ _ _ _ = size 16
 
-  let ssize_of_tup _ _ _ _ = ConstSize 0
-  let ssize_of_rec _ _ _ _ = ConstSize 0
+  let ssize_of_tup _ _ _ _ = size 0
+  let ssize_of_rec _ _ _ _ = size 0
   let ssize_of_sum = ssize_of_u16
-  let ssize_of_vec _ _ _ _ = ConstSize 0
+  let ssize_of_vec _ _ _ _ = size 0
 
   let ssize_of_leb128 l n =
     let t_u32_u32 = T.Pair (T.u32, T.u32) in
@@ -185,20 +185,19 @@ struct
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
   let ssize_of_list _ _ l lst =
-    DynSize (ssize_of_leb128 l (cardinality lst))
+    ssize_of_leb128 l (cardinality lst)
 
-  let ssize_of_null _ _ = ConstSize 1
+  let ssize_of_null _ _ = size 1
 
   (* Size of a string is its length in bytes + the size of the LEB128 prefix,
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ l v =
-    DynSize (
-      let_ ~l ~name:"wlen" (string_length v) (fun l wlen ->
-        add (ssize_of_leb128 l wlen) (size_of_u32 wlen)))
+    let_ ~l ~name:"wlen" (string_length v) (fun l wlen ->
+      add (ssize_of_leb128 l wlen) (size_of_u32 wlen))
 
   let ssize_start ?(config=()) _ =
     ignore config ;
-    ConstSize 0
+    size 0
 end
 
 module Des : DES with type config = unit =

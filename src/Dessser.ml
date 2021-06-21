@@ -100,11 +100,6 @@ sig
   val dnotnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
-(* Same goes for SER(rializers), with the addition that it is also possible to
- * "serialize" into a heap value instead of a data stream:
- * (note: "ssize" stands for "serialized size") *)
-type ssize = ConstSize of int | DynSize of (*size*) E.t
-
 module type SER =
 sig
   val id : T.encoding_id
@@ -174,7 +169,7 @@ sig
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*value*) E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*value*) E.t -> E.t (*size*)
   val ssize_of_float : ssizer
   val ssize_of_string : ssizer
   val ssize_of_bool : ssizer
@@ -203,10 +198,10 @@ sig
   val ssize_of_sum : ssizer
   val ssize_of_vec : ssizer
   val ssize_of_list : ssizer
-  val ssize_of_null : T.maybe_nullable -> Path.t -> ssize
+  val ssize_of_null : T.maybe_nullable -> Path.t -> E.t (*size*)
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
-  val ssize_start : ?config:config -> T.maybe_nullable -> ssize
+  val ssize_start : ?config:config -> T.maybe_nullable -> E.t (*size*)
 end
 
 (* Now we can combine a DES and a SER to create a converter from one format

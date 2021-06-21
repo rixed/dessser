@@ -2,6 +2,7 @@ open Dessser
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
+open E.Ops
 
 module Ser : SER with type config = unit =
 struct
@@ -56,36 +57,36 @@ struct
   let snull _t () _ _ _ p = p
   let snotnull _t () _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
-  let ssize_of_float _ _ _ _ = ConstSize 0
-  let ssize_of_string _ _ _ _ = ConstSize 0
-  let ssize_of_bool _ _ _ _ = ConstSize 0
-  let ssize_of_char _ _ _ _ = ConstSize 0
-  let ssize_of_i8 _ _ _ _ = ConstSize 0
-  let ssize_of_i16 _ _ _ _ = ConstSize 0
-  let ssize_of_i24 _ _ _ _ = ConstSize 0
-  let ssize_of_i32 _ _ _ _ = ConstSize 0
-  let ssize_of_i40 _ _ _ _ = ConstSize 0
-  let ssize_of_i48 _ _ _ _ = ConstSize 0
-  let ssize_of_i56 _ _ _ _ = ConstSize 0
-  let ssize_of_i64 _ _ _ _ = ConstSize 0
-  let ssize_of_i128 _ _ _ _ = ConstSize 0
-  let ssize_of_u8 _ _ _ _ = ConstSize 0
-  let ssize_of_u16 _ _ _ _ = ConstSize 0
-  let ssize_of_u24 _ _ _ _ = ConstSize 0
-  let ssize_of_u32 _ _ _ _ = ConstSize 0
-  let ssize_of_u40 _ _ _ _ = ConstSize 0
-  let ssize_of_u48 _ _ _ _ = ConstSize 0
-  let ssize_of_u56 _ _ _ _ = ConstSize 0
-  let ssize_of_u64 _ _ _ _ = ConstSize 0
-  let ssize_of_u128 _ _ _ _ = ConstSize 0
-  let ssize_of_tup _ _ _ _ = ConstSize 0
-  let ssize_of_rec _ _ _ _ = ConstSize 0
-  let ssize_of_sum _ _ _ _ = ConstSize 0
-  let ssize_of_vec _ _ _ _ = ConstSize 0
-  let ssize_of_list _ _ _ _ = ConstSize 0
-  let ssize_of_null _ _ = ConstSize 0
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  let ssize_of_float _ _ _ _ = size 0
+  let ssize_of_string _ _ _ _ = size 0
+  let ssize_of_bool _ _ _ _ = size 0
+  let ssize_of_char _ _ _ _ = size 0
+  let ssize_of_i8 _ _ _ _ = size 0
+  let ssize_of_i16 _ _ _ _ = size 0
+  let ssize_of_i24 _ _ _ _ = size 0
+  let ssize_of_i32 _ _ _ _ = size 0
+  let ssize_of_i40 _ _ _ _ = size 0
+  let ssize_of_i48 _ _ _ _ = size 0
+  let ssize_of_i56 _ _ _ _ = size 0
+  let ssize_of_i64 _ _ _ _ = size 0
+  let ssize_of_i128 _ _ _ _ = size 0
+  let ssize_of_u8 _ _ _ _ = size 0
+  let ssize_of_u16 _ _ _ _ = size 0
+  let ssize_of_u24 _ _ _ _ = size 0
+  let ssize_of_u32 _ _ _ _ = size 0
+  let ssize_of_u40 _ _ _ _ = size 0
+  let ssize_of_u48 _ _ _ _ = size 0
+  let ssize_of_u56 _ _ _ _ = size 0
+  let ssize_of_u64 _ _ _ _ = size 0
+  let ssize_of_u128 _ _ _ _ = size 0
+  let ssize_of_tup _ _ _ _ = size 0
+  let ssize_of_rec _ _ _ _ = size 0
+  let ssize_of_sum _ _ _ _ = size 0
+  let ssize_of_vec _ _ _ _ = size 0
+  let ssize_of_list _ _ _ _ = size 0
+  let ssize_of_null _ _ = size 0
   let ssize_start ?(config=()) _ =
     ignore config ;
-    ConstSize 0
+    size 0
 end

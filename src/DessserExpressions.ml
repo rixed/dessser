@@ -3712,6 +3712,8 @@ struct
 
   let let_ = let_
 
+  let let_pair = let_pair
+
   let identifier n = E0 (Identifier n)
 
   let ext_identifier n = E0 (ExtIdentifier (Verbatim n))

@@ -87,13 +87,11 @@ let () =
           let v_src = ToValue.make typ l src in
           E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
             comment "Compute the serialized size of this tuple:" (
-              let const_dyn_sz = OfValue1.sersize typ l ma v in
-              E.with_sploded_pair ~l "read_tuple" const_dyn_sz (fun l const_sz dyn_sz ->
+              let sz = OfValue1.sersize typ l ma v in
+              E.let_ ~name:"sz" ~l sz (fun l sz ->
                 seq [
-                  dump (string "Constant size: ") ;
-                  dump const_sz ;
-                  dump (string ", dynamic size: ") ;
-                  dump dyn_sz ;
+                  dump (string "Size: ") ;
+                  dump sz ;
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
                     let dst' =

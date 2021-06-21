@@ -1,12 +1,12 @@
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134048007 1241591134058455 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 56542 53 0 0 13824 193 0 "Ethernet/IPv4/UDP/DNS" 68 207 1 1 26 165 null)
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134039521 1241591134047847 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 46233 53 0 0 13824 99 0 "Ethernet/IPv4/UDP/DNS" 68 113 1 1 26 71 null)
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134004611 1241591134037441 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 43941 53 0 0 13824 133 0 "Ethernet/IPv4/UDP/DNS" 68 147 1 1 26 105 null)
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134048007 1241591134058455 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 56542 53 0 0 13824 193 0 "Ethernet/IPv4/UDP/DNS" 68 207 1 1 26 165 null)
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134039521 1241591134047847 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 46233 53 0 0 13824 99 0 "Ethernet/IPv4/UDP/DNS" 68 113 1 1 26 71 null)
-Constant size: 136, dynamic size: 88
+Size: 224
 ("UNKNOWN" 1241591134004611 1241591134037441 3 "dns_a_request.pcap" 3 "dns_a_request.pcap" null null 78373803937 72797035231 0 0 3232238084 null 3232238334 null null null 43941 53 0 0 13824 133 0 "Ethernet/IPv4/UDP/DNS" 68 147 1 1 26 105 null)

@@ -139,55 +139,55 @@ struct
   let snotnull _t _conf _ _ _ p = p
 
   (* Overestimate some of them: *)
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   let ssize_start ?(config=default_config) _ =
-    ConstSize (if config.newline = None then 0 else 1)
+    size (if config.newline = None then 0 else 1)
 
-  let ssize_of_float _ _ _ _ = ConstSize 22
+  let ssize_of_float _ _ _ _ = size 22
 
   let ssize_of_string _ _ _ v =
-    DynSize (size_of_u32 (add (string_length v) (u32_of_int 2)))
+    size_of_u32 (add (string_length v) (u32_of_int 2))
 
-  let ssize_of_bool _ _ _ _ = ConstSize 1
+  let ssize_of_bool _ _ _ _ = size 1
 
-  let ssize_of_char _ _ _ _ = ConstSize 3
+  let ssize_of_char _ _ _ _ = size 3
 
-  let ssize_of_i8 _ _ _ _ = ConstSize 4
+  let ssize_of_i8 _ _ _ _ = size 4
 
-  let ssize_of_i16 _ _ _ _ = ConstSize 6
+  let ssize_of_i16 _ _ _ _ = size 6
 
-  let ssize_of_i24 _ _ _ _ = ConstSize 8
+  let ssize_of_i24 _ _ _ _ = size 8
 
-  let ssize_of_i32 _ _ _ _ = ConstSize 11
+  let ssize_of_i32 _ _ _ _ = size 11
 
-  let ssize_of_i40 _ _ _ _ = ConstSize 13
+  let ssize_of_i40 _ _ _ _ = size 13
 
-  let ssize_of_i48 _ _ _ _ = ConstSize 16
+  let ssize_of_i48 _ _ _ _ = size 16
 
-  let ssize_of_i56 _ _ _ _ = ConstSize 18
+  let ssize_of_i56 _ _ _ _ = size 18
 
-  let ssize_of_i64 _ _ _ _ = ConstSize 20
+  let ssize_of_i64 _ _ _ _ = size 20
 
-  let ssize_of_i128 _ _ _ _ = ConstSize 40
+  let ssize_of_i128 _ _ _ _ = size 40
 
-  let ssize_of_u8 _ _ _ _ = ConstSize 3
+  let ssize_of_u8 _ _ _ _ = size 3
 
-  let ssize_of_u16 _ _ _ _ = ConstSize 5
+  let ssize_of_u16 _ _ _ _ = size 5
 
-  let ssize_of_u24 _ _ _ _ = ConstSize 7
+  let ssize_of_u24 _ _ _ _ = size 7
 
-  let ssize_of_u32 _ _ _ _ = ConstSize 10
+  let ssize_of_u32 _ _ _ _ = size 10
 
-  let ssize_of_u40 _ _ _ _ = ConstSize 12
+  let ssize_of_u40 _ _ _ _ = size 12
 
-  let ssize_of_u48 _ _ _ _ = ConstSize 15
+  let ssize_of_u48 _ _ _ _ = size 15
 
-  let ssize_of_u56 _ _ _ _ = ConstSize 17
+  let ssize_of_u56 _ _ _ _ = size 17
 
-  let ssize_of_u64 _ _ _ _ = ConstSize 19
+  let ssize_of_u64 _ _ _ _ = size 19
 
-  let ssize_of_u128 _ _ _ _ = ConstSize 39
+  let ssize_of_u128 _ _ _ _ = size 39
 
   let ssize_of_tup mn path _ _ =
     let num_items =
@@ -195,7 +195,7 @@ struct
       | Tup mns -> Array.length mns
       | Rec mns -> Array.length mns
       | _ -> assert false in
-    ConstSize (2 + num_items - 1)
+    size (2 + num_items - 1)
 
   let ssize_of_rec = ssize_of_tup
 
@@ -207,19 +207,19 @@ struct
             max m (String.length label)
           ) 0 mns
       | _ -> assert false in
-    ConstSize (max_label + 3)
+    size (max_label + 3)
 
   let ssize_of_vec mn path _ _ =
     let dim =
       match (Path.type_of_path mn path).vtyp with
       | Vec (dim, _) -> dim
       | _ -> assert false in
-    ConstSize (2 + dim - 1)
+    size (2 + dim - 1)
 
   let ssize_of_list _ _ _ v =
-    DynSize (size_of_u32 (add (cardinality v) (u32_of_int 2)))
+    size_of_u32 (add (cardinality v) (u32_of_int 2))
 
-  let ssize_of_null _ _ = ConstSize 4
+  let ssize_of_null _ _ = size 4
 end
 
 module Des : DES with type config = sexpr_config =

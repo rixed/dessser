@@ -486,13 +486,13 @@ struct
   (* nullbits are set when actual values are written: *)
   let snotnull _t () _ _ _ p_stk = p_stk
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> ssize
+  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
 
   (* SerSize of the whole string: *)
   let ssize_of_string _mn0 _path _l id =
     let sz = size_of_u32 (string_length id) in
     let headsz = size word_size in
-    DynSize (add headsz (round_up_dyn_bytes sz))
+    add headsz (round_up_dyn_bytes sz)
 
   (* SerSize of the list header: *)
   let ssize_of_list mn0 path _l id =
@@ -502,10 +502,10 @@ struct
       let nullmask_sz_bits = add nullmask_bits_dyn (u32_of_int 8) in
       (* Round up to ringbuf words: *)
       let nullmask_bytes = round_up_dyn_bits nullmask_sz_bits in
-      DynSize (add (size word_size) (* list length *)
-                   nullmask_bytes)
+      add (size word_size) (* list length *)
+          nullmask_bytes
     and without_nullmask () =
-      ConstSize word_size in
+      size word_size in
     match (Path.type_of_path mn0 path |> T.develop_maybe_nullable).vtyp with
     | Lst vt ->
         (* If the items are not nullable then there is no nullmask. *)
@@ -519,94 +519,94 @@ struct
         assert false
 
   let ssize_of_float _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 8)
+    size (round_up_const_bytes 8)
 
   let ssize_of_bool _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 1)
+    size (round_up_const_bytes 1)
 
   let ssize_of_i8 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 1)
+    size (round_up_const_bytes 1)
 
   let ssize_of_i16 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 2)
+    size (round_up_const_bytes 2)
 
   let ssize_of_i24 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 3)
+    size (round_up_const_bytes 3)
 
   let ssize_of_i32 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 4)
+    size (round_up_const_bytes 4)
 
   let ssize_of_i40 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 5)
+    size (round_up_const_bytes 5)
 
   let ssize_of_i48 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 6)
+    size (round_up_const_bytes 6)
 
   let ssize_of_i56 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 7)
+    size (round_up_const_bytes 7)
 
   let ssize_of_i64 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 8)
+    size (round_up_const_bytes 8)
 
   let ssize_of_i128 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 16)
+    size (round_up_const_bytes 16)
 
   let ssize_of_u8 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 1)
+    size (round_up_const_bytes 1)
 
   let ssize_of_u16 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 2)
+    size (round_up_const_bytes 2)
 
   let ssize_of_u24 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 3)
+    size (round_up_const_bytes 3)
 
   let ssize_of_u32 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 4)
+    size (round_up_const_bytes 4)
 
   let ssize_of_u40 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 5)
+    size (round_up_const_bytes 5)
 
   let ssize_of_u48 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 6)
+    size (round_up_const_bytes 6)
 
   let ssize_of_u56 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 7)
+    size (round_up_const_bytes 7)
 
   let ssize_of_u64 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 8)
+    size (round_up_const_bytes 8)
 
   let ssize_of_u128 _mn0 _path _ _ =
-    ConstSize (round_up_const_bytes 16)
+    size (round_up_const_bytes 16)
 
   let ssize_of_char _mn0 _path _ _ =
-    ConstSize (round_up_const_bits 1)
+    size (round_up_const_bits 1)
 
   let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
       NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
-    ConstSize (nullmask_words * word_size)
+    size (nullmask_words * word_size)
 
   let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
       NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
-    ConstSize (nullmask_words * word_size)
+    size (nullmask_words * word_size)
 
   (* Just the additional label: *)
   let ssize_of_sum _ _ _ _ =
-    ConstSize word_size
+    size word_size
 
   let ssize_of_vec mn0 path _ _ =
     let nullmask_words =
       NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
-    ConstSize (nullmask_words * word_size)
+    size (nullmask_words * word_size)
 
-  let ssize_of_null _mn0 _path = ConstSize 0
+  let ssize_of_null _mn0 _path = size 0
 
   let ssize_start ?(config=()) _ =
     ignore config ;
-    ConstSize 0
+    size 0
 end
 
 module Des : DES with type config = unit =
