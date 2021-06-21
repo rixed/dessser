@@ -537,5 +537,5 @@ sig
   val preferred_decl_extension : string
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
-  val type_identifier : Printer.t -> T.t -> string
+  val type_identifier : Printer.t -> ?friendly_name:string -> T.t -> string
 end

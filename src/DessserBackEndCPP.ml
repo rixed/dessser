@@ -64,12 +64,19 @@ struct
     | _ ->
         false
 
-  let rec print_struct p oc id mns =
+  let append_friendly_names n1 n2 =
+    if n2 = "" then n1 else
+    if n1 = None || n1 = Some "" then Some n2 else
+    Some (Option.get n1 ^"_"^ n2)
+
+  let rec print_struct p ?friendly_name oc id mns =
+    ignore friendly_name ; (* TODO *)
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.P.indent id ;
     P.indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier p (T.Data vt) in
+        let friendly_name = append_friendly_names friendly_name field_name in
+        let typ_id = type_identifier p ?friendly_name (T.Data vt) in
         pp oc "%s%s %s;\n" p.P.indent typ_id (valid_identifier field_name)
       ) mns ;
       if cpp_std_version >= 20 then
@@ -87,22 +94,26 @@ struct
       )) ;
     pp oc "%s};\n\n" p.P.indent
 
-  and print_variant p oc id mns =
+  and print_variant p ?friendly_name oc id mns =
+    ignore friendly_name ; (* TODO *)
     let id = valid_identifier id in
     pp oc "%stypedef std::variant<\n" p.P.indent ;
     P.indent_more p (fun () ->
-      Array.iteri (fun i (_, mn) ->
-        let typ_id = type_identifier p (T.Data mn) in
+      Array.iteri (fun i (n, mn) ->
+        let friendly_name = append_friendly_names friendly_name n in
+        let typ_id = type_identifier p ?friendly_name (T.Data mn) in
         pp oc "%s%s%s\n"
           p.P.indent typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
     ) ;
     pp oc "%s> %s;\n\n" p.P.indent id
 
-  and type_identifier p = function
+  and type_identifier p ?friendly_name mn =
+    let type_identifier = type_identifier p ?friendly_name in
+    match mn with
     | T.Data { vtyp ; nullable = true } ->
         "std::optional<"^
-          type_identifier p (Data { vtyp ; nullable = false })
+          type_identifier (Data { vtyp ; nullable = false })
         ^">"
     | T.Data { vtyp = Unknown ; _ } -> invalid_arg "type_identifier"
     | T.Data { vtyp = Base Unit ; _ } -> "Unit"
@@ -129,51 +140,54 @@ struct
     | T.Data { vtyp = Base I128 ; _ } -> "int128_t"
     | T.Data { vtyp = Base U128 ; _ } -> "uint128_t"
     | T.Data { vtyp = Usr t ; _ } ->
-        type_identifier p (Data { vtyp = t.def ; nullable = false })
+        type_identifier (Data { vtyp = t.def ; nullable = false })
     | T.Data { vtyp = Ext n ; _ } ->
         P.get_external_type p n Cpp
     | T.Data { vtyp = Tup mns ; _ } as t ->
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
-        P.declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_struct p ?friendly_name oc type_id mns) |>
         valid_identifier
     | T.Data { vtyp = Rec mns ; _ } as t ->
-        P.declared_type p t (fun oc type_id -> print_struct p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_struct p ?friendly_name oc type_id mns) |>
         valid_identifier
     | T.Data { vtyp = Sum mns ; _ } as t ->
-        P.declared_type p t (fun oc type_id -> print_variant p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_variant p ?friendly_name oc type_id mns) |>
         valid_identifier
     | T.Data { vtyp = Vec (dim, typ) ; _ } ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier p (Data typ))
+        Printf.sprintf "Vec<%d, %s>" dim (type_identifier (Data typ))
     | T.Data { vtyp = Lst typ ; _ } ->
-        Printf.sprintf "Lst<%s>" (type_identifier p (Data typ))
+        Printf.sprintf "Lst<%s>" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Simple, typ) ; _ } ->
-        Printf.sprintf "Set<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "Set<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Sliding, typ) ; _ } ->
-        Printf.sprintf "SlidingWindow<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "SlidingWindow<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Tumbling, typ) ; _ } ->
-        Printf.sprintf "TumblingWindow<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "TumblingWindow<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Sampling, typ) ; _ } ->
-        Printf.sprintf "Sampling<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "Sampling<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (HashTable, typ) ; _ } ->
-        Printf.sprintf "HashTable<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "HashTable<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Heap, typ) ; _ } ->
-        Printf.sprintf "Heap<%s> *" (type_identifier p (Data typ))
+        Printf.sprintf "Heap<%s> *" (type_identifier (Data typ))
     | T.Data { vtyp = Set (Top, _) ; _ } ->
         todo "C++ back-end for TOPs"
     | T.Data { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
     | T.Pair (t1, t2) ->
-        "Pair<"^ type_identifier p t1 ^", "^ type_identifier p t2 ^">"
+        "Pair<"^ type_identifier t1 ^", "^ type_identifier t2 ^">"
     | T.SList t1 ->
-        "SList<"^ type_identifier p t1 ^">"
+        "SList<"^ type_identifier t1 ^">"
     | T.Function (args, ret) ->
         (* We want all modifiable types (ir bytes, vectors, ...?) passed by
          * reference: *)
-        "std::function<"^ type_identifier p ret ^
+        "std::function<"^ type_identifier ret ^
           IO.to_string (
             Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
               Printf.fprintf oc "%s%s"
-                (type_identifier p t)
+                (type_identifier t)
                 (if is_mutable t then "&" else ""))
           ) args ^">"
     | T.Void -> "Void"

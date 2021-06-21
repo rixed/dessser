@@ -11,7 +11,8 @@ let id = T.DIL
 (* The only place where we need explicit types in DIL are in strings for instance
  * in the null or list expressions. There, types are expressed in the syntax
  * printed/parsed by DessserTypes: *)
-let type_identifier _p t =
+let type_identifier _p ?friendly_name t =
+  ignore friendly_name ;
   Printf.sprintf2 "%a" T.print t |>
   String.quote
 

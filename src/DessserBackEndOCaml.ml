@@ -24,9 +24,12 @@ let valid_identifier s =
   if List.mem s keywords then s ^ "_" else
   DessserBackEndCLike.valid_identifier s
 
+let valid_upper_identifier s =
+  String.uncapitalize s |> valid_identifier |> String.capitalize
+
 let valid_module_name s =
   assert (s <> "" && s.[0] <> '!') ;
-  String.capitalize (valid_identifier s)
+  valid_upper_identifier s
 
 module Config =
 struct
@@ -84,7 +87,7 @@ struct
   let tuple_field_name i = "field_"^ string_of_int i
 
   let cstr_name n =
-    String.capitalize (valid_identifier n)
+    valid_upper_identifier n
 
   let mod_of_set_type = function
     | T.Simple -> "SimpleSet"
@@ -102,13 +105,24 @@ struct
    | _ ->
        invalid_arg "mod_of_set_type_of_expr"
 
-  let open_module m p oc f =
+  (* One of OCaml main annoyances as a back-end is that it's not easy to
+   * deal with uniqueness of record field names (or constructor names).
+   * To works around that records and sum types are always defined inside
+   * a module uniquely named after a hash of the content.
+   * The problem, then, is that it makes the field names hard to reach
+   * from user's code. To aleviate this issue somewhat, another module is
+   * defined, named after the type, with a copy of the definitions. *)
+  let open_module m ?friendly_name p oc f =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     (match p.context with
     | P.Definition -> ppi oc "module %s = struct" m
     | P.Declaration -> ppi oc "module %s : sig" m) ;
     P.indent_more p f ;
-    ppi oc "end"
+    ppi oc "end" ;
+    Option.may (fun friendly_name ->
+      let m' = valid_module_name friendly_name in
+      ppi oc "module %s = %s" m' m
+    ) friendly_name
 
   let print_external_type oc name =
     pp oc "%s.DessserGen.t" (valid_module_name name)
@@ -116,15 +130,22 @@ struct
   let sum_has_arg (_, mn) =
     mn.T.vtyp <> Base Unit
 
-  let rec print_record p oc id mns =
+  let append_friendly_names n1 n2 =
+    if n2 = "" then n1 else
+    if n1 = None || n1 = Some "" then Some n2 else
+    Some (Option.get n1 ^"_"^ n2)
+
+  let rec print_record p oc id ?friendly_name mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let m = valid_module_name id in
     let id = valid_identifier id in
-    open_module m p oc (fun () ->
+    open_module m ?friendly_name p oc (fun () ->
       pp oc "%stype t = {\n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (field_name, mn) ->
-          let typ_id = type_identifier p (T.Data mn) in
+          let typ_id =
+            let friendly_name = append_friendly_names friendly_name field_name in
+            type_identifier p ?friendly_name (T.Data mn) in
           pp oc "%s %s : %s;\n"
             p.P.indent (valid_identifier field_name) typ_id
         ) mns
@@ -134,15 +155,16 @@ struct
     (* Also define the type alias: *)
     ppi oc "type %s = %s.t\n" id m
 
-  and print_sum p oc id mns =
+  and print_sum p oc id ?friendly_name mns =
     let m = valid_module_name id in
     let id = valid_identifier id in
-    open_module m p oc (fun () ->
+    open_module m ?friendly_name p oc (fun () ->
       pp oc "%stype t =\n" p.P.indent ;
       P.indent_more p (fun () ->
         Array.iter (fun (n, mn as n_mn) ->
           if sum_has_arg n_mn then
-            let typ_id = type_identifier p (T.Data mn) in
+            let friendly_name = append_friendly_names friendly_name n in
+            let typ_id = type_identifier p ?friendly_name (T.Data mn) in
             pp oc "%s| %s of %s\n" p.P.indent (cstr_name n) typ_id
           else
             pp oc "%s| %s\n" p.P.indent (cstr_name n)
@@ -165,9 +187,11 @@ struct
     (* Also define the type alias: *)
     pp oc "%stype %s = %s.t\n\n" p.P.indent id m
 
-  and value_type_identifier p = function
+  and value_type_identifier ?friendly_name p mn =
+    let value_type_identifier = value_type_identifier ?friendly_name p in
+    match mn with
     | T.{ vtyp ; nullable = true } ->
-        value_type_identifier p { vtyp ; nullable = false } ^" nullable"
+        value_type_identifier { vtyp ; nullable = false } ^" nullable"
     | { vtyp = Unknown ; _ } -> invalid_arg "value_type_identifier"
     | { vtyp = Base Unit ; _ } -> "unit"
     | { vtyp = Base Char ; _ } -> "char"
@@ -193,32 +217,37 @@ struct
     | { vtyp = Base U128 ; _ } -> "Uint128.t"
     | { vtyp = Base I128 ; _ } -> "Int128.t"
     | { vtyp = Usr t ; _ } ->
-        value_type_identifier p { vtyp = t.def ; nullable = false }
+        value_type_identifier { vtyp = t.def ; nullable = false }
     | { vtyp = Ext n ; _ } ->
         P.get_external_type p n OCaml
     | { vtyp = (Vec (_, t) | Lst t) ; _ } ->
-        value_type_identifier p t ^" array"
+        value_type_identifier t ^" array"
     | { vtyp = Set (st, t) ; _ } ->
         let m = mod_of_set_type st in
-        value_type_identifier p t ^" "^ m ^".t"
+        value_type_identifier t ^" "^ m ^".t"
     | { vtyp = Tup mns ; _ } as mn ->
         let t = T.Data mn in
         let mns = Array.mapi (fun i mn -> tuple_field_name i, mn) mns in
-        P.declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_record p oc type_id ?friendly_name mns) |>
         valid_identifier
     | { vtyp = Rec mns ; _ } as mn ->
         let t = T.Data mn in
-        P.declared_type p t (fun oc type_id -> print_record p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_record p oc type_id ?friendly_name mns) |>
         valid_identifier
     | { vtyp = Sum mns ; _ } as mn ->
         let t = T.Data mn in
-        P.declared_type p t (fun oc type_id -> print_sum p oc type_id mns) |>
+        P.declared_type p t (fun oc type_id ->
+          print_sum p oc type_id ?friendly_name mns) |>
         valid_identifier
     | { vtyp = Map _ ; _ } ->
         assert false (* no value of map type *)
 
-  and type_identifier p = function
-    | T.Data mn -> value_type_identifier p mn
+  and type_identifier p ?friendly_name mn =
+    let type_identifier = type_identifier p ?friendly_name in
+    match mn with
+    | T.Data mn -> value_type_identifier p ?friendly_name mn
     | T.Void -> "unit"
     | T.DataPtr -> "Pointer.t"
     | T.Size -> "Size.t"
@@ -231,16 +260,16 @@ struct
     | T.OWord -> "Uint128.t"
     | T.Bytes -> "Slice.t"
     | T.Pair (t1, t2) ->
-        "("^ type_identifier p t1 ^" * "^ type_identifier p t2 ^")"
+        "("^ type_identifier t1 ^" * "^ type_identifier t2 ^")"
     | T.SList t1 ->
-        type_identifier p t1 ^" list"
+        type_identifier t1 ^" list"
     | T.Function ([||], t) ->
-        "(unit -> "^ type_identifier p t ^")"
+        "(unit -> "^ type_identifier t ^")"
     | T.Function (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc t ->
-            String.print oc (type_identifier p t))
-        ) args ^" -> "^ type_identifier p ret ^")"
+            String.print oc (type_identifier t))
+        ) args ^" -> "^ type_identifier ret ^")"
     | T.Mask -> "DessserMasks.t"
 
   let rec mod_name = function
