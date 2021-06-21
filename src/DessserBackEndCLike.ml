@@ -65,6 +65,8 @@ sig
 
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
 
+  val print_external_type : 'a BatInnerIO.output -> string -> unit
+
   val print : ?name:string -> emitter -> P.t -> E.env -> E.t -> string
 
   val source_intro : P.context -> string
@@ -77,6 +79,7 @@ module Make (C : CONFIG) : BACKEND =
 struct
   let id = C.id
   let print_comment = C.print_comment
+  let print_external_type = C.print_external_type
   let preferred_def_extension = C.preferred_def_extension
   let preferred_decl_extension = C.preferred_decl_extension
   let preferred_comp_extension = C.preferred_comp_extension

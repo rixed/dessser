@@ -2,6 +2,7 @@
 open Batteries
 open Dessser
 module E = DessserExpressions
+module P = DessserPrinter
 module T = DessserTypes
 module U = DessserCompilationUnit
 
@@ -22,6 +23,9 @@ let print_definitions oc compunit =
       name
       (E.pretty_print ?max_depth:None) expr) ;
     Format.flush_str_formatter () |> String.print oc)
+
+let print_external_type oc name =
+  Printf.fprintf oc "%S" ("$" ^ name)
 
 let print_declarations _oc _compunit =
   (* TODO: a header with all those types? *)

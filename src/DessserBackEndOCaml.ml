@@ -110,6 +110,9 @@ struct
     P.indent_more p f ;
     ppi oc "end"
 
+  let print_external_type oc name =
+    pp oc "%s.DessserGen.t" (valid_module_name name)
+
   let sum_has_arg (_, mn) =
     mn.T.vtyp <> Base Unit
 

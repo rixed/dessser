@@ -43,6 +43,9 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
+  let print_external_type oc name =
+    pp oc "dessser_gen::%s" (valid_identifier name)
+
   let is_mutable t =
     match T.develop_user_types t with
     | T.Bytes
