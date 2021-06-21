@@ -580,13 +580,13 @@ let is_const_null = function
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-let rec default_value ?(allow_null=true) ?mn0 mn =
-  let mn0 = mn0 |? mn.T.vtyp in
-  let default_value = default_value ~allow_null ~mn0 in
+let rec default_value ?(allow_null=true) ?this mn =
+  let this = this |? mn.T.vtyp in
+  let default_value = default_value ~allow_null ~this in
   match mn with
   | T.{ vtyp = This ; nullable } ->
       if nullable && allow_null then
-        E0 (Null mn0)
+        E0 (Null this)
       else
         invalid_arg "default_value: recursive type"
   | { vtyp ; nullable = true } ->
@@ -2175,7 +2175,6 @@ and type_of l e0 =
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
       | t ->
           raise (Type_error (e0, f, t, "be a function")))
-
   | E1 (MaskGet _, _) ->
       T.Mask
   | E1 (LabelOf, _) ->
@@ -2301,7 +2300,7 @@ and check_fun_sign e0 l f ps =
       let lf = Array.length ts
       and lp = List.length ps in
       if lf <> lp then (
-        let err = string_of_int lp ^" parameter(s) but function expect "^
+        let err = string_of_int lp ^" parameter(s) but function expects "^
                   string_of_int lf in
         raise (Apply_error (e0, err))) ;
       List.iteri (fun i p ->

@@ -59,8 +59,8 @@ let rec random_slist mn =
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
-and random ?mn0 mn =
-  let mn0 = mn0 |? mn in
+and random ?this mn =
+  let this = this |? mn in
   (* this [random] is going to be shaddowed by E.Ops: *)
   let std_random = random in
   let open E.Ops in
@@ -72,7 +72,7 @@ and random ?mn0 mn =
   | T.Unknown ->
       invalid_arg "random for unknown type"
   | This ->
-      std_random mn0
+      std_random this
   | Base Unit ->
       unit
   | Base Float ->
