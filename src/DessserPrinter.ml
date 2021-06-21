@@ -46,14 +46,15 @@ let indent_more p f =
   finally (fun () -> p.indent <- indent)
     f ()
 
+let type_id p = function
+  | T.Data { vtyp ; _ } as t ->
+      (try List.assoc vtyp p.type_names
+      with Not_found -> T.uniq_id t)
+  | t ->
+      T.uniq_id t
+
 let declared_type p t f =
-  let id =
-    match t with
-    | T.Data { vtyp ; _ } ->
-        (try List.assoc vtyp p.type_names
-        with Not_found -> T.uniq_id t)
-    | _ ->
-        T.uniq_id t in
+  let id = type_id p t in
   if Set.String.mem id p.declared then id
   else (
     p.declared <- Set.String.add id p.declared ;

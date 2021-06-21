@@ -78,8 +78,8 @@ struct
       | Executable -> "-linkpkg")
       src dst
 
-  let module_of_type t =
-    valid_module_name (T.uniq_id t)
+  let module_of_type p t =
+    valid_module_name (P.type_id p t)
 
   let tuple_field_name i = "field_"^ string_of_int i
 
@@ -499,7 +499,7 @@ struct
         let inits = List.map (print emit p l) es in
         (* TODO: There is no good reason any longer to avoid using actual
          * OCaml tuples to represent tuples *)
-        let m = module_of_type (E.type_of l e) in
+        let m = module_of_type p (E.type_of l e) in
         let i = ref 0 in
         emit ?name p l e (fun oc ->
           List.print ~first:(m ^".{ ") ~last:" }" ~sep:"; " (fun oc n ->
@@ -516,7 +516,7 @@ struct
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
         let inits = List.rev inits in
-        let m = module_of_type (E.type_of l e) in
+        let m = module_of_type p (E.type_of l e) in
         emit ?name p l e (fun oc ->
           let last = "\n"^ p.P.indent ^"}" in
           P.indent_more p (fun () ->
@@ -1417,17 +1417,17 @@ struct
               if i > 0 then String.print oc ", " ;
               String.print oc (if i = n then res else "_")
             done) *)
-        let m = module_of_type (E.type_of l e1) in
+        let m = module_of_type p (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s.%s" n1 m (tuple_field_name n))
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
-        let m = module_of_type (E.type_of l e1) in
+        let m = module_of_type p (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s.%s" n1 m (valid_identifier s))
     | E.E1 (GetAlt s, e1) ->
         let t1 = E.type_of l e1 |> T.develop_user_types in
-        let m = module_of_type t1 in
+        let m = module_of_type p t1 in
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           let cstr = cstr_name s in
@@ -1455,7 +1455,7 @@ struct
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
           let t1 = E.type_of l e1 in
-          let m = T.uniq_id t1 |> valid_module_name in
+          let m = P.type_id p t1 |> valid_module_name in
           pp oc "Uint16.of_int (%s.label_of_cstr %s)" m n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "DessserMasks.Copy")
