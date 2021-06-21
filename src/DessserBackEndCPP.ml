@@ -1339,34 +1339,44 @@ struct
     let tn = type_identifier p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro =
-    "#include <algorithm>\n\
-     #include <arpa/inet.h>\n\
-     #include <charconv>\n\
-     #include <chrono>\n\
-     #include <cmath>\n\
-     #include <cstdlib>\n\
-     #include <ctime>\n\
-     #include <exception>\n\
-     #include <fstream>\n\
-     #include <functional>\n\
-     #include <iostream>\n\
-     #include <optional>\n\
-     #include <random>\n\
-     #include <utility>\n\
-     #include <variant>\n\
-     #include <vector>\n\
-     #include \"dessser/runtime.h\"\n\
-     \n\
-     std::uniform_real_distribution<double> _random_float_(0, 1);\n\
-     std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
-     std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
-     std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
-     std::default_random_engine _random_engine_;\n\
-     \n\
-     namespace dessser_gen {\n\n"
+  let source_intro = function
+  | P.Declaration ->
+      "#include <arpa/inet.h>\n\
+       #include <functional>\n\
+       #include <optional>\n\
+       #include <variant>\n\
+       #include <vector>\n\
+       #include \"dessser/runtime.h\"\n\
+       \n\
+       namespace dessser_gen {\n\n"
+  | P.Definition ->
+      "#include <algorithm>\n\
+       #include <arpa/inet.h>\n\
+       #include <charconv>\n\
+       #include <chrono>\n\
+       #include <cmath>\n\
+       #include <cstdlib>\n\
+       #include <ctime>\n\
+       #include <exception>\n\
+       #include <fstream>\n\
+       #include <functional>\n\
+       #include <iostream>\n\
+       #include <optional>\n\
+       #include <random>\n\
+       #include <utility>\n\
+       #include <variant>\n\
+       #include <vector>\n\
+       #include \"dessser/runtime.h\"\n\
+       \n\
+       std::uniform_real_distribution<double> _random_float_(0, 1);\n\
+       std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
+       std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
+       std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
+       std::default_random_engine _random_engine_;\n\
+       \n\
+       namespace dessser_gen {\n\n"
 
-  let source_outro =
+  let source_outro _ =
     "\n}\n"
 end
 

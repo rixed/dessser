@@ -67,8 +67,8 @@ sig
 
   val print : ?name:string -> emitter -> P.t -> E.env -> E.t -> string
 
-  val source_intro : string
-  val source_outro : string
+  val source_intro : P.context -> string
+  val source_outro : P.context -> string
 
   (* TODO: find a way to factorize the print function itself *)
 end
@@ -181,9 +181,6 @@ struct
     let name = valid_identifier name in
     C.print_identifier_declaration name p l e
 
-  let print_intro oc =
-    pp oc "%s" C.source_intro
-
   let print_verbatims where p oc = function
     | [] ->
         ()
@@ -195,8 +192,11 @@ struct
           String.print oc) ;
         String.print oc "\n"
 
-  let print_source output_identifier compunit p oc
-                   top_verbatim middle_verbatim bottom_verbatim =
+  let print_source compunit p oc top_verbatim middle_verbatim bottom_verbatim =
+    let output_identifier =
+      match p.P.context with
+      | Definition -> define
+      | Declaration -> declare in
     (* [compunit] is full of identifiers (list of name * exp). Also,
      * [inline_verbatim] is a list of verbatim definitions to be printed
      * amongst other identifiers.
@@ -282,8 +282,8 @@ struct
           List.rev lst |>
           List.iter (String.print oc) in
     pp oc
-      "%t%a%a%a%a%a%a%a%a%a%a%a%s"
-      print_intro
+      "%s%a%a%a%a%a%a%a%a%a%a%a%s"
+      (C.source_intro p.P.context)
       (print_verbatims "top" p) top_verbatim
       C.print_comment "------------"
       C.print_comment "Declarations"
@@ -295,7 +295,7 @@ struct
       C.print_comment "-----------"
       print_ios p.defs
       (print_verbatims "bottom" p) bottom_verbatim
-      C.source_outro
+      (C.source_outro p.P.context)
 
   let print_definitions oc compunit =
     let verbatims loc =
@@ -303,11 +303,11 @@ struct
         verb.U.backend = id && verb.location = loc
       ) compunit.U.verbatim_definitions in
     let p = P.(make Definition compunit.U.type_names compunit.external_types) in
-    print_source define compunit p oc
+    print_source compunit p oc
       (verbatims Top) (verbatims Middle) (verbatims Bottom)
 
   let print_declarations oc compunit =
     let p = P.(make Declaration compunit.U.type_names compunit.external_types) in
-    print_source declare compunit p oc [] [] []
+    print_source compunit p oc [] [] []
 
 end

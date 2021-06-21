@@ -1635,13 +1635,19 @@ struct
     let tn = type_identifier p t in
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn
 
-  let source_intro =
-    "open Stdint\n\
-     open DessserOCamlBackEndHelpers\n\
-     \n\
-     module DessserGen = struct\n\n"
+  let source_intro = function
+    | P.Declaration ->
+        "open Stdint\n\
+         open DessserOCamlBackEndHelpers\n\
+         \n\
+         module DessserGen : sig\n\n"
+    | P.Definition ->
+        "open Stdint\n\
+         open DessserOCamlBackEndHelpers\n\
+         \n\
+         module DessserGen = struct\n\n"
 
-  let source_outro =
+  let source_outro _ =
     "\nend (* DessserGen module *)\n"
 end
 
