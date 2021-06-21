@@ -110,6 +110,9 @@ struct
     P.indent_more p f ;
     ppi oc "end"
 
+  let sum_has_arg (_, mn) =
+    mn.T.vtyp <> Base Unit
+
   let rec print_record p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let m = valid_module_name id in
@@ -134,12 +137,12 @@ struct
     open_module m p oc (fun () ->
       pp oc "%stype t =\n" p.P.indent ;
       P.indent_more p (fun () ->
-        Array.iter (fun (n, mn) ->
-          if mn.T.vtyp = Base Unit then
-            pp oc "%s| %s\n" p.P.indent (cstr_name n)
-          else
+        Array.iter (fun (n, mn as n_mn) ->
+          if sum_has_arg n_mn then
             let typ_id = type_identifier p (T.Data mn) in
             pp oc "%s| %s of %s\n" p.P.indent (cstr_name n) typ_id
+          else
+            pp oc "%s| %s\n" p.P.indent (cstr_name n)
         ) mns
       ) ;
       pp oc "\n" ;
@@ -150,8 +153,9 @@ struct
       | P.Definition ->
           pp oc "%slet label_of_cstr = function\n" p.P.indent ;
           P.indent_more p (fun () ->
-            Array.iteri (fun i (n, _) ->
-              pp oc "%s| %s _ -> %d\n" p.P.indent (cstr_name n) i
+            Array.iteri (fun i (n, _ as n_mn) ->
+              pp oc "%s| %s %s-> %d\n" p.P.indent
+                (cstr_name n) (if sum_has_arg n_mn then "_ " else "") i
             ) mns
           )
     ) ;
@@ -1432,8 +1436,12 @@ struct
         let n1 = print emit p l e1 in
         assert (i < Array.length mns) ;
         let cstr = cstr_name (fst mns.(i)) in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "(%s %s)" cstr n1)
+        if sum_has_arg mns.(i) then
+          emit ?name p l e (fun oc ->
+            Printf.fprintf oc "(%s %s)" cstr n1)
+        else
+          if name = None then cstr else
+          emit ?name p l e (fun oc -> String.print oc cstr)
     | E.E1 (Assert, e1) ->
         let n = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
