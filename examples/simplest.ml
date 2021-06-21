@@ -11,6 +11,7 @@ open E.Ops
 (* The simplest possible deserializer *)
 module TestDes : DES with type config = unit =
 struct
+  let id = T.User "test"
   type config = unit
   type state = unit
   let ptr _vtyp = T.DataPtr
@@ -76,6 +77,7 @@ end
 (* The simplest possible serializer *)
 module TestSer : SER with type config = unit =
 struct
+  let id = T.User "test"
   type config = unit
   type state = unit
   let ptr _vtyp = T.DataPtr

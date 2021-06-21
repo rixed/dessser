@@ -26,6 +26,8 @@ type list_opener =
  * DataPtr to a heap value, or a converter between two formats. *)
 module type DES =
 sig
+  val id : T.encoding_id
+
   (* DES and SER can have some configurable parameters: *)
   type config
 
@@ -105,6 +107,8 @@ type ssize = ConstSize of int | DynSize of (*size*) E.t
 
 module type SER =
 sig
+  val id : T.encoding_id
+
   (* DES and SER can have some configurable parameters: *)
   type config
 

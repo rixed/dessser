@@ -8,6 +8,7 @@ open E.Ops
 
 module Ser : SER with type config = unit =
 struct
+  let id = T.RowBinary
   type config = unit
   type state = unit
   let ptr _mn = T.DataPtr
@@ -202,6 +203,7 @@ end
 
 module Des : DES with type config = unit =
 struct
+  let id = T.RowBinary
   type config = unit
   type state = unit
   let ptr _mn = T.DataPtr

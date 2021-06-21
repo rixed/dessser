@@ -19,6 +19,8 @@ let default_config =
 
 module Ser : SER with type config = sexpr_config =
 struct
+  let id = T.SExpr
+
   type config = sexpr_config
 
   type state = config
@@ -222,6 +224,8 @@ end
 
 module Des : DES with type config = sexpr_config =
 struct
+  let id = T.SExpr
+
   type config = sexpr_config
 
   type state = config

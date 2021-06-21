@@ -173,7 +173,7 @@ struct
     make_pair unit src
 
   and dext name _dstate _mn0 _path _l src =
-    apply (type_method name E.Des) [ src ]
+    apply (type_method name (E.Des Des.id)) [ src ]
 
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
@@ -364,7 +364,7 @@ struct
   and sunit _ _ _ _ _ dst = dst
 
   and sext name _ _ _ _ v dst =
-    apply (type_method name E.Ser) [ v ; dst ]
+    apply (type_method name (E.Ser Ser.id)) [ v ; dst ]
 
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
@@ -531,7 +531,7 @@ struct
   and ssunit _ _ _ _ sizes = sizes
 
   and ssext name _ _ _ v =
-    DynSize (apply (type_method name E.SSize) [ v ])
+    DynSize (apply (type_method name (E.SSize Ser.id)) [ v ])
 
   and sersz1 mn mn0 path l v ma sizes =
     let to_dyn ssizer mn0 path l v sizes =

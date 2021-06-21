@@ -212,6 +212,8 @@ end
 
 module Ser : SER with type config = unit =
 struct
+  let id = T.RingBuff
+
   type config = unit
   type state = unit
 
@@ -609,6 +611,8 @@ end
 
 module Des : DES with type config = unit =
 struct
+  let id = T.RingBuff
+
   type config = unit
   type state = unit
 

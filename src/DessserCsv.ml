@@ -187,6 +187,8 @@ let is_in_fixed_string mn0 path =
 
 module Ser : SER with type config = csv_config =
 struct
+  let id = T.CSV
+
   type config = csv_config
 
   type state = config
@@ -377,6 +379,8 @@ end
 
 module Des : DES with type config = csv_config =
 struct
+  let id = T.CSV
+
   type config = csv_config
 
   type state = config

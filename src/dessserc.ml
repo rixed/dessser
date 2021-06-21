@@ -25,21 +25,20 @@ let module_of_backend = function
 
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
-type encodings = Null | RowBinary | SExpr | RingBuff | CSV
-
 let des_of_encoding = function
-  | RingBuff -> (module DessserRamenRingBuffer.Des : DES)
+  | T.RingBuff -> (module DessserRamenRingBuffer.Des : DES)
   | RowBinary -> (module DessserRowBinary.Des : DES)
   | SExpr -> (module DessserSExpr.Des : DES)
   | CSV -> (module DessserCsv.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
-  | Null -> (module DessserDevNull.Ser : SER)
+  | T.Null -> (module DessserDevNull.Ser : SER)
   | RingBuff -> (module DessserRamenRingBuffer.Ser : SER)
   | RowBinary -> (module DessserRowBinary.Ser : SER)
   | SExpr -> (module DessserSExpr.Ser : SER)
   | CSV -> (module DessserCsv.Ser : SER)
+  | _ -> failwith "No serializer for that encoding"
 
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
@@ -87,13 +86,13 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
         U.add_identifier_of_expression compunit ~name:"convert" convert in c
     else compunit in
   let compunit, _, _ =
-    let name = E.string_of_type_method E.Des in
+    let name = E.string_of_type_method (E.Des encoding_in) in
     U.add_identifier_of_expression compunit ~name des in
   let compunit, _, _ =
-    let name = E.string_of_type_method E.SSize in
+    let name = E.string_of_type_method (E.SSize encoding_out) in
     U.add_identifier_of_expression compunit ~name sersize in
   let compunit, _, _ =
-    let name = E.string_of_type_method E.Ser in
+    let name = E.string_of_type_method (E.Ser encoding_out) in
     U.add_identifier_of_expression compunit ~name ser in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
@@ -333,10 +332,8 @@ let docv_of_enum l =
   ) l
 
 let known_inputs =
-  [ "ringbuf", RingBuff ;
-    "row-binary", RowBinary ;
-    "s-expression", SExpr ;
-    "csv", CSV ]
+  T.[ RingBuff ; RowBinary ; SExpr ; CSV ] |>
+  List.map (fun enc -> T.string_of_encoding enc, enc)
 
 let encoding_in =
   let doc = "encoding format for input" in
@@ -345,11 +342,8 @@ let encoding_in =
   Arg.(opt (enum known_inputs) RowBinary i)
 
 let known_outputs =
-  [ "null", Null ;
-    "ringbuf", RingBuff ;
-    "row-binary", RowBinary ;
-    "s-expression", SExpr ;
-    "csv", CSV ]
+  T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ] |>
+  List.map (fun enc -> T.string_of_encoding enc, enc)
 
 let encoding_out =
   let doc = "encoding format for output" in

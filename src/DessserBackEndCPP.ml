@@ -989,11 +989,11 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E.E0 (ExtIdentifier (TypeMethod { typ ; meth })) ->
+    | E.E0 (ExtIdentifier (Method { typ ; meth })) ->
         emit ?name p l e (fun oc ->
           pp oc "dessser_gen::%s.%s"
             (valid_identifier typ)
-            (E.string_of_type_method meth))
+            (E.string_of_type_method meth |> valid_identifier))
     | E.E2 (Let (n, t), e1, e2) ->
         let n1 = print emit p l e1 in
         let tn = type_identifier p t in

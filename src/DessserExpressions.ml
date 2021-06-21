@@ -31,24 +31,36 @@ type param_id = int (* function id *) * int (* param number *)
 let param_print oc (f, n) =
   Printf.fprintf oc "%d:%d" f n
 
-type type_method = Ser | Des | SSize
+type type_method =
+  | Ser of T.encoding_id  (* serialize into this encoding *)
+  | Des of T.encoding_id  (* deserialize from this encoding *)
+  | SSize of T.encoding_id  (* serialized size in this encoding *)
+  | Convert of T.encoding_id * T.encoding_id  (* convert from a to b encodings *)
 
 let string_of_type_method = function
-  | Ser -> "write"
-  | Des -> "read"
-  | SSize -> "sersize"
+  | Ser enc ->
+      "to-"^ T.string_of_encoding enc
+  | Des enc ->
+      "of-"^ T.string_of_encoding enc
+  | SSize enc ->
+      "sersize-of-"^ T.string_of_encoding enc
+  | Convert (from_, to_) ->
+      T.string_of_encoding to_ ^"-of-"^ T.string_of_encoding from_
 
 let type_method_of_string s =
+  let to_enc n s = T.encoding_of_string (String.lchop ~n s) in
   let s = String.lowercase_ascii s in
-  if s = "ser" then Ser else
-  if s = "des" then Des else
-  if s = "ssize" then SSize else
-  invalid_arg ("type_method_of_string: "^ s)
+  if String.starts_with s "to-" then Ser (to_enc 3 s) else
+  if String.starts_with s "of-" then Des (to_enc 3 s) else
+  if String.starts_with s "sersize-of-" then SSize (to_enc 11 s) else
+  match String.split ~by:"-of-" s with
+  | exception Not_found ->
+      invalid_arg ("type_method_of_string: "^ s)
+  | from_, to_ -> Convert (to_enc 0 from_, to_enc 0 to_)
 
 type ext_identifier =
   | Verbatim of string (* Used as is by any back-end, no question asked *)
-  | TypeMethod of { typ : string ; meth : type_method }
-  (* TODO: converter method from one type to another *)
+  | Method of { typ : string ; meth : type_method }
 
 type e0 =
   | Param of param_id
@@ -720,7 +732,7 @@ let string_of_e0 = function
   | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
   | Identifier s -> "identifier "^ String.quote s
   | ExtIdentifier (Verbatim s) -> "ext-identifier "^ String.quote s
-  | ExtIdentifier (TypeMethod { typ ; meth }) ->
+  | ExtIdentifier (Method { typ ; meth }) ->
       "ext-identifier "^ typ ^" "^ string_of_type_method meth
   | CopyField -> "copy-field"
   | SkipField -> "skip-field"
@@ -1292,9 +1304,10 @@ struct
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
     | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier (Verbatim s))
-    | Lst [ Sym "ext-identifier" ; Sym typ ; Sym ("ser"|"des"|"ssize" as meth) ] ->
+    | Lst [ Sym "ext-identifier" ; Sym typ ;
+            Sym ("ser"|"des"|"ssize" as meth) ] ->
         let meth = type_method_of_string meth in
-        E0 (ExtIdentifier (TypeMethod { typ ; meth }))
+        E0 (ExtIdentifier (Method { typ ; meth }))
     | Lst [ Sym "copy-field" ] -> E0 CopyField
     | Lst [ Sym "skip-field" ] -> E0 SkipField
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
@@ -2071,12 +2084,14 @@ and type_of l e0 =
         try List.assoc e l.global
         with Not_found ->
           raise (Unbound_identifier (e0, true, n, l)))
-  | E0 (ExtIdentifier (TypeMethod { typ ; meth = Ser ; _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = Ser _ })) ->
       T.func2 T.(Data (required (ext typ))) T.DataPtr T.DataPtr
-  | E0 (ExtIdentifier (TypeMethod { typ ; meth = Des ; _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = Des _ })) ->
       T.func1 T.DataPtr T.(pair (Data (required (ext typ))) T.DataPtr)
-  | E0 (ExtIdentifier (TypeMethod { typ ; meth = SSize ; _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = SSize _ })) ->
       T.func1 T.(Data (required (ext typ))) T.Size
+  | E0 (ExtIdentifier (Method { meth = Convert _ ; _ })) ->
+      T.func2 T.DataPtr T.DataPtr T.(pair DataPtr DataPtr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.Mask
   | E2 (Let (n, t), _, e2) ->
@@ -3701,7 +3716,7 @@ struct
 
   let ext_identifier n = E0 (ExtIdentifier (Verbatim n))
 
-  let type_method typ meth = E0 (ExtIdentifier (TypeMethod { typ ; meth }))
+  let type_method typ meth = E0 (ExtIdentifier (Method { typ ; meth }))
 
   let to_i8 e = E1 (ToI8, e)
   let to_i16 e = E1 (ToI16, e)

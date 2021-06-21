@@ -5,6 +5,8 @@ module Path = DessserPath
 
 module Ser : SER with type config = unit =
 struct
+  let id = T.Null
+
   type config = unit
   type state = unit
   let ptr _vtyp = T.DataPtr

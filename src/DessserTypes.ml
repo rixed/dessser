@@ -12,6 +12,27 @@ let pp = Printf.fprintf
 
 type backend_id = DIL | OCaml | Cpp
 
+(* Identifies the supported encodings: *)
+
+type encoding_id = User of string | RingBuff | RowBinary | SExpr | CSV | Null
+
+let string_of_encoding = function
+  | User s -> s
+  | Null -> "null"
+  | RingBuff -> "ringbuf"
+  | RowBinary -> "row-binary"
+  | SExpr -> "s-expression"
+  | CSV -> "csv"
+
+let encoding_of_string s =
+  match String.lowercase_ascii s with
+  | "null" -> Null
+  | "ringbuf" -> RingBuff
+  | "row-binary" -> RowBinary
+  | "s-expression" -> SExpr
+  | "csv" -> CSV
+  | s -> User s
+
 (* Basic types that can be used to define more specialized user types *)
 
 type base_type =

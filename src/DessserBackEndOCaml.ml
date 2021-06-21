@@ -1266,11 +1266,11 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E.E0 (ExtIdentifier (TypeMethod { typ ; meth })) ->
+    | E.E0 (ExtIdentifier (Method { typ ; meth })) ->
         emit ?name p l e (fun oc ->
           pp oc "%s.DessserGen.%s"
             (valid_module_name typ)
-            (E.string_of_type_method meth))
+            (E.string_of_type_method meth |> valid_identifier))
     | E.E2 (Let (n, t), e1, e2) ->
         (* Most of definitions we can actually choose the name (with ?name),
          * so we save a let. But for a few [e1] we will have no such choice,
