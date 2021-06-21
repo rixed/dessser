@@ -9,10 +9,11 @@ module P = DessserPrinter
 
 let cpp_std_version = 17
 
+let valid_identifier = DessserBackEndCLike.valid_identifier
+
 module Config =
 struct
   let id = T.Cpp
-  let valid_identifier = DessserBackEndCLike.valid_identifier
   let valid_source_name n = n
 
   let preferred_def_extension = "cc"

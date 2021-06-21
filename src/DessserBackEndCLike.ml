@@ -42,7 +42,6 @@ let valid_identifier s =
 module type CONFIG =
 sig
   val id : T.backend_id
-  val valid_identifier : string -> string
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string

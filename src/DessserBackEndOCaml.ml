@@ -9,28 +9,28 @@ module P = DessserPrinter
 
 let debug = false
 
+let valid_identifier s =
+  let keywords =
+    [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ;
+      "do" ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ;
+      "false" ; "for" ; "fun" ; "function" ; "functor" ; "if" ; "in" ;
+      "include" ; "inherit" ; "initializer" ; "land" ; "lazy" ; "let" ;
+      "lor" ; "lsl" ; "lsr" ; "lxor" ; "match" ; "method" ; "mod" ; "module" ;
+      "mutable" ; "new" ; "nonrec" ; "object" ; "of" ; "open" ; "or" ;
+      "private" ; "rec" ; "sig" ; "struct" ; "then" ; "to" ; "true" ; "try" ;
+      "type" ; "val" ; "virtual" ; "when" ; "while" ; "with" ] in
+  if s = "" then "v" else
+  if s.[0] = '!' then s else
+  if List.mem s keywords then s ^ "_" else
+  DessserBackEndCLike.valid_identifier s
+
+let valid_module_name s =
+  assert (s <> "" && s.[0] <> '!') ;
+  String.capitalize (valid_identifier s)
+
 module Config =
 struct
   let id = T.OCaml
-
-  let valid_identifier s =
-    let keywords =
-      [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ;
-        "do" ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ;
-        "false" ; "for" ; "fun" ; "function" ; "functor" ; "if" ; "in" ;
-        "include" ; "inherit" ; "initializer" ; "land" ; "lazy" ; "let" ;
-        "lor" ; "lsl" ; "lsr" ; "lxor" ; "match" ; "method" ; "mod" ; "module" ;
-        "mutable" ; "new" ; "nonrec" ; "object" ; "of" ; "open" ; "or" ;
-        "private" ; "rec" ; "sig" ; "struct" ; "then" ; "to" ; "true" ; "try" ;
-        "type" ; "val" ; "virtual" ; "when" ; "while" ; "with" ] in
-    if s = "" then "v" else
-    if s.[0] = '!' then s else
-    if List.mem s keywords then s ^ "_" else
-    DessserBackEndCLike.valid_identifier s
-
-  let valid_module_name s =
-    assert (s <> "" && s.[0] <> '!') ;
-    String.capitalize (valid_identifier s)
 
   let valid_source_name n =
     if n = "" then "f" else
