@@ -441,7 +441,7 @@ struct
    * Compute the sersize of a expression:
    *
    * Returns a pair of size identifier holding the const and dyn size of
-   * the heap value pointed by the pointer identifier [src].
+   * the heap value pointed to by the pointer identifier [src].
    * [src] must be a pointer to a heap value, as returned by the above
    * Ser module.
    *)

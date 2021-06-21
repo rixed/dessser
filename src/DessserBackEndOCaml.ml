@@ -468,7 +468,7 @@ struct
         let n = print emit p l e in
         "("^ m ^".to_float "^ n ^")" in
     let preallocate printer i oc =
-      let value= IO.to_string printer i in
+      let value = IO.to_string printer i in
       let uniq_id = "const_"^ Digest.(string value |> to_hex) in
       let def = "let "^ uniq_id ^" = "^ value ^"\n" in
       if not (List.mem def p.P.defs) then p.P.defs <- def :: p.P.defs ;

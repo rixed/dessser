@@ -984,7 +984,8 @@ let rec depth ?(opaque_user_type=true) = function
 *)
 
 let uniq_id t =
-  IO.to_string print_sorted (develop_user_types_rec t) |>
+  develop_user_types_rec t |>
+  IO.to_string print_sorted |>
   Digest.string |>
   Digest.to_hex
 
