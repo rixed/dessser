@@ -2092,18 +2092,30 @@ and type_of l e0 =
       T.slist (type_of l e1)
   | E2 (MakePair, e1, e2) ->
       T.pair (type_of l e1) (type_of l e2)
+  (* Shortcut: *)
+  | E1 (Fst, E2 (MakePair, e, _)) ->
+      type_of l e
   | E1 (Fst, e) ->
       (match type_of l e |> T.develop_user_types with
       | Pair (t, _) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
+  | E1 (Snd, E2 (MakePair, _, e)) ->
+      type_of l e
   | E1 (Snd, e) ->
       (match type_of l e |> T.develop_user_types with
       | Pair (_, t) -> t
       | t -> raise (Type_error (e0, e, t, "be a pair")))
+  | E1 (Head, E2 (Cons, e, _)) ->
+      type_of l e
   | E1 (Head, e) ->
       (match type_of l e |> T.develop_user_types with
       | SList t -> t
       | t -> raise (Type_error (e0, e, t, "be a slist")))
+  (* Shortcuts: *)
+  | E1 (Tail, E2 (Cons, _, E0 (EndOfList t))) ->
+      t
+  | E1 (Tail, E2 (Cons, _, e)) ->
+      type_of l (E1 (Tail, e))
   | E1 (Tail, e) ->
       (match type_of l e |> T.develop_user_types with
       | SList _ as t -> t
