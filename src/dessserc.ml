@@ -80,6 +80,17 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let compunit = U.make () in
   (* Christen the schema type with the user provided name: *)
   let compunit = U.name_type compunit schema.T.vtyp (type_name |? "t") in
+  (* Then declare all referenced external types as if we had the same methods
+   * than those we are generating for this type: *)
+  let compunit =
+    T.fold_maybe_nullable compunit (fun compunit -> function
+      | T.Ext name ->
+          U.register_external_type compunit name (fun _p backend_id ->
+            assert (backend_id = BE.id) ;
+            IO.to_string BE.print_external_type name)
+      | _ ->
+          compunit
+    ) schema in
   let compunit =
     if has_convert then
       let c, _, _ =
@@ -476,6 +487,8 @@ let lib_cmd =
     (const lib
      $ Arg.required val_schema
      $ Arg.required backend
+     (* FIXME: we want to be able to generate a lib with more than one pair
+      * of I/O encodings *)
      $ Arg.value encoding_in
      $ Arg.value encoding_out
      $ Arg.value comptime_fieldmask
