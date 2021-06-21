@@ -573,13 +573,15 @@ let is_const_null = function
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-let rec default_value ?(allow_null=true) = function
+let rec default_value ?(allow_null=true) mn =
+  let default_value = default_value ~allow_null in
+  match mn with
   | T.{ vtyp ; nullable = true } ->
       (* In some places we want the whole tree of values to be populated. *)
       if allow_null then
         E0 (Null vtyp)
       else
-        default_value ~allow_null { vtyp ; nullable = false }
+        default_value { vtyp ; nullable = false }
   | { vtyp = T.Unknown ; _ }
   | { vtyp = Ext _ ; _ } ->
       invalid_arg "default_value"
@@ -630,11 +632,11 @@ let rec default_value ?(allow_null=true) = function
   | { vtyp = Base U128 ; _ } ->
       E0 (U128 Uint128.zero)
   | { vtyp = Usr nn ; _ } ->
-      default_value ~allow_null { vtyp = nn.def ; nullable = false }
+      default_value { vtyp = nn.def ; nullable = false }
   | { vtyp = Tup mns ; _ } ->
       E0S (
         MakeTup,
-        Array.map (default_value ~allow_null) mns |>
+        Array.map default_value mns |>
         Array.to_list)
   | { vtyp = Rec mns ; _ } ->
       E0S (
