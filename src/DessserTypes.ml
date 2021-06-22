@@ -143,14 +143,20 @@ let sorted_rec fields =
 
 let base_type_eq mt1 mt2 = mt1 = mt2
 
-let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
+(* Note regarding the [This] type:
+ * At the top level, This equals anything.
+ * Everywhere else, This equals only this. *)
+let rec value_eq ?(top_level=true) ?(opaque_user_type=false) vt1 vt2 =
+  let value_eq = value_eq ~top_level:false
+  and maybe_nullable_eq = maybe_nullable_eq ~top_level:false in
   match vt1, vt2 with
   | Base mt1, Base mt2 ->
       base_type_eq mt1 mt2
   | This, This ->
-      (* In case we are comparing deep "this" from different types, other fields
-       * that make them different will make [value_eq] fail: *)
       true
+  | This, _
+  | _, This ->
+      top_level
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
   | Ext n1, Ext n2 ->
@@ -172,7 +178,8 @@ let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
         n1 = n2 && maybe_nullable_eq mn1 mn2
       ) (sorted_rec mn1s) (sorted_rec mn2s)
   | Map (k1, v1), Map (k2, v2) ->
-      maybe_nullable_eq k1 k2 && maybe_nullable_eq v1 v2
+      maybe_nullable_eq k1 k2 &&
+      maybe_nullable_eq v1 v2
   (* User types are lost in des/ser so we have to accept this: *)
   | Usr ut1, vt2 when not opaque_user_type ->
       value_eq ut1.def vt2
@@ -185,8 +192,8 @@ let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
   value_eq (get_user_type "Eth") (get_user_type "Eth")
 *)
 
-and maybe_nullable_eq mn1 mn2 =
-  mn1.nullable = mn2.nullable && value_eq mn1.vtyp mn2.vtyp
+and maybe_nullable_eq ?top_level mn1 mn2 =
+  mn1.nullable = mn2.nullable && value_eq ?top_level mn1.vtyp mn2.vtyp
 
 let rec eq t1 t2 =
   match t1, t2 with
@@ -207,6 +214,17 @@ let rec eq t1 t2 =
      (Data (required (get_user_type "Eth"))) ;
   eq (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit)) \
      (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit))
+  eq (Data (required This)) \
+     (Data (required (Rec [| "foo", required (Base U8) ; \
+                             "bar", optional This |])))
+  not (eq (Data (required (Rec [| "foo", required (Base U8) ; \
+                                  "bar", optional (Base U8) |]))) \
+          (Data (required (Rec [| "foo", required (Base U8) ; \
+                                  "bar", optional This |]))))
+  not (eq (Data (required (Rec [| "foo", optional This ; \
+                                  "bar", optional (Base U8) |]))) \
+          (Data (required (Rec [| "foo", optional (Base U8) ; \
+                                  "bar", optional This |]))))
 *)
 
 (*
