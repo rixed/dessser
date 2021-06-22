@@ -10,7 +10,7 @@ module E = DessserExpressions
 module M = DessserMasks
 open E.Ops
 
-let debug = false
+let debug = ref false
 
 (*
  * Code generators
@@ -42,8 +42,9 @@ let ser_of_encoding = function
 
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let lib schema backend encoding_in encoding_out _fieldmask dest_fname
+let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
         type_name optim () =
+  debug := dbg ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -69,7 +70,7 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   let ser =
     (* convert from a heapvalue into encoding_out. *)
     OfValue.serialize schema l in
-  if debug then (
+  if !debug then (
     if has_convert then E.type_check E.no_env convert ;
     E.type_check E.no_env des ;
     E.type_check E.no_env sersize ;
@@ -113,8 +114,9 @@ let lib schema backend encoding_in encoding_out _fieldmask dest_fname
   Printf.printf "definitions in %S\n" def_fname
 
 let converter
-      schema backend encoding_in encoding_out _fieldmask
+      dbg schema backend encoding_in encoding_out _fieldmask
       modifier_exprs dest_fname dev_mode optim () =
+  debug := dbg ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -128,7 +130,7 @@ let converter
   let convert =
     (* convert from encoding_in to encoding_out: *)
     E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
-  if debug then E.type_check E.no_env convert ;
+  if !debug then E.type_check E.no_env convert ;
   let compunit = U.make () in
   let compunit, _, convert_name =
     U.add_identifier_of_expression compunit ~name:"convert" convert in
@@ -155,8 +157,9 @@ let destruct_pair = function
       failwith
 
 let lmdb main
-      key_schema val_schema backend encoding_in encoding_out dest_fname
+      dbg key_schema val_schema backend encoding_in encoding_out dest_fname
       dev_mode optim () =
+  debug := dbg ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -168,7 +171,7 @@ let lmdb main
     E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser key_schema l) in
   let convert_val =
     E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser val_schema l) in
-  if debug then (
+  if !debug then (
     E.type_check E.no_env convert_key ;
     E.type_check E.no_env convert_val
   ) ;
@@ -202,16 +205,17 @@ let lmdb_load =
       convert_key_id convert_val_id in
   lmdb main
 
-let lmdb_query _ _ _ _ _ _ () =
+let lmdb_query _ _ _ _ _ _ _ () =
   todo "lmdb_query"
 
 (* In dessser IL we have to explicitly describe the initial state, the update
  * function and the finalizer function. Ramen will have to keep working hard
  * to convert simple RaQL aggregation functions into DIL programs. *)
 let aggregator
-      schema backend encoding_in encoding_out
+      dbg schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
+  debug := dbg ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -297,6 +301,12 @@ let aggregator
  *)
 
 open Cmdliner
+
+let debug =
+  let doc = "Enable debugging output on stdout and additional checks" in
+  let env = Term.env_info "DESSSER_DEBUG" in
+  let i = Arg.info ~env ~doc [ "debug" ] in
+  Arg.flag i
 
 let maybe_nullable =
   let parse s =
@@ -464,6 +474,7 @@ let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
   Term.(
     (const converter
+     $ Arg.value debug
      $ Arg.required val_schema
      $ Arg.required backend
      $ Arg.value encoding_in
@@ -480,6 +491,7 @@ let lib_cmd =
              encodings" in
   Term.(
     (const lib
+     $ Arg.value debug
      $ Arg.required val_schema
      $ Arg.required backend
      (* FIXME: we want to be able to generate a lib with more than one pair
@@ -497,6 +509,7 @@ let lmdb_dump_cmd =
              types" in
   Term.(
     (const lmdb_dump
+     $ Arg.value debug
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -512,6 +525,7 @@ let lmdb_load_cmd =
              types" in
   Term.(
     (const lmdb_load
+     $ Arg.value debug
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -527,6 +541,7 @@ let lmdb_query_cmd =
              types" in
   Term.(
     (const lmdb_query
+     $ Arg.value debug
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -539,6 +554,7 @@ let aggregator_cmd =
   let doc = "Generate a tool to compute an aggregated value of its input" in
   Term.(
     (const aggregator
+     $ Arg.value debug
      $ Arg.required val_schema
      $ Arg.required backend
      $ Arg.value encoding_in
