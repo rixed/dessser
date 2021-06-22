@@ -655,6 +655,7 @@ let rec peval l e =
       | BitNot, f1 ->
           (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl
           with Invalid_argument _ -> E.E1 (BitNot, e1))
+      | GetRef, E1 (MakeRef, e) -> repl e
       | op, _ -> E.E1 (op, e1))
   | E1S (Apply, e1, es) ->
       let e1 = p e1 in

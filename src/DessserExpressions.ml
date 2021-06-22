@@ -316,6 +316,9 @@ type e1 =
   | GetEnv
   (* Get the minimal value of a set (heap): *)
   | GetMin
+  (* Make a value mutable: *)
+  | MakeRef
+  | GetRef
 
 type e1s =
   | Apply
@@ -409,6 +412,7 @@ type e2 =
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
   | DataPtrOfAddress (* Points to a given address in memory *)
+  | SetRef (* ref * value *)
 
 type e3 =
   | SetBit
@@ -937,6 +941,8 @@ let string_of_e1 = function
   | DataPtrOfBuffer -> "data-ptr-of-buffer"
   | GetEnv -> "getenv"
   | GetMin -> "get-min"
+  | MakeRef -> "make-ref"
+  | GetRef -> "get-ref"
 
 let string_of_e2 = function
   | Let (n, t) ->
@@ -1004,6 +1010,7 @@ let string_of_e2 = function
   | CharOfString -> "char-of-string"
   | Strftime -> "strftime"
   | DataPtrOfAddress -> "data-ptr-of-address"
+  | SetRef -> "set-ref"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1545,6 +1552,10 @@ struct
         E1 (GetEnv, e x)
     | Lst [ Sym "get-min" ; x ] ->
         E1 (GetMin, e x)
+    | Lst [ Sym "make-ref" ; x ] ->
+        E1 (MakeRef, e x)
+    | Lst [ Sym "get-ref" ; x ] ->
+        E1 (GetRef, e x)
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
@@ -1639,6 +1650,8 @@ struct
         E2 (Strftime, e fmt, e time)
     | Lst [ Sym "data-ptr-of-address" ; x1 ; x2 ] ->
         E2 (DataPtrOfAddress, e x1, e x2)
+    | Lst [ Sym "set-ref" ; x1 ; x2 ] ->
+        E2 (SetRef, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -2083,11 +2096,18 @@ and type_of l e0 =
   | E1 (DataPtrOfString, _) -> T.DataPtr
   | E1 (DataPtrOfBuffer, _) -> T.DataPtr
   | E2 (DataPtrOfAddress, _, _) -> T.DataPtr
+  | E2 (SetRef, _, _) -> T.Void
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop_user_types with
       | T.Data { vtyp = Set (Heap, mn) ; nullable = false } -> T.Data mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
+  | E1 (MakeRef, e) ->
+      T.ref (type_of l e)
+  | E1 (GetRef, e) ->
+      (match type_of l e |> T.develop_user_types with
+      | Ref t -> t
+      | t -> raise (Type_error (e0, e, t, "be a ref")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (MakePair, e1, e2) ->
@@ -2500,7 +2520,8 @@ let has_side_effect e =
   try
     iter (function
       | E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
-      | E1 ((Dump | ReadByte | ReadWord _ |
+      | E0S (MakeVec, _)
+      | E1 ((Dump | ReadByte | ReadWord _ | MakeRef |
              ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
              U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
@@ -2510,7 +2531,7 @@ let has_side_effect e =
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
-             Insert | DelMin | AllocLst | PartialSort), _, _)
+             Insert | DelMin | AllocLst | PartialSort | SetRef), _, _)
       | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _)
       | E4 (ReadWhile, _, _, _, _) ->
           raise Exit
@@ -2537,7 +2558,6 @@ let can_duplicate e =
       | E3 (Top _, _, _, _)
       (* Expensive: *)
       | E1 ((ListOfSList | ListOfSListRev | SetOfSList | ListOfVec | ListOfSet), _)
-      | E0S (MakeVec, _)
       | E3 ((LoopWhile | LoopUntil | Fold | FindSubstring | Substring), _, _, _)
       | E4 (Repeat, _, _, _, _) ->
           raise Exit
@@ -2642,6 +2662,12 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | SList _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
+    let ref_type l e =
+      match type_of l e |> T.develop_user_types with
+      | Ref t -> t
+      | t -> raise (Type_error (e0, e, t, "be a ref")) in
+    let check_ref l e =
+      ignore (ref_type l e) in
     let check_slist_same_type e1 l e =
       match type_of l e |> T.develop_user_types with
       | SList t -> check_eq l e1 t
@@ -2696,7 +2722,7 @@ let rec type_check l e =
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _
-          | Hash), _)
+          | Hash | MakeRef), _)
     | E2 ((MakePair | Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
@@ -2859,6 +2885,11 @@ let rec type_check l e =
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
         check_list_or_vector l e2
+    | E1 (GetRef, e1) ->
+        check_ref l e1
+    | E2 (SetRef, e1, e2) ->
+        let ref_t = ref_type l e1 in
+        check_eq l e2 ref_t
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
@@ -3980,12 +4011,11 @@ struct
 
   let string_of_char_ e = E1 (StringOfChar, e)
 
-  (* Helpers for ref-cells (implemented with 1 dimensional vectors): *)
-  let ref_ e = make_vec [ e ]
+  let make_ref e = E1 (MakeRef, e)
 
-  let get_ref e = get_vec (u8 Uint8.zero) e
+  let get_ref e = E1 (GetRef, e)
 
-  let set_ref e x = set_vec (u8 Uint8.zero) e x
+  let set_ref e x = E2 (SetRef, e, x)
 
   let chop_begin lst n = E2 (ChopBegin, lst, n)
   let chop_end lst n = E2 (ChopEnd, lst, n)

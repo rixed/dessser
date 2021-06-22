@@ -125,8 +125,9 @@ type t =
    * "SList" is for "singly-chained" list, and is written using "{}" instead
    * of "[]". *)
   | SList of t
-  (* Finally, simple non recursive functions: *)
   | Function of (* arguments: *) t array * (* result: *) t
+  (* Makes t mutable: *)
+  | Ref of t
 
 (*
  * Comparators
@@ -205,6 +206,8 @@ let rec eq t1 t2 =
       eq t1 t2
   | Function (pt1, rt1), Function (pt2, rt2) ->
       array_for_all2_no_exc eq pt1 pt2 && eq rt1 rt2
+  | Ref t1, Ref t2 ->
+      eq t1 t2
   | t1, t2 ->
       t1 = t2
 
@@ -439,6 +442,8 @@ let rec print ?sorted oc =
       pp oc "(%a -> %a)"
         (Array.print ~first:"" ~last:"" ~sep:" -> " (print ?sorted)) ts
         (print ?sorted) t2
+  | Ref t ->
+      pp oc "&%a" (print ?sorted) t
 
 let print_sorted oc = print ~sorted:true oc
 let print oc = print ~sorted:false oc
@@ -821,17 +826,17 @@ struct
         char '(' -- opt_blanks -+ typ +- opt_blanks +-
         char '*' +- opt_blanks ++ typ +- opt_blanks +- char ')' >>:
           fun (t1, t2) -> Pair (t1, t2)
-      ) |<|
-      (
+      ) |<| (
         char '{' -- opt_blanks -+ typ +- opt_blanks +- char '}' >>:
           fun t -> SList t
-      ) |<|
-      (
+      ) |<| (
         let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
         char '(' -+
           repeat ~sep typ +- sep ++ typ +- opt_blanks +-
         char ')' >>: fun (ptyps, rtyp) ->
           Function (Array.of_list ptyps, rtyp)
+      ) |<| (
+        char '&' -- opt_blanks -+ typ >>: fun t -> Ref t
       )
     ) m
 
@@ -1073,6 +1078,8 @@ let func1 i1 out = Function ([| i1 |], out)
 let func2 i1 i2 out = Function ([| i1 ; i2 |], out)
 let func3 i1 i2 i3 out = Function ([| i1 ; i2 ; i3 |], out)
 let func4 i1 i2 i3 i4 out = Function ([| i1 ; i2 ; i3 ; i4 |], out)
+
+let ref t = Ref t
 
 (* Some short cuts for often used types: *)
 let bool = Data (required (Base Bool))

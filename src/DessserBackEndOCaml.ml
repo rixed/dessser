@@ -272,6 +272,7 @@ struct
             String.print oc (type_identifier t))
         ) args ^" -> "^ type_identifier ret ^")"
     | T.Mask -> "DessserMasks.t"
+    | T.Ref t1 -> type_identifier t1 ^" ref"
 
   let rec mod_name = function
     | T.Data { vtyp = Base Char ; nullable = false } -> "Char"
@@ -1201,6 +1202,14 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
+    | E.E1 (MakeRef, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "ref %s" n1)
+    | E.E1 (GetRef, e1) ->
+        let n1 = print emit p l e1 in
+        emit ?name p l e (fun oc -> pp oc "!%s" n1)
+    | E.E2 (SetRef, e1, e2) ->
+        binary_infix_op e1 ":=" e2
     | E.E1 (Fst, e1) ->
         unary_op "fst" e1
     | E.E1 (Snd, e1) ->

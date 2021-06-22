@@ -212,6 +212,7 @@ struct
     | T.OWord -> "uint128_t"
     | T.Bytes -> "Bytes"
     | T.Mask -> "Mask"
+    | T.Ref t1 -> type_identifier t1
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -980,6 +981,15 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
+    | E.E1 (MakeRef, e1) ->
+        print ?name emit p l e1
+    | E.E1 (GetRef, e1) ->
+        print ?name emit p l e1
+    | E.E2 (SetRef, e1, e2) ->
+        let n1 = print emit p l e1 in
+        let n2 = print emit p l e2 in
+        ppi p.P.def "%s = %s;" n1 n2 ;
+        "VOID"
     | E.E1 (Fst, e1) ->
         member e1 "v1"
     | E.E1 (Snd, e1) ->

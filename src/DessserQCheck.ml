@@ -309,7 +309,7 @@ let e1_of_int n =
          ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
          UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ; Round ; Cos ; Sin ;
          Tan ; ACos ; ASin ; ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ;
-         Fst ; Snd ; Identity ; GetEnv ; GetMin |] in
+         Fst ; Snd ; Identity ; GetEnv ; GetMin ; MakeRef ; GetRef |] in
   e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
@@ -319,7 +319,7 @@ let e2_of_int n =
          LeftShift ; RightShift ; AppendBytes ; AppendString ;
          StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
-         DataPtrAdd ; DataPtrSub ;
+         DataPtrAdd ; DataPtrSub ; SetRef ;
          And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
          ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
