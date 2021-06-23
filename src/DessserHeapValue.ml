@@ -362,8 +362,8 @@ struct
 
   and sunit _ _ _ _ _ dst = dst
 
-  and sext name _ _ _ _ v dst =
-    apply (type_method name (E.Ser Ser.id)) [ v ; dst ]
+  and sext name ma _ _ _ _ v dst =
+    apply (type_method name (E.Ser Ser.id)) [ ma ; v ; dst ]
 
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
@@ -372,7 +372,7 @@ struct
           fun _sstate _mn0 _path _l v dst ->
             (* Call ourself recursively *)
             apply (myself T.DataPtr) [ ma ; v ; dst ]
-      | T.Ext n -> sext n
+      | T.Ext n -> sext n ma
       | T.Base Unit -> sunit
       | T.Base Float -> Ser.sfloat
       | T.Base String -> Ser.sstring
@@ -518,8 +518,8 @@ struct
 
   and ssunit _ _ _ _ sz = sz
 
-  and ssext name _ _ _ v =
-    apply (type_method name (E.SSize Ser.id)) [ v ]
+  and ssext name ma _ _ _ v =
+    apply (type_method name (E.SSize Ser.id)) [ ma ; v ]
 
   and sersz1 mn mn0 path l v ma sz =
     let cumul ssizer mn0 path l v sz =
@@ -530,7 +530,7 @@ struct
           fun _mn0 _path _l v sz ->
             (* Call ourself recursively *)
             add sz (apply (myself T.Size) [ ma ; v ])
-      | T.Ext n -> cumul (ssext n)
+      | T.Ext n -> cumul (ssext n ma)
       | T.Base Unit -> ssunit
       | T.Base Float -> cumul Ser.ssize_of_float
       | T.Base String -> cumul Ser.ssize_of_string

@@ -2130,11 +2130,11 @@ and type_of l e0 =
   | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
       find_identifier l e
   | E0 (ExtIdentifier (Method { typ ; meth = Ser _ })) ->
-      T.func2 T.(Data (required (ext typ))) T.DataPtr T.DataPtr
+      T.func3 T.Mask T.(Data (required (ext typ))) T.DataPtr T.DataPtr
   | E0 (ExtIdentifier (Method { typ ; meth = Des _ })) ->
       T.func1 T.DataPtr T.(pair (Data (required (ext typ))) T.DataPtr)
   | E0 (ExtIdentifier (Method { typ ; meth = SSize _ })) ->
-      T.func1 T.(Data (required (ext typ))) T.Size
+      T.func2 T.Mask T.(Data (required (ext typ))) T.Size
   | E0 (ExtIdentifier (Method { meth = Convert _ ; _ })) ->
       T.func2 T.DataPtr T.DataPtr T.(pair DataPtr DataPtr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
