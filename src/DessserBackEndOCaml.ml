@@ -1648,7 +1648,7 @@ struct
          module DessserGen = struct\n\n"
 
   let source_outro _ =
-    "\nend (* DessserGen module *)\n"
+    "\nend [@@ocaml.warning \"-8\"] (* DessserGen module *)\n"
 end
 
 include DessserBackEndCLike.Make (Config)
