@@ -7,22 +7,21 @@ type context = Declaration | Definition
 
 type t =
   { context : context ;
-    decl : string IO.output ;
     def : string IO.output ;
     mutable decls : string list ;
     mutable defs : string list ;
     mutable indent : string ;
+    (* The set of all type ids that have already been declared *)
     mutable declared : Set.String.t ;
     mutable external_types : (string * (t -> T.backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses of type names: *)
     mutable type_names : (T.value * string) list }
 
-let make ?(declared=Set.String.empty) context type_names external_types =
+let make ?(declared=Set.String.empty) ?(decls=[]) context type_names external_types =
   { context ;
-    decl = IO.output_string () ;
     def = IO.output_string () ;
-    decls = [] ;
+    decls ;
     defs = [] ;
     indent = "" ;
     declared ;
@@ -30,11 +29,12 @@ let make ?(declared=Set.String.empty) context type_names external_types =
     type_names }
 
 let new_top_level p f =
-  let p' = make ~declared:p.declared p.context p.type_names p.external_types in
+  let p' = make ~declared:p.declared ~decls:p.decls
+                p.context p.type_names p.external_types in
   let res = f p' in
   (* Merge the new defs and decls into old decls and defs: *)
   p.defs <- IO.close_out p'.def :: List.rev_append p'.defs p.defs ;
-  p.decls <- IO.close_out p'.decl :: List.rev_append p'.decls p.decls ;
+  p.decls <- p'.decls ;
   p.declared <- Set.String.union p.declared p'.declared ;
   p.external_types <- assoc_merge p.external_types p'.external_types ;
   p.type_names <- assoc_merge p.type_names p'.type_names ;
@@ -65,7 +65,7 @@ let declared_type p t f =
     p.indent <- "" ;
     f oc id ;
     p.indent <- indent ;
-    String.print p.decl (IO.close_out oc) ;
+    p.decls <- IO.close_out oc :: p.decls ;
     id
   )
 
