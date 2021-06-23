@@ -412,6 +412,7 @@ type e2 =
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
   | DataPtrOfAddress (* Points to a given address in memory *)
+  | While (* Condition (bool) * body *)
   | SetRef (* ref * value *)
 
 type e3 =
@@ -421,9 +422,6 @@ type e3 =
   | SetVec
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
-  | LoopWhile (* Condition ('a->bool) * Loop body ('a->'a) * Initial value *)
-  (* Unlike LoopWhile, LoopUntil executes the body at least once *)
-  | LoopUntil (* Loop body ('a->'a) * Condition ('a->bool) * Initial value *)
   | Fold (* args are: init, (res -> item -> res), list/vector/set *)
   | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
   (* Get a slice from a pointer, starting at given offset and shortened to
@@ -445,13 +443,6 @@ type e3 =
    * if nothing the selected part is outside the string bounds. *)
   | Substring
 
-type e4 =
-  | ReadWhile
-      (* Cond ('a->byte->bool) * Reducer ('a->byte->'a) * Init ('a) * Start pos ->
-           Result ('a*ptr)
-        Read whenever cond returns true, or the input stream is exhausted *)
-  | Repeat (* From (incl.) * To (excl.) * body (idx->'a->'a) * Init value *)
-
 type t =
   | E0 of e0
   | E0S of e0s * t list
@@ -459,7 +450,6 @@ type t =
   | E1S of e1s * t * t list
   | E2 of e2 * t * t
   | E3 of e3 * t * t * t
-  | E4 of e4 * t * t * t * t
 
 let rec e0_eq e1 e2 =
   match e1, e2 with
@@ -511,8 +501,6 @@ and eq e1 e2 =
       e2_eq op1 op2 && eq e11 e21 && eq e12 e22
   | E3 (op1, e11, e12, e13), E3 (op2, e21, e22, e23) ->
       e3_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23
-  | E4 (op1, e11, e12, e13, e14), E4 (op2, e21, e22, e23, e24) ->
-      e4_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23 && eq e14 e24
   | _ -> false
 
 (* Note re. Apply: even if the function can be precomputed (which it usually
@@ -558,14 +546,12 @@ let rec can_precompute f i = function
   | E2 (_, e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f i e2
-  | E3 ((LoopWhile | LoopUntil | Fold | Top _), _, _, _) ->
+  | E3 ((Fold | Top _), _, _, _) ->
       false (* TODO *)
   | E3 (_, e1, e2, e3) ->
       can_precompute f i e1 &&
       can_precompute f i e2 &&
       can_precompute f i e3
-  | E4 ((ReadWhile | Repeat), _, _, _, _) ->
-      false
 
 (*
  * User-defined constructors for user-defined types.
@@ -1010,6 +996,7 @@ let string_of_e2 = function
   | CharOfString -> "char-of-string"
   | Strftime -> "strftime"
   | DataPtrOfAddress -> "data-ptr-of-address"
+  | While -> "while"
   | SetRef -> "set-ref"
 
 let string_of_e3 = function
@@ -1017,8 +1004,6 @@ let string_of_e3 = function
   | SetVec -> "set-vec"
   | BlitByte -> "blit-byte"
   | If -> "if"
-  | LoopWhile -> "loop-while"
-  | LoopUntil -> "loop-until"
   | Fold -> "fold"
   | Map -> "map"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
@@ -1026,10 +1011,6 @@ let string_of_e3 = function
   | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
   | InsertWeighted -> "insert-weighted"
   | Substring -> "substring"
-
-let string_of_e4 = function
-  | ReadWhile -> "read-while"
-  | Repeat -> "repeat"
 
 let pp = Printf.fprintf
 
@@ -1062,8 +1043,6 @@ let rec print ?max_depth oc e =
         pp oc "(%s %a %a)" (string_of_e2 op) p e1 p e2
     | E3 (op, e1, e2, e3) ->
         pp oc "(%s %a %a %a)" (string_of_e3 op) p e1 p e2 p e3
-    | E4 (op, e1, e2, e3, e4) ->
-        pp oc "(%s %a %a %a %a)" (string_of_e4 op) p e1 p e2 p e3 p e4
 
 let to_string ?max_depth e =
   IO.to_string (print ?max_depth) e
@@ -1094,8 +1073,6 @@ let rec pretty_print ?max_depth fmt e =
         p (string_of_e2 op) [ e1 ; e2 ]
     | E3 (op, e1, e2, e3) ->
         p (string_of_e3 op) [ e1 ; e2 ; e3 ]
-    | E4 (op, e1, e2, e3, e4) ->
-        p (string_of_e4 op) [ e1 ; e2 ; e3 ; e4 ]
 
 let to_pretty_string ?max_depth e =
   let buf = Buffer.create 1024 in
@@ -1650,6 +1627,8 @@ struct
         E2 (Strftime, e fmt, e time)
     | Lst [ Sym "data-ptr-of-address" ; x1 ; x2 ] ->
         E2 (DataPtrOfAddress, e x1, e x2)
+    | Lst [ Sym "while" ; x1 ; x2 ] ->
+        E2 (While, e x1, e x2)
     | Lst [ Sym "set-ref" ; x1 ; x2 ] ->
         E2 (SetRef, e x1, e x2)
     (* e3 *)
@@ -1657,8 +1636,6 @@ struct
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
-    | Lst [ Sym "loop-while" ; x1 ; x2 ; x3 ] -> E3 (LoopWhile, e x1, e x2, e x3)
-    | Lst [ Sym "loop-until" ; x1 ; x2 ; x3 ] -> E3 (LoopUntil, e x1, e x2, e x3)
     | Lst [ Sym "fold" ; x1 ; x2 ; x3 ] -> E3 (Fold, e x1, e x2, e x3)
     | Lst [ Sym "map" ; x1 ; x2 ; x3 ] -> E3 (Map, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
@@ -1671,11 +1648,6 @@ struct
         E3 (InsertWeighted, e x1, e x2, e x3)
     | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
         E3 (Substring, e x1, e x2, e x3)
-    (* e4 *)
-    | Lst [ Sym "read-while" ; x1 ; x2 ; x3 ; x4 ] ->
-        E4 (ReadWhile, e x1, e x2, e x3, e x4)
-    | Lst [ Sym "repeat" ; x1 ; x2 ; x3 ; x4 ] ->
-        E4 (Repeat, e x1, e x2, e x3, e x4)
 
     | x -> raise (Unknown_expression x)
 
@@ -1754,6 +1726,13 @@ let find_identifier l e =
     with Not_found ->
       raise (Unbound_identifier (e, l))
 
+let print_environment oc l =
+  let p oc (e, t) =
+    Printf.fprintf oc "%a:%a"
+      (print ~max_depth:2) e
+      T.print t in
+  pretty_list_print p oc (l.global @ l.local)
+
 let rec add_local n t l =
   (* Make sure there is no shadowing: *)
   if defined n l then raise (Redefinition n) ;
@@ -1768,7 +1747,7 @@ and type_of l e0 =
     try
       T.to_maybe_nullable t
     with Invalid_argument _ ->
-      raise (Type_error (e0, e, t, "be a possibly nullable value type")) in
+      raise (Type_error (e0, e, t, "be a possibly nullable value")) in
   let check_get_item n max_n =
     if n < 0 || n >= max_n then
       raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
@@ -2096,6 +2075,7 @@ and type_of l e0 =
   | E1 (DataPtrOfString, _) -> T.DataPtr
   | E1 (DataPtrOfBuffer, _) -> T.DataPtr
   | E2 (DataPtrOfAddress, _, _) -> T.DataPtr
+  | E2 (While, _, _) -> T.Void
   | E2 (SetRef, _, _) -> T.Void
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
@@ -2171,12 +2151,7 @@ and type_of l e0 =
         raise (Unbound_parameter (e0, p, l)))
   | E3 (If, _, e1, e2) ->
       either e1 e2
-  | E4 (ReadWhile, _, _, e, _) ->
-      T.pair (type_of l e) T.DataPtr
-  | E3 (LoopWhile, _, _, e)
-  | E3 (LoopUntil, _, _, e)
-  | E3 (Fold, e, _, _)
-  | E4 (Repeat, _, _, _, e) ->
+  | E3 (Fold, e, _, _) ->
       type_of l e
   | E3 (Map, _, f, set) ->
       (match type_of l f |> T.develop_user_types with
@@ -2225,8 +2200,7 @@ and type_of l e0 =
         | Data mn ->
             mn
         | t1 ->
-            raise (Type_error (
-              e0, e2, t1, "be a possibly nullable value type")) in
+            raise (Type_error (e0, e2, t1, "be a possibly nullable value")) in
       T.(data (required (lst item_t)))
   | E2 (PartialSort, _, _) ->
       T.Void
@@ -2385,8 +2359,6 @@ let rec fold u f e =
       fold (fold u f e1) f e2
   | E3 (_, e1, e2, e3) ->
       fold (fold (fold u f e1) f e2) f e3
-  | E4 (_, e1, e2, e3, e4) ->
-      fold (fold (fold (fold u f e1) f e2) f e3) f e4
 
 (* Folding a tree of 100M nodes takes ~30s :-< *)
 let rec fold_env u l f e =
@@ -2415,8 +2387,6 @@ let rec fold_env u l f e =
       fold_env (fold_env u l f e1) l f e2
   | E3 (_, e1, e2, e3) ->
       fold_env (fold_env (fold_env u l f e1) l f e2) l f e3
-  | E4 (_, e1, e2, e3, e4) ->
-      fold_env (fold_env (fold_env (fold_env u l f e1) l f e2) l f e3) l f e4
 
 let iter f e =
   fold () (fun () e -> f e) e
@@ -2460,13 +2430,6 @@ let rec map f e =
       and e3' = map f e3 in
       if e1' == e1 && e2' == e2 && e3' == e3 then f e else
       f (E3 (op, e1', e2', e3'))
-  | E4 (op, e1, e2, e3, e4) ->
-      let e1' = map f e1
-      and e2' = map f e2
-      and e3' = map f e3
-      and e4' = map f e4 in
-      if e1' == e1 && e2' == e2 && e3' == e3 && e4' == e4 then f e else
-      f (E4 (op, e1', e2', e3', e4'))
 
 let rec map_env l f e =
   match e with
@@ -2509,12 +2472,6 @@ let rec map_env l f e =
       and e2 = map_env l f e2
       and e3 = map_env l f e3 in
       f l (E3 (op, e1, e2, e3))
-  | E4 (op, e1, e2, e3, e4) ->
-      let e1 = map_env l f e1
-      and e2 = map_env l f e2
-      and e3 = map_env l f e3
-      and e4 = map_env l f e4 in
-      f l (E4 (op, e1, e2, e3, e4))
 
 let has_side_effect e =
   try
@@ -2532,8 +2489,7 @@ let has_side_effect e =
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
              WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
              Insert | DelMin | AllocLst | PartialSort | SetRef), _, _)
-      | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _)
-      | E4 (ReadWhile, _, _, _, _) ->
+      | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
           raise Exit
       | _ -> ()
     ) e ;
@@ -2558,8 +2514,8 @@ let can_duplicate e =
       | E3 (Top _, _, _, _)
       (* Expensive: *)
       | E1 ((ListOfSList | ListOfSListRev | SetOfSList | ListOfVec | ListOfSet), _)
-      | E3 ((LoopWhile | LoopUntil | Fold | FindSubstring | Substring), _, _, _)
-      | E4 (Repeat, _, _, _, _) ->
+      | E2 (While, _, _)
+      | E3 ((Fold | FindSubstring | Substring), _, _, _) ->
           raise Exit
       | _ -> ()
     ) e ;
@@ -2679,11 +2635,6 @@ let rec type_check l e =
     let bad_arity expected e t =
       let s = Printf.sprintf "be a function of %d parameter(s)" expected in
       raise (Type_error (e0, e, t, s)) in
-    let check_params1 l e f =
-      match type_of l e |> T.develop_user_types with
-      | Function ([|t1|], ret) -> f t1 ret
-      | Function _ as t -> bad_arity 1 e t
-      | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_params2 l e f =
       match type_of l e |> T.develop_user_types with
       | Function ([|t1; t2|], ret) -> f t1 t2 ret
@@ -2862,6 +2813,9 @@ let rec type_check l e =
     | E2 (DataPtrOfAddress, e1, e2) ->
         check_eq l e1 T.Address ;
         check_eq l e2 T.Size
+    | E2 (While, cond, body) ->
+        check_eq l cond T.bool ;
+        check_eq l body T.Void
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
@@ -3011,30 +2965,6 @@ let rec type_check l e =
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
-    | E4 (ReadWhile, cond, body, init, ptr) ->
-        check_params2 l cond (fun t1 t2 ret ->
-          check_eq l init t1 ;
-          check_param cond 1 t2 T.Byte ;
-          check_param cond 2 ret T.bool) ;
-        check_params2 l body (fun t1 t2 ret ->
-          check_eq l init t1 ;
-          check_param body 1 t2 T.Byte ;
-          check_eq l init ret) ;
-        check_eq l ptr T.DataPtr
-    | E3 (LoopWhile, cond, body, init) ->
-        check_params1 l cond (fun t1 ret ->
-          check_eq l init t1 ;
-          check_param cond ~-1 ret T.bool) ;
-        check_params1 l body (fun t1 ret ->
-          check_eq l init t1 ;
-          check_eq l init ret)
-    | E3 (LoopUntil, body, cond, init) ->
-        check_params1 l body (fun t1 ret ->
-          check_eq l init t1 ;
-          check_eq l init ret) ;
-        check_params1 l cond (fun t1 ret ->
-          check_eq l init t1 ;
-          check_param cond ~-1 ret T.bool) ;
     | E3 (Fold, init, body, lst) ->
         (* Fold function first parameter is the result and second is the list
          * item *)
@@ -3044,14 +2974,6 @@ let rec type_check l e =
           check_eq l init p1 ;
           check_eq l init ret ;
           check_param body 1 p2 item_t)
-    | E4 (Repeat, from, to_, body, init) ->
-        (* TODO: any integer for from/to and body index *)
-        check_eq l from T.i32 ;
-        check_eq l to_ T.i32 ;
-        check_params2 l body (fun t1 t2 ret ->
-          check_param body 0 t1 T.i32 ;
-          check_eq l init t2 ;
-          check_eq l init ret)
     | E1 (MaskGet _, e1) ->
         check_eq l e1 T.Mask
     | E1 (LabelOf, e1) ->
@@ -3158,13 +3080,6 @@ let rec type_check l e =
 
 let size_of_expr e =
   fold 0 (fun n _e0 -> n + 1) e
-
-let print_environment oc l =
-  let p oc (e, t) =
-    Printf.fprintf oc "%a:%a"
-      (print ~max_depth:2) e
-      T.print t in
-  pretty_list_print p oc (l.global @ l.local)
 
 let () =
   let max_depth = 5 in
@@ -3445,6 +3360,8 @@ struct
 
   let bytes s = E0 (Bytes s)
 
+  let byte_of_int n = byte (Uint8.of_int n)
+
   let i8_of_int n = i8 (Int8.of_int n)
 
   let u8_of_int n = u8 (Uint8.of_int n)
@@ -3720,9 +3637,6 @@ struct
 
   let if_null d ~then_ ~else_ = if_ (is_null d) ~then_ ~else_
 
-  let read_while ~cond ~reduce ~init ~pos =
-    E4 (ReadWhile, cond, reduce, init, pos)
-
   let float_of_qword e = E1 (FloatOfQWord, e)
 
   let qword_of_float e = E1 (QWordOfFloat, e)
@@ -3817,11 +3731,7 @@ struct
 
   let apply f es = E1S (Apply, f, es)
 
-  let repeat ~from ~to_ ~body ~init = E4 (Repeat, from, to_, body, init)
-
-  let loop_until ~body ~cond ~init = E3 (LoopUntil, body, cond, init)
-
-  let loop_while ~cond ~body ~init = E3 (LoopWhile, cond, body, init)
+  let while_ cond body = E2 (While, cond, body)
 
   let fold ~init ~body ~list = E3 (Fold, init, body, list)
 

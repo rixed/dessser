@@ -163,10 +163,10 @@ let rec conv ?(depth=0) ~to_ l d =
    * string composed of those chars rather than an enumeration: *)
   | Vec (_, { vtyp = Base Char ; _ }), Base String
   | Lst { vtyp = Base Char ; _ }, Base String ->
-      conv_charseq ~depth:(depth+1) (cardinality d) l d
+      conv_charseq_to_string ~depth:(depth+1) (cardinality d) l d
   | Vec _, Base String
   | Lst _, Base String ->
-      conv_list ~depth:(depth+1) (cardinality d) l d
+      conv_list_to_string ~depth:(depth+1) (cardinality d) l d
   | Tup mns, Base String ->
       let to_ = T.(required (Base String)) in
       let rec loop s i =
@@ -241,62 +241,50 @@ let rec conv ?(depth=0) ~to_ l d =
         (E.print ~max_depth:3) d |>
       failwith
 
-and conv_list ?(depth=0) length_e l src =
-  let init = make_tup [ u32_of_int 0 ; length_e ; string "[" ; src ] in
-  let init_t = E.type_of l init in
-  let cond =
-    E.func1 ~l init_t (fun _l init ->
-      let i = get_item 0 init
-      and length_e = get_item 1 init in
-      lt i length_e)
-  and body =
-    E.func1 ~l init_t (fun l init ->
-      let i = get_item 0 init
-      and dst = get_item 2 init
-      and src = get_item 3 init in
-      (* Append a delimiter? *)
-      let dst =
-        if_ (gt i (u32_of_int 0))
-          ~then_:(append_string dst (string ";"))
-          ~else_:dst in
-      (* Next value: *)
-      let dst =
-        conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base String))
-                            l (get_vec i src) |>
-        append_string dst in
-      make_tup [ add i (u32_of_int 1) ;
-                 get_item 1 init ;
-                 dst ;
-                 get_item 3 init ]) in
-  let dst =
-    loop_while ~init ~cond ~body |>
-    get_item 2 in
-  append_string dst (string "]")
+and conv_list_to_string ?(depth=0) length_e l src =
+  let_ ~name:"str_ref" ~l (make_ref (string "[")) (fun l str_ref ->
+    let str = get_ref str_ref in
+    let append s = set_ref str_ref (append_string str s) in
+    let_ ~name:"i_ref" ~l (make_ref (u32_of_int 0)) (fun l i_ref ->
+      let i = get_ref i_ref in
+      let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
+        seq [
+          while_ (lt i length_e)
+            (let src = get_ref src_ref in
+            seq [
+              (* Append a delimiter? *)
+              if_ (gt i (u32_of_int 0))
+                ~then_:(append (string ";"))
+                ~else_:nop ;
+              (* Next value: *)
+              get_vec i src |>
+              conv_maybe_nullable
+                ~depth:(depth+1) ~to_:T.(required (Base String)) l |>
+              append ;
+              (* Incr i *)
+              set_ref i_ref (add i (u32_of_int 1)) ]) ;
+          append (string "]") ;
+          str ])))
 
-and conv_charseq ?(depth=0) length_e l src =
-  let init = make_tup [ u32_of_int 0 ; length_e ; string "" ; src ] in
-  let init_t = E.type_of l init in
-  let cond =
-    E.func1 ~l init_t (fun _l init ->
-      let i = get_item 0 init
-      and length_e = get_item 1 init in
-      lt i length_e)
-  and body =
-    E.func1 ~l init_t (fun l init ->
-      let i = get_item 0 init
-      and dst = get_item 2 init
-      and src = get_item 3 init in
-      let dst =
-        conv_maybe_nullable ~depth:(depth+1) ~to_:T.(required (Base Char))
-                            l (get_vec i src) |>
-        string_of_char |>
-        append_string dst in
-      make_tup [ add i (u32_of_int 1) ;
-                 get_item 1 init ;
-                 dst ;
-                 get_item 3 init ]) in
-  loop_while ~init ~cond ~body |>
-  get_item 2
+and conv_charseq_to_string ?(depth=0) length_e l src =
+  let_ ~name:"str_ref" ~l (make_ref (string "")) (fun l str_ref ->
+    let str = get_ref str_ref in
+    let append s = set_ref str_ref (append_string str s) in
+    let_ ~name:"i_ref" ~l (make_ref (u32_of_int 0)) (fun l i_ref ->
+      let i = get_ref i_ref in
+      let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
+        seq [
+          while_ (lt i length_e)
+            (let src = get_ref src_ref in
+            seq [
+              get_vec i src |>
+              conv_maybe_nullable
+                ~depth:(depth+1) ~to_:T.(required (Base Char)) l |>
+              string_of_char |>
+              append ;
+              (* Incr i *)
+              set_ref i_ref (add i (u32_of_int 1)) ]) ;
+          str ])))
 
 and conv_maybe_nullable ?(depth=0) ~to_ l d =
   if debug then (

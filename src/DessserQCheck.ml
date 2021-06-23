@@ -322,18 +322,14 @@ let e2_of_int n =
          DataPtrAdd ; DataPtrSub ; SetRef ;
          And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
-         ChopBegin ; ChopEnd ; CharOfString ; Strftime |] in
+         ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
   let e3s =
-    E.[| SetBit ; SetVec ; BlitByte ; If ; LoopWhile ; LoopUntil ; Fold ; Map ;
+    E.[| SetBit ; SetVec ; BlitByte ; If ; Fold ; Map ;
          FindSubstring ; InsertWeighted ; Substring |] in
   e3s.(n mod Array.length e3s)
-
-let e4_of_int n =
-  let e4s = E.[| ReadWhile ; Repeat |] in
-  e4s.(n mod Array.length e4s)
 
 let rec e0_gen l depth =
   assert (depth >= 0) ;
@@ -498,13 +494,6 @@ and e3_gen l depth =
     E.E3 (e3_of_int n, e1, e2, e3)
   ) nat expr expr expr
 
-and e4_gen l depth =
-  let expr = expression_gen (l, depth - 1) in
-  let open Gen in
-  map5 (fun n e1 e2 e3 e4 ->
-    E.E4 (e4_of_int n, e1, e2, e3, e4)
-  ) nat expr expr expr expr
-
 and expression_gen (l, depth) =
   let open Gen in
   fix (fun _self (l, depth) ->
@@ -517,8 +506,7 @@ and expression_gen (l, depth) =
         5, e1_gen l depth ;
         1, e1s_gen l depth ;
         5, e2_gen l depth ;
-        5, e3_gen l depth ;
-        5, e4_gen l depth ]
+        5, e3_gen l depth ]
     else
       e0_gen l depth
   ) (l, depth)

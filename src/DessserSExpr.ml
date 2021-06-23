@@ -277,15 +277,22 @@ struct
     let p = skip1 p in
     (* Read up to next double-quote: *)
     (* FIXME: handle escaping backslash! *)
-    let cond = E.func2 ~l T.Bytes T.Byte (fun _l _ b ->
-      ne b (byte_of_const_char '"'))
-    and init = bytes_of_string (string "")
-    and reduce = E.func2 ~l T.Bytes T.Byte (fun _l -> append_byte) in
-    let str_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair ~l "dbytes" str_p (fun _l str p ->
-      (* Skip the closing double-quote: *)
-      let p = skip1 p in
-      make_pair (conv str) p)
+    let empty_bytes = bytes_of_string (string "") in
+    let_ ~name:"str_ref" ~l (make_ref empty_bytes) (fun l str_ref ->
+      let str = get_ref str_ref in
+      let_ ~name:"p_ref" ~l (make_ref p) (fun l p_ref ->
+        let p = get_ref p_ref in
+        let_ ~name:"b_ref" ~l (make_ref (byte_of_int 0)) (fun l b_ref ->
+          let b = get_ref b_ref in
+          seq [
+            while_
+              (E.with_sploded_pair ~l "dbytes" (read_byte p) (fun _l b' p' ->
+                seq [
+                  set_ref p_ref p' ;
+                  set_ref b_ref b' ;
+                  ne b' (byte_of_const_char '"') ]))
+              (set_ref str_ref (append_byte str b)) ;
+            make_pair (conv str) p ])))
 
   let dstring _conf _ _ l p = dbytes string_of_bytes l p
   (* Chars are encoded as single char strings *)

@@ -1360,48 +1360,17 @@ struct
               let n = print emit p l e3 in
               ppi oc "%s" n) ;
             pp oc "%s)" p.P.indent))
-    | E.E4 (ReadWhile, e1, e2, e3, e4) ->
-        let cond = print emit p l e1
-        and reduce = print emit p l e2
-        and accum = print emit p l e3
-        and ptr = print emit p l e4 in
-        let m = mod_name (E.type_of l e4) in
-        emit ?name p l e (fun oc ->
-          pp oc "\n" ;
-          P.indent_more p (fun () ->
-            ppi oc "let rec read_while_loop accum ptr =" ;
-            P.indent_more p (fun () ->
-              ppi oc "if %s.remSize ptr <= 0 then (accum, ptr) else" m ;
-              ppi oc "let next_byte = %s.peekByte ptr 0 in" m ;
-              ppi oc "if not (%s accum next_byte) then (accum, ptr) else" cond ;
-              ppi oc "let accum = %s accum next_byte in" reduce ;
-              ppi oc "let ptr = %s.skip ptr 1 in" m ;
-              ppi oc "read_while_loop accum ptr in") ;
-            pp oc "%sread_while_loop %s %s" p.P.indent accum ptr))
-    | E.E3 (LoopWhile, e1, e2, e3) ->
-        let cond = print emit p l e1
-        and body = print emit p l e2
-        and accum = print emit p l e3 in
-        emit ?name p l e (fun oc ->
-          pp oc "\n" ;
-          P.indent_more p (fun () ->
-            ppi oc "let rec loop_while accum =" ;
-            P.indent_more p (fun () ->
-              ppi oc "if not (%s accum) then accum else" cond ;
-              ppi oc "loop_while (%s accum) in" body) ;
-            ppi oc "loop_while %s" accum))
-    | E.E3 (LoopUntil, e1, e2, e3) ->
-        let body = print emit p l e1
-        and cond = print emit p l e2
-        and accum = print emit p l e3 in
-        emit ?name p l e (fun oc ->
-          pp oc "\n" ;
-          P.indent_more p (fun () ->
-            ppi oc "let rec loop_until accum =" ;
-            P.indent_more p (fun () ->
-              ppi oc "let accum = %s accum in" body ;
-              ppi oc "if %s accum then loop_until accum else accum in" cond) ;
-            pp oc "%sloop_until %s" p.P.indent accum))
+    | E.E2 (While, cond, body) ->
+        ppi p.P.def "while (" ;
+        P.indent_more p (fun () ->
+          let cond = print emit p l cond in
+          ppi p.P.def "%s" cond) ;
+        ppi p.P.def ") do" ;
+        P.indent_more p (fun () ->
+          let body = print emit p l body in
+          ppi p.P.def "%s" body) ;
+        ppi p.P.def "done ;" ;
+        "()"
     | E.E3 (Fold, e1, e2, e3) ->
         let init = print emit p l e1
         and body = print emit p l e2
@@ -1431,19 +1400,6 @@ struct
             | T.SList _ -> "List"
             | _ -> assert false (* because of E.type_check *) in
           pp oc "%s.map (fun item_ -> %s %s item_) %s" mod_name f init lst)
-    | E.E4 (Repeat, e1, e2, e3, e4) ->
-        let from = print emit p l e1
-        and to_ = print emit p l e2
-        and body = print emit p l e3
-        and accum = print emit p l e4 in
-        emit ?name p l e (fun oc ->
-          pp oc "\n" ;
-          P.indent_more p (fun () ->
-            ppi oc "let rec loop_repeat n accum =" ;
-            P.indent_more p (fun () ->
-              ppi oc "if n >= %s then accum else" to_ ;
-              ppi oc "loop_repeat (Int32.succ n) (%s n accum) in" body) ;
-            pp oc "%sloop_repeat %s %s" p.P.indent from accum))
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
 (*      TODO: For when tuples are actual tuples:

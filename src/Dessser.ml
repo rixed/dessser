@@ -5,6 +5,7 @@ module T = DessserTypes
 module E = DessserExpressions
 module Printer = DessserPrinter
 module Path = DessserPath
+module StdLib = DessserStdLib
 
 (* Used by deserializers to "open" lists: *)
 type list_opener =
@@ -341,19 +342,18 @@ struct
 
   and dsvec dim mn transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
-    let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     let src_dst =
       E.with_sploded_pair ~l "dsvec1" src_dst (fun l src dst ->
         make_pair
           (Des.vec_opn dstate mn0 path dim mn l src)
           (Ser.vec_opn sstate mn0 path dim mn l dst)) in
     let src_dst =
-      repeat
+      StdLib.repeat ~l
         ~init:src_dst
         ~from:(i32 0l) ~to_:(i32 (Int32.of_int dim))
-        ~body:(comment "Convert vector item"
-          (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
-            let subpath = Path.(append (RunTime (to_u32 n)) path) in
+        ~body:(fun l n src_dst ->
+          (comment "Convert vector item"
+            (let subpath = Path.(append (RunTime (to_u32 n)) path) in
             let src_dst =
               if_ (eq n (i32 0l))
                 ~then_:src_dst
@@ -371,7 +371,6 @@ struct
 
   and dslist mn transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
-    let pair_ptrs = T.Pair (Des.ptr mn0, Ser.ptr mn0) in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     comment "Convert a List"
@@ -384,18 +383,18 @@ struct
          * then SEpxr would merely return a very large number of entries
          * (better than to return a single condition in list_opn for non
          * functional backends such as, eventually, C?) *)
-        let src_dst =
-          match Des.list_opn dstate with
-          | KnownSize list_opn ->
+        match Des.list_opn dstate with
+        | KnownSize list_opn ->
+            let src_dst =
               let dim_src = list_opn mn0 path mn l src in
               E.with_sploded_pair ~l "dslist2" dim_src (fun l dim src ->
                 let dst = Ser.list_opn sstate mn0 path mn (Some dim) l dst in
-                repeat
+                StdLib.repeat ~l
                   ~init:(make_pair src dst)
                   ~from:(i32 0l) ~to_:(to_i32 dim)
-                  ~body:(comment "Convert a list item"
-                    (E.func2 ~l T.i32 pair_ptrs (fun l n src_dst ->
-                      let subpath = Path.(append (RunTime (to_u32 n)) path) in
+                  ~body:(fun l n src_dst ->
+                    (comment "Convert a list item"
+                      (let subpath = Path.(append (RunTime (to_u32 n)) path) in
                       let src_dst =
                         if_ (eq n (i32 0l))
                           ~then_:src_dst
@@ -405,39 +404,41 @@ struct
                                 (Des.list_sep dstate mn0 subpath l psrc)
                                 (Ser.list_sep sstate mn0 subpath l pdst))
                           ) in
-                      desser_ transform sstate dstate mn0 subpath l src_dst))))
+                      desser_ transform sstate dstate mn0 subpath l src_dst)))) in
+            let_pair ~n1:"src" ~n2:"dst" ~l src_dst (fun l src dst ->
+              make_pair
+                (Des.list_cls dstate mn0 path l src)
+                (Ser.list_cls sstate mn0 path l dst))
           | UnknownSize (list_opn, end_of_list) ->
-              let n_src_dst_t = T.Pair (T.u32, pair_ptrs) in
               let src = list_opn mn0 path mn l src in
               let dst = Ser.list_opn sstate mn0 path mn None l dst in
-              let n_src_dst =
-                loop_while
-                  ~cond:(comment "Test end of list"
-                    (E.func1 ~l n_src_dst_t (fun l n_src_dst ->
-                      let src_dst = secnd n_src_dst in
-                      not_ (end_of_list mn0 path l (first src_dst)))))
-                  ~body:(comment "Convert a list item"
-                    (E.func1 ~l n_src_dst_t (fun l n_src_dst ->
-                      E.with_sploded_pair ~l "dslist4" n_src_dst (fun l n src_dst ->
-                        let subpath = Path.(append (RunTime n) path) in
-                        let src_dst =
+              let src_dst_ref = make_ref (make_pair src dst) in
+              let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
+                let src = first (get_ref src_dst_ref) in
+                let dst = secnd (get_ref src_dst_ref) in
+                let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
+                  let n = get_ref n_ref in
+                  seq [
+                    while_
+                      (comment "Test end of list"
+                        (not_ (end_of_list mn0 path l src)))
+                      (comment "Convert a list item"
+                        (let subpath = Path.(append (RunTime n) path) in
+                        seq [
                           if_ (eq n (u32_of_int 0))
-                            ~then_:src_dst
+                            ~then_:nop
                             ~else_:(
-                              E.with_sploded_pair ~l "dslist5" src_dst (fun l psrc pdst ->
-                                make_pair
-                                  (Des.list_sep dstate mn0 subpath l psrc)
-                                  (Ser.list_sep sstate mn0 subpath l pdst))) in
-                        make_pair
-                          (add n (u32_of_int 1))
-                          (desser_ transform sstate dstate mn0 subpath l src_dst)))))
-                  ~init:(make_pair (u32_of_int 0) (make_pair src dst)) in
-              secnd n_src_dst
-        in
-        E.with_sploded_pair ~l "dslist6" src_dst (fun l src dst ->
-          make_pair
-            (Des.list_cls dstate mn0 path l src)
-            (Ser.list_cls sstate mn0 path l dst))))
+                              set_ref src_dst_ref
+                                (make_pair
+                                  (Des.list_sep dstate mn0 subpath l src)
+                                  (Ser.list_sep sstate mn0 subpath l dst))) ;
+                          set_ref n_ref (add n (u32_of_int 1)) ;
+                          set_ref src_dst_ref
+                            (desser_ transform sstate dstate mn0 subpath l
+                                     (get_ref src_dst_ref)) ])) ;
+                    make_pair
+                      (Des.list_cls dstate mn0 path l src)
+                      (Ser.list_cls sstate mn0 path l dst) ]))))
 
   and desser_value = function
     | T.Unknown | T.Ext _ -> invalid_arg "desser_value"

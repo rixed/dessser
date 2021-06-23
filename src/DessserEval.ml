@@ -1107,6 +1107,9 @@ let rec peval l e =
           | exception _ -> def
           | 0 -> keep1 ()
           | _ -> def)
+      | While, E0 (Bool false), _ ->
+          replace_final_expression_anonymously e2 nop |>
+          replace_final_expression_anonymously e1
       | op, _, _ -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
       let e1 = p e1
@@ -1133,12 +1136,6 @@ let rec peval l e =
              not (E.has_side_effect e3) ->
           (* Then we ever need to execute one of the alternative: *)
           e2
-      | LoopUntil, _, E0 (Bool false), _ ->
-          apply e1 [ e3 ] |>
-          replace_final_expression_anonymously e2 |> p
-      | LoopWhile, E0 (Bool false), _, _ ->
-          replace_final_expression_anonymously e2 e3 |>
-          replace_final_expression_anonymously e1
       | Fold, _, _, E0S ((MakeVec | MakeLst _), [ e ]) ->
           apply e2 [ repl3 e ; e1 ] |> p
       | Map, _, f, lst ->
@@ -1181,30 +1178,6 @@ let rec peval l e =
               | _ ->
                   def))
       | op, _, _, _ -> E3 (op, e1, e2, e3))
-  | E4 (op, e1, e2, e3, e4) ->
-      let e1 = p e1
-      and e2 = p e2
-      and e3 = p e3
-      and e4 = p e4 in
-      (match op, final_expression e1, final_expression e2,
-             final_expression e3, final_expression e4 with
-      | ReadWhile, E1 (Function _, E0 (Bool false)), _, _, _ ->
-          make_pair e3 e4 |>
-          replace_final_expression_anonymously e2 |>
-          replace_final_expression_anonymously e1
-      | Repeat, E0 (I32 f), E0 (I32 t), _, _ ->
-          let c = Int32.compare f t in
-          if c >= 0 then
-            e4 |>
-            replace_final_expression_anonymously e3 |>
-            replace_final_expression_anonymously e2 |>
-            replace_final_expression_anonymously e1
-          else if 0 = Int32.(compare t (succ f)) then
-            apply e3 [ e1 ; e4 ] |>
-            replace_final_expression_anonymously e2 |> p
-          else
-            E4 (Repeat, e1, e2, e3, e4)
-      | op, _, _, _, _ -> E4 (op, e1, e2, e3, e4))
 
 (*$inject
   let test_peval opt_lvl s =

@@ -257,6 +257,7 @@ LINKED_FOR_TESTS = \
 	src/DessserPath.ml \
 	src/DessserConversions.ml \
 	src/DessserEval.ml \
+	src/DessserStdLib.ml \
 	src/DessserMasks.ml \
 	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \

@@ -6,6 +6,7 @@ module C = DessserConversions
 module E = DessserExpressions
 module T = DessserTypes
 open BatOption.Infix
+open E.Ops
 
 (* [coalesce es] build an expression that selects the first non null
  * expression in [rs].
@@ -14,7 +15,6 @@ open BatOption.Infix
  * nullable.
  * The first non-nullable alternative will be the last checked item obviously. *)
 let coalesce l es =
-  let open E.Ops in
   if es = [] then
     invalid_arg "coalesce with no alternatives" ;
   let last_e = BatList.last es in
@@ -40,39 +40,45 @@ let coalesce l es =
             if ret_nullable then not_null e else e) in
   loop 0 l es
 
+(* Implement a simple for-loop: *)
+let repeat ~l ~from ~to_ ~body ~init =
+  let_ ~name:"repeat_res" ~l (make_ref init) (fun l res_ref ->
+    let res = get_ref res_ref in
+    let_ ~name:"repeat_n" ~l (make_ref (to_i32 from)) (fun l n_ref ->
+      let n = get_ref n_ref in
+      seq [
+        while_ (lt n (to_i32 to_))
+          (seq [
+            set_ref res_ref (body l n res) ;
+            set_ref n_ref (add n (i32_of_int 1)) ]) ;
+        res ]))
+
 let random_i32 =
-  let open E.Ops in
   to_i32 random_u32
 
 let rec random_slist mn =
-  let open E.Ops in
   let max_list_length = i32_of_int 8 in
   let from = i32_of_int 0
   and to_ =
     force ~what:"random_slist rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length)
-  and body =
-    E.func2 ~l:E.no_env T.i32 T.(SList (Data mn)) (fun _l _idx lst ->
-      cons (random mn) lst)
+  and body _l _idx lst = cons (random mn) lst
   and init = eol T.(Data mn) in
-  repeat ~from ~to_ ~body ~init
+  repeat ~l:E.no_env ~from ~to_ ~body ~init
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
 and random ?this mn =
   let this = this |? mn in
-  (* this [random] is going to be shaddowed by E.Ops: *)
-  let std_random = random in
-  let open E.Ops in
   if mn.T.nullable then
-    if_ (std_random T.(required (Base Bool)))
+    if_ (random T.(required (Base Bool)))
       ~then_:(null mn.vtyp)
-      ~else_:(not_null (std_random { mn with nullable = false }))
+      ~else_:(not_null (random { mn with nullable = false }))
   else match mn.vtyp with
   | T.Unknown ->
       invalid_arg "random for unknown type"
   | This ->
-      std_random this
+      random this
   | Base Unit ->
       unit
   | Base Float ->
@@ -82,16 +88,18 @@ and random ?this mn =
   | Base String ->
       (* Just 5 random letters for now: *)
       repeat
+        ~l:E.no_env
         ~from:(i32 0l) ~to_:(i32 5l)
-        ~init:(string "") ~body:(E.func2 ~l:E.no_env T.i32 T.string (fun _l _i s ->
-          let c = std_random T.(required (Base Char)) in
-          append_string s (string_of_char_ c)))
+        ~init:(string "")
+        ~body:(fun _l _i s ->
+          let c = random T.(required (Base Char)) in
+          append_string s (string_of_char_ c))
   | Base Char ->
       (* Just a random lowercase letter for now *)
       (char_of_u8
         (add (u8_of_char (char 'a'))
              (force ~what:"random rem"
-                    (rem (std_random T.(required (Base U8)))
+                    (rem (random T.(required (Base U8)))
                          (u8_of_int 26)))))
   | Base U8 ->
       random_u8
@@ -130,11 +138,11 @@ and random ?this mn =
   | Base I128 ->
       to_i128 random_u128
   | Usr ut ->
-      std_random T.(required ut.def)
+      random T.(required ut.def)
   | Ext n ->
       invalid_arg ("random for Ext type "^ n)
   | Vec (dim, mn) ->
-      List.init dim (fun _ -> std_random mn) |>
+      List.init dim (fun _ -> random mn) |>
       make_vec
   | Lst mn ->
       random_slist mn |>
@@ -145,11 +153,11 @@ and random ?this mn =
   | Set _ ->
       todo "random for non simple sets"
   | Tup mns ->
-      Array.map std_random mns |>
+      Array.map random mns |>
       Array.to_list |>
       make_tup
   | Rec mns ->
-      Array.map (fun (name, mn) -> name, std_random mn) mns |>
+      Array.map (fun (name, mn) -> name, random mn) mns |>
       Array.to_list |>
       make_rec
   | Sum _mns ->

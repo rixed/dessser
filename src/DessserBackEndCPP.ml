@@ -1091,54 +1091,19 @@ struct
           ppi p.P.def "%s = %s;" res n) ;
         ppi p.P.def "}" ;
         res
-    | E.E4 (ReadWhile, e1, e2, e3, e4) ->
-        let cond = print emit p l e1
-        and reduce = print emit p l e2
-        and accum = print emit p l e3
-        and ptr0 = print emit p l e4 in
-        let res = gen_sym ?name "read_while_res_" in
-        let t3 = E.type_of l e3 in
-        ppi p.P.def "%s %s(%s);" (type_identifier p t3) res accum ;
-        let ptr = gen_sym "read_while_ptr_" in
-        let t4 = E.type_of l e4 in
-        ppi p.P.def "%s %s(%s);" (type_identifier p t4) ptr ptr0 ;
-        ppi p.P.def "while (true) {" ;
-        P.indent_more p (fun () ->
-          ppi p.P.def "if (%s.rem() <= 0) { break; } else {" ptr ;
-          P.indent_more p (fun () ->
-            ppi p.P.def "uint8_t const next_byte_(%s.peekByte(0));" ptr ;
-            ppi p.P.def "if (%s(%s, next_byte_)) {" cond res ;
-            P.indent_more p (fun () ->
-              ppi p.P.def "%s = %s(%s, next_byte_);" res reduce res ;
-              ppi p.P.def "%s = %s.skip(1);" ptr ptr) ;
-            ppi p.P.def "} else break;") ;
-          ppi p.P.def "}") ;
-        ppi p.P.def "}" ;
-        emit ?name p l e (fun oc -> pp oc "%s, %s" res ptr)
-    | E.E3 (LoopWhile, e1, e2, e3) ->
-        let cond = print emit p l e1
-        and body = print emit p l e2
-        and accum = print emit p l e3 in
-        let res = gen_sym ?name "while_res_" in
-        let t3 = E.type_of l e3 in
-        ppi p.P.def "%s %s { %s };" (type_identifier p t3) res accum ;
-        ppi p.P.def "while (%s(%s)) {" cond res ;
-        P.indent_more p (fun () ->
-          ppi p.P.def "%s = %s(%s);" res body res) ;
-        ppi p.P.def "}" ;
-        res
-    | E.E3 (LoopUntil, e1, e2, e3) ->
-        let body = print emit p l e1
-        and cond = print emit p l e2
-        and accum = print emit p l e3 in
-        let res = gen_sym ?name "until_res_" in
-        let t3 = E.type_of l e3 in
-        ppi p.P.def "%s %s { %s };" (type_identifier p t3) res accum ;
+    | E.E2 (While, cond, body) ->
+        let flag = gen_sym ?name "while_flag_" in
+        ppi p.P.def "bool %s { true };" flag ;
         ppi p.P.def "do {" ;
         P.indent_more p (fun () ->
-          ppi p.P.def "%s = %s(%s);" res body res) ;
-        ppi p.P.def "} while (%s(%s));" cond res ;
-        res
+          let cond = print emit p l cond in
+          ppi p.P.def "%s = %s;" flag cond ;
+          ppi p.P.def "if (%s) {" flag ;
+          P.indent_more p (fun () ->
+            print emit p l body |> ignore) ;
+          ppi p.P.def "}") ;
+        ppi p.P.def "} while (%s);" flag ;
+        "VOID"
     | E.E3 (Fold, e1, e2, e3) ->
         let init = print emit p l e1
         and body = print emit p l e2
@@ -1168,19 +1133,6 @@ struct
         and f = print emit p l f
         and lst = print emit p l lst in
         emit ?name p l e (fun oc -> pp oc "%s, %s, %s" init f lst)
-    | E.E4 (Repeat, e1, e2, e3, e4) ->
-        let from = print emit p l e1
-        and to_ = print emit p l e2
-        and body = print emit p l e3
-        and accum = print emit p l e4 in
-        let res = gen_sym ?name "repeat_res_" in
-        let t4 = E.type_of l e4 in
-        ppi p.P.def "%s %s { %s };" (type_identifier p t4) res accum ;
-        ppi p.P.def "for (int32_t idx_ = %s; idx_ < %s; idx_++) {" from to_ ;
-        P.indent_more p (fun () ->
-          ppi p.P.def "%s = %s(idx_, %s);" res body res) ;
-        ppi p.P.def "}" ;
-        res
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->

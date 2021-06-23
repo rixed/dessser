@@ -464,45 +464,47 @@ struct
       (and_ (ge (rem_size p) (size 2))
             (eq (peek_byte p (size 0)) quote_byte))
       (fun l had_quote ->
-        let pos =
+        let init_p =
           if_ had_quote
             ~then_:(skip_byte quote_byte p)
             ~else_:p in
-        (* Read up to next double-quote or separator/newline, depending on
-         * had_quote: *)
-        (* FIXME: handle escaping the separator/newline! *)
-        let cond =
-          if_ had_quote
-            ~then_:(
-              E.func2 ~l T.Size T.Byte (fun _l _s b ->
-                ne b quote_byte))
-            ~else_:(
-              E.func2 ~l T.Size T.Byte (fun l _s b ->
-                not_ (is_sep_or_newline conf l b)))
-        and init = size 0
-        and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
-        let sz_p = read_while ~cond ~reduce ~init ~pos in
-        E.with_sploded_pair ~l "dbytes_quoted1" sz_p (fun _l sz p' ->
-          (* Skip the initial double-quote: *)
-          let bytes_p = read_bytes pos sz in
-          (* Skip the closing double-quote: *)
-          let p' =
-            if_ had_quote
-              ~then_:(skip_byte quote_byte p')
-              ~else_:p' in
-          make_pair (op (first bytes_p)) p'))
+        let_ ~name:"p_ref" ~l (make_ref init_p) (fun l p_ref ->
+          let p = get_ref p_ref in
+          let_ ~name:"sz_ref" ~l (make_ref (size 0)) (fun l sz_ref ->
+            let sz = get_ref sz_ref in
+            seq [
+              while_
+                (E.with_sploded_pair ~l "dbytes_quoted" (read_byte p)
+                                     (fun l b p' ->
+                  seq [
+                    set_ref p_ref p' ;
+                    (* Read up to next double-quote or separator/newline,
+                     * depending on had_quote: *)
+                    (* FIXME: handle escaping the separator/newline! *)
+                    if_ had_quote
+                      ~then_:(ne b quote_byte)
+                      ~else_:(not_ (is_sep_or_newline conf l b)) ]))
+                (set_ref sz_ref (add sz (size 1))) ;
+              (* Skip the initial double-quote: *)
+              let bytes_p = read_bytes init_p sz in
+              make_pair (op (first bytes_p)) p ])))
 
   let dbytes conf op l p =
-    (* Read up to next separator/newline *)
-    let cond =
-      E.func2 ~l T.Size T.Byte (fun l _s b ->
-        not_ (is_sep_or_newline conf l b))
-    and init = size 0
-    and reduce = E.func2 ~l T.Size T.Byte (fun _l s _b -> add s (size 1)) in
-    let sz_p = read_while ~cond ~reduce ~init ~pos:p in
-    E.with_sploded_pair ~l "dbytes" sz_p (fun _l sz p' ->
-      let bytes_p = read_bytes p sz in
-      make_pair (op (first bytes_p)) p')
+    let init_p = p in
+    let_ ~name:"p_ref" ~l (make_ref init_p) (fun l p_ref ->
+      let p = get_ref p_ref in
+      let_ ~name:"sz_ref" ~l (make_ref (size 0)) (fun l sz_ref ->
+        let sz = get_ref sz_ref in
+        seq [
+          while_
+            (E.with_sploded_pair ~l "dbytes" (read_byte p) (fun l b p' ->
+              seq [
+                set_ref p_ref p' ;
+                (* Read up to next double-quote or separator/newline *)
+                not_ (is_sep_or_newline conf l b) ]))
+            (set_ref sz_ref (add sz (size 1))) ;
+          let bytes_p = read_bytes init_p sz in
+          make_pair (op (first bytes_p)) (secnd bytes_p) ]))
 
   let dstring conf _ _ l p =
     (if conf.quote = None then dbytes else dbytes_quoted)

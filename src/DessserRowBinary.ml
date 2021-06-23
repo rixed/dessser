@@ -22,24 +22,24 @@ struct
 
   (* v must be a u32: *)
   let write_leb128 l p v =
-    let t_ptr_sz = T.Pair (E.type_of l p, T.u32) in
-    first (
-      loop_until
-        ~body:(comment "Loop body for write_leb128"
-          (E.func1 ~l t_ptr_sz (fun l p_wlen ->
-            E.with_sploded_pair ~l "write_leb128" p_wlen (fun _l p wlen ->
-              let b =
-                byte_of_u8 (
-                  if_ (gt (u32 (Uint32.of_int 128)) wlen)
-                    ~then_:(bit_and (to_u8 wlen) (u8 (Uint8.of_int 127)))
-                    ~else_:(bit_or (to_u8 wlen) (u8 (Uint8.of_int 128)))) in
-              make_pair
-                (write_byte p b)
-                (right_shift wlen (u8 (Uint8.of_int 7)))))))
-        ~cond:(comment "Condition for write_leb128 (until wlen is 0)"
-          (E.func1 ~l t_ptr_sz (fun _l ptr_sz ->
-            gt (secnd ptr_sz) (u32 Uint32.zero))))
-        ~init:(make_pair p v))
+    let_ ~name:"leb128_sz" ~l (make_ref v) (fun l v_ref ->
+      let_ ~name:"leb128_ptr" ~l (make_ref p) (fun _l p_ref ->
+        let v = get_ref v_ref in
+        seq [
+          while_
+            (comment "Loop body for write_leb128"
+              (let b =
+                if_ (lt v (u32 (Uint32.of_int 128)))
+                  ~then_:(to_u8 v)
+                  ~else_:(bit_or (to_u8 v) (u8_of_int 128)) |>
+                byte_of_u8 in
+              seq [
+                set_ref p_ref (write_byte (get_ref p_ref) b) ;
+                set_ref v_ref (right_shift v (u8_of_int 7)) ;
+                (comment "Condition for write_leb128 (until v is 0)"
+                  (gt v (u32 Uint32.zero))) ]))
+            nop ;
+          get_ref p_ref ]))
 
   let sstring () _ _ l v p =
     let p = write_leb128 l p (string_length v) in
@@ -168,19 +168,16 @@ struct
   let ssize_of_vec _ _ _ _ = size 0
 
   let ssize_of_leb128 l n =
-    let t_u32_u32 = T.Pair (T.u32, T.u32) in
-    size_of_u32 (first (
-      loop_while
-        ~cond:(comment "Condition for ssize_of_leb128"
-          (E.func1 ~l t_u32_u32 (fun l lebsz_n ->
-            E.with_sploded_pair ~l "ssize_of_leb128" lebsz_n (fun _l lebsz n ->
-              let max_len_for_lebsz = left_shift lebsz (u8 (Uint8.of_int 7)) in
-              ge n max_len_for_lebsz))))
-        ~body:(comment "Loop for ssize_of_leb128"
-          (E.func1 ~l t_u32_u32 (fun l lebsz_n ->
-            E.with_sploded_pair ~l "ssize_of_leb128" lebsz_n (fun _l lebsz n ->
-              make_pair (add lebsz (u32 Uint32.one)) n))))
-        ~init:(make_pair (u32 Uint32.one) n)))
+    let_ ~name:"n_ref" ~l (make_ref n) (fun l n_ref ->
+      let_ ~name:"lebsz_ref" ~l (make_ref (u32_of_int 1)) (fun _l lebsz_ref ->
+        seq [
+          while_
+            (comment "Condition for ssize_of_leb128"
+              (let max_len = left_shift (get_ref lebsz_ref) (u8_of_int 7) in
+              ge (get_ref n_ref) max_len))
+            (comment "Loop for ssize_of_leb128"
+              (set_ref lebsz_ref (add (get_ref lebsz_ref) (u32_of_int 1)))) ;
+          size_of_u32 (get_ref lebsz_ref) ]))
 
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
@@ -218,31 +215,24 @@ struct
 
   (* Returns a size and a DataPtr: *)
   let read_leb128 l p =
-    let t_u32_u8 = T.Pair (T.u32, T.u8) in
-    let_ ~l ~name:"leb_shft_ptr"
-      (read_while
-        ~cond:(comment "Condition for read_leb128"
-          (E.func2 ~l t_u32_u8 T.Byte (fun _l _ b ->
-            ge b (byte (Uint8.of_int 128)))))
-        ~reduce:(comment "Reducer for read_leb128"
-          (E.func2 ~l t_u32_u8 T.Byte (fun _l leb_shft b ->
-            let byte = bit_and (u8_of_byte b) (u8 (Uint8.of_int 127)) in
-            let leb = first leb_shft
-            and shft = secnd leb_shft in
-            make_pair (add  (left_shift (to_u32 byte) shft) leb)
-                 (add shft (u8 (Uint8.of_int 7))))))
-        ~init:(make_pair (u32 Uint32.zero) (u8 Uint8.zero))
-        ~pos:p)
-      (* Still have to add the last byte (which is <128): *)
-      (fun l leb_shft_ptr ->
-        comment "Last byte from read_leb128"
-          (E.with_sploded_pair ~l "leb128_1" leb_shft_ptr (fun l leb_shft ptr ->
-            E.with_sploded_pair ~l "leb128_2" (read_byte ptr) (fun _l last_b ptr ->
-              make_pair
-                (size_of_u32 (add (left_shift (to_u32 (u8_of_byte last_b))
-                                              (secnd leb_shft))
-                                  (first leb_shft)))
-                ptr))))
+    let_ ~name:"leb_ref" ~l (make_ref (u32_of_int 0)) (fun l leb_ref ->
+      let leb = get_ref leb_ref in
+      let_ ~name:"shft_ref" ~l (make_ref (u8_of_int 0)) (fun l shft_ref ->
+        let shft = get_ref shft_ref in
+        let_ ~name:"p_ref" ~l (make_ref p) (fun l p_ref ->
+          let p = get_ref p_ref in
+          seq [
+            while_
+              (E.with_sploded_pair ~l "leb128" (read_byte p) (fun _l b p' ->
+                let b' = bit_and (u8_of_byte b) (u8_of_int 127) in
+                seq [
+                  set_ref p_ref p' ;
+                  set_ref leb_ref (bit_or (left_shift (to_u32 b') shft) leb) ;
+                  set_ref shft_ref (add shft (u8_of_int 7)) ;
+                  (comment "Condition for read_leb128"
+                    (ge b (byte_of_int 128))) ]))
+              nop ;
+            make_pair (size_of_u32 leb) p ])))
 
   (* Given a list of fields * typ, generate a function that takes a pointer and
    * a size, and deserialize a RowBinary tuple into a non-nullable value of

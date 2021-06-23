@@ -10,6 +10,7 @@ open Dessser
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
+module StdLib = DessserStdLib
 open E.Ops
 
 module type MATERIALIZE =
@@ -57,59 +58,54 @@ struct
 
   and dslist of_slist mn dstate mn0 path l src =
     let init_t = T.Data mn in
-    let init_list_t = T.SList init_t in
-    let inits_src_t =
-      T.Pair (init_list_t, Des.ptr mn0) in
     match Des.list_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
         let inits_src =
-          E.with_sploded_pair ~l "dlist1" dim_src (fun l dim src ->
-            repeat ~from:(i32 0l) ~to_:(to_i32 dim)
+          E.with_sploded_pair ~l "dslist1" dim_src (fun l dim src ->
+            StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim)
               ~body:
-                (E.func2 ~l T.i32 inits_src_t (fun l n inits_src ->
-                  E.with_sploded_pair ~l "dlist2" inits_src (fun l inits src ->
+                (fun l n inits_src ->
+                  E.with_sploded_pair ~l "dslist2" inits_src (fun l inits src ->
                     let src =
                       if_ (eq n (i32 0l))
                         ~then_:src
                         ~else_:(Des.list_sep dstate mn0 path l src) in
                     let subpath = Path.(append (RunTime n) path) in
                     let v_src = make1 dstate mn0 subpath mn l src in
-                    E.with_sploded_pair ~l "dlist3" v_src (fun _l v src ->
-                      make_pair (cons v inits) src))))
+                    E.with_sploded_pair ~l "dslist3" v_src (fun _l v src ->
+                      make_pair (cons v inits) src)))
               ~init:(make_pair (end_of_list init_t) src)) in
-        E.with_sploded_pair ~l "dlist4" inits_src (fun l inits src ->
+        E.with_sploded_pair ~l "dslist4" inits_src (fun l inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path l src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
-        let n_inits_src_t = T.Pair (T.u32, inits_src_t) in
         let src = list_opn mn0 path mn l src in
-        let n_inits_src =
-          loop_while
-            ~cond:
-              (E.func1 ~l n_inits_src_t (fun l n_inits_src ->
-                let src = secnd (secnd n_inits_src) in
-                not_ (is_end_of_list mn0 path l src)))
-            ~body:
-              (E.func1 ~l n_inits_src_t (fun l n_inits_src ->
-                E.with_sploded_pair ~l "dlist5" n_inits_src (fun l n inits_src ->
-                  E.with_sploded_pair ~l "dlist6" inits_src (fun l inits src ->
-                    let subpath = Path.(append (RunTime n) path) in
-                    let src =
-                      if_ (eq n (u32_of_int 0))
-                        ~then_:src
-                        ~else_:(Des.list_sep dstate mn0 subpath l src) in
-                    let v_src = make1 dstate mn0 subpath mn l src in
-                    let inits_src =
-                      E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
-                        make_pair (cons v inits) src) in
-                    make_pair (add n (u32_of_int 1)) inits_src))))
-            ~init:(make_pair (u32_of_int 0) (make_pair (end_of_list init_t) src)) in
-        E.with_sploded_pair ~l "dlist9" (secnd n_inits_src) (fun l inits src ->
-          let v = of_slist inits
-          and src = Des.list_cls dstate mn0 path l src in
-          make_pair v src)
+        let_ ~name:"inits_ref" ~l (make_ref (end_of_list init_t)) (fun l inits_ref ->
+          let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
+            let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
+              seq [
+                while_ (not_ (is_end_of_list mn0 path l (get_ref src_ref))) (
+                  let src = get_ref src_ref
+                  and n = get_ref n_ref
+                  and inits = get_ref inits_ref in
+                  let subpath = Path.(append (RunTime n) path) in
+                  let src =
+                    if_ (eq n (u32_of_int 0))
+                      ~then_:src
+                      ~else_:(Des.list_sep dstate mn0 subpath l src) in
+                  let v_src = make1 dstate mn0 subpath mn l src in
+                  E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
+                    seq [
+                      set_ref inits_ref (cons v inits) ;
+                      set_ref src_ref src ;
+                      set_ref n_ref (add n (u32_of_int 1)) ])) ;
+                (
+                  let v = of_slist (get_ref inits_ref)
+                  and src = Des.list_cls dstate mn0 path l (get_ref src_ref) in
+                  make_pair v src
+                ) ])))
 
   and dtup mns dstate mn0 path l src =
     let src = Des.tup_opn dstate mn0 path mns l src in
@@ -464,16 +460,15 @@ struct
       Ser.ssize_of_list mn0 path l v |> add sz in
     let len = cardinality v in
     let init = make_pair sz v in
-    let init_t = E.type_of l init in
-    repeat ~from:(i32 0l) ~to_:(to_i32 len) ~init
+    StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) ~init
       ~body:
-        (E.func2 ~l T.i32 init_t (fun l n init ->
+        (fun l n init ->
           let sz = first init
           and v = secnd init in
           let v' = nth n v in
           let subpath = Path.(append (RunTime n) path) in
           let sz = sersz1 mn mn0 subpath l v' copy_field sz in
-          make_pair sz v)) |>
+          make_pair sz v) |>
     first
 
   and sstup mns ma mn0 path l v sz =
