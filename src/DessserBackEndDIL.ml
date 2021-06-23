@@ -11,8 +11,7 @@ let id = T.DIL
 (* The only place where we need explicit types in DIL are in strings for instance
  * in the null or list expressions. There, types are expressed in the syntax
  * printed/parsed by DessserTypes: *)
-let type_identifier _p ?friendly_name t =
-  ignore friendly_name ;
+let type_identifier _p t =
   Printf.sprintf2 "%a" T.print t |>
   String.quote
 
@@ -24,9 +23,6 @@ let print_definitions oc compunit =
       name
       (E.pretty_print ?max_depth:None) expr) ;
     Format.flush_str_formatter () |> String.print oc)
-
-let print_external_type oc name =
-  Printf.fprintf oc "%S" ("$" ^ name)
 
 let print_declarations _oc _compunit =
   (* TODO: a header with all those types? *)

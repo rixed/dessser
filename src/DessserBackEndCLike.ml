@@ -48,10 +48,10 @@ sig
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
 
-  val type_identifier : P.t -> ?friendly_name:string -> T.t -> string
+  val type_identifier : P.t -> T.t -> string
 
   val print_binding :
-    string -> string -> (string IO.output -> unit) -> string IO.output -> unit
+    P.t -> T.t -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_inline :
     P.t -> T.t -> (string IO.output -> unit) -> string IO.output -> unit
@@ -63,8 +63,6 @@ sig
     string -> P.t -> E.env -> E.t -> unit
 
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
-
-  val print_external_type : 'a BatInnerIO.output -> string -> unit
 
   val print : ?name:string -> emitter -> P.t -> E.env -> E.t -> string
 
@@ -78,7 +76,6 @@ module Make (C : CONFIG) : BACKEND =
 struct
   let id = C.id
   let print_comment = C.print_comment
-  let print_external_type = C.print_external_type
   let preferred_def_extension = C.preferred_def_extension
   let preferred_decl_extension = C.preferred_decl_extension
   let preferred_comp_extension = C.preferred_comp_extension
@@ -169,8 +166,7 @@ struct
         match name with
         | Some n -> n
         | None -> U.gen_sym "id_" |> valid_identifier in
-      let tn = C.type_identifier p t in
-      pp p.def "%s%t\n" p.indent (C.print_binding n tn f) ;
+      pp p.def "%s%t\n" p.indent (C.print_binding p t n f) ;
       n
     )
 

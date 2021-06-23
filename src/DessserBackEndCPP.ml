@@ -44,9 +44,6 @@ struct
 
   let tuple_field_name i = "field_"^ string_of_int i
 
-  let print_external_type oc name =
-    pp oc "dessser_gen::%s" (valid_identifier name)
-
   let is_mutable t =
     match T.develop_user_types t with
     | T.Bytes
@@ -64,19 +61,12 @@ struct
     | _ ->
         false
 
-  let append_friendly_names n1 n2 =
-    if n2 = "" then n1 else
-    if n1 = None || n1 = Some "" then Some n2 else
-    Some (Option.get n1 ^"_"^ n2)
-
-  let rec print_struct p ?friendly_name oc id mns =
-    ignore friendly_name ; (* TODO *)
+  let rec print_struct p oc id mns =
     let id = valid_identifier id in
     pp oc "%sstruct %s {\n" p.P.indent id ;
     P.indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
-        let friendly_name = append_friendly_names friendly_name field_name in
-        let typ_id = type_identifier p ?friendly_name (T.Data vt) in
+        let typ_id = type_identifier p (T.Data vt) in
         pp oc "%s%s %s;\n" p.P.indent typ_id (valid_identifier field_name)
       ) mns ;
       if cpp_std_version >= 20 then
@@ -94,22 +84,20 @@ struct
       )) ;
     pp oc "%s};\n\n" p.P.indent
 
-  and print_variant p ?friendly_name oc id mns =
-    ignore friendly_name ; (* TODO *)
+  and print_variant p oc id mns =
     let id = valid_identifier id in
     pp oc "%stypedef std::variant<\n" p.P.indent ;
     P.indent_more p (fun () ->
-      Array.iteri (fun i (n, mn) ->
-        let friendly_name = append_friendly_names friendly_name n in
-        let typ_id = type_identifier p ?friendly_name (T.Data mn) in
+      Array.iteri (fun i (_, mn) ->
+        let typ_id = type_identifier p (T.Data mn) in
         pp oc "%s%s%s\n"
           p.P.indent typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
     ) ;
     pp oc "%s> %s;\n\n" p.P.indent id
 
-  and value_type_identifier p ?friendly_name mn0 mn =
-    let value_type_identifier = value_type_identifier p ?friendly_name mn0 in
+  and value_type_identifier p mn0 mn =
+    let value_type_identifier = value_type_identifier p mn0 in
     match mn with
     | T.{ vtyp ; nullable = true } ->
         "std::optional<"^
@@ -148,17 +136,17 @@ struct
         let t = T.Data mn in
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         P.declared_type p t (fun oc type_id ->
-          print_struct p ?friendly_name oc type_id mns) |>
+          print_struct p oc type_id mns) |>
         valid_identifier
     | { vtyp = Rec mns ; _ } as mn ->
         let t = T.Data mn in
         P.declared_type p t (fun oc type_id ->
-          print_struct p ?friendly_name oc type_id mns) |>
+          print_struct p oc type_id mns) |>
         valid_identifier
     | { vtyp = Sum mns ; _ } as mn ->
         let t = T.Data mn in
         P.declared_type p t (fun oc type_id ->
-          print_variant p ?friendly_name oc type_id mns) |>
+          print_variant p oc type_id mns) |>
         valid_identifier
     | { vtyp = Vec (dim, mn) ; _ } ->
         Printf.sprintf "Vec<%d, %s>" dim (value_type_identifier mn)
@@ -181,11 +169,11 @@ struct
     | { vtyp = Map _ ; _ } ->
         assert false (* No value of map type *)
 
-  and type_identifier p ?friendly_name mn =
-    let type_identifier = type_identifier p ?friendly_name in
+  and type_identifier p mn =
+    let type_identifier = type_identifier p in
     match mn with
     | T.Data mn ->
-        value_type_identifier p ?friendly_name mn mn
+        value_type_identifier p mn mn
     | T.Pair (t1, t2) ->
         "Pair<"^ type_identifier t1 ^", "^ type_identifier t2 ^">"
     | T.SList t1 ->
@@ -217,8 +205,9 @@ struct
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
 
-  let print_binding n tn f oc =
-    if tn = "Void" then (
+  let print_binding p t n f oc =
+    let tn = type_identifier p t in
+    if T.eq t T.Void then (
       pp oc "%s %s { (%t, VOID) };" tn n f
     ) else (
       (* Beware that this must not be parsed as a function declaration. Thus
@@ -1059,14 +1048,17 @@ struct
         ppi p.P.def "}" ;
         res
     | E.E1 (Function (fid, ts), e1) ->
-        emit ?name p l e (fun oc ->
+        (* Pick the name here so we can add it to the environment, where it
+         * can later be found by Myself: *)
+        let name = gen_sym ?name ("fun_"^ string_of_int fid) in
+        emit ?name:(Some name) p l e (fun oc ->
           array_print_i ~first:"[](" ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier p t)
               (if is_mutable t then "&" else "")
               (param fid i))
             oc ts ;
-          let l = E.enter_function fid ts l in
+          let l = E.enter_function ~name fid ts l in
           P.indent_more p (fun () ->
             let n = print emit p l e1 in
             print_return n p) ;
@@ -1075,7 +1067,9 @@ struct
     | E.E0 (Param (fid, n)) ->
         param fid n
     | E.E0 (Myself _) ->
-        todo "C++ for Myself"
+        (match l.E.name with
+        | None -> invalid_arg "print Myself while function name is unknown"
+        | Some n -> n)
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
         let res = gen_sym ?name "choose_res_" in

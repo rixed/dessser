@@ -1690,9 +1690,12 @@ let of_string s =
 (* Global and local environment. Variables of that type are usually called "l".
  * Notice that since there are no closures, the local environment is emptied
  * at function entry. *)
-type env = { global : (t * T.t) list ; local : (t * T.t) list }
+type env =
+  { global : (t * T.t) list ;
+    local : (t * T.t) list ;
+    name : string option }
 
-let no_env = { global = [] ; local = [] }
+let no_env = { global = [] ; local = [] ; name = None }
 
 exception Type_error of t * t * T.t * string
 exception Type_error_param of t * t * int * T.t * string
@@ -1709,10 +1712,11 @@ let field_name_of_expr = function
   | E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
-let enter_function fid ts l =
+let enter_function ?name fid ts l =
   { l with local = Array.fold_lefti (fun l i t ->
                      (E0 (Param (fid, i)), t) :: l
-                   ) [] ts }
+                   ) [] ts ;
+           name }
 
 let defined n l =
   let def =

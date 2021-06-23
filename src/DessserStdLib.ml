@@ -68,8 +68,7 @@ let rec random_slist mn =
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
-and random ?this mn =
-  let this = this |? mn in
+and random mn =
   if mn.T.nullable then
     if_ (random T.(required (Base Bool)))
       ~then_:(null mn.vtyp)
@@ -78,7 +77,7 @@ and random ?this mn =
   | T.Unknown ->
       invalid_arg "random for unknown type"
   | This ->
-      random this
+      random T.(required !this)
   | Base Unit ->
       unit
   | Base Float ->

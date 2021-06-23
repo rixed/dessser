@@ -43,8 +43,9 @@ let ser_of_encoding = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
-        type_name optim () =
+        optim () =
   debug := dbg ;
+  T.this := schema.T.vtyp ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -76,17 +77,26 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
     E.type_check E.no_env sersize ;
     E.type_check E.no_env ser) ;
   let compunit = U.make () in
-  (* Christen the schema type with the user provided name: *)
-  let type_name = type_name |? "t" in
+  (* Christen the schema type the global type name "t" *)
+  let type_name = "t" in
   let compunit = U.name_type compunit schema.T.vtyp type_name in
   (* Then declare all referenced external types as if we had the same methods
    * than those we are generating for this type: *)
   let compunit =
     T.fold_maybe_nullable compunit (fun compunit -> function
       | T.Ext name ->
-          U.register_external_type compunit name (fun _p backend_id ->
-            assert (backend_id = BE.id) ;
-            IO.to_string BE.print_external_type name)
+          let is_myself = name = "this" in
+          U.register_external_type compunit name (fun _p -> function
+            | T.DIL ->
+                Printf.sprintf "%S" ("$" ^ name)
+            | OCaml ->
+                if is_myself then
+                  type_name
+                else
+                  let m = DessserBackEndOCaml.valid_module_name name in
+                  m ^".DessserGen.t"
+            | Cpp ->
+                "*"^ DessserBackEndCPP.valid_identifier name)
       | _ ->
           compunit
     ) schema in
@@ -117,6 +127,7 @@ let converter
       dbg schema backend encoding_in encoding_out _fieldmask
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
+  T.this := schema.T.vtyp ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -160,6 +171,8 @@ let lmdb main
       dbg key_schema val_schema backend encoding_in encoding_out dest_fname
       dev_mode optim () =
   debug := dbg ;
+  (* FIXME: this in key_schema should refer to key_schema *)
+  T.this := val_schema.T.vtyp ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -216,6 +229,7 @@ let aggregator
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
   debug := dbg ;
+  T.this := schema.T.vtyp ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -335,11 +349,6 @@ let key_schema =
   let doc = "file or inline schema for keys" in
   let i = Arg.info ~doc [ "key-schema" ] in
   Arg.(opt (some maybe_nullable) None i)
-
-let type_name =
-  let doc = "name for the schema" in
-  let i = Arg.info ~doc [ "type-name" ; "name" ] in
-  Arg.(opt (some string) None i)
 
 let docv_of_enum l =
   IO.to_string (
@@ -500,7 +509,6 @@ let lib_cmd =
      $ Arg.value encoding_out
      $ Arg.value comptime_fieldmask
      $ Arg.required dest_fname
-     $ Arg.value type_name
      $ Arg.value optim),
     info "lib" ~doc)
 

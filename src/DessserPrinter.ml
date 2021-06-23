@@ -48,6 +48,7 @@ let indent_more p f =
 
 let type_id p = function
   | T.Data { vtyp ; _ } as t ->
+      let vtyp = T.shrink_value_type vtyp in
       (try List.assoc vtyp p.type_names
       with Not_found -> T.uniq_id t)
   | t ->

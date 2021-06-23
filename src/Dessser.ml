@@ -533,11 +533,10 @@ sig
   val print_definitions : (U.t, 'b) IO.printer
   val print_declarations : (U.t, 'b) IO.printer
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
-  val print_external_type : 'a BatInnerIO.output -> string -> unit
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
-  val type_identifier : Printer.t -> ?friendly_name:string -> T.t -> string
+  val type_identifier : Printer.t -> T.t -> string
 end

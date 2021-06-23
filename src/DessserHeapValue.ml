@@ -286,24 +286,21 @@ struct
   and slist_or_set mn sstate mn0 path l v dst =
     let len = cardinality v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
-    let dst_n =
-      fold ~list:v
-        ~init:(make_pair dst (i32 0l))
-        ~body:
-          (E.func2 ~l T.(Pair (Ser.ptr mn0, T.i32))
-                   (T.Data mn)
-                   (fun l dst_n x ->
-            E.with_sploded_pair ~l "dst_n" dst_n (fun l dst n ->
-              let subpath = Path.(append (RunTime n) path) in
-              let_ ~name:"slist_dst" ~l (
-                if_ (gt n (i32 0l))
-                    ~then_:(Ser.list_sep sstate mn0 subpath l dst)
-                    ~else_:dst)
-                (fun l dst ->
-                  make_pair
-                    (ser1 sstate mn0 subpath mn l x copy_field dst)
-                    (add (i32 1l) n))))) in
-    Ser.list_cls sstate mn0 path l (first dst_n)
+    let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
+      let dst = get_ref dst_ref in
+      let_ ~name:"n_ref" ~l (make_ref (i32 0l)) (fun l n_ref ->
+        let n = get_ref n_ref in
+        seq [
+          for_each  ~name:"x" ~l v (fun l x ->
+            let subpath = Path.(append (RunTime n) path) in
+            let dst =
+              if_ (gt n (i32 0l))
+                ~then_:(Ser.list_sep sstate mn0 subpath l dst)
+                ~else_:dst in
+            seq [
+              set_ref dst_ref (ser1 sstate mn0 subpath mn l x copy_field dst) ;
+              set_ref n_ref (add (i32 1l) n) ]) ;
+          Ser.list_cls sstate mn0 path l dst ]))
 
   and stup mns ma sstate mn0 path l v dst =
     let dst = Ser.tup_opn sstate mn0 path mns l dst in

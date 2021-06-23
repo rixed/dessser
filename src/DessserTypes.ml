@@ -130,6 +130,9 @@ type t =
   (* Makes t mutable: *)
   | Ref of t
 
+(* dessserc will set this to the global schema: *)
+let this = ref Unknown
+
 (*
  * Comparators
  *)
@@ -145,20 +148,15 @@ let sorted_rec fields =
 
 let base_type_eq mt1 mt2 = mt1 = mt2
 
-(* Note regarding the [This] type:
- * At the top level, This equals anything.
- * Everywhere else, This equals only this. *)
-let rec value_eq ?(top_level=true) ?(opaque_user_type=false) vt1 vt2 =
-  let value_eq = value_eq ~top_level:false
-  and maybe_nullable_eq = maybe_nullable_eq ~top_level:false in
+let rec value_eq ?(opaque_user_type=false) vt1 vt2 =
   match vt1, vt2 with
-  | Base mt1, Base mt2 ->
-      base_type_eq mt1 mt2
   | This, This ->
       true
-  | This, _
-  | _, This ->
-      top_level
+  | This, vt
+  | vt, This ->
+      value_eq vt !this
+  | Base mt1, Base mt2 ->
+      base_type_eq mt1 mt2
   | Usr ut1, Usr ut2 ->
       ut1.name = ut2.name
   | Ext n1, Ext n2 ->
@@ -194,8 +192,8 @@ let rec value_eq ?(top_level=true) ?(opaque_user_type=false) vt1 vt2 =
   value_eq (get_user_type "Eth") (get_user_type "Eth")
 *)
 
-and maybe_nullable_eq ?top_level mn1 mn2 =
-  mn1.nullable = mn2.nullable && value_eq ?top_level mn1.vtyp mn2.vtyp
+and maybe_nullable_eq mn1 mn2 =
+  mn1.nullable = mn2.nullable && value_eq mn1.vtyp mn2.vtyp
 
 let rec eq t1 t2 =
   match t1, t2 with
@@ -218,17 +216,6 @@ let rec eq t1 t2 =
      (Data (required (get_user_type "Eth"))) ;
   eq (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit)) \
      (Function ([| Data (required (get_user_type "Eth")) ; Size |], unit))
-  eq (Data (required This)) \
-     (Data (required (Rec [| "foo", required (Base U8) ; \
-                             "bar", optional This |])))
-  not (eq (Data (required (Rec [| "foo", required (Base U8) ; \
-                                  "bar", optional (Base U8) |]))) \
-          (Data (required (Rec [| "foo", required (Base U8) ; \
-                                  "bar", optional This |]))))
-  not (eq (Data (required (Rec [| "foo", optional This ; \
-                                  "bar", optional (Base U8) |]))) \
-          (Data (required (Rec [| "foo", optional (Base U8) ; \
-                                  "bar", optional This |]))))
 *)
 
 (*
@@ -1025,8 +1012,36 @@ let rec depth ?(opaque_user_type=true) = function
           "iajv", optional (Base I128) |])))))))
 *)
 
+(* We need types featuring `this`, that can come with various degree of
+ * unfolding, to all look equal.
+ * We cannot "expand" This, because that would just make more This appear.
+ * But there exist a form where the type is folded as much as possible: *)
+let shrink_value_type vtyp =
+  if !this = Unknown || !this = This then vtyp else
+  let rec do_mn mn =
+    { mn with vtyp = do_vt mn.vtyp }
+  and do_vt vt =
+    if value_eq vt !this then This else
+    match vt with
+    | Unknown | This | Base _ | Ext _ -> vt
+    | Usr { def ; _ } -> do_vt def
+    | Vec (d, mn) -> Vec (d, do_mn mn)
+    | Lst mn -> Lst (do_mn mn)
+    | Set (st, mn) -> Set (st, do_mn mn)
+    | Tup mns -> Tup (Array.map do_mn mns)
+    | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+    | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+    | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
+  in
+  do_vt vtyp
+
+let shrink = function
+  | Data { vtyp ; nullable } -> Data { vtyp = shrink_value_type vtyp ; nullable }
+  | t -> t
+
 let uniq_id t =
-  develop_user_types_rec t |>
+  shrink t |>
+  develop_user_types_rec |>
   IO.to_string print_sorted |>
   Digest.string |>
   Digest.to_hex

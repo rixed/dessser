@@ -38,6 +38,7 @@ let make () =
     type_names = [] }
 
 let name_type compunit vtyp name =
+  let vtyp = T.shrink_value_type vtyp in
   match List.assoc vtyp compunit.type_names with
   | exception Not_found ->
       { compunit with type_names = (vtyp, name) :: compunit.type_names }
@@ -67,7 +68,7 @@ let environment compunit =
       if verb.name = "" then g else
         (E.Ops.identifier verb.name, verb.typ) :: g
     ) g compunit.verbatim_definitions in
-  E.{ global = g ; local = [] }
+  E.{ global = g ; local = [] ; name = None }
 
 let add_external_identifier compunit name typ =
   { compunit with external_identifiers =
