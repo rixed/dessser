@@ -1110,6 +1110,14 @@ let rec peval l e =
       | While, E0 (Bool false), _ ->
           replace_final_expression_anonymously e2 nop |>
           replace_final_expression_anonymously e1
+      | ForEach _, (E0S ((MakeVec | MakeLst _), []) |
+                    E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
+                         HashTable _ | Heap), _) |
+                    E3 (Top _, _, _, _)), _ ->
+          replace_final_expression_anonymously e1 nop
+      | ForEach (n, t), E0S ((MakeVec | MakeLst _), [ item ]), body ->
+          E2 (Let (n, t), replace_final_expression e1 item,
+                          replace_final_expression e2 body)
       | op, _, _ -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
       let e1 = p e1
@@ -1136,8 +1144,6 @@ let rec peval l e =
              not (E.has_side_effect e3) ->
           (* Then we ever need to execute one of the alternative: *)
           e2
-      | Fold, _, _, E0S ((MakeVec | MakeLst _), [ e ]) ->
-          apply e2 [ repl3 e ; e1 ] |> p
       | Map, _, f, lst ->
           (match lst with
           | E0S (MakeVec, [ e ]) ->

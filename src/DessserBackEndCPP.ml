@@ -1104,30 +1104,27 @@ struct
           ppi p.P.def "}") ;
         ppi p.P.def "} while (%s);" flag ;
         "VOID"
-    | E.E3 (Fold, e1, e2, e3) ->
-        let init = print emit p l e1
-        and body = print emit p l e2
-        and lst = print emit p l e3
-        and res = gen_sym ?name "fold_res_"
-        and item_t = E.get_item_type ~lst:true ~vec:true ~set:true e l e3
-        and t1 = E.type_of l e1 in
-        let item_tn = type_identifier p (T.Data item_t) in
-        ppi p.P.def "%s %s { %s };" (type_identifier p t1) res init ;
+    | E.E2 (ForEach (n, t), lst, body) ->
+        let n1 = valid_identifier n in
+        let lst_t = E.type_of l lst |> T.develop_user_types in
+        let lst = print emit p l lst in
+        let item_tn = type_identifier p t in
         let is_set =
-          match E.type_of l e3 |> T.develop_user_types with
+          match lst_t with
           | T.Data { vtyp = Set _ ; _ } -> true
           | _ -> false in
         if is_set then
-          ppi p.P.def "%s->iter([&%s, &%s](%s &x_) {" lst res body item_tn
+          ppi p.P.def "%s->iter([&](%s &%s) {" lst item_tn n1
         else
-          ppi p.P.def "for (%s x_ : %s) {" item_tn lst ;
+          ppi p.P.def "for (%s %s : %s) {" item_tn n1 lst ;
         P.indent_more p (fun () ->
-          ppi p.P.def "%s = %s(%s, x_);" res body res) ;
+          let l = E.add_local n t l in
+          print emit p l body |> ignore) ;
         if is_set then
           ppi p.P.def "});"
         else
           ppi p.P.def "}" ;
-        res
+        "VOID"
     | E.E3 (Map, init, f, lst) ->
         let init = print emit p l init
         and f = print emit p l f

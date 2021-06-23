@@ -1371,22 +1371,31 @@ struct
           ppi p.P.def "%s" body) ;
         ppi p.P.def "done ;" ;
         "()"
-    | E.E3 (Fold, e1, e2, e3) ->
-        let init = print emit p l e1
-        and body = print emit p l e2
-        and lst = print emit p l e3 in
-        (match E.type_of l e3 |> T.develop_user_types with
+    | E.E2 (ForEach (n, t), lst, body) ->
+        let n1 = valid_identifier n in
+        let lst_t = E.type_of l lst |> T.develop_user_types in
+        let lst = print emit p l lst in
+        (match lst_t with
         | Data { vtyp = (Vec _ | Lst _) ; _ } ->
-            (* Both lists and vectors are represented by arrays so
-             * Array.fold_left will do in both cases: *)
-            emit ?name p l e (fun oc ->
-              pp oc "Array.fold_left %s %s %s" body init lst)
+            (* Both lists and vectors are represented as arrays *)
+            ppi p.P.def "for i_ = 0 to Array.length (%s) - 1 do" lst ;
+            P.indent_more p (fun () ->
+              ppi p.P.def "let %s = %s.(i_) in" n1 lst ;
+              let l = E.add_local n t l in
+              let body = print emit p l body in
+              ppi p.P.def "%s" body) ;
+            ppi p.P.def "done ;"
         | Data { vtyp = Set (st, _) ; _ } ->
             let m = mod_of_set_type st in
-            emit ?name p l e (fun oc ->
-              pp oc "%s.fold %s %s %s" m lst init body)
+            ppi p.P.def "%s.fold %s () (fun () %s ->" m lst n1 ;
+            P.indent_more p (fun () ->
+              let l = E.add_local n t l in
+              let body = print emit p l body in
+              ppi p.P.def "%s" body) ;
+            ppi p.P.def ") ;"
         | _ ->
-            assert false (* Because type checking *))
+            assert false (* Because type checking *)) ;
+        "()"
     | E.E3 (Map, init, f, lst) ->
         let lst_t = E.type_of l lst in
         let init = print emit p l init

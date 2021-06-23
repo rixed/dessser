@@ -413,6 +413,7 @@ type e2 =
   | Strftime
   | DataPtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
+  | ForEach of (string * T.t) (* list/vector/set * body *)
   | SetRef (* ref * value *)
 
 type e3 =
@@ -422,7 +423,6 @@ type e3 =
   | SetVec
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
-  | Fold (* args are: init, (res -> item -> res), list/vector/set *)
   | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
@@ -546,7 +546,7 @@ let rec can_precompute f i = function
   | E2 (_, e1, e2) ->
       can_precompute f i e1 &&
       can_precompute f i e2
-  | E3 ((Fold | Top _), _, _, _) ->
+  | E3 (Top _, _, _, _) ->
       false (* TODO *)
   | E3 (_, e1, e2, e3) ->
       can_precompute f i e1 &&
@@ -997,6 +997,8 @@ let string_of_e2 = function
   | Strftime -> "strftime"
   | DataPtrOfAddress -> "data-ptr-of-address"
   | While -> "while"
+  | ForEach (n, t) ->
+      "for-each "^ String.quote n ^" "^ String.quote (T.to_string t)
   | SetRef -> "set-ref"
 
 let string_of_e3 = function
@@ -1004,7 +1006,6 @@ let string_of_e3 = function
   | SetVec -> "set-vec"
   | BlitByte -> "blit-byte"
   | If -> "if"
-  | Fold -> "fold"
   | Map -> "map"
   | DataPtrOfPtr -> "data-ptr-of-ptr"
   | FindSubstring -> "find-substring"
@@ -1629,6 +1630,9 @@ struct
         E2 (DataPtrOfAddress, e x1, e x2)
     | Lst [ Sym "while" ; x1 ; x2 ] ->
         E2 (While, e x1, e x2)
+    | Lst [ Sym "for-each" ; Str n ; Str t ; x1 ; x2 ] ->
+        let t = T.Parser.of_string t in
+        E2 (ForEach (n, t), e x1, e x2)
     | Lst [ Sym "set-ref" ; x1 ; x2 ] ->
         E2 (SetRef, e x1, e x2)
     (* e3 *)
@@ -1636,7 +1640,6 @@ struct
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
-    | Lst [ Sym "fold" ; x1 ; x2 ; x3 ] -> E3 (Fold, e x1, e x2, e x3)
     | Lst [ Sym "map" ; x1 ; x2 ; x3 ] -> E3 (Map, e x1, e x2, e x3)
     | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
         E3 (DataPtrOfPtr, e x1, e x2, e x3)
@@ -2076,6 +2079,7 @@ and type_of l e0 =
   | E1 (DataPtrOfBuffer, _) -> T.DataPtr
   | E2 (DataPtrOfAddress, _, _) -> T.DataPtr
   | E2 (While, _, _) -> T.Void
+  | E2 (ForEach _, _, _) -> T.Void
   | E2 (SetRef, _, _) -> T.Void
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
@@ -2151,8 +2155,6 @@ and type_of l e0 =
         raise (Unbound_parameter (e0, p, l)))
   | E3 (If, _, e1, e2) ->
       either e1 e2
-  | E3 (Fold, e, _, _) ->
-      type_of l e
   | E3 (Map, _, f, set) ->
       (match type_of l f |> T.develop_user_types with
       | Function (_, ot) as f_t ->
@@ -2383,6 +2385,9 @@ let rec fold_env u l f e =
       let l' = add_local n1 t1 l |>
                add_local n2 t2 in
       fold_env (fold_env u l f e1) l' f e2
+  | E2 (ForEach(n, t), e1, e2) ->
+      let l' = add_local n t l in
+      fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
   | E3 (_, e1, e2, e3) ->
@@ -2460,6 +2465,11 @@ let rec map_env l f e =
               add_local n2 t2 in
       let e2 = map_env l f e2 in
       f l (E2 (LetPair (n1, t1, n2, t2), e1, e2))
+  | E2 (ForEach (n, t), e1, e2) ->
+      let e1 = map_env l f e1 in
+      let l = add_local n t l in
+      let e2 = map_env l f e2 in
+      f l (E2 (ForEach (n, t), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
@@ -2511,8 +2521,8 @@ let can_duplicate e =
       | E3 (Top _, _, _, _)
       (* Expensive: *)
       | E1 ((ListOfSList | ListOfSListRev | SetOfSList | ListOfVec | ListOfSet), _)
-      | E2 (While, _, _)
-      | E3 ((Fold | FindSubstring | Substring), _, _, _) ->
+      | E2 ((While | ForEach _), _, _)
+      | E3 ((FindSubstring | Substring), _, _, _) ->
           raise Exit
       | _ -> ()
     ) e ;
@@ -2582,10 +2592,6 @@ let rec type_check l e =
       let t = type_of l e |> T.develop_user_types in
       if not (is_unsigned t) then
         raise (Type_error (e0, e, t, "be an unsigned integer")) in
-    let check_param fe n act exp =
-      if not (T.eq act exp) then
-        let expected = T.to_string act in
-        raise (Type_error_param (e0, fe, n, act, "be a "^ expected)) in
     let check_eq l e exp =
       let act = type_of l e in
       if not (T.eq act exp) then
@@ -2629,14 +2635,6 @@ let rec type_check l e =
       match type_of l e |> T.develop_user_types with
       | Pair _ -> ()
       | t -> raise (Type_error (e0, e, t, "be a pair")) in
-    let bad_arity expected e t =
-      let s = Printf.sprintf "be a function of %d parameter(s)" expected in
-      raise (Type_error (e0, e, t, s)) in
-    let check_params2 l e f =
-      match type_of l e |> T.develop_user_types with
-      | Function ([|t1; t2|], ret) -> f t1 t2 ret
-      | Function _ as t -> bad_arity 2 e t
-      | t -> raise (Type_error (e0, e, t, "be a function")) in
     let check_slist_of_maybe_nullable l e =
       match type_of l e |> T.develop_user_types with
       | SList (Data _) -> ()
@@ -2813,6 +2811,9 @@ let rec type_check l e =
     | E2 (While, cond, body) ->
         check_eq l cond T.bool ;
         check_eq l body T.Void
+    | E2 (ForEach _, lst, body) ->
+        check_list_or_vector_or_set l lst ;
+        check_eq l body T.Void
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
@@ -2962,15 +2963,6 @@ let rec type_check l e =
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
-    | E3 (Fold, init, body, lst) ->
-        (* Fold function first parameter is the result and second is the list
-         * item *)
-        let item_t =
-          T.Data (get_item_type ~lst:true ~vec:true ~set:true e0 l lst) in
-        check_params2 l body (fun p1 p2 ret ->
-          check_eq l init p1 ;
-          check_eq l init ret ;
-          check_param body 1 p2 item_t)
     | E1 (MaskGet _, e1) ->
         check_eq l e1 T.Mask
     | E1 (LabelOf, e1) ->
@@ -3202,6 +3194,17 @@ let let_pair ?n1 ?n2 ~l value f =
           add_local n2 t2 in
   let id n = E0 (Identifier n) in
   E2 (LetPair (n1, t1, n2, t2), value, f l (id n1) (id n2))
+
+let for_each ?name ~l lst f =
+  let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
+  match get_item_type_err ~vec:true ~lst:true ~set:true l lst with
+  | Ok mn ->
+      let l = add_local n (T.Data mn) l in
+      E2 (ForEach (n, T.Data mn), lst, f l (E0 (Identifier n)))
+  | Error t ->
+      Printf.sprintf2 "for_each: argument must be a vector/list/set, not %a"
+        T.print t |>
+      invalid_arg
 
 (* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair ~l what e f =
@@ -3696,6 +3699,8 @@ struct
 
   let let_pair = let_pair
 
+  let for_each = for_each
+
   let identifier n = E0 (Identifier n)
 
   let ext_identifier n = E0 (ExtIdentifier (Verbatim n))
@@ -3729,8 +3734,6 @@ struct
   let apply f es = E1S (Apply, f, es)
 
   let while_ cond body = E2 (While, cond, body)
-
-  let fold ~init ~body ~list = E3 (Fold, init, body, list)
 
   let string_of_bytes e = E1 (StringOfBytes, e)
 

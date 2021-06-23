@@ -295,26 +295,14 @@ let is_empty l e =
       BatPrintf.sprintf2 "is_empty for %a" T.print t |>
       invalid_arg
 
-(* Tells if any item [i] from the container [lst] matches [f u i].
- * [u] can be anything and is transferred unmodified to [f]. *)
-let exists ~l lst u f =
+(* Tells if any item [i] from the container [lst] matches [f i]. *)
+let exists ~l lst f =
   let open E.Ops in
-  match E.get_item_type_err ~vec:true ~lst:true ~set:true l lst with
-  | Error t ->
-      BatPrintf.sprintf2 "exists: must pass a vector/list/set (not %a)"
-        T.print t |>
-      invalid_arg
-  | Ok item_t ->
-      (* FIXME: a way to exit the loop that iterates through a container *)
-      let init = make_pair (bool false) u in
-      let init_t = E.type_of l init in
-      fold
-        ~init
-        ~body:(E.func2 ~l init_t T.(Data item_t) (fun l res_u item ->
-          E.let_pair ~l ~n1:"exists_res" ~n2:"exists_u" res_u (fun l res u ->
-            make_pair (or_ res (f l u item)) u)))
-        ~list:lst |>
-      first
+  (* FIXME: a way to exit the loop that iterates through a container *)
+  let_ ~name:"res" ~l (make_ref false_) (fun l res_ref ->
+    let res = get_ref res_ref in
+  for_each ~name:"item" ~l lst (fun l item ->
+    set_ref res_ref (or_ res (f l item))))
 
 let first_ip_of_cidr width all_ones cidr =
   let open E.Ops in
@@ -435,7 +423,7 @@ let rec is_in ?(l=E.no_env) item lst =
                   let op l =
                     if T.value_eq item_vtyp lst_vtyp then eq
                                                      else is_in ~l in
-                  exists ~l lst item (fun l item i ->
+                  exists ~l lst (fun l i ->
                     if nullable then
                       if_null i
                         ~then_:(bool false)
