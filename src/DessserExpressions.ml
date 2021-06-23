@@ -2449,16 +2449,13 @@ let rec map_env l f e =
       let e1 = map_env l f e1
       and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
-  | E2 (Let (n, _), e1, e2) ->
+  | E2 (Let (n, t), e1, e2) ->
       let e1 = map_env l f e1 in
-      let t = type_of l e1 in
       let l = add_local n t l in
       let e2 = map_env l f e2 in
       f l (E2 (Let (n, t), e1, e2))
-  | E2 (LetPair (n1, _, n2, _), e1, e2) ->
+  | E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
       let e1 = map_env l f e1 in
-      let t1 = type_of l (E1 (Fst, e1))
-      and t2 = type_of l (E1 (Snd, e2)) in
       let l = add_local n1 t1 l |>
               add_local n2 t2 in
       let e2 = map_env l f e2 in
