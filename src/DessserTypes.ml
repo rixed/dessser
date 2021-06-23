@@ -55,12 +55,13 @@ and user_type =
 
 and value =
   | Unknown
-  (* Refers to the top-level type that's being defined: *)
+  (* Refers to the top-level type that's currently being defined. *)
   | This
   | Base of base_type
   (* Aliases with custom representations: *)
   | Usr of user_type
-  (* External types: *)
+  (* External types are known only by name, and are converted to some verbatim
+   * text provided by the user when code is printed. *)
   | Ext of string
   (* Compound types: *)
   | Vec of int * maybe_nullable

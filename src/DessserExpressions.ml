@@ -574,20 +574,19 @@ let rec default_value ?(allow_null=true) ?this mn =
   let this = this |? mn.T.vtyp in
   let default_value = default_value ~allow_null ~this in
   match mn with
-  | T.{ vtyp = This ; nullable } ->
-      if nullable && allow_null then
-        E0 (Null this)
-      else
-        invalid_arg "default_value: recursive type"
   | { vtyp ; nullable = true } ->
       (* In some places we want the whole tree of values to be populated. *)
       if allow_null then
         E0 (Null vtyp)
       else
         default_value { vtyp ; nullable = false }
-  | { vtyp = T.Unknown ; _ }
-  | { vtyp = Ext _ ; _ } ->
+  | { vtyp = (T.Unknown | Ext _); _ } ->
       invalid_arg "default_value"
+  | { vtyp = This ; nullable } ->
+      if nullable && allow_null then
+        E0 (Null this)
+      else
+        invalid_arg "default_value: recursive type"
   | { vtyp = Base Unit ; _ } ->
       E0 Unit
   | { vtyp = Base Float ; _ } ->
@@ -2222,9 +2221,9 @@ and type_of l e0 =
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
   match type_of l e |> T.develop_user_types with
-  | Data { vtyp = Vec (_, t) ; nullable = false } when vec -> Ok t
-  | Data { vtyp = Lst t ; nullable = false } when lst -> Ok t
-  | Data { vtyp = Set (_, t) ; nullable = false } when set -> Ok t
+  | Data { vtyp = Vec (_, mn) ; nullable = false } when vec -> Ok mn
+  | Data { vtyp = Lst mn ; nullable = false } when lst -> Ok mn
+  | Data { vtyp = Set (_, mn) ; nullable = false } when set -> Ok mn
   | t -> Error t
 
 (* Return the element type or fail: *)

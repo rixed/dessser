@@ -172,13 +172,14 @@ struct
   and dext name _dstate _mn0 _path _l src =
     apply (type_method name (E.Des Des.id)) [ src ]
 
+  and dthis _dstate mn0 _path _l src =
+    (* Call ourself recursively *)
+    apply (myself T.(Pair (Data mn0, DataPtr))) [ src ]
+
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
       | T.Unknown -> invalid_arg "make1"
-      | T.This ->
-          fun _dstate mn0 _path _l src ->
-            (* Call ourself recursively *)
-            apply (myself T.(Pair (Data mn0, DataPtr))) [ src ]
+      | T.This -> dthis
       | T.Ext n -> dext n
       | T.Base Unit -> dunit
       | T.Base Float -> Des.dfloat
@@ -365,13 +366,14 @@ struct
   and sext name ma _ _ _ _ v dst =
     apply (type_method name (E.Ser Ser.id)) [ ma ; v ; dst ]
 
+  and sthis ma _sstate _mn0 _path _l v dst =
+    (* Call ourself recursively *)
+    apply (myself T.DataPtr) [ ma ; v ; dst ]
+
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
       | T.Unknown -> invalid_arg "ser1"
-      | T.This ->
-          fun _sstate _mn0 _path _l v dst ->
-            (* Call ourself recursively *)
-            apply (myself T.DataPtr) [ ma ; v ; dst ]
+      | T.This -> sthis ma
       | T.Ext n -> sext n ma
       | T.Base Unit -> sunit
       | T.Base Float -> Ser.sfloat
@@ -521,15 +523,16 @@ struct
   and ssext name ma _ _ _ v =
     apply (type_method name (E.SSize Ser.id)) [ ma ; v ]
 
+  and ssthis ma _mn0 _path _l v =
+    (* Call ourself recursively *)
+    apply (myself T.Size) [ ma ; v ]
+
   and sersz1 mn mn0 path l v ma sz =
     let cumul ssizer mn0 path l v sz =
       add sz (ssizer mn0 path l v) in
     let rec ssz_of_vt = function
       | T.Unknown -> invalid_arg "sersz1"
-      | T.This ->
-          fun _mn0 _path _l v sz ->
-            (* Call ourself recursively *)
-            add sz (apply (myself T.Size) [ ma ; v ])
+      | T.This -> cumul (ssthis ma)
       | T.Ext n -> cumul (ssext n ma)
       | T.Base Unit -> ssunit
       | T.Base Float -> cumul Ser.ssize_of_float
