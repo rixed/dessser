@@ -88,9 +88,6 @@ struct
     let id = P.type_id p t in
     valid_identifier (id ^"_"^ n)
 
-  let tuple_field_name p t i =
-    rec_field_name p t (string_of_int i)
-
   let cstr_name p t n =
     let id = P.type_id p t in
     valid_upper_identifier (id ^"_"^ n)
@@ -114,7 +111,19 @@ struct
   let sum_has_arg (_, mn) =
     mn.T.vtyp <> Base Unit
 
-  let rec print_record p oc id mns =
+  let rec print_tuple p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
+    ppi oc "and %s = (" (valid_identifier id) ;
+    P.indent_more p (fun () ->
+      Array.iteri (fun i mn ->
+        let typ_id = type_identifier p (T.Data mn) in
+        let is_last = i >= Array.length mns - 1 in
+        ppi oc "%s%s" typ_id (if is_last then "" else " *")
+      ) mns
+    ) ;
+    ppi oc ")\n"
+
+  and print_record p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     ppi oc "and %s = {" (valid_identifier id) ;
     P.indent_more p (fun () ->
@@ -182,12 +191,8 @@ struct
         value_type_identifier t ^" "^ m ^".t"
     | { vtyp = Tup mns ; _ } as mn ->
         let t = T.Data mn in
-        let mns =
-          Array.mapi (fun i mn ->
-            string_of_int i, mn
-          ) mns in
         P.declared_type p t (fun oc type_id ->
-          print_record p oc type_id mns) |>
+          print_tuple p oc type_id mns) |>
         valid_identifier
     | { vtyp = Rec mns ; _ } as mn ->
         let t = T.Data mn in
@@ -492,15 +497,10 @@ struct
           List.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
     | E.E0S (MakeTup, es) ->
         let inits = List.map (print emit p l) es in
-        (* TODO: There is no good reason any longer to avoid using actual
-         * OCaml tuples to represent tuples *)
-        let i = ref 0 in
-        let t = E.type_of l e in
         emit ?name p l e (fun oc ->
-          List.print ~first:"{ " ~last:" }" ~sep:"; " (fun oc n ->
-            Printf.fprintf oc "%s = %s"
-              (tuple_field_name p t !i) n ;
-            incr i) oc inits)
+          List.print ~first:"(" ~last:")" ~sep:", " (fun oc n ->
+            String.print oc n
+          ) oc inits)
     | E.E0S (MakeRec, es) ->
         let _, inits =
           List.fold_left (fun (prev_name, inits) e ->
@@ -1384,21 +1384,19 @@ struct
           pp oc "%s.map (fun item_ -> %s %s item_) %s" mod_name f init lst)
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
-(*      TODO: For when tuples are actual tuples:
         let res = gen_sym ?name "get_item_" in
         let max_n =
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Tup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
-        ppi p.P.def "let %t = %s\n"
+        ppi p.P.def "let %t = %s in\n"
           (fun oc ->
             for i = 0 to max_n - 1 do
               if i > 0 then String.print oc ", " ;
               String.print oc (if i = n then res else "_")
-            done) *)
-        let t = E.type_of l e1 in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 (tuple_field_name p t n))
+            done)
+          n1 ;
+        res
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
         let t = E.type_of l e1 in
@@ -1512,13 +1510,13 @@ struct
     | E.E2 (SplitAt, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
+        let pos = gen_sym "pos" in
         emit ?name p l e (fun oc ->
-          let t = E.type_of l e in
-          pp oc "let pos_ = %s.to_int %s in" (mod_name (E.type_of l e1)) n1 ;
-          pp oc "{ %s = String.sub %s 0 pos_ ;"
-            (tuple_field_name p t 0) n2 ;
-          pp oc "  %s = String.sub %s pos_ (String.length %s - pos_) }"
-            (tuple_field_name p t 1) n2 n2)
+          pp oc "let %s = %s.to_int %s in" pos (mod_name (E.type_of l e1)) n1 ;
+          pp oc "(String.sub %s 0 %s, \
+                  String.sub %s %s (String.length %s - %s))"
+            n2 pos
+            n2 pos n2 pos)
     | E.E2 (Join, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
