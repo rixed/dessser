@@ -31,6 +31,101 @@ let valid_module_name s =
   assert (s <> "" && s.[0] <> '!') ;
   valid_upper_identifier s
 
+(* Uniquify in a human friendly way all record field and sum constructor
+ * names.
+ * Beware that when the exact same type is encountered several times in [t]
+ * it is supposed to stay the same type after adaptation, so all instances
+ * of [t] must have the same prefix! *)
+let make_get_prefix mn =
+  (* Hash from name to the list of original type and path this name is used
+   * within: *)
+  let renamings = Hashtbl.create 10 in
+  let shortest_path p1 p2 =
+    if List.compare_lengths p1 p2 > 0 then p2 else p1 in
+  let record_name n vt path =
+    Hashtbl.modify_opt n (function
+      | Some l ->
+          let l, found =
+            List.fold_left (fun (l, found) (vt', path') ->
+              if T.value_eq vt vt' then (
+                (vt, shortest_path path path') :: l, true
+              ) else
+                (vt', path') :: l, found
+            ) ([], false) l in
+          let l =
+            if found then l else
+            (vt, path) :: l in
+          Some l
+      | None ->
+          Some [ vt, path ]
+    ) renamings in
+  let rec sensus_mn path mn =
+    sensus_vt path mn.T.vtyp
+  and sensus_vt path = function
+    | Unknown | This | Base _ | Ext _ ->
+        ()
+    | Usr { name ; def } ->
+        sensus_vt (name :: path) def
+    | Vec (_, mn) ->
+        sensus_mn path mn
+    | Lst mn ->
+        sensus_mn path mn
+    | Set (_, mn) ->
+        sensus_mn path mn
+    | Tup mns ->
+        Array.iter (sensus_mn path) mns
+    | Rec mns as vt ->
+        Array.iter (fun (n, mn) ->
+          record_name n vt path ;
+          sensus_mn (n :: path) mn
+        ) mns
+    | Sum mns as vt ->
+        Array.iter (fun (n, mn) ->
+          record_name n vt path ;
+          sensus_mn (n :: path) mn
+        ) mns
+    | Map (kmn, vmn) ->
+        sensus_mn path kmn ;
+        sensus_mn path vmn in
+  let uniq_prefix n vt =
+    let l = Hashtbl.find renamings n in
+    let num_vts =
+      List.fold_left (fun num (vt', _) ->
+        match vt, vt' with
+        | T.Sum _, T.Sum _ | Rec _, Rec _ -> num + 1
+        | _ -> num
+      ) 0 l in
+    if num_vts > 1 then
+      let _vt, path = List.find (fun (vt', _) -> T.value_eq vt vt') l in
+      String.join "_" (List.rev path) ^"_"
+    else
+      "" in
+  (* Gather information on all field/constructor names: *)
+  sensus_mn [] mn ;
+  (* Now for each type that requires a prefix (ie. some of their names are
+   * present in several types of the same kind), compute the prefix: *)
+  let prefixes = Hashtbl.create 10 in
+  Hashtbl.iter (fun n l ->
+    List.iter (fun (vt, _) ->
+      let pref = uniq_prefix n vt in
+      if pref <> "" then
+        Hashtbl.modify_opt vt (function
+          | None -> Some pref
+          | Some pref' ->
+              Some (
+                if String.length pref < String.length pref' then pref
+                else pref')
+        ) prefixes
+    ) l
+  ) renamings ;
+  fun vt ->
+    Hashtbl.find_default prefixes vt ""
+
+let get_prefix = ref (fun _ -> "")
+
+let init mn =
+  get_prefix := make_get_prefix mn
+
 module Config =
 struct
   let id = T.OCaml
@@ -81,16 +176,13 @@ struct
       | Executable -> "-linkpkg")
       src dst
 
-  (* FIXME: To make these contructors easily usable we could require unicity
-   * of names within a module *)
+  let uniq_field_name vt n =
+    let prefix = !get_prefix vt in
+    valid_identifier (prefix ^ n)
 
-  let rec_field_name p t n =
-    let id = P.type_id p t in
-    valid_identifier (id ^"_"^ n)
-
-  let cstr_name p t n =
-    let id = P.type_id p t in
-    valid_upper_identifier (id ^"_"^ n)
+  let uniq_cstr_name vt n =
+    let prefix = !get_prefix vt in
+    valid_upper_identifier (prefix ^ n)
 
   let mod_of_set_type = function
     | T.Simple -> "SimpleSet"
@@ -128,7 +220,7 @@ struct
     ppi oc "and %s = {" (valid_identifier id) ;
     P.indent_more p (fun () ->
       Array.iter (fun (field_name, mn) ->
-        let field_name = valid_identifier (id ^"_"^ field_name) in
+        let field_name = uniq_field_name (T.Rec mns) field_name in
         let typ_id = type_identifier p (T.Data mn) in
         ppi oc "%s : %s ;" field_name typ_id
       ) mns
@@ -140,7 +232,7 @@ struct
     ppi oc "and %s =" (valid_identifier id) ;
     P.indent_more p (fun () ->
       Array.iter (fun (n, mn as n_mn) ->
-        let n = valid_upper_identifier (id ^"_"^ n) in
+        let n = uniq_cstr_name (T.Sum mns) n in
         if sum_has_arg n_mn then
           let typ_id = type_identifier p (T.Data mn) in
           ppi oc "| %s of %s" n typ_id
@@ -393,20 +485,21 @@ struct
       pp oc "Int128.of_bytes_little_endian (Bytes.of_string %S) 0"
         (Bytes.to_string bytes))
 
-  let rec print ?name emit p l e =
+  let rec print emit ?name p l e =
+    let print = print emit in
     let gen_sym ?name pref =
       match name with
       | Some n -> n
       | None -> U.gen_sym pref |> valid_identifier in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let unary_op op e1 =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
     let unary_mod_op op e1 =
       let op = mod_name (E.type_of l e) ^"."^ op in
       unary_op op e1 in
     let unary_op_or_null op e1 =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       emit ?name p l e (fun oc ->
         pp oc "(try NotNull (%s %s)" op n1 ;
         pp oc " with _ as e ->" ;
@@ -421,25 +514,25 @@ struct
       let op = mod_name t ^"."^ op in
       unary_op_or_null op e1 in
     let any_op op es =
-      let ns = List.map (print emit p l) es in
+      let ns = List.map (print p l) es in
       let ns = String.concat " " ns in
       emit ?name p l e (fun oc -> pp oc "%s %s" op ns) in
     let binary_op op e1 e2 =
       any_op op [ e1 ; e2 ] in
     let binary_infix_op e1 op e2 =
-      let n1 = print emit p l e1
-      and n2 = print emit p l e2 in
+      let n1 = print p l e1
+      and n2 = print p l e2 in
       emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op n2) in
     let shortcutting_binary_infix_op e1 op e2 =
       emit ?name p l e (fun oc ->
         pp oc "(\n" ;
         P.indent_more p (fun () ->
-          let n1 = print emit p l e1 in
+          let n1 = print p l e1 in
           ppi oc "%s" n1
         ) ;
         ppi oc ") %s (" op ;
         P.indent_more p (fun () ->
-          let n2 = print emit p l e2 in
+          let n2 = print p l e2 in
           ppi oc "%s" n2
         ) ;
         pp oc "%s)" p.P.indent) in
@@ -447,8 +540,8 @@ struct
       let op = mod_name (E.type_of l e) ^"."^ op in
       binary_op op e1 e2 in
     let binary_mod_op_2nd_u8 op e1 e2 =
-      let n1 = print emit p l e1
-      and n2 = print emit p l e2
+      let n1 = print p l e1
+      and n2 = print p l e2
       and m = mod_name (E.type_of l e) in
       emit ?name p l e (fun oc ->
         pp oc "%s.%s %s (Uint8.to_int %s)" m op n1 n2) in
@@ -456,16 +549,16 @@ struct
       let t = E.type_of l e
       and t1 = E.type_of l e1 in
       if T.eq t t1 then
-        print emit p l e1
+        print p l e1
       else
         let op = mod_name t ^".of_"^ num_name t1 in
         unary_op op e1 in
-    let to_float ?name emit p l e =
+    let to_float ?name p l e =
       let m = mod_name (E.type_of l e) in
       if m = "Float" then
-        print ?name emit p l e
+        print ?name p l e
       else
-        let n = print emit p l e in
+        let n = print p l e in
         "("^ m ^".to_float "^ n ^")" in
     let preallocate printer i oc =
       let value = IO.to_string printer i in
@@ -476,11 +569,11 @@ struct
     in
     match e with
     | E.E1S (Apply, f, es) ->
-        let nf = print emit p l f in
+        let nf = print p l f in
         let ns =
           if es = [] then [ "()" ]
           else
-            List.fold_left (fun ns e -> print emit p l e :: ns) [] es |>
+            List.fold_left (fun ns e -> print p l e :: ns) [] es |>
             List.rev in
         emit ?name p l e (fun oc ->
           pp oc "%s%a"
@@ -488,15 +581,15 @@ struct
             (List.print ~first:" " ~last:"" ~sep:" " String.print) ns)
     | E.E1 (Comment c, e1) ->
         ppi p.P.def "(* %s *)" c ;
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E0S (Seq, es) ->
-        List.fold_left (fun _ e -> print emit p l e) "()" es
+        List.fold_left (fun _ e -> print p l e) "()" es
     | E.E0S ((MakeVec | MakeLst _), es) ->
-        let inits = List.map (print emit p l) es in
+        let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
     | E.E0S (MakeTup, es) ->
-        let inits = List.map (print emit p l) es in
+        let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:"(" ~last:")" ~sep:", " (fun oc n ->
             String.print oc n
@@ -508,34 +601,38 @@ struct
             | None ->
                 Some (E.field_name_of_expr e), inits
             | Some name ->
-                let n = print emit p l e in
+                let n = print p l e in
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
         let inits = List.rev inits in
-        let t = E.type_of l e in
-        emit ?name p l e (fun oc ->
-          let last = "\n"^ p.P.indent ^"}" in
-          P.indent_more p (fun () ->
-            let first = "{\n"^ p.P.indent
-            and sep = ";\n"^ p.P.indent in
-            List.print ~first ~last ~sep
-              (fun oc (name, n) ->
-                Printf.fprintf oc "%s = %s" (rec_field_name p t name) n) oc inits))
+        (match E.type_of l e |> T.develop_user_types with
+        | T.Data { vtyp ; _ } ->
+            emit ?name p l e (fun oc ->
+              let last = "\n"^ p.P.indent ^"}" in
+              P.indent_more p (fun () ->
+                let first = "{\n"^ p.P.indent
+                and sep = ";\n"^ p.P.indent in
+                List.print ~first ~last ~sep
+                  (fun oc (name, n) ->
+                    Printf.fprintf oc "%s = %s"
+                      (uniq_field_name vtyp name) n) oc inits))
+        | _ ->
+            assert false (* because of type checking *))
     | E.E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
-        print ?name emit p l e
+        print ?name p l e
     | E.E0S (Verbatim (temps, _), ins) ->
-        let args = List.map (print emit p l) ins in
+        let args = List.map (print p l) ins in
         emit ?name p l e (fun oc ->
           String.print oc (E.expand_verbatim id temps args))
     | E.E1 (Identity, e1) ->
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E1 (Ignore, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         ppi p.P.def "ignore %s ;" n ;
         "()"
     | E.E1 (Dump, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         pp p.P.def ("%s"^^
           (match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base String ; nullable = false } ->
@@ -548,19 +645,19 @@ struct
         ppi p.P.def "flush stdout ;" ;
         "()"
     | E.E1 (IsNull, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s = Null" n)
     | E.E2 (Nth, e1, e2) ->
-        let n1 = print emit p l e1 in
-        let n2 = print emit p l e2 in
+        let n1 = print p l e1 in
+        let n2 = print p l e2 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
     | E.E1 (NotNull, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "NotNull %s" n1)
     | E.E1 (Force what, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "Nullable.get %s%s"
             (if what = "" then "" else "~what:"^ String.quote what ^" ")
@@ -632,8 +729,8 @@ struct
     | E.E2 (Mul, e1, e2) ->
         binary_mod_op "mul" e1 e2
     | E.E2 ((Div | Rem as op), e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
@@ -648,8 +745,8 @@ struct
           | _ ->
               assert false)
     | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
@@ -663,8 +760,8 @@ struct
           | _ ->
               assert false)
     | E.E2 (Pow, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base Float ; _ } ->
@@ -684,8 +781,8 @@ struct
           | _ ->
               assert false (* because of type-checking *))
     | E.E2 (UnsafePow, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_user_types with
           | Data { vtyp = Base Float ; _ } ->
@@ -717,7 +814,7 @@ struct
         let op = mod_name (E.type_of l e1) ^".to_string" in
         unary_op op e1
     | E.E1 (StringOfIp, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let case_u mn n =
           match T.develop_maybe_nullable mn with
           | T.{ vtyp = Base U32 ; _ } ->
@@ -732,13 +829,13 @@ struct
            * the constructor names: *)
           let t = E.type_of l e1 in
           match T.develop_user_types t with
-          | Data { vtyp = Sum mns ; _ } ->
+          | Data { vtyp = Sum mns as vtyp ; _ } ->
               (* Since the type checking accept any sum type made of u32 and
                * u128, let's be as general as possible: *)
               ppi oc "match %s with\n" n1 ;
               P.indent_more p (fun () ->
                 Array.iter (fun (cstr, mn) ->
-                  ppi oc "| %s ip_ ->\n" (cstr_name p t cstr) ;
+                  ppi oc "| %s ip_ ->\n" (uniq_cstr_name vtyp cstr) ;
                   P.indent_more p (fun () -> case_u mn "ip_")
                 ) mns)
           | Data mn ->
@@ -767,13 +864,13 @@ struct
     | E.E1 (I128OfString, e1) ->
         unary_mod_op_or_null "of_string" e1
     | E.E1 (CharOfPtr, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "Char.chr (Uint8.to_int (%s.peekByte %s)), %s.skip %s 1"
             m n m n)
     | E.E1 (FloatOfPtr, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Note: Scanf uses two distinct format specifiers for "normal"
          * and hex notations so detect it and pick the proper one: *)
         pp p.P.def "%slet len_ = (fst %s).Pointer.stop - snd %s in\n"
@@ -828,7 +925,7 @@ struct
     | E.E1 (I64OfPtr, e1)
     | E.E1 (U128OfPtr, e1)
     | E.E1 (I128OfPtr, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let m = mod_name (E.type_of l e |> T.pair_of_tpair |> fst) in
         let m1 = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
@@ -839,11 +936,11 @@ struct
               p.P.indent m n1 ;
             pp oc "%sn_, %s.skip %s (o_ - snd %s)" p.P.indent m1 n1 n1))
     | E.E1 (FloatOfQWord, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "BatInt64.float_of_bits (Uint64.to_int64 %s)" n)
     | E.E1 (QWordOfFloat, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "Uint64.of_int64 (BatInt64.bits_of_float %s)" n)
     | E.E1 (StringOfFloat, e1) ->
@@ -858,9 +955,9 @@ struct
     | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1)
     | E.E1 (ListOfVec, e1) ->
         (* Those are NOPs *)
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E1 (ListOfSet, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let m = mod_of_set_type_of_expr l e1 in
         emit ?name p l e (fun oc ->
           (* FIXME: this operation needs to be faster, ideally a nop! *)
@@ -881,7 +978,7 @@ struct
     | E.E1 (U32OfSize, e1) ->
         unary_op "Uint32.of_int" e1
     | E.E1 ((AddressOfU64 | U64OfAddress), e1) ->
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E1 (ListOfSList, e1) ->
         unary_op "Array.of_list" e1
     | E.E1 (ListOfSListRev, e1) ->
@@ -893,12 +990,12 @@ struct
              ToU128 | ToI128), e1) ->
         conv_to_num e1
     | E.E1 (ToFloat, e1) ->
-        to_float ?name emit p l e1
+        to_float ?name p l e1
     | E.E1 (U8OfBool, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "if %s then Uint8.one else Uint8.zero" n1)
     | E.E1 (BoolOfU8, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "Uint8.compare Uint8.zero %s <> 0" n1)
     | E.E2 (AppendByte, e1, e2) ->
         binary_op "Slice.add" e1 e2
@@ -923,49 +1020,49 @@ struct
         | Data { vtyp = Lst _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
         | Data { vtyp = Set (st, _) ; _ } ->
-            let n1 = print emit p l e1 in
+            let n1 = print p l e1 in
             let m = mod_of_set_type st in
             emit ?name p l e (fun oc -> pp oc "%s.cardinality %s" m n1)
         | _ ->
             assert false (* Because type checking *))
     | E.E1 (DataPtrOfString, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "pointer_of_string %s" n1)
     | E.E1 (DataPtrOfBuffer, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "pointer_of_buffer %s" n1)
     | E.E2 (DataPtrOfAddress, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "pointer_of_address %s %s" n1 n2)
     | E.E1 (GetEnv, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "try NotNull (Sys.getenv %s) with Not_found -> Null" n1)
     | E.E3 (DataPtrOfPtr, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.of_pointer %s %s %s" m n1 n2 n3)
     | E.E2 (GetBit, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".getBit") e1 e2
     | E.E2 (GetVec, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
+        let n1 = print p l e1
+        and n2 = print p l e2
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s)" n2 m n1)
     | E.E3 (SetBit, e1, e2, e3) ->
-        let ptr = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let ptr = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.setBit %s %s %s" m ptr n2 n3)
     | E.E3 (SetVec, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s) <- %s" n2 m n1 n3)
     | E.E1 (ReadByte, e1) ->
@@ -1056,8 +1153,8 @@ struct
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".writeBytes") e1 e2
     | E.E2 (PokeByte, e1, e2) ->
-        let ptr = print ?name emit p l e1
-        and v = print emit p l e2 in
+        let ptr = print ?name p l e1
+        and v = print p l e2 in
         let m = mod_name (E.type_of l e1) in
         ppi p.P.def "%s.pokeByte %s %s;" m ptr v ;
         ptr
@@ -1167,14 +1264,14 @@ struct
     | E.E1 (Tail, e1) ->
         unary_op "List.tl" e1
     | E.E2 (MakePair, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E1 (MakeRef, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "ref %s" n1)
     | E.E1 (GetRef, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "!%s" n1)
     | E.E2 (SetRef, e1, e2) ->
         binary_infix_op e1 ":=" e2
@@ -1187,7 +1284,7 @@ struct
     | E.E2 (Max, e1, e2) ->
         binary_op "max" e1 e2
     | E.E2 (Member, e1, e2) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* If there are plenty of constants it is worth it to build a constant
          * hashtable with all of them: *)
         (* TODO: actually, should count as constant any expression that can be
@@ -1225,7 +1322,7 @@ struct
                 P.indent_more p (fun () ->
                   let ns =
                     List.map (fun e ->
-                      print emit p E.no_env e
+                      print p E.no_env e
                     ) csts in
                   if csts = [] then (
                     ppi p.P.def "false"
@@ -1246,7 +1343,7 @@ struct
                 pp oc "%s %s" check_csts_n n1
               ) else (
                 (* FIXME: nullability of non_csts *)
-                let ns = List.map (print emit p l) non_csts in
+                let ns = List.map (print p l) non_csts in
                 let x_ = gen_sym "member_item_" in
                 pp oc "let %s = %s in" x_ n1 ;
                 pp oc "%s %s || %a"
@@ -1256,7 +1353,7 @@ struct
                      (fun oc n -> Printf.fprintf oc "%s = %s" x_ n)) ns
               ))
         | set ->
-            let n2 = print emit p l set in
+            let n2 = print p l set in
             let m = mod_of_set_type_of_expr l set in
             emit ?name p l e (fun oc -> pp oc "%s.member %s %s" m n2 n1))
     | E.E0 (Identifier s) ->
@@ -1282,24 +1379,24 @@ struct
         (* Most of definitions we can actually choose the name (with ?name),
          * so we save a let. But for a few [e1] we will have no such choice,
          * so then another let is required: *)
-        let n1 = print ~name:n emit p l e1 in
+        let n1 = print ~name:n p l e1 in
         if n1 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1)) ;
         let l = E.add_local n t l in
-        print ?name emit p l e2
+        print ?name p l e2
     | E.E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
         let n = "("^ valid_identifier n1 ^", "^ valid_identifier n2 ^")" in
-        let n1_n2 = print ~name:n emit p l e1 in
+        let n1_n2 = print ~name:n p l e1 in
         if n1_n2 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1_n2)) ;
         let l = E.add_local n1 t1 l |>
                 E.add_local n2 t2 in
-        print ?name emit p l e2
+        print ?name p l e2
     | E.E1 (Function (_fid, [||]), e1) ->
         emit ?name p l e (fun oc ->
           pp oc "(fun () ->\n" ;
           P.indent_more p (fun () ->
-            let n = print emit p l e1 in
+            let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))
     | E.E1 (Function (fid, ts), e1) ->
         (* Pick the name here so we can add it to the environment, where it
@@ -1311,7 +1408,7 @@ struct
             oc ts ;
           let l = E.enter_function ~name fid ts l in
           P.indent_more p (fun () ->
-            let n = print emit p l e1 in
+            let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))
     | E.E0 (Param (fid, n)) ->
         param fid n
@@ -1320,34 +1417,34 @@ struct
         | None -> invalid_arg "print Myself while function name is unknown"
         | Some n -> n)
     | E.E3 (If, e1, e2, e3) ->
-        let cond = print emit p l e1 in
+        let cond = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "\n" ;
           P.indent_more p (fun () ->
             ppi oc "if %s then (" cond ;
             P.indent_more p (fun () ->
-              let n = print emit p l e2 in
+              let n = print p l e2 in
               ppi oc "%s" n) ;
             ppi oc ") else (" ;
             P.indent_more p (fun () ->
-              let n = print emit p l e3 in
+              let n = print p l e3 in
               ppi oc "%s" n) ;
             pp oc "%s)" p.P.indent))
     | E.E2 (While, cond, body) ->
         ppi p.P.def "while (" ;
         P.indent_more p (fun () ->
-          let cond = print emit p l cond in
+          let cond = print p l cond in
           ppi p.P.def "%s" cond) ;
         ppi p.P.def ") do" ;
         P.indent_more p (fun () ->
-          let body = print emit p l body in
+          let body = print p l body in
           ppi p.P.def "%s" body) ;
         ppi p.P.def "done ;" ;
         "()"
     | E.E2 (ForEach (n, t), lst, body) ->
         let n1 = valid_identifier n in
         let lst_t = E.type_of l lst |> T.develop_user_types in
-        let lst = print emit p l lst in
+        let lst = print p l lst in
         (match lst_t with
         | Data { vtyp = (Vec _ | Lst _) ; _ } ->
             (* Both lists and vectors are represented as arrays *)
@@ -1355,7 +1452,7 @@ struct
             P.indent_more p (fun () ->
               ppi p.P.def "let %s = %s.(i_) in" n1 lst ;
               let l = E.add_local n t l in
-              let body = print emit p l body in
+              let body = print p l body in
               ppi p.P.def "%s" body) ;
             ppi p.P.def "done ;"
         | Data { vtyp = Set (st, _) ; _ } ->
@@ -1363,7 +1460,7 @@ struct
             ppi p.P.def "%s.fold %s () (fun () %s ->" m lst n1 ;
             P.indent_more p (fun () ->
               let l = E.add_local n t l in
-              let body = print emit p l body in
+              let body = print p l body in
               ppi p.P.def "%s" body) ;
             ppi p.P.def ") ;"
         | _ ->
@@ -1371,9 +1468,9 @@ struct
         "()"
     | E.E3 (Map, init, f, lst) ->
         let lst_t = E.type_of l lst in
-        let init = print emit p l init
-        and f = print emit p l f
-        and lst = print emit p l lst in
+        let init = print p l init
+        and f = print p l f
+        and lst = print p l lst in
         emit ?name p l e (fun oc ->
           let mod_name =
             match lst_t with
@@ -1383,7 +1480,7 @@ struct
             | _ -> assert false (* because of E.type_check *) in
           pp oc "%s.map (fun item_ -> %s %s item_) %s" mod_name f init lst)
     | E.E1 (GetItem n, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let res = gen_sym ?name "get_item_" in
         let max_n =
           match E.type_of l e1 |> T.develop_user_types with
@@ -1398,24 +1495,29 @@ struct
           n1 ;
         res
     | E.E1 (GetField s, e1) ->
-        let n1 = print emit p l e1 in
-        let t = E.type_of l e1 in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 (rec_field_name p t s))
+        let n1 = print p l e1 in
+        (match E.type_of l e1 |> T.develop_user_types with
+        | T.Data { vtyp ; _ } ->
+            emit ?name p l e (fun oc ->
+              Printf.fprintf oc "%s.%s" n1 (uniq_field_name vtyp s))
+        | _ ->
+            assert false (* because of type checking *))
     | E.E1 (GetAlt s, e1) ->
-        let t1 = E.type_of l e1 in
-        let n1 = print emit p l e1 in
-        emit ?name p l e (fun oc ->
-          let cstr = cstr_name p t1 s in
-          (* FIXME: figure out where to add this whether the expression is a
-           * binding or inlined: [@@ocaml.warning "-8"] *)
-          Printf.fprintf oc "(match %s with %s x -> x)"
-            n1 cstr)
+        let n1 = print p l e1 in
+        (match E.type_of l e1 |> T.develop_user_types with
+        | T.Data { vtyp ; _ } ->
+            emit ?name p l e (fun oc ->
+              let cstr = uniq_cstr_name vtyp s in
+              (* FIXME: figure out where to add this whether the expression is a
+               * binding or inlined: [@@ocaml.warning "-8"] *)
+              Printf.fprintf oc "(match %s with %s x -> x)"
+                n1 cstr)
+        | _ ->
+            assert false (* because of type checking *))
     | E.E1 (Construct (mns, i), e1) ->
-        let n1 = print emit p l e1 in
-        let t = E.type_of l e in
+        let n1 = print p l e1 in
         assert (i < Array.length mns) ;
-        let cstr = cstr_name p t (fst mns.(i)) in
+        let cstr = uniq_cstr_name (T.Sum mns) (fst mns.(i)) in
         if sum_has_arg mns.(i) then
           emit ?name p l e (fun oc ->
             Printf.fprintf oc "(%s %s)" cstr n1)
@@ -1423,21 +1525,21 @@ struct
           if name = None then cstr else
           emit ?name p l e (fun oc -> String.print oc cstr)
     | E.E1 (Assert, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert %s" n)
     | E.E1 (MaskGet i, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "mask_get %s %d" n1 i)
     | E.E1 (LabelOf, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let t1 = E.type_of l e1 in
         emit ?name p l e (fun oc ->
           pp oc "match %s with\n" n1 ;
           match T.develop_user_types t1 with
-          | T.Data { vtyp = Sum mns ; _ } ->
+          | T.Data { vtyp = Sum mns as vtyp ; _ } ->
               P.indent_more p (fun () ->
                 Array.iteri (fun i (n, _ as n_mn) ->
-                  let n = cstr_name p t1 n in
+                  let n = uniq_cstr_name vtyp n in
                   ppi oc "| %s %s-> Uint16.of_int %d"
                     n (if sum_has_arg n_mn then "_ " else "") i
                 ) mns) ;
@@ -1451,30 +1553,30 @@ struct
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "DessserMasks.SetNull")
     | E.E1 (SlidingWindow mn, e1) ->
-        let n1 = print emit p l e1
-        and def = print emit p l (E.default_value mn)
+        let n1 = print p l e1
+        and def = print p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "SlidingWindow.make %s (%s.to_int %s)" def m n1)
     | E.E1 (TumblingWindow mn, e1) ->
-        let n1 = print emit p l e1
-        and def = print emit p l (E.default_value mn)
+        let n1 = print p l e1
+        and def = print p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "TumblingWindow.make %s (%s.to_int %s)" def m n1)
     | E.E1 (Sampling mn, e1) ->
-        let n1 = print emit p l e1
-        and def = print emit p l (E.default_value mn)
+        let n1 = print p l e1
+        and def = print p l (E.default_value mn)
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "Sampling.make %s (%s.to_int %s)" def m n1)
     | E.E1 (HashTable _, e1) ->
-        let n1 = print emit p l e1
+        let n1 = print p l e1
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
           pp oc "HashTable.make (%s.to_int %s)" m n1)
     | E.E1 (Heap, cmp) ->
-        let n1 = print emit p l cmp in
+        let n1 = print p l cmp in
         (* comparison function need to be adapted to return an int: *)
         let cmp_res_t =
           match E.type_of l cmp with
@@ -1484,32 +1586,32 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "Heap.make (fun a_ b_ -> %s.to_int (%s a_ b_))" m n1)
     | E.E2 (Insert, set, x) ->
-        let set = print emit p l set
-        and x = print emit p l x
+        let set = print p l set
+        and x = print p l x
         and m = mod_of_set_type_of_expr l set in
         (* Avoids using [emit] to not generate a binding for unit: *)
         ppi p.P.def "%s.insert %s %s ;" m set x ;
         "()"
     | E.E2 (DelMin, set, n) ->
-        let set = print emit p l set
-        and n = print emit p l n
+        let set = print p l set
+        and n = print p l n
         and m = mod_name (E.type_of l n)
         and ms = mod_of_set_type_of_expr l set in
         ppi p.P.def "%s.del_min %s (%s.to_int %s) ;" ms set m n ;
         "()"
     | E.E1 (GetMin, set) ->
-        let set = print emit p l set
+        let set = print p l set
         and m = mod_of_set_type_of_expr l set in
         emit ?name p l e (fun oc ->
           pp oc "%s.get_min %s" m set)
     | E.E2 (SplitBy, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "String.split_on_string %s %s" n1 n2)
     | E.E2 (SplitAt, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         let pos = gen_sym "pos" in
         emit ?name p l e (fun oc ->
           pp oc "let %s = %s.to_int %s in" pos (mod_name (E.type_of l e1)) n1 ;
@@ -1518,20 +1620,20 @@ struct
             n2 pos
             n2 pos n2 pos)
     | E.E2 (Join, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           (* TODO: faster impl with a single string alloc: *)
           pp oc "String.concat %s (Array.to_list %s)" n1 n2)
     | E.E2 (AllocLst, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "Array.make (%s.to_int %s) %s"
             (mod_name (E.type_of l e1)) n1 n2)
     | E.E2 (PartialSort, e1, e2) ->
-        let n1 = print ?name emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print ?name p l e1
+        and n2 = print p l e2 in
         let item2_t =
           match E.type_of l e2 |> T.develop_user_types with
           | Data { vtyp = (Vec (_, t) | Lst t) ; _ } -> t
@@ -1544,39 +1646,39 @@ struct
         "()"
     | E.E2 (ChopBegin, lst, len) ->
         let m = mod_name (E.type_of l len) in
-        let lst = print ?name emit p l lst
-        and len = print emit p l len in
+        let lst = print ?name p l lst
+        and len = print p l len in
         emit ?name p l e (fun oc ->
           pp oc "lst_lchop %s (%s.to_int %s)" lst m len)
     | E.E2 (ChopEnd, lst, len) ->
         let m = mod_name (E.type_of l len) in
-        let lst = print ?name emit p l lst
-        and len = print emit p l len in
+        let lst = print ?name p l lst
+        and len = print p l len in
         emit ?name p l e (fun oc ->
           pp oc "lst_rchop %s (%s.to_int %s)" lst m len)
     | E.E2 (ScaleWeights, set, d) ->
-        let set = print emit p l set
-        and d = print emit p l d
+        let set = print p l set
+        and d = print p l d
         and m = mod_of_set_type_of_expr l set in
         ppi p.P.def "%s.scale %s %s ;" m set d ;
         "()"
     | E.E2 (CharOfString, idx, str) ->
         let m_idx = mod_name (E.type_of l idx) in
-        let idx = print emit p l idx (* guaranteed to be unsigned *)
-        and str = print emit p l str in
+        let idx = print p l idx (* guaranteed to be unsigned *)
+        and str = print p l str in
         emit ?name p l e (fun oc ->
           pp oc "(let n_ = %s.to_int %s and s_ = %s in \
                   if n_ < String.length s_ then NotNull s_.[n_] \
                   else Null)" m_idx idx str)
     | E.E2 (Strftime, fmt, time) ->
-        let fmt = print emit p l fmt
-        and time = to_float emit p l time in
+        let fmt = print p l fmt
+        and time = to_float p l time in
         emit ?name p l e (fun oc ->
           pp oc "strftime %s %s" fmt time)
     | E.E3 (FindSubstring, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         emit ?name p l e (fun oc ->
           pp oc "try NotNull (Uint24.of_int \
                    ((if %s then string_find else string_rfind) %s %s))"
@@ -1585,18 +1687,18 @@ struct
     | E.E3 (Top _, size, max_size, sigmas) ->
         let m_size = mod_name (E.type_of l size)
         and m_max_size = mod_name (E.type_of l max_size) in
-        let size = print emit p l size
-        and max_size = print emit p l max_size
-        and sigmas = to_float emit p l sigmas in
+        let size = print p l size
+        and max_size = print p l max_size
+        and sigmas = to_float p l sigmas in
         emit ?name p l e (fun oc ->
           pp oc "Top.make (%s.to_int %s) (%s.to_int %s) %s"
             m_size size
             m_max_size max_size
             sigmas)
     | E.E3 (InsertWeighted, set, w, x) ->
-        let set = print emit p l set
-        and w = print emit p l w
-        and x = print emit p l x
+        let set = print p l set
+        and w = print p l w
+        and x = print p l x
         and m = mod_of_set_type_of_expr l set in
         (* Avoids using [emit] to not generate a binding for unit: *)
         ppi p.P.def "%s.insert_weighted %s %s %s ;" m set w x ;
@@ -1604,9 +1706,9 @@ struct
     | E.E3 (Substring, str, start, stop) ->
         let m_start = mod_name (E.type_of l start)
         and m_stop = mod_name (E.type_of l stop) in
-        let str = print emit p l str
-        and start = print emit p l start
-        and stop = print emit p l stop in
+        let str = print p l str
+        and start = print p l start
+        and stop = print p l stop in
         emit ?name p l e (fun oc ->
           pp oc "substring %s (%s.to_int %s) (%s.to_int %s)"
             str m_start start m_stop stop)

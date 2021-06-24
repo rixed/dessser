@@ -44,3 +44,5 @@ let compile_cmd ?dev_mode ?extra_search_paths ?(optim=0) ~link _src _dst =
   ignore optim ; ignore link ; ignore dev_mode ; ignore extra_search_paths ;
   Printf.printf "Won't compile Desser Inetermediate Language (DIL).\n" ;
   "true"
+
+let adapt_type t = t

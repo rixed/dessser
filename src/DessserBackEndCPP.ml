@@ -261,7 +261,7 @@ struct
   let print_return n p =
     pp p.P.def "%sreturn %s;\n" p.P.indent n
 
-  let rec print ?name emit p l e =
+  let rec print emit ?name p l e =
     let gen_sym ?name pref =
       match name with
       | Some n -> n
@@ -1361,6 +1361,8 @@ struct
 
   let source_outro _ =
     "\n}\n"
+
+  let adapt_type t = t
 end
 
 include DessserBackEndCLike.Make (Config)

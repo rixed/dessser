@@ -40,6 +40,15 @@ let ser_of_encoding = function
   | CSV -> (module DessserCsv.Ser : SER)
   | _ -> failwith "No serializer for that encoding"
 
+(* Some back-ends cannot deal with some schema, or need to adapt it somewhat.
+ * For instance, OCaml backend does not like non unique record field names
+ * or sum constructor names, so it can uniquify them: *)
+let init_backend backend schema =
+  let module BE = (val backend : BACKEND) in
+  match BE.id with
+  | OCaml -> DessserBackEndOCaml.init schema
+  | _ -> ()
+
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
@@ -53,6 +62,7 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
+  init_backend backend schema ;
   let l = E.no_env in
   let has_convert = encoding_in <> encoding_out in
   let convert =
@@ -134,6 +144,7 @@ let converter
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
+  init_backend backend schema ;
   let transform _mn0 path _l v =
     match List.find (fun (p, _) -> p = path) modifier_exprs with
     | exception Not_found -> v
@@ -179,6 +190,7 @@ let lmdb main
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
+  init_backend backend T.(required (Tup [| key_schema ; val_schema |])) ;
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
     E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser key_schema l) in
@@ -235,6 +247,7 @@ let aggregator
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
+  init_backend backend schema ;
   let l = E.no_env in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)

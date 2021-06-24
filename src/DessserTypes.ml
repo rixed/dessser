@@ -1033,6 +1033,8 @@ let shrink_value_type vtyp =
     | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
     | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
   in
+  (* Avoid replacing the whole type with This: *)
+  if value_eq vtyp !this then vtyp else
   do_vt vtyp
 
 let shrink = function

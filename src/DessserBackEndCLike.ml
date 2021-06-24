@@ -64,7 +64,7 @@ sig
 
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
 
-  val print : ?name:string -> emitter -> P.t -> E.env -> E.t -> string
+  val print : emitter -> ?name:string -> P.t -> E.env -> E.t -> string
 
   val source_intro : P.context -> string
   val source_outro : P.context -> string

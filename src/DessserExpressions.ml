@@ -2250,10 +2250,11 @@ and get_compared_type l cmp =
 
 (* Registering the constructor also register the type: *)
 and register_user_constructor name out_vt ?print ?parse def =
-  (* Add identity to the passed definitions: *)
+  (* Add identity to the passed definitions (aka "copy constructor"): *)
   let out_t = T.(Data (required out_vt)) in
   let id = E1 (Function (0, [| out_t |]), E0 (Param (0, 0))) in
   let def = id :: def in
+  (* Check constructors' signatures: *)
   let _ =
     List.fold_left (fun prev f ->
       match type_of no_env f with
