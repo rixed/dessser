@@ -20,7 +20,7 @@ sig
   (* TODO: This should also accept a runtime fieldmask as parameter. *)
 
   val make : ?config:Des.config ->
-             T.maybe_nullable ->
+             T.mn ->
              E.env ->
              E.t (* src -> e*src *)
 end
@@ -57,13 +57,12 @@ struct
     dslist set_of_slist mn dstate mn0 path l src
 
   and dslist of_slist mn dstate mn0 path l src =
-    let init_t = T.Data mn in
     match Des.list_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
         let inits_src =
           E.with_sploded_pair ~l "dslist1" dim_src (fun l dim src ->
-            let inits_src_ref = make_ref (make_pair (end_of_list init_t) src) in
+            let inits_src_ref = make_ref (make_pair (end_of_list mn) src) in
             let_ ~name:"inits_src_ref" ~l inits_src_ref (fun l inits_src_ref ->
               let inits_src = get_ref inits_src_ref in
               seq [
@@ -85,7 +84,7 @@ struct
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let src = list_opn mn0 path mn l src in
-        let_ ~name:"inits_ref" ~l (make_ref (end_of_list init_t)) (fun l inits_ref ->
+        let_ ~name:"inits_ref" ~l (make_ref (end_of_list mn)) (fun l inits_ref ->
           let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
             let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
               seq [
@@ -169,22 +168,21 @@ struct
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
 
-  and dunit _ _ _ _ src =
-    make_pair unit src
+  and dvoid _ _ _ _ src =
+    make_pair void src
 
   and dext name _dstate _mn0 _path _l src =
     apply (type_method name (E.Des Des.id)) [ src ]
 
   and dthis _dstate mn0 _path _l src =
     (* Call ourself recursively *)
-    apply (myself T.(Pair (Data mn0, DataPtr))) [ src ]
+    apply (myself T.(pair mn0 ptr)) [ src ]
 
   and make1 dstate mn0 path mn l src =
     let rec des_of_vt = function
-      | T.Unknown -> invalid_arg "make1"
       | T.This -> dthis
       | T.Ext n -> dext n
-      | T.Base Unit -> dunit
+      | T.Void -> dvoid
       | T.Base Float -> Des.dfloat
       | T.Base String -> Des.dstring
       | T.Base Bool -> Des.dbool
@@ -222,8 +220,9 @@ struct
       | T.Set (Simple, mn) -> dset mn
       | T.Set _ -> todo "Materialization of non simple sets"
       | T.Map _ -> assert false (* No value of map type *)
+      | _ -> invalid_arg "make1"
     in
-    let vt = mn.vtyp in
+    let vt = mn.typ in
     if mn.nullable then (
       if_ (Des.is_null dstate mn0 path l src)
         ~then_:(make_pair (null vt) (Des.dnull vt dstate mn0 path l src))
@@ -239,7 +238,7 @@ struct
     )
 
   let make ?config mn0 l =
-    E.func1 ~l DataPtr (fun l src ->
+    E.func1 ~l T.ptr (fun l src ->
       let dstate, src = Des.start ?config mn0 l src in
       E.with_sploded_pair ~l "make" (make1 dstate mn0 [] mn0 l src) (fun l v src ->
         make_pair v (Des.stop dstate l src)))
@@ -256,12 +255,12 @@ sig
   module Ser : SER
 
   val serialize : ?config:Ser.config ->
-                  T.maybe_nullable ->
+                  T.mn ->
                   E.env ->
                   E.t (* mask -> value -> dataptr -> dataptr *)
 
   val sersize : ?config:Ser.config ->
-                T.maybe_nullable ->
+                T.mn ->
                 E.env ->
                 E.t (* mask -> v -> size *)
 end
@@ -361,21 +360,20 @@ struct
               choose_cstr 0)) in
     Ser.sum_cls sstate mn0 path l dst
 
-  and sunit _ _ _ _ _ dst = dst
+  and svoid _ _ _ _ _ dst = dst
 
   and sext name ma _ _ _ _ v dst =
     apply (type_method name (E.Ser Ser.id)) [ ma ; v ; dst ]
 
   and sthis ma _sstate _mn0 _path _l v dst =
     (* Call ourself recursively *)
-    apply (myself T.DataPtr) [ ma ; v ; dst ]
+    apply (myself T.ptr) [ ma ; v ; dst ]
 
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
-      | T.Unknown -> invalid_arg "ser1"
       | T.This -> sthis ma
       | T.Ext n -> sext n ma
-      | T.Base Unit -> sunit
+      | T.Void -> svoid
       | T.Base Float -> Ser.sfloat
       | T.Base String -> Ser.sstring
       | T.Base Bool -> Ser.sbool
@@ -408,6 +406,7 @@ struct
       | T.Lst mn -> slist_or_set mn
       | T.Set (_, mn) -> slist_or_set mn
       | T.Map _ -> assert false (* No value of map type *)
+      | _ -> invalid_arg "ser1"
     in
     if_ (eq ma skip_field)
       ~then_:dst
@@ -415,13 +414,13 @@ struct
         if_ (eq ma set_field_null)
           ~then_:(
             if mn.nullable then
-              Ser.snull mn.vtyp sstate mn0 path l dst
+              Ser.snull mn.typ sstate mn0 path l dst
             else
               seq [ assert_ false_ ; (* Mask has been type checked *)
                     dst ])
           ~else_:(
             (* Copy or Recurse are handled the same: *)
-            let vt = mn.vtyp in
+            let vt = mn.typ in
             if mn.nullable then
               if_null v
                 ~then_:(Ser.snull vt sstate mn0 path l dst)
@@ -435,7 +434,7 @@ struct
 
   (* [l] may contain serializers for external types *)
   and serialize ?config mn0 l =
-    E.func3 ~l Mask (Data mn0) DataPtr (fun l ma v dst ->
+    E.func3 ~l T.mask mn0 T.ptr (fun l ma v dst ->
       let path = [] in
       let sstate, dst = Ser.start ?config mn0 l dst in
       let dst = ser1 sstate mn0 path mn0 l v ma dst in
@@ -516,23 +515,22 @@ struct
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
-  and ssunit _ _ _ _ sz = sz
+  and ssvoid _ _ _ _ sz = sz
 
   and ssext name ma _ _ _ v =
     apply (type_method name (E.SSize Ser.id)) [ ma ; v ]
 
   and ssthis ma _mn0 _path _l v =
     (* Call ourself recursively *)
-    apply (myself T.Size) [ ma ; v ]
+    apply (myself T.size) [ ma ; v ]
 
   and sersz1 mn mn0 path l v ma sz =
     let cumul ssizer mn0 path l v sz =
       add sz (ssizer mn0 path l v) in
     let rec ssz_of_vt = function
-      | T.Unknown -> invalid_arg "sersz1"
       | T.This -> cumul (ssthis ma)
       | T.Ext n -> cumul (ssext n ma)
-      | T.Base Unit -> ssunit
+      | T.Void -> ssvoid
       | T.Base Float -> cumul Ser.ssize_of_float
       | T.Base String -> cumul Ser.ssize_of_string
       | T.Base Bool -> cumul Ser.ssize_of_bool
@@ -564,6 +562,7 @@ struct
       (* Sets are serialized like lists: *)
       | T.Set (_, mn) -> sslist mn
       | T.Map _ -> assert false (* No value of map type *)
+      | _ -> invalid_arg "sersz1"
     in
     if_ (eq ma skip_field)
       ~then_:sz
@@ -576,7 +575,7 @@ struct
               seq [ assert_ false_ ;
                     sz ])
           ~else_:(
-            let vt = mn.vtyp in
+            let vt = mn.typ in
             if mn.nullable then
               if_null v
                 ~then_:(add sz (Ser.ssize_of_null mn0 path))
@@ -585,7 +584,7 @@ struct
               ssz_of_vt vt mn0 path l v sz))
 
   let sersize ?config mn l =
-    E.func2 ~l Mask (T.Data mn) (fun l ma v ->
+    E.func2 ~l T.mask mn (fun l ma v ->
       let sz = Ser.ssize_start ?config mn in
       sersz1 mn mn [] l v ma sz)
 end

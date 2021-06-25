@@ -55,7 +55,7 @@ let init_backend backend schema =
 let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
         optim () =
   debug := dbg ;
-  T.this := schema.T.vtyp ;
+  T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -69,7 +69,7 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
   let convert =
     if has_convert then
       (* convert from encoding_in to encoding_out: *)
-      E.func2 ~l DataPtr DataPtr (fun l p1 p2 ->
+      E.func2 ~l T.ptr T.ptr (fun l p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None l p1 p2)
     else nop in
@@ -90,11 +90,11 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
   let compunit = U.make () in
   (* Christen the schema type the global type name "t" *)
   let type_name = "t" in
-  let compunit = U.name_type compunit schema.T.vtyp type_name in
+  let compunit = U.name_type compunit schema.T.typ type_name in
   (* Then declare all referenced external types as if we had the same methods
    * than those we are generating for this type: *)
   let compunit =
-    T.fold_maybe_nullable compunit (fun compunit -> function
+    T.fold_mn compunit (fun compunit -> function
       | T.Ext name ->
           let is_myself = name = "this" in
           U.register_external_type compunit name (fun _p -> function
@@ -138,7 +138,7 @@ let converter
       dbg schema backend encoding_in encoding_out _fieldmask
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
-  T.this := schema.T.vtyp ;
+  T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -152,7 +152,7 @@ let converter
     | _p, e -> apply e [ v ] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser schema ~transform l) in
+    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser schema ~transform l) in
   if !debug then E.type_check E.no_env convert ;
   let compunit = U.make () in
   let compunit, _, convert_name =
@@ -173,10 +173,10 @@ let converter
   Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
-  | T.{ vtyp = Tup [| k ; v |] ; _ } ->
+  | T.{ typ = Tup [| k ; v |] ; _ } ->
       k, v
   | t ->
-      Printf.sprintf2 "Not a pair: %a" T.print_maybe_nullable t |>
+      Printf.sprintf2 "Not a pair: %a" T.print_mn t |>
       failwith
 
 let lmdb main
@@ -184,7 +184,7 @@ let lmdb main
       dev_mode optim () =
   debug := dbg ;
   (* FIXME: this in key_schema should refer to key_schema *)
-  T.this := val_schema.T.vtyp ;
+  T.this := val_schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -194,9 +194,9 @@ let lmdb main
   init_backend backend T.(required (Tup [| key_schema ; val_schema |])) ;
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser key_schema l) in
+    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser key_schema l) in
   let convert_val =
-    E.func2 ~l:E.no_env DataPtr DataPtr (fun l -> DS.desser val_schema l) in
+    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser val_schema l) in
   if !debug then (
     E.type_check E.no_env convert_key ;
     E.type_check E.no_env convert_val
@@ -242,7 +242,7 @@ let aggregator
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
   debug := dbg ;
-  T.this := schema.T.vtyp ;
+  T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -261,24 +261,25 @@ let aggregator
    * and the input_t: *)
   E.type_check E.no_env update_expr ;
   let update_t = E.type_of E.no_env update_expr in
-  if not (T.eq update_t (T.Function ([| state_t ; Data schema |], T.Void)))
+  if not (T.eq_mn update_t (T.func [| state_t ; schema |] T.void))
   then
     Printf.sprintf2
       "Aggregation updater (%a) must be a function of the aggregation state \
        (%a) and the input value (%a) and returning nothing (not %a)"
       (E.print ~max_depth:4) update_expr
-      T.print state_t
-      T.print_maybe_nullable schema
-      T.print update_t |>
+      T.print_mn state_t
+      T.print_mn schema
+      T.print_mn update_t |>
     failwith ;
   (* Then check the finalizer: *)
   E.type_check E.no_env finalize_expr ;
   let output_t =
     match E.type_of E.no_env finalize_expr with
-    | T.Function ([| a1 |], Data mn) when a1 = state_t -> mn
-    | t ->
+    | T.{ typ = Function ([| a1 |], mn) ; nullable = false }
+      when T.eq_mn a1 state_t -> mn
+    | mn ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
-                         aggregation state (not %a)" T.print t |>
+                         aggregation state (not %a)" T.print_mn mn |>
         failwith in
   (* Finally, a function to convert the output value on the heap into stdout
    * in the given encoding: *)
@@ -294,7 +295,7 @@ let aggregator
   let compunit, state_id, state_name =
     U.add_identifier_of_expression compunit ~name:"init" init_expr in
   let input_expr =
-    E.func1 ~l:(U.environment compunit) DataPtr (fun l src ->
+    E.func1 ~l:(U.environment compunit) T.ptr (fun l src ->
       let v_src = apply des [ src ] in
       E.with_sploded_pair ~l "input_expr" v_src (fun _l v src ->
         seq [ apply update_expr [ state_id ; v ] ;
@@ -302,7 +303,7 @@ let aggregator
   let compunit, _, input_name =
     U.add_identifier_of_expression compunit ~name:"input" input_expr in
   let output_expr =
-    E.func1 ~l:(U.environment compunit) DataPtr (fun _l dst ->
+    E.func1 ~l:(U.environment compunit) T.ptr (fun _l dst ->
       let v = apply finalize_expr [ state_id ] in
       apply ser [ copy_field ; v ; dst ]) in
   let compunit, _, output_name =
@@ -346,11 +347,11 @@ let maybe_nullable =
           read_whole_file filename
         else
           s in
-      Stdlib.Ok (T.maybe_nullable_of_string ~what:"schema" s)
+      Stdlib.Ok (T.mn_of_string ~what:"schema" s)
     ) with e ->
       Stdlib.Error (`Msg (Printexc.to_string e))
   and print fmt mn =
-    Format.fprintf fmt "%s" (T.string_of_maybe_nullable mn)
+    Format.fprintf fmt "%s" (T.mn_to_string mn)
   in
   Arg.conv ~docv:"TYPE" (parse, print)
 

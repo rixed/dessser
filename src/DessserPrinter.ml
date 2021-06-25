@@ -17,7 +17,7 @@ type t =
     mutable external_types : (string * (t -> backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses of type names: *)
-    mutable type_names : (T.value * string) list }
+    mutable type_names : (T.t * string) list }
 
 let make ?(declared=Set.String.empty) ?(decls=[]) context type_names external_types =
   { context ;
@@ -47,13 +47,10 @@ let indent_more p f =
   finally (fun () -> p.indent <- indent)
     f ()
 
-let type_id p = function
-  | T.Data { vtyp ; _ } as t ->
-      let vtyp = T.shrink_value_type vtyp in
-      (try List.assoc vtyp p.type_names
-      with Not_found -> T.uniq_id t)
-  | t ->
-      T.uniq_id t
+let type_id p t =
+  let t = T.shrink t in
+  try List.assoc t p.type_names
+  with Not_found -> T.uniq_id t
 
 let declared_type p t f =
   let id = type_id p t in

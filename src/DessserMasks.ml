@@ -177,13 +177,13 @@ struct
   (*$>*)
 end
 
-exception Types_do_not_match of { mask : T.t ; expr : T.t }
+exception Types_do_not_match of { mask : T.mn ; expr : T.mn }
 exception Invalid_type_for_mask of T.t
-exception Mask_too_long_for_type of T.maybe_nullable * t
-exception Not_a_recursive_type of T.maybe_nullable
+exception Mask_too_long_for_type of T.mn * t
+exception Not_a_recursive_type of T.mn
 exception Cannot_skip_that
 exception Cannot_insert_into_that
-exception Cannot_set_null of T.maybe_nullable
+exception Cannot_set_null of T.mn
 
 (* Project type [mn] according to mask [ma]: *)
 let rec project mn ma =
@@ -196,10 +196,8 @@ let rec project mn ma =
         match ma with
         | Skip -> mns', n, i + 1
         | Insert e ->
-            (match E.type_of E.no_env e with
-            | T.Data mn ->
-                ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
-            | t -> raise (Invalid_type_for_mask t))
+            let mn = E.type_of E.no_env e in
+            ("inserted_"^ Stdlib.string_of_int n, mn) :: mns', n + 1, i
         | ma ->
             let name, mn = mns.(i) in
             (name, project mn ma) :: mns', n, i + 1
@@ -223,34 +221,33 @@ let rec project mn ma =
       else
         raise (Cannot_set_null mn)
   | Recurse mas ->
-      (match mn.T.vtyp with
+      (match mn.T.typ with
       | T.Tup mns ->
           (match recurse_tuple mn mns mas with
           | [||] -> raise Cannot_skip_that
           (* No tuples of 1 items: *)
           | [| mn |] -> mn
-          | mns -> { mn with vtyp = T.Tup mns })
+          | mns -> { mn with typ = T.Tup mns })
       | T.Rec mns ->
           (match recurse_record mn mns mas with
           | [||] -> raise Cannot_skip_that
           | mns ->
               (* A record of one field is OK: *)
-              { mn with vtyp = T.Rec mns })
+              { mn with typ = T.Rec mns })
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->
       let te = E.type_of E.no_env e in
-      if te = Data mn then mn (* Does not change the type *)
-      else raise (Types_do_not_match { expr = te ; mask = T.Data mn })
+      if T.eq_mn te mn then mn (* Does not change the type *)
+      else raise (Types_do_not_match { expr = te ; mask = mn })
   | Insert _ ->
       raise Cannot_insert_into_that
 
-
 (*$inject
-  let s2t = T.maybe_nullable_of_string
+  let s2t = T.mn_of_string
   let s2a = Parser.action_of_string *)
 
-(*$= project & ~printer:(BatIO.to_string T.print_maybe_nullable)
+(*$= project & ~printer:(BatIO.to_string T.print_mn)
   (T.optional (Base U8)) (* Do nothing case *) \
     (project (T.optional (Base U8)) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
@@ -290,7 +287,7 @@ let () =
     | Types_do_not_match { mask ; expr } ->
         Some (
           Printf.sprintf2 "Type in mask (%a) does not match masked type (%a)"
-            T.print mask T.print expr)
+            T.print_mn mask T.print_mn expr)
     | Invalid_type_for_mask t ->
         Some (
           Printf.sprintf2 "Masks can not use type %a, only maybe_nullable types"
@@ -298,11 +295,11 @@ let () =
     | Mask_too_long_for_type (mn, t) ->
         Some (
           Printf.sprintf2 "Mask %a is too long for type %a"
-            print_mask t T.print_maybe_nullable mn)
+            print_mask t T.print_mn mn)
     | Not_a_recursive_type mn ->
         Some (
           Printf.sprintf2 "Cannot recurse into type %a"
-            T.print_maybe_nullable mn)
+            T.print_mn mn)
     | Cannot_skip_that ->
         Some "Can only skip tuple or record fields"
     | Cannot_insert_into_that ->
@@ -310,6 +307,6 @@ let () =
     | Cannot_set_null mn ->
         Some (
           Printf.sprintf2 "Cannot force not nullable type %a to null"
-            T.print_maybe_nullable mn)
+            T.print_mn mn)
     | _ ->
         None)

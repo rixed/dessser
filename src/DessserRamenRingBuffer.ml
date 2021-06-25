@@ -73,7 +73,7 @@ let align_dyn l p extra_bytes =
   let padding_len = sub wsize extra_bytes in
   let_ ~name:"align_ptr" ~l p (fun _l p ->
     if_ (gt wsize padding_len)
-      ~then_:(data_ptr_add p padding_len)
+      ~then_:(ptr_add p padding_len)
       ~else_:p)
 
 let align_const _l p extra_bytes =
@@ -81,7 +81,7 @@ let align_const _l p extra_bytes =
   let extra_bytes = extra_bytes mod word_size in
   if extra_bytes = 0 then p else
     let padding_len = word_size - extra_bytes in
-    data_ptr_add p (size padding_len)
+    ptr_add p (size padding_len)
 
 let tuple_typs_of_record mns =
   Array.map snd mns
@@ -89,7 +89,7 @@ let tuple_typs_of_record mns =
 (* We use a stack of "frames" of pointer to nullmask + nullbit index.
  * Our "data pointer" is therefore actually composed of the data pointer
  * itself (p) and a stack (stk): *)
-let t_frame = T.(pair DataPtr Size)
+let t_frame = T.(pair ptr size)
 
 let leave_frame l p_stk =
   E.with_sploded_pair ~l "leave_frame" p_stk (fun _l p stk ->
@@ -139,7 +139,7 @@ let may_set_nullbit bit mn0 path l stk =
   | _ ->
       (* This is an item of some compound (top level or inner), which have a
        * nullbit if it is nullable: *)
-      if (Path.type_of_path mn0 path |> T.develop_maybe_nullable).nullable then
+      if (Path.type_of_path mn0 path |> T.develop_mn).nullable then
         set_nullbit_to bit l stk
       else
         stk
@@ -152,7 +152,7 @@ let may_skip_nullbit mn0 path l p_stk =
       assert (not mn0.T.nullable) ;
       p_stk
   | _ ->
-      if (Path.type_of_path mn0 path |> T.develop_maybe_nullable).nullable then
+      if (Path.type_of_path mn0 path |> T.develop_mn).nullable then
         E.with_sploded_pair ~l "may_skip_nullbit" p_stk (fun l p stk ->
           let stk = skip_nullbit l stk in
           make_pair p stk)
@@ -168,19 +168,19 @@ struct
      * ringbuffer which parent a tuple is originating from. *)
     true,
     Array.count_matching (fun mn ->
-      T.(develop_maybe_nullable mn).nullable) mns
+      T.(develop_mn mn).nullable) mns
 
   let rec_bits mns =
     let mns = tuple_typs_of_record mns in
     tup_bits mns
 
   let vec_bits dim mn =
-    let mn = T.develop_maybe_nullable mn in
+    let mn = T.develop_mn mn in
     mn.T.nullable,
     if mn.T.nullable then dim else 0
 
   let lst_bits mn n =
-    let mn = T.develop_maybe_nullable mn in
+    let mn = T.develop_mn mn in
     mn.T.nullable,
     if mn.T.nullable then n else u32_of_int 0
 
@@ -219,7 +219,7 @@ struct
   type config = unit
   type state = unit
 
-  let ptr _mn = T.(pair DataPtr (slist t_frame))
+  let ptr _mn = T.(pair ptr (slist t_frame))
 
   (* Few helper functions: *)
 
@@ -279,7 +279,7 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let with_debug p what write =
     seq [ debug (string ("ser a "^ what ^" at ")) ;
@@ -488,7 +488,7 @@ struct
   (* nullbits are set when actual values are written: *)
   let snotnull _t () _ _ _ p_stk = p_stk
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
 
   (* SerSize of the whole string: *)
   let ssize_of_string _mn0 _path _l id =
@@ -508,16 +508,16 @@ struct
           nullmask_bytes
     and without_nullmask () =
       size word_size in
-    match (Path.type_of_path mn0 path |> T.develop_maybe_nullable).vtyp with
-    | Lst vt ->
+    match (Path.type_of_path mn0 path |> T.develop_mn).typ with
+    | Lst mn ->
         (* If the items are not nullable then there is no nullmask. *)
-        if vt.nullable then
+        if mn.nullable then
           with_nullmask ()
         else
           without_nullmask ()
-    | vtyp ->
+    | t ->
         Printf.eprintf "ERROR: List of type %a!?\n%!"
-          T.print_value vtyp ;
+          T.print t ;
         assert false
 
   let ssize_of_float _mn0 _path _ _ =
@@ -586,13 +586,13 @@ struct
   let ssize_of_tup mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
     size (nullmask_words * word_size)
 
   let ssize_of_rec mn0 path _ _ =
     (* Just the additional bitmask: *)
     let nullmask_words =
-      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
     size (nullmask_words * word_size)
 
   (* Just the additional label: *)
@@ -601,7 +601,7 @@ struct
 
   let ssize_of_vec mn0 path _ _ =
     let nullmask_words =
-      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).vtyp in
+      NullMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
     size (nullmask_words * word_size)
 
   let ssize_of_null _mn0 _path = size 0
@@ -639,7 +639,7 @@ struct
               let words = read_byte p |> first in
               let bytes = left_shift (to_u32 words)
                                      (u8_of_int (log2 word_size)) in
-              data_ptr_add p (size_of_u32 bytes)
+              ptr_add p (size_of_u32 bytes)
             else p
           and stk = cons new_frame stk in
           make_pair p stk ]
@@ -651,7 +651,7 @@ struct
     (* TODO: assert tail stk = end_of_list *)
     first p_stk
 
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
   (* When we deserialize any value, we may have to increment the nullbit
    * pointer depending on the current type of position in the global type
@@ -821,7 +821,7 @@ struct
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
       (* Skip that nullmask: *)
-      let p = data_ptr_add p (size 2) in
+      let p = ptr_add p (size 2) in
       (* Read the label: *)
       let w_p = read_word LittleEndian p in
       E.with_sploded_pair ~l "sum_opn3" w_p (fun l w p ->

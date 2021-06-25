@@ -27,7 +27,7 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.DataPtr
+  let ptr _vtyp = T.ptr
 
   let start ?(config=default_config) _l _v p = config, p
 
@@ -38,7 +38,7 @@ struct
     | Some c ->
         write_byte p (byte_of_const_char c)
 
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
@@ -141,7 +141,7 @@ struct
   let snotnull _t _conf _ _ _ p = p
 
   (* Overestimate some of them: *)
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
 
   let ssize_start ?(config=default_config) _ =
     size (if config.newline = None then 0 else 1)
@@ -193,7 +193,7 @@ struct
 
   let ssize_of_tup mn path _ _ =
     let num_items =
-      match (Path.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).typ with
       | Tup mns -> Array.length mns
       | Rec mns -> Array.length mns
       | _ -> assert false in
@@ -203,7 +203,7 @@ struct
 
   let ssize_of_sum mn path _ _ =
     let max_label =
-      match (Path.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).typ with
       | Sum mns ->
           Array.fold_left (fun m (label, _) ->
             max m (String.length label)
@@ -213,7 +213,7 @@ struct
 
   let ssize_of_vec mn path _ _ =
     let dim =
-      match (Path.type_of_path mn path).vtyp with
+      match (Path.type_of_path mn path).typ with
       | Vec (dim, _) -> dim
       | _ -> assert false in
     size (2 + dim - 1)
@@ -232,11 +232,11 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.DataPtr
+  let ptr _vtyp = T.ptr
 
   let start ?(config=default_config) _mn _ p = config, p
 
-  let skip n p = data_ptr_add p (size n)
+  let skip n p = ptr_add p (size n)
 
   let skip1 = skip 1
 
@@ -260,7 +260,7 @@ struct
           ~then_:(skip_char c p)
           ~else_:p
 
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
   let tup_cls _conf _ _ _ p = skip1 p
 

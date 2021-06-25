@@ -21,8 +21,8 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = T.{ vtyp = Base x ; nullable = false }
-  and n x = T.{ vtyp = Base x ; nullable = true } in
+  let m x = T.{ typ = Base x ; nullable = false }
+  and n x = T.{ typ = Base x ; nullable = true } in
   let udp_typ =
     T.required (Tup [|
       m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
@@ -66,7 +66,7 @@ let () =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
-      E.func2 ~l:E.no_env DataPtr DataPtr (fun l src dst ->
+      E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser ~ser_config:sexpr_config typ l src dst))
     ) else (
@@ -82,7 +82,7 @@ let () =
         DessserHeapValue.Serialize (DessserSExpr.Ser) in
 
       let ma = copy_field in
-      E.func2 ~l:E.no_env DataPtr DataPtr (fun l src dst ->
+      E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
         comment "Convert from RowBinary into a heap value:" (
           let des = ToValue.make typ l in
           let v_src = apply des [ src ] in

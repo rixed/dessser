@@ -11,12 +11,12 @@ struct
 
   type config = unit
   type state = unit
-  let ptr _vtyp = T.DataPtr
+  let ptr _vtyp = T.ptr
 
   let start ?(config=()) _vtyp _l p = config, p
   let stop () _l p = p
 
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat () _ _ _l _v p = p
   let sstring () _ _ _l _v p = p
@@ -58,7 +58,7 @@ struct
   let snull _t () _ _ _ p = p
   let snotnull _t () _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
   let ssize_of_float _ _ _ _ = size 0
   let ssize_of_string _ _ _ _ = size 0
   let ssize_of_bool _ _ _ _ = size 0

@@ -52,10 +52,10 @@ sig
   val type_identifier : P.t -> T.t -> string
 
   val print_binding :
-    P.t -> T.t -> string -> (string IO.output -> unit) -> string IO.output -> unit
+    P.t -> T.mn -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_inline :
-    P.t -> T.t -> (string IO.output -> unit) -> string IO.output -> unit
+    P.t -> T.mn -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_binding_toplevel :
     emitter -> string -> P.t -> E.env -> E.t -> unit

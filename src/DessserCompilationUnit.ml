@@ -7,16 +7,16 @@ let debug = false
 
 type t =
   (* FIXME: maps not lists *)
-  { identifiers : (string * identifier * T.t) list ;
-    external_identifiers : (string * T.t) list ;
+  { identifiers : (string * identifier * T.mn) list ;
+    external_identifiers : (string * T.mn) list ;
     verbatim_definitions : verbatim_definition list ;
     external_types : (string * (P.t -> backend_id -> string)) list ;
     (* User may prefer some specific name for some types: *)
-    type_names : (T.value * string) list }
+    type_names : (T.t * string) list }
 
 and verbatim_definition =
   { name : string ; (* or empty string *)
-    typ : T.t ;
+    typ : T.mn ;
     dependencies : string list ;
     backend : backend_id ;
     location : verbatim_location ;
@@ -38,11 +38,11 @@ let make () =
     external_types = [] ;
     type_names = [] }
 
-let name_type compunit vtyp name =
-  let vtyp = T.shrink_value_type vtyp in
-  match List.assoc vtyp compunit.type_names with
+let name_type compunit t name =
+  let t = T.shrink t in
+  match List.assoc t compunit.type_names with
   | exception Not_found ->
-      { compunit with type_names = (vtyp, name) :: compunit.type_names }
+      { compunit with type_names = (t, name) :: compunit.type_names }
   | name' ->
       Printf.sprintf "name_type: type %S already named %S" name name' |>
       invalid_arg
@@ -97,7 +97,7 @@ let add_identifier_of_expression compunit ?name expr =
   E.type_check l expr ;
   let t = E.type_of l expr in
   if debug then
-    BatPrintf.eprintf "  …of type: %a\n" T.print t ;
+    BatPrintf.eprintf "  …of type: %a\n" T.print_mn t ;
   let expr =
     if !DessserEval.inline_level > 0 then (
       let expr = DessserEval.peval l expr in
@@ -106,7 +106,7 @@ let add_identifier_of_expression compunit ?name expr =
         (* Check that the expression types are equivalent: *)
         E.type_check l expr
       ) ;
-      assert (T.eq t (E.type_of l expr)) ;
+      assert (T.eq_mn t (E.type_of l expr)) ;
       expr
     ) else expr in
   let identifier = { public ; expr } in
@@ -121,7 +121,7 @@ let get_type_of_identifier compunit name =
   t
 
 let make_verbatim_definition
-      ?(name="") ?(typ=T.unit) ?(dependencies=[])
+      ?(name="") ?(typ=T.void) ?(dependencies=[])
       ?(location=Inline) ~backend printer =
   if location = Inline && name = "" then
     invalid_arg "make_verbatim_definition: Inline definitions must be named" ;

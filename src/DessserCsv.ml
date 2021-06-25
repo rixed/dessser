@@ -53,9 +53,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
     | Some fst ->
         is_serializable ~to_first_concrete:to_first_concrete' fst &&
         Enum.for_all (is_serializable ~to_first_concrete:false) mns in
-  match mn.T.vtyp with
-  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
-      false
+  match mn.T.typ with
   | This ->
       (* If everything else is serializable then This is also serializable.
        * Or let any non-serializable field fails. *)
@@ -63,7 +61,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
   | Base _ ->
       true
   | Usr { def ; _ } ->
-      is_serializable ~to_first_concrete T.{ mn with vtyp = def }
+      is_serializable ~to_first_concrete T.{ mn with typ = def }
   | Vec (_, mn') | Lst mn' | Set (_, mn') ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
   | Tup mns ->
@@ -75,21 +73,21 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       Array.for_all (fun (_, mn') ->
         is_serializable ~to_first_concrete:to_first_concrete' mn'
       ) mns
+  | _ ->
+      false
 
 (*$T is_serializable
-  is_serializable (T.maybe_nullable_of_string "Ip6?")
+  is_serializable (T.mn_of_string "Ip6?")
 *)
 
 (* Tells if the given type's first item is nullable *)
 let rec nullable_at_first mn =
   mn.T.nullable ||
-  match mn.vtyp with
-  | Unknown | This | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
-      invalid_arg "nullable_at_first"
+  match mn.typ with
   | Base _ ->
       false
   | Usr { def ; _ } ->
-      nullable_at_first T.{ mn with vtyp = def }
+      nullable_at_first T.{ mn with typ = def }
   | Vec (_, mn') | Lst mn' | Set (_, mn') ->
       nullable_at_first mn'
   | Tup mns ->
@@ -100,55 +98,57 @@ let rec nullable_at_first mn =
       Array.exists (fun (_, mn) ->
         nullable_at_first mn
       ) mns
+  | _ ->
+      invalid_arg "nullable_at_first"
 
 (*$T nullable_at_first
-  nullable_at_first (T.maybe_nullable_of_string "[a BOOL? | b BOOL]")
-  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?]")
-  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?][]")
-  nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL?][1]")
-  not (nullable_at_first (T.maybe_nullable_of_string "[a BOOL | b BOOL]"))
+  nullable_at_first (T.mn_of_string "[a BOOL? | b BOOL]")
+  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?]")
+  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?][]")
+  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?][1]")
+  not (nullable_at_first (T.mn_of_string "[a BOOL | b BOOL]"))
 *)
 
 (* Take a maybe-nullable and make it serializable by making some compound
  * types non nullable: *)
 let rec make_serializable mn =
-  match mn.T.vtyp with
-  | Unknown | Ext _ | Map _ | Tup [||] | Rec [||] | Sum [||] ->
-      invalid_arg "make_serializable"
+  match mn.T.typ with
   | This ->
       todo "make_serializable for This"
   | Base _ ->
       mn
   | Usr { def ; _ } ->
-      let mn' = T.{ mn with vtyp = def } in
+      let mn' = T.{ mn with typ = def } in
       if is_serializable mn' then mn else make_serializable mn'
   | Vec (d, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = Vec (d, mn') }
+        typ = Vec (d, mn') }
   | Lst mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = Lst mn' }
+        typ = Lst mn' }
   | Set (_, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        vtyp = Lst mn' }
+        typ = Lst mn' }
   | Tup mns ->
       let mns = Array.map make_serializable mns in
       { nullable = if nullable_at_first mns.(0) then false else mn.nullable ;
-        vtyp = Tup mns }
+        typ = Tup mns }
   | Rec mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if nullable_at_first (snd mns.(0)) then false else mn.nullable ;
-        vtyp = Rec mns }
+        typ = Rec mns }
   | Sum mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if Array.exists (fun (_, mn) -> nullable_at_first mn) mns then false
           else mn.nullable ;
-        vtyp = Sum mns }
+        typ = Sum mns }
+  | _ ->
+      invalid_arg "make_serializable"
 
 let make_serializable =
   if debug then
@@ -165,7 +165,7 @@ let make_serializable =
  * the same) *)
 let is_fixed_string mn0 path =
   match Path.type_of_path mn0 path with
-  | { vtyp = Vec (_, { vtyp = Base Char ; nullable = false } ) ; _ } ->
+  | { typ = Vec (_, { typ = Base Char ; nullable = false } ) ; _ } ->
       true
   | _ ->
       false
@@ -180,9 +180,9 @@ let is_in_fixed_string mn0 path =
 
 (*$inject
   let make_serializable_str =
-    T.string_of_maybe_nullable %
+    T.mn_to_string %
     make_serializable %
-    T.maybe_nullable_of_string
+    T.mn_of_string
 *)
 (*$= make_serializable_str & ~printer:identity
   "BOOL?[4][5]" ("BOOL?[4][5]?" |> make_serializable_str)
@@ -202,7 +202,7 @@ struct
 
   let ptr mn =
     if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.DataPtr
+    T.ptr
 
   let start ?(config=default_config) _l _v p = config, p
 
@@ -213,7 +213,7 @@ struct
     | Some c ->
         write_byte p (byte_of_const_char c)
 
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
@@ -349,7 +349,7 @@ struct
 
   let snotnull _t _conf _ _ _ p = p
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
   let todo_ssize () = failwith "TODO: ssize for CSV"
   let ssize_of_float _ _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ _ = todo_ssize ()
@@ -394,13 +394,13 @@ struct
 
   let ptr mn =
     if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.DataPtr
+    T.ptr
 
   let start ?(config=default_config) _mn _l p = config, p
 
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
-  let skip n p = data_ptr_add p (size n)
+  let skip n p = ptr_add p (size n)
 
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)

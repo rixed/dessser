@@ -19,23 +19,23 @@ let rec conv ?(depth=0) ~to_ l d =
     Array.fast_sort String.compare f ;
     f in
   let conv = conv ~depth:(depth+1) in
-  let conv_maybe_nullable = conv_maybe_nullable ~depth:(depth+1) in
+  let conv_mn = conv_mn ~depth:(depth+1) in
   let map_items d mn1 mn2 =
     map_ nop (
-      E.func2 ~l T.Void (T.Data mn1) (fun l _void item ->
-        conv_maybe_nullable ~to_:mn2 l item)
+      E.func2 ~l T.void mn1 (fun l _void item ->
+        conv_mn ~to_:mn2 l item)
       ) d in
-  let from = (T.mn_of_t (E.type_of l d)).T.vtyp in
-  if T.value_eq from to_ then d else
+  let from = (E.type_of l d).T.typ in
+  if T.eq from to_ then d else
   (* A null can be cast to whatever. Actually, type-checking will type nulls
    * arbitrarily. *)
   if match d with E.E0 (Null _) -> true | _ -> false then null to_ else
   match from, to_ with
   (* Any cast from a user type to its implementation is a NOP, and the other
    * way around too: *)
-  | Usr { def ; _ }, to_ when T.value_eq def to_ ->
+  | Usr { def ; _ }, to_ when T.eq def to_ ->
       d
-  | from, Usr { def ; _ } when T.value_eq def from ->
+  | from, Usr { def ; _ } when T.eq def from ->
       d
   | T.Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
@@ -150,19 +150,19 @@ let rec conv ?(depth=0) ~to_ l d =
   | Base Bool, Base I128 -> to_i128 (u8_of_bool d)
   | Base Bool, Base Float -> to_float (u8_of_bool d)
   (* A vector of 1 t into t and the other way around: *)
-  | Vec (1, { nullable = false ; vtyp = vt1 }), vt2
-    when T.value_eq vt1 vt2 ->
+  | Vec (1, { nullable = false ; typ = vt1 }), vt2
+    when T.eq vt1 vt2 ->
       get_vec (u32_of_int 0) d
-  | vt1, Vec (1, { vtyp = vt2 ; nullable })
-    when T.value_eq vt1 vt2 ->
+  | vt1, Vec (1, { typ = vt2 ; nullable })
+    when T.eq vt1 vt2 ->
       make_vec [ if nullable then not_null d else d ]
-  | vt1, Lst ({ vtyp = vt2 ; nullable } as mn2)
-    when T.value_eq vt1 vt2 ->
+  | vt1, Lst ({ typ = vt2 ; nullable } as mn2)
+    when T.eq vt1 vt2 ->
       make_lst mn2 [ if nullable then not_null d else d ]
   (* Specialized version for lst/vec of chars that return the
    * string composed of those chars rather than an enumeration: *)
-  | Vec (_, { vtyp = Base Char ; _ }), Base String
-  | Lst { vtyp = Base Char ; _ }, Base String ->
+  | Vec (_, { typ = Base Char ; _ }), Base String
+  | Lst { typ = Base Char ; _ }, Base String ->
       conv_charseq_to_string ~depth:(depth+1) (cardinality d) l d
   | Vec _, Base String
   | Lst _, Base String ->
@@ -173,7 +173,7 @@ let rec conv ?(depth=0) ~to_ l d =
         if i >= Array.length mns then
           append_string s (string ")")
         else
-          let s' = conv_maybe_nullable ~to_ l (get_item i d) in
+          let s' = conv_mn ~to_ l (get_item i d) in
           let s = if i > 0 then append_string s (string ";") else s in
           loop (append_string s s') (i + 1) in
       loop (string "(") 0
@@ -211,18 +211,18 @@ let rec conv ?(depth=0) ~to_ l d =
        * is narrower, or inject NULLs in some cases. *)
       make_tup (
         List.init (Array.length mns1) (fun i ->
-          conv_maybe_nullable ~to_:mns2.(i) l (get_item i d)))
+          conv_mn ~to_:mns2.(i) l (get_item i d)))
   | Tup mns1, Vec (dim, mn2) when Array.length mns1 = dim ->
       make_vec (
         List.init (Array.length mns1) (fun i ->
-          conv_maybe_nullable ~to_:mn2 l (get_item i d)))
+          conv_mn ~to_:mn2 l (get_item i d)))
   | Tup mns1, Lst mn2 ->
       make_lst mn2 (
         List.init (Array.length mns1) (fun i ->
-          conv_maybe_nullable ~to_:mn2 l (get_item i d)))
+          conv_mn ~to_:mn2 l (get_item i d)))
   | Rec mns1, Rec mns2 when fields_of_rec mns1 = fields_of_rec mns2 ->
       Array.fold_left (fun fields (n, mn) ->
-        (n, conv_maybe_nullable ~to_:mn l (get_field n d)) :: fields
+        (n, conv_mn ~to_:mn l (get_field n d)) :: fields
       ) [] mns2 |>
       List.rev |>
       make_rec
@@ -230,14 +230,14 @@ let rec conv ?(depth=0) ~to_ l d =
   (* "globals_map" is an alias for the type used by CodeGenLib to set/get
    * to/from LMDB files: *)
   | Ext "globals_map",
-    Map ({ vtyp = Base String ; _ }, { vtyp = Base String ; _ })
-  | Map ({ vtyp = Base String ; _ }, { vtyp = Base String ; _ }),
+    Map ({ typ = Base String ; _ }, { typ = Base String ; _ })
+  | Map ({ typ = Base String ; _ }, { typ = Base String ; _ }),
     Ext "globals_map" ->
       d
   | _ ->
       Printf.sprintf2 "Not implemented: Cast from %a to %a of expression %a"
-        T.print_value from
-        T.print_value to_
+        T.print from
+        T.print to_
         (E.print ~max_depth:3) d |>
       failwith
 
@@ -258,7 +258,7 @@ and conv_list_to_string ?(depth=0) length_e l src =
                 ~else_:nop ;
               (* Next value: *)
               get_vec i src |>
-              conv_maybe_nullable
+              conv_mn
                 ~depth:(depth+1) ~to_:T.(required (Base String)) l |>
               append ;
               (* Incr i *)
@@ -278,7 +278,7 @@ and conv_charseq_to_string ?(depth=0) length_e l src =
             (let src = get_ref src_ref in
             seq [
               get_vec i src |>
-              conv_maybe_nullable
+              conv_mn
                 ~depth:(depth+1) ~to_:T.(required (Base Char)) l |>
               string_of_char |>
               append ;
@@ -286,15 +286,15 @@ and conv_charseq_to_string ?(depth=0) length_e l src =
               set_ref i_ref (add i (u32_of_int 1)) ]) ;
           str ])))
 
-and conv_maybe_nullable ?(depth=0) ~to_ l d =
+and conv_mn ?(depth=0) ~to_ l d =
   if debug then (
     let indent = String.make (depth * 2) ' ' in
     Printf.eprintf "%sConverting into %a: %a\n"
       indent
-      T.print_maybe_nullable to_
+      T.print_mn to_
       (E.print ?max_depth:None) d) ;
-  let conv = conv ~depth:(depth+1) ~to_:to_.T.vtyp in
-  let from = T.mn_of_t (E.type_of l d) in
+  let conv = conv ~depth:(depth+1) ~to_:to_.T.typ in
+  let from = E.type_of l d in
   let is_const_null =
     match d with E.E0 (Null _) -> true | _ -> false in
   let if_null def =
@@ -307,11 +307,11 @@ and conv_maybe_nullable ?(depth=0) ~to_ l d =
   match from.T.nullable, to_.T.nullable with
   | false, false ->
       let d' = conv l d in
-      if (T.mn_of_t (E.type_of l d')).T.nullable then
+      if (E.type_of l d').T.nullable then
         force ~what:"conv from not nullable to not nullable" d'
       else d'
   | true, false ->
-      (match to_.T.vtyp with
+      (match to_.T.typ with
       | T.(Base String) ->
           if_null (string "NULL")
       | T.(Base Char) ->
@@ -319,31 +319,30 @@ and conv_maybe_nullable ?(depth=0) ~to_ l d =
       | _ ->
           let d' =
             conv l (force ~what:"conv from nullable to not nullable" d) in
-          if (T.mn_of_t (E.type_of l d')).T.nullable then
+          if (E.type_of l d').T.nullable then
             force ~what:"conv from nullable to not nullable (2)" d'
           else d')
   | false, true ->
       let d' = conv l d in
-      if (T.mn_of_t (E.type_of l d')).T.nullable then d'
+      if (E.type_of l d').T.nullable then d'
                                                  else not_null d'
   | true, true ->
-      if is_const_null then null to_.T.vtyp else
+      if is_const_null then null to_.T.typ else
       let_ ~name:"conv_mn_x_" ~l d (fun l x ->
         if_ (is_null x)
           ~then_:(
-            let x_vtyp = (T.mn_of_t (E.type_of l x)).T.vtyp in
-            if T.value_eq x_vtyp to_.T.vtyp then
+            let x_vtyp = (E.type_of l x).T.typ in
+            if T.eq x_vtyp to_.T.typ then
               x
             else
-              null to_.T.vtyp)
+              null to_.T.typ)
           ~else_:(
-            conv_maybe_nullable ~depth:(depth+1) ~to_ l
+            conv_mn ~depth:(depth+1) ~to_ l
               (force ~what:"conv from nullable to nullable" x)))
 
 (* If [d] is nullable, then return it. If it's a not nullable value type,
  * then make it nullable: *)
 let ensure_nullable ~l d =
   match E.type_of l d with
-  | T.Data { nullable = false ; _ } -> not_null d
-  | T.Data { nullable = true ; _ } -> d
-  | t -> invalid_arg ("ensure_nullable on "^ T.to_string t)
+  | T. { nullable = false ; _ } -> not_null d
+  | T. { nullable = true ; _ } -> d

@@ -187,10 +187,10 @@ let comp2 e1 e2 op_gen op_i128 op_u128 =
    * miss an optimisation opportunity than introduce a erroneous
    * optimisation: *)
   | E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
-        Null _ | EndOfList _ | EmptySet _ | Unit |
+        Null _ | EndOfList _ | EmptySet _ | Void |
         CopyField | SkipField | SetFieldNull as a),
     E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
-        Null _ | EndOfList _ | EmptySet _ | Unit |
+        Null _ | EndOfList _ | EmptySet _ | Void |
         CopyField | SkipField | SetFieldNull as b) ->
       op_gen a b
   | _ ->
@@ -368,8 +368,9 @@ let rec peval l e =
             | e :: [] ->
                 (* Last item might not be void: *)
                 let es =
-                  if E.type_of l e = T.Void && not (E.has_side_effect e) then es
-                  else e :: es in
+                  if T.eq_mn (E.type_of l e) T.void &&
+                     not (E.has_side_effect e)
+                  then es else e :: es in
                 loop es []
             | e :: rest ->
                 (* Non last items have type Void if they type check: *)
@@ -416,7 +417,7 @@ let rec peval l e =
         when i < Array.length mns && fst mns.(i) = n ->
           repl e |> p
       | Ignore, e ->
-          if E.type_of l e = T.Void then repl e
+          if T.eq_mn (E.type_of l e) T.void then repl e
           (* In theory any expression of type Void and with no side effect should
            * be disposed of. Ignore is the only way to build such an expression,
            * though, so it is enough to test this case only: *)
@@ -739,7 +740,7 @@ let rec peval l e =
            * expression, then use a LetPair instead and save the intermediary
            * bindings: *)
           else match value_t with
-          | T.Pair (t1, t2) ->
+          | T.{ typ = Pair (mn1, mn2) ; nullable = false } ->
               (* Also count how many times the identifier is used to find out if
                * the identifier is used outside of fst/snd: *)
               let fst_count, snd_count, tot_count = count_pair_uses name body in
@@ -758,31 +759,31 @@ let rec peval l e =
                                                    E0 (Identifier n2)), body)
                   | e -> e
                 ) body in
-              E.E2 (LetPair (n1, t1, n2, t2), value, body) |> p
+              E.E2 (LetPair (n1, mn1, n2, mn2), value, body) |> p
           | _ ->
               def)
-  | E2 (LetPair (n1, t1, n2, t2), value, body) ->
+  | E2 (LetPair (n1, mn1, n2, mn2), value, body) ->
       let value = p value in
-      let l = E.add_local n1 t1 l |>
-              E.add_local n2 t2 in
+      let l = E.add_local n1 mn1 l |>
+              E.add_local n2 mn2 in
       let body = peval l body in
       let fst_count = count_id_uses n1 body
       and snd_count = count_id_uses n2 body in
       if fst_count = 0 then
         if snd_count = 0 then body
-        else E.E2 (Let (n2, t2), secnd value, body) |> p
+        else E.E2 (Let (n2, mn2), secnd value, body) |> p
       else if snd_count = 0 then
-        E.E2 (Let (n1, t1), first value, body) |> p
+        E.E2 (Let (n1, mn1), first value, body) |> p
       else (match value with
         | E.E2 (MakePair, e1, e2) ->
-            E.E2 (Let (n1, t1), e1, E2 (Let (n2, t2), e2, body)) |> p
+            E.E2 (Let (n1, mn1), e1, E2 (Let (n2, mn2), e2, body)) |> p
         | _ ->
             (* The value could still result in a MakePair after some
              * intermediary let/let-pair definitions. In that case, if the
              * identifiers n1 and n2 are used only a few times then it is
              * beneficial to inline the MakePair arguments into the body,
              * despite we cannot split the pair as easily as above. *)
-            let def = E.E2 (LetPair (n1, t1, n2, t2), value, body) in
+            let def = E.E2 (LetPair (n1, mn1, n2, mn2), value, body) in
             match final_expression value with
             | E.E2 (MakePair, e1, e2) as final_make_pair ->
                 (* So this makepair would be replaced with the body, where
@@ -901,7 +902,7 @@ let rec peval l e =
               E.E2 (op, e1, e2)
           | exception Division_by_zero ->
               (* Tried to compute, but could not: *)
-              null (T.value_of_t (E.type_of l f1)) |> repl
+              null (E.type_of l f1).T.typ |> repl
           | e ->
               (* Did replace by the result, make it nullable: *)
               not_null e |> repl)
@@ -930,7 +931,7 @@ let rec peval l e =
           | exception _ ->
               E2 (Pow, e1, e2)
           | a, b ->
-              let to_ = T.(mn_of_t (E.type_of l f1)).vtyp in
+              let to_ = T.(E.type_of l f1).typ in
               (try not_null (C.conv ~to_ l (float (a ** b)))
               with _ -> null to_ |> repl))
       | UnsafePow, E0 (Float a), E0 (Float b) ->
@@ -948,7 +949,7 @@ let rec peval l e =
           | exception _ ->
               def
           | a, b ->
-              let to_ = T.(mn_of_t (E.type_of l f1)).vtyp in
+              let to_ = T.(E.type_of l f1).typ in
               (try C.conv ~to_ l (float (a ** b)) |> repl
               with _ -> def))
       | BitAnd, f1, f2 ->
@@ -968,7 +969,7 @@ let rec peval l e =
           | exception _ -> E2 (LeftShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
-              let to_ = T.(mn_of_t (E.type_of l e1)).vtyp in
+              let to_ = T.(E.type_of l e1).typ in
               C.conv ~to_ l (i128 (Int128.shift_left x n)) |> repl)
       | RightShift, E0 (U128 x), E0 (U8 n) ->
           let n = Uint8.to_int n in
@@ -978,7 +979,7 @@ let rec peval l e =
           | exception _ -> E2 (RightShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
-              let to_ = T.(mn_of_t (E.type_of l f1)).vtyp in
+              let to_ = T.(E.type_of l f1).typ in
               C.conv ~to_ l (i128 (Int128.shift_right x n)) |> repl)
       | Join, E0 (String s1), E0S (MakeVec, ss) ->
           (try
@@ -1018,12 +1019,10 @@ let rec peval l e =
           bool false |> repl
       | AllocLst, f1, f2 ->
           let def = E.E2 (AllocLst, e1, e2) in
-          (match E.type_of l f2 with
-          | T.Data mn ->
-              (match E.to_cst_int f1 with
-              | exception _ -> def
-              | 0 -> make_lst mn [] |> repl
-              | _ -> def)
+          let mn = E.type_of l f2 in
+          (match E.to_cst_int f1 with
+          | exception _ -> def
+          | 0 -> make_lst mn [] |> repl
           | _ -> def)
       | PartialSort, _, E0S ((MakeVec | MakeLst _), []) ->
           keep1 () (* result is the original, already "sorted" array *)
@@ -1234,15 +1233,15 @@ let rec peval l e =
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
 
-  "(fun 0 \"DataPtr\" \"DataPtr\" (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"DataPtr\" (read-dword little-endian (param 0 0)) (make-pair (u32-of-dword (identifier \"inner1\")) (data-ptr-add (identifier \"innerPtr\") (size 4)))))" \
+  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"Ptr\" (read-dword little-endian (param 0 0)) (make-pair (u32-of-dword (identifier \"inner1\")) (ptr-add (identifier \"innerPtr\") (size 4)))))" \
     (test_peval 3 \
-      "(fun 0 \"DataPtr\" \"DataPtr\" \
-        (let-pair \"outer1\" \"U32\" \"outerPtr\" \"DataPtr\" \
-          (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"DataPtr\" \
+      "(fun 0 \"Ptr\" \"Ptr\" \
+        (let-pair \"outer1\" \"U32\" \"outerPtr\" \"Ptr\" \
+          (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"Ptr\" \
             (read-dword little-endian (param 0 0)) \
             (make-pair (u32-of-dword (identifier \"inner1\")) (identifier \"innerPtr\"))) \
           (make-pair (identifier \"outer1\") \
-                     (data-ptr-add (identifier \"outerPtr\") (size 4)))))")
+                     (ptr-add (identifier \"outerPtr\") (size 4)))))")
 
   "(let \"a\" \"U8\" (random-u8) (add (identifier \"a\") (identifier \"a\")))" \
     (test_peval 0 \

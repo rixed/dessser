@@ -39,7 +39,7 @@ let compile_and_load ?optim ?extra_search_paths backend compunit =
   (* Dynload dest_fname *)
   Dynlink.loadfile dest_fname
 
-(* [convert] is a filter, aka a function from a pair of src*dst data-ptrs to
+(* [convert] is a filter, aka a function from a pair of src*dst ptrs to
  * another such pair, as returned by DesSer.desser function. From that a
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
@@ -57,7 +57,7 @@ let make_converter ?dev_mode ?optim ?exe_fname ?mn backend convert =
   write_source ~src_fname (fun oc ->
     Option.may (fun mn ->
       BE.print_comment oc "Converter for values of type:\n  %a\n"
-        T.print_maybe_nullable mn
+        T.print_mn mn
     ) mn ;
     BE.print_comment oc "Compile with:\n  %s\n"
       (BE.compile_cmd ?dev_mode ?optim ~link:Object src_fname exe_fname) ;

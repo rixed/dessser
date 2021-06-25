@@ -18,7 +18,7 @@ let coalesce l es =
   if es = [] then
     invalid_arg "coalesce with no alternatives" ;
   let last_e = BatList.last es in
-  let ret_nullable = T.is_nullable (E.type_of l last_e) in
+  let ret_nullable = (E.type_of l last_e).T.nullable in
   let rec loop i l = function
     | [] ->
         assert false (* because of the pre-condition *)
@@ -26,7 +26,7 @@ let coalesce l es =
         e
     | e :: es ->
         (match E.type_of l e with
-        | T.Data { nullable = true ; _ } ->
+        | T.{ nullable = true ; _ } ->
             let name = "coalesced_"^ string_of_int i in
             let_ ~name ~l e (fun l d ->
               if_null d
@@ -58,7 +58,7 @@ let rec random_slist mn =
   and to_ =
     force ~what:"random_slist rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length) in
-  let_ ~name:"slst" ~l:E.no_env (make_ref (eol T.(Data mn))) (fun l slst_ref ->
+  let_ ~name:"slst" ~l:E.no_env (make_ref (eol mn)) (fun l slst_ref ->
     let slst = get_ref slst_ref in
     seq [
       repeat ~l ~from ~to_ (fun _l _n ->
@@ -70,15 +70,15 @@ let rec random_slist mn =
 and random mn =
   if mn.T.nullable then
     if_ (random T.(required (Base Bool)))
-      ~then_:(null mn.vtyp)
+      ~then_:(null mn.typ)
       ~else_:(not_null (random { mn with nullable = false }))
-  else match mn.vtyp with
+  else match mn.typ with
   | T.Unknown ->
       invalid_arg "random for unknown type"
   | This ->
       random T.(required !this)
-  | Base Unit ->
-      unit
+  | Void ->
+      void
   | Base Float ->
       random_float
   | Base Bool ->
@@ -163,6 +163,11 @@ and random mn =
       todo "random for sum types"
   | Map _ ->
       invalid_arg "random for Map type"
+  | Size | Bit | Byte | Word | DWord | QWord | OWord
+  | Ptr | Address | Bytes | Mask | Pair _ | SList _ | Ref _ ->
+      todo "random"
+  | Function _ ->
+      todo "randomfunctions"
 
 (*
  * Kahan sums for better accuracy when summing large number of floats:
@@ -224,17 +229,17 @@ let percentiles ~l vs ps =
   let open E.Ops in
   comment "Compute the indices of those percentiles" (
     match E.get_item_type_err ~vec:true ~lst:true l ps with
-    | Error t ->
+    | Error mn ->
         BatPrintf.sprintf2
           "percentiles: coefficients must be a vector/list (not %a)"
-          T.print t |>
+          T.print_mn mn |>
         invalid_arg
     | Ok p_t ->
         let_ ~name:"vs" ~l vs (fun l vs ->
           let ks =
             let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
             let_ ~l ~name:"card_vs" card_vs (fun l card_vs ->
-              map_ card_vs (E.func2 ~l T.float (T.Data p_t) (fun _l card_vs p ->
+              map_ card_vs (E.func2 ~l T.float p_t (fun _l card_vs p ->
                 seq [
                   assert_ (and_ (ge (to_float p) (float 0.))
                                 (le (to_float p) (float 100.))) ;
@@ -255,10 +260,10 @@ let percentiles ~l vs ps =
  * If [e] is nullable already then [to_nullable l e] is just [e]. *)
 let to_nullable l e =
   let open E.Ops in
-  if T.is_nullable (E.type_of l e) then e
+  if (E.type_of l e).T.nullable then e
   else not_null e
 
-(* Tells if a vector/list/set/slist/data_ptr is empty, dealing with nullable: *)
+(* Tells if a vector/list/set/slist/ptr is empty, dealing with nullable: *)
 let is_empty l e =
   let open E.Ops in
   let prop_null nullable e f =
@@ -269,29 +274,29 @@ let is_empty l e =
     else
       f e in
   match E.type_of l e with
-  | T.Data ({ vtyp = (Base String) ; nullable }) ->
+  | T.{ typ = (Base String) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
-  | Data ({ vtyp = (Vec _ | Lst _ | Set _) ; nullable }) ->
+  | { typ = (Vec _ | Lst _ | Set _) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (cardinality e))
-  | Data ({ vtyp = Usr { name = "Cidr4" ; _ } ; nullable }) ->
+  | { typ = Usr { name = "Cidr4" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 32))
-  | Data ({ vtyp = Usr { name = "Cidr6" ; _ } ; nullable }) ->
+  | { typ = Usr { name = "Cidr6" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 128))
-  | Data ({ vtyp = Usr { name = "Cidr" ; _ } ; nullable }) ->
+  | { typ = Usr { name = "Cidr" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         if_ (eq (label_of e) (u16_of_int 0))
           ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
           ~else_:(lt (get_field "mask" (get_alt "v6" e)) (u8_of_int 128)))
-  | DataPtr ->
-      eq (size 0) (rem_size e)
-  | SList t ->
-      eq e (eol t)
-  | t ->
-      BatPrintf.sprintf2 "is_empty for %a" T.print t |>
+  | { typ = Ptr ; nullable } ->
+      prop_null nullable e (fun e -> eq (size 0) (rem_size e))
+  | { typ = SList mn ; nullable } ->
+      prop_null nullable e (fun e -> eq e (eol mn))
+  | mn ->
+      BatPrintf.sprintf2 "is_empty for %a" T.print_mn mn |>
       invalid_arg
 
 (* Tells if any item [i] from the container [lst] matches [f i]. *)
@@ -349,7 +354,7 @@ let rec is_in ?(l=E.no_env) item lst =
     let_ ~l ~name:"item" item (fun l item ->
       let lst_t = E.type_of l lst
       and item_t = E.type_of l item in
-      if T.is_nullable lst_t then
+      if lst_t.T.nullable then
         if_null lst
           ~then_:(null T.(Base Bool))
           ~else_:(
@@ -363,9 +368,9 @@ let rec is_in ?(l=E.no_env) item lst =
                 with Invalid_argument _ -> bool false))
           ~then_:(
             let ret = bool true in
-            if T.is_nullable item_t then not_null ret else ret)
+            if item_t.T.nullable then not_null ret else ret)
           ~else_:(
-            if T.is_nullable item_t then
+            if item_t.T.nullable then
               if_null item
                 ~then_:(null T.(Base Bool))
                 ~else_:(
@@ -373,31 +378,31 @@ let rec is_in ?(l=E.no_env) item lst =
             else (
               let err () =
                 BatPrintf.sprintf2 "is_in: invalid types (%a in %a)"
-                  T.print item_t
-                  T.print lst_t |>
+                  T.print_mn item_t
+                  T.print_mn lst_t |>
                 invalid_arg in
               (* Now that neither lst nor item are nullable, let's deal with
                * the actual question: *)
               match item_t, lst_t with
               (* Substring search: *)
-              | T.Data { vtyp = Base String ; _ },
-                T.Data { vtyp = Base String ; _ } ->
+              | T. { typ = Base String ; _ },
+                T. { typ = Base String ; _ } ->
                   not_ (is_null (find_substring (bool true) item lst))
               (* In all other cases where [item] and [lst] are of the same type
                * then [in_in item lst] is just a comparison: *)
-              | t1, t2 when T.eq t1 t2 ->
+              | mn1, mn2 when T.eq_mn mn1 mn2 ->
                   eq item lst
               (* Otherwise [lst] must be some kind of sub-set: *)
-              | T.Data { vtyp = Usr { name = "Ip4" ; _ } ; _ },
-                T.Data { vtyp = Usr { name = "Cidr4" ; _ } ; _ } ->
+              | T. { typ = Usr { name = "Ip4" ; _ } ; _ },
+                T. { typ = Usr { name = "Cidr4" ; _ } ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
                        (le item (last_ip_of_cidr4 lst))
-              | T.Data { vtyp = Usr { name = "Ip6" ; _ } ; _ },
-                T.Data { vtyp = Usr { name = "Cidr6" ; _ } ; _ } ->
+              | T. { typ = Usr { name = "Ip6" ; _ } ; _ },
+                T. { typ = Usr { name = "Cidr6" ; _ } ; _ } ->
                   and_ (ge item (first_ip_of_cidr6 lst))
                        (le item (last_ip_of_cidr6 lst))
-              | T.Data { vtyp = Usr { name = "Ip" ; _ } ; _ },
-                T.Data { vtyp = Usr { name = "Cidr" ; _ } ; _ } ->
+              | T. { typ = Usr { name = "Ip" ; _ } ; _ },
+                T. { typ = Usr { name = "Cidr" ; _ } ; _ } ->
                   if_ (eq (label_of item) (label_of lst))
                     ~then_:(
                       if_ (eq (label_of item) (u16_of_int 0))
@@ -410,9 +415,9 @@ let rec is_in ?(l=E.no_env) item lst =
                             let_ ~l ~name:"cidr" (get_alt "v6" lst) (fun l cidr ->
                               is_in ~l ip cidr))))
                     ~else_:(bool false)
-              | T.Data { vtyp = item_vtyp ; _ },
-                ( T.Data { vtyp = Vec (_, { vtyp = lst_vtyp ; nullable }) ; _ }
-                | T.Data { vtyp = Lst { vtyp = lst_vtyp ; nullable } ; _ }) ->
+              | T. { typ = item_typ ; _ },
+                ( T.{ typ = Vec (_, { typ = lst_typ ; nullable }) ; _ }
+                | T.{ typ = Lst { typ = lst_typ ; nullable } ; _ }) ->
                   (* If the set item type is the same as item type then perform
                    * direct comparisons with [eq], otherwise call [is_in]
                    * recursively.
@@ -420,8 +425,8 @@ let rec is_in ?(l=E.no_env) item lst =
                    * semantic with strings: "ba" is in "foobar" whereas it is
                    * not in [ "foobar" ]! *)
                   let op l =
-                    if T.value_eq item_vtyp lst_vtyp then eq
-                                                     else is_in ~l in
+                    if T.eq item_typ lst_typ then eq
+                                             else is_in ~l in
                   exists ~l lst (fun l i ->
                     if nullable then
                       if_null i
@@ -429,13 +434,11 @@ let rec is_in ?(l=E.no_env) item lst =
                         ~else_:(op l item (force ~what:"is_in(2)" i))
                     else
                       op l item i)
-              | _, T.Data lst_mn ->
+              | _, lst_mn ->
                   (* If we can convert item into lst (which at this point is
                    * known not to be a list) then we can try equality: *)
-                  (match C.conv_maybe_nullable ~to_:lst_mn l item with
+                  (match C.conv_mn ~to_:lst_mn l item with
                   | exception _ ->
                       err ()
                   | item' ->
-                      eq item' lst)
-              | _ ->
-                  err ()))))
+                      eq item' lst)))))

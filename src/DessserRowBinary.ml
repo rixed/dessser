@@ -13,11 +13,11 @@ struct
   let id = RowBinary
   type config = unit
   type state = unit
-  let ptr _mn = T.DataPtr
+  let ptr _mn = T.ptr
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t -> E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat () _ _ _ v p =
     write_qword LittleEndian p (qword_of_float v)
@@ -140,7 +140,7 @@ struct
   let snotnull _t () _ _ _ p =
     write_byte p (byte Uint8.zero)
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
 
   let ssize_of_float _ _ _ _ = size 8
   let ssize_of_bool _ _ _ _ = size 1
@@ -204,18 +204,18 @@ struct
   let id = RowBinary
   type config = unit
   type state = unit
-  let ptr _mn = T.DataPtr
+  let ptr _mn = T.ptr
 
   let start ?(config=()) _mn _l p = config, p
   let stop () _l p = p
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> E.t -> E.t
+  type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
   let dfloat () _ _ l p =
     let w_p = read_qword LittleEndian p in
     E.with_sploded_pair ~l "dfloat" w_p (fun _l w p ->
       make_pair (float_of_qword w) p)
 
-  (* Returns a size and a DataPtr: *)
+  (* Returns a size and a Ptr: *)
   let read_leb128 l p =
     let_ ~name:"leb_ref" ~l (make_ref (u32_of_int 0)) (fun l leb_ref ->
       let leb = get_ref leb_ref in
@@ -371,7 +371,7 @@ struct
     eq (peek_byte p (size 0)) (byte Uint8.one)
 
   let dnull _t () _ _ _ p =
-    data_ptr_add p (size 1)
+    ptr_add p (size 1)
 
   let dnotnull = dnull
 end

@@ -64,12 +64,13 @@ type ext_identifier =
   | Method of { typ : string ; meth : type_method }
 
 type e0 =
+  | Void
   | Param of param_id
   (* Special identifier referencing the currently executing function.
    * Allows to encode recursive calls even though the name of the enclosing
    * function is unknown. The specified type is the output type (the input
    * type of the function can be retrieved from the environment). *)
-  | Myself of T.t
+  | Myself of T.mn
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -77,16 +78,15 @@ type e0 =
    * name is used verbatim by the backend and must therefore correspond to a
    * valid object. *)
   | ExtIdentifier of ext_identifier
-  | Null of T.value
-  | EndOfList of T.t (* T.t being the type of list items *)
-  | EmptySet of T.maybe_nullable (* just an unsophisticated set *)
+  | Null of T.t
+  | EndOfList of T.mn (* T.mn being the type of list items *)
+  | EmptySet of T.mn (* just an unsophisticated set *)
   | Now
   | RandomFloat
   | RandomU8
   | RandomU32
   | RandomU64
   | RandomU128
-  | Unit
   | Float of float
   | String of string
   | Bool of bool
@@ -127,7 +127,7 @@ type e0s =
   | Seq
   (* Data constructors: *)
   | MakeVec
-  | MakeLst of T.maybe_nullable
+  | MakeLst of T.mn
   | MakeTup
   (* For convenience, MakeRec is handled like an E0S but it is constrained to
    * have an even number of arguments, the field names being forced to be
@@ -137,15 +137,15 @@ type e0s =
   | MakeUsr of string
   (* The Dessser equivalent of the `asm` directive.
    * The templates may use %1, %2 etc where the arguments should go. *)
-  | Verbatim of ((backend_id * string) list * (* output type: *) T.t)
+  | Verbatim of ((backend_id * string) list * (* output type: *) T.mn)
 
 type e1 =
-  | Function of (*function id*) int * (*args*) T.t array
+  | Function of (*function id*) int * (*args*) T.mn array
   | Comment of string
   | GetItem of int (* for tuples *)
   | GetField of string (* For records *)
   | GetAlt of string (* Destruct a sum type (See LabelOf) *)
-  | Construct of (string * T.maybe_nullable) array (* type of the resulting sum *)
+  | Construct of (string * T.mn) array (* type of the resulting sum *)
                * int (* Which alternative is constructed *)
   | Dump
   | Identity  (* Useful as a default function *)
@@ -303,17 +303,17 @@ type e1 =
    * constructor, as an u16: *)
   | LabelOf
   (* Various set implementations, configured with their max size: *)
-  | SlidingWindow of T.maybe_nullable (* Sliding window of the last N added items *)
-  | TumblingWindow of T.maybe_nullable (* Tumbling window *)
-  | Sampling of T.maybe_nullable (* Reservoir sampling of N items *)
+  | SlidingWindow of T.mn (* Sliding window of the last N added items *)
+  | TumblingWindow of T.mn (* Tumbling window *)
+  | Sampling of T.mn (* Reservoir sampling of N items *)
   (* A set with an O(1) implementation of Member, N is the initial size: *)
-  | HashTable of T.maybe_nullable
+  | HashTable of T.mn
   (* A set that order items according to a given comparison function
    * (given as first and only argument, this function also provides the
    * set elements' type): *)
   | Heap
-  | DataPtrOfString (* Use a string as a data pointer *)
-  | DataPtrOfBuffer (* Use an uninitialized buffer as a data pointer *)
+  | PtrOfString (* Use a string as a pointer *)
+  | PtrOfBuffer (* Use an uninitialized buffer as a pointer *)
   | GetEnv
   (* Get the minimal value of a set (heap): *)
   | GetMin
@@ -330,8 +330,8 @@ type e2 =
    *   optimisation simpler (ie. it can be assumed that all instance of
    *   `(idetifier name)` in the let body refers to that definition.
    * - The type is cached here for performance reason *)
-  | Let of string * T.t
-  | LetPair of string * T.t * string * T.t
+  | Let of string * T.mn
+  | LetPair of string * T.mn * string * T.mn
   (* Deconstructor for vectors/lists: *)
   | Nth
   (* Comparators: *)
@@ -366,8 +366,8 @@ type e2 =
   | WriteByte
   | WriteBytes
   | PokeByte
-  | DataPtrAdd
-  | DataPtrSub
+  | PtrAdd
+  | PtrSub
   | And
   | Or
   | Cons
@@ -412,9 +412,9 @@ type e2 =
   | CharOfString
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
-  | DataPtrOfAddress (* Points to a given address in memory *)
+  | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
-  | ForEach of (string * T.t) (* list/vector/set * body *)
+  | ForEach of (string * T.mn) (* list/vector/set * body *)
   | SetRef (* ref * value *)
 
 type e3 =
@@ -427,7 +427,7 @@ type e3 =
   | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
-  | DataPtrOfPtr
+  | PtrOfPtr
   (* bool to indicate the search direction (true = from start), then the needle
    * and finally the haystack. *)
   | FindSubstring
@@ -435,7 +435,7 @@ type e3 =
    * Tops can make use of the insert_weighted to specify the weight to be used
    * for each item, and the downscale operators to decay old entries (first
    * inflate the weight in time, and periodically downscale the whole set) *)
-  | Top of T.maybe_nullable
+  | Top of T.mn
   (* Insert with an explicit weight. Args are: the set, the weight and the
    * value. *)
   | InsertWeighted
@@ -454,12 +454,12 @@ type t =
 
 let rec e0_eq e1 e2 =
   match e1, e2 with
-  | Null vt1, Null vt2 ->
-      T.value_eq vt1 vt2
-  | EndOfList t1, EndOfList t2 ->
+  | Null t1, Null t2 ->
       T.eq t1 t2
-  | EmptySet t1, EmptySet t2 ->
-      T.maybe_nullable_eq t1 t2
+  | EndOfList mnt1, EndOfList mnt2 ->
+      T.eq_mn mnt1 mnt2
+  | EmptySet mnt1, EmptySet mnt2 ->
+      T.eq_mn mnt1 mnt2
   | e1, e2 ->
       (* Assuming here and below that when the constructors are different
        * the generic equality does not look t the fields and therefore won't
@@ -472,7 +472,7 @@ and e1_eq e1 e2 =
   match e1, e2 with
   | Function (fid1, typ1), Function (fid2, typ2) ->
       fid1 = fid2 &&
-      array_for_all2_no_exc T.eq typ1 typ2
+      array_for_all2_no_exc T.eq_mn typ1 typ2
   | e1, e2 -> e1 = e2
 
 and e1s_eq e1 e2 = e1 = e2
@@ -512,7 +512,7 @@ and eq e1 e2 =
 let rec can_precompute f i = function
   | E0 (Now | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128) ->
       false
-  | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | String _ | Bool _
+  | E0 (Void | Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Bit _ | Size _ | Address _
@@ -571,114 +571,117 @@ let is_const_null = function
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-let rec default_value ?(allow_null=true) ?this mn =
-  let this = this |? mn.T.vtyp in
-  let default_value = default_value ~allow_null ~this in
-  match mn with
-  | { vtyp ; nullable = true } ->
-      (* In some places we want the whole tree of values to be populated. *)
-      if allow_null then
-        E0 (Null vtyp)
-      else
-        default_value { vtyp ; nullable = false }
-  | { vtyp = (T.Unknown | Ext _); _ } ->
-      invalid_arg "default_value"
-  | { vtyp = This ; nullable } ->
-      if nullable && allow_null then
-        E0 (Null this)
-      else
-        invalid_arg "default_value: recursive type"
-  | { vtyp = Base Unit ; _ } ->
-      E0 Unit
-  | { vtyp = Base Float ; _ } ->
+let rec default ?(allow_null=true) ?this t =
+  let this = this |? t in
+  let default_mn = default_mn ~allow_null ~this in
+  match t with
+  | T.Unknown | This | Ext _ | Ptr | Address ->
+      invalid_arg "default"
+  | Void ->
+      E0 Void
+  | Base Float ->
       E0 (Float 0.)
-  | { vtyp = Base String ; _ } ->
+  | Base String ->
       E0 (String "")
-  | { vtyp = Base Bool ; _ } ->
+  | Base Bool ->
       E0 (Bool false)
-  | { vtyp = Base Char ; _ } ->
+  | Base Char ->
       E0 (Char '\000')
-  | { vtyp = Base I8 ; _ } ->
+  | Base I8 ->
       E0 (I8 Int8.zero)
-  | { vtyp = Base I16 ; _ } ->
+  | Base I16 ->
       E0 (I16 Int16.zero)
-  | { vtyp = Base I24 ; _ } ->
+  | Base I24 ->
       E0 (I24 Int24.zero)
-  | { vtyp = Base I32 ; _ } ->
+  | Base I32 ->
       E0 (I32 Int32.zero)
-  | { vtyp = Base I40 ; _ } ->
+  | Base I40 ->
       E0 (I40 Int40.zero)
-  | { vtyp = Base I48 ; _ } ->
+  | Base I48 ->
       E0 (I48 Int48.zero)
-  | { vtyp = Base I56 ; _ } ->
+  | Base I56 ->
       E0 (I56 Int56.zero)
-  | { vtyp = Base I64 ; _ } ->
+  | Base I64 ->
       E0 (I64 Int64.zero)
-  | { vtyp = Base I128 ; _ } ->
+  | Base I128 ->
       E0 (I128 Int128.zero)
-  | { vtyp = Base U8 ; _ } ->
+  | Base U8 ->
       E0 (U8 Uint8.zero)
-  | { vtyp = Base U16 ; _ } ->
+  | Base U16 ->
       E0 (U16 Uint16.zero)
-  | { vtyp = Base U24 ; _ } ->
+  | Base U24 ->
       E0 (U24 Uint24.zero)
-  | { vtyp = Base U32 ; _ } ->
+  | Base U32 ->
       E0 (U32 Uint32.zero)
-  | { vtyp = Base U40 ; _ } ->
+  | Base U40 ->
       E0 (U40 Uint40.zero)
-  | { vtyp = Base U48 ; _ } ->
+  | Base U48 ->
       E0 (U48 Uint48.zero)
-  | { vtyp = Base U56 ; _ } ->
+  | Base U56 ->
       E0 (U56 Uint56.zero)
-  | { vtyp = Base U64 ; _ } ->
+  | Base U64 ->
       E0 (U64 Uint64.zero)
-  | { vtyp = Base U128 ; _ } ->
+  | Base U128 ->
       E0 (U128 Uint128.zero)
-  | { vtyp = Usr nn ; _ } ->
-      default_value { vtyp = nn.def ; nullable = false }
-  | { vtyp = Tup mns ; _ } ->
+  | Usr nn ->
+      default_mn T.{ typ = nn.def ; nullable = false }
+  | Tup mns ->
       E0S (
         MakeTup,
-        Array.map default_value mns |>
+        Array.map default_mn mns |>
         Array.to_list)
-  | { vtyp = Rec mns ; _ } ->
+  | Rec mns ->
       E0S (
         MakeRec,
         Array.fold_left (fun fields (fn, mn) ->
-          E0 (String fn) :: default_value mn :: fields
+          E0 (String fn) :: default_mn mn :: fields
         ) [] mns)
-  | { vtyp = Sum mns ; _ } ->
+  | Sum mns ->
       assert (Array.length mns > 0) ;
       E1 (
         Construct (mns, 0),
-        default_value (snd mns.(0)))
-  | { vtyp = Vec (dim, mn) ; _ } ->
+        default_mn (snd mns.(0)))
+  | Vec (dim, mn) ->
       E0S (
         MakeVec,
-        List.init dim (fun _ -> default_value mn))
-  | { vtyp = Lst mn ; _ } ->
+        List.init dim (fun _ -> default_mn mn))
+  | Lst mn ->
       E0S (MakeLst mn, [])
-  | { vtyp = Set (Simple, mn) ; _ } ->
+  | Set (Simple, mn) ->
       E0 (EmptySet mn)
-  | { vtyp = Set (Sliding, mn) ; _ } ->
+  | Set (Sliding, mn) ->
       E1 (SlidingWindow mn, E0 (U8 Uint8.zero))
-  | { vtyp = Set (Tumbling, mn) ; _ } ->
+  | Set (Tumbling, mn) ->
       E1 (TumblingWindow mn, E0 (U8 Uint8.zero))
-  | { vtyp = Set (Sampling, mn) ; _ } ->
+  | Set (Sampling, mn) ->
       E1 (Sampling mn, E0 (U8 Uint8.zero))
-  | { vtyp = Set (HashTable, mn) ; _ } ->
+  | Set (HashTable, mn) ->
       E1 (HashTable mn, E0 (U8 Uint8.zero))
-  | { vtyp = Set (Heap, mn) ; _ } ->
+  | Set (Heap, mn) ->
       let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param (0, 0)))) ;
                             E1 (Ignore, (E0 (Param (0, 1)))) ]) in
-      E1 (Heap, E1 (Function (0, [| T.Data mn ; T.Data mn |]), cmp))
-  | { vtyp = Set (Top, mn) ; _ } ->
+      E1 (Heap, E1 (Function (0, [| mn ; mn |]), cmp))
+  | Set (Top, mn) ->
       let size = E0 (U8 Uint8.one) in
       let max_size = size
       and sigmas = E0 (Float 0.) in
       E3 (Top mn, size, max_size, sigmas)
-  | { vtyp = Map _ ; _ } ->
+  | Map _ ->
       assert false (* no value of map type *)
+  | Bytes | Mask | Pair _ | SList _ | Ref _
+  | Size | Bit | Byte | Word | DWord | QWord | OWord ->
+      todo "default"
+  | Function _ ->
+      todo "default functions"
+
+(* Given a type, returns the simplest expression of that type - suitable
+ * whenever a default value is required. *)
+and default_mn ?(allow_null=true) ?this mn =
+  (* In some places we want the whole tree of values to be populated. *)
+  match mn.nullable, allow_null with
+  | true, true -> E0 (Null mn.typ)
+  | true, false -> E1 (NotNull, default ~allow_null ?this mn.typ)
+  | false, _ -> default ~allow_null ?this mn.typ
 
 let string_of_backend = function
   | DIL -> "DIL"
@@ -693,11 +696,12 @@ let backend_of_string s =
   | _ -> invalid_arg ("backend_of_string: "^ s)
 
 let string_of_e0 = function
+  | Void -> ""
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Myself t -> "myself "^ String.quote (T.to_string t)
-  | Null vt -> "null "^ String.quote (T.string_of_value vt)
-  | EndOfList t -> "end-of-list "^ String.quote (T.to_string t)
-  | EmptySet mn -> "empty-set "^ String.quote (T.string_of_maybe_nullable mn)
+  | Myself mn -> "myself "^ String.quote (T.mn_to_string mn)
+  | Null t -> "null "^ String.quote (T.to_string t)
+  | EndOfList mn -> "end-of-list "^ String.quote (T.mn_to_string mn)
+  | EmptySet mn -> "empty-set "^ String.quote (T.mn_to_string mn)
   | Now -> "now"
   | RandomFloat -> "random-float"
   | RandomU8 -> "random-u8"
@@ -705,7 +709,6 @@ let string_of_e0 = function
   | RandomU64 -> "random-u64"
   | RandomU128 -> "random-u128"
   | Float f -> "float "^ hexstring_of_float f
-  | Unit -> "()"
   | String s -> "string "^ String.quote s
   | Bool b -> "bool "^ Bool.to_string b
   | Char c -> "char "^ String.quote (String.of_char c)
@@ -747,16 +750,16 @@ let string_of_e0 = function
 let string_of_e0s = function
   | Seq -> "seq"
   | MakeVec -> "make-vec"
-  | MakeLst mn -> "make-lst "^ String.quote (T.string_of_maybe_nullable mn)
+  | MakeLst mn -> "make-lst "^ String.quote (T.mn_to_string mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
   | MakeUsr n -> "make-usr "^ String.quote n
   (* Of course the actual definition cannot be expressed in DIL: *)
-  | Verbatim (temps, t) ->
+  | Verbatim (temps, mn) ->
       Printf.sprintf2 "verbatim %a %S"
         (List.print ~first:"(" ~sep:" " ~last:")" (fun oc (id, temp) ->
           Printf.fprintf oc "(%s %S)" (string_of_backend id) temp)) temps
-        (T.to_string t)
+        (T.mn_to_string mn)
 
 let string_of_e1s = function
   | Apply -> "apply"
@@ -766,13 +769,13 @@ let string_of_e1 = function
       "fun "^ string_of_int fid ^
       (if typs = [||] then "" else
        IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
-         Printf.fprintf oc "%S" (T.to_string t))) typs)
+         Printf.fprintf oc "%S" (T.mn_to_string t))) typs)
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
   | GetField s -> "get-field "^ String.quote s
   | GetAlt s -> "get-alt "^ String.quote s
   | Construct (mns, i) ->
-      "construct "^ String.quote (T.string_of_value (Sum mns))
+      "construct "^ String.quote (T.to_string (Sum mns))
                   ^" "^ string_of_int i
   | Dump -> "dump"
   | Identity -> "identity"
@@ -914,17 +917,17 @@ let string_of_e1 = function
   | MaskGet d -> "mask-get "^ string_of_int d
   | LabelOf -> "label-of"
   | SlidingWindow mn ->
-      "sliding-window "^ String.quote (T.string_of_maybe_nullable mn)
+      "sliding-window "^ String.quote (T.mn_to_string mn)
   | TumblingWindow mn ->
-      "tumbling-window "^ String.quote (T.string_of_maybe_nullable mn)
+      "tumbling-window "^ String.quote (T.mn_to_string mn)
   | Sampling mn ->
-      "sampling "^ String.quote (T.string_of_maybe_nullable mn)
+      "sampling "^ String.quote (T.mn_to_string mn)
   | HashTable mn ->
-      "hash-table "^ String.quote (T.string_of_maybe_nullable mn)
+      "hash-table "^ String.quote (T.mn_to_string mn)
   | Heap ->
       "heap"
-  | DataPtrOfString -> "data-ptr-of-string"
-  | DataPtrOfBuffer -> "data-ptr-of-buffer"
+  | PtrOfString -> "ptr-of-string"
+  | PtrOfBuffer -> "ptr-of-buffer"
   | GetEnv -> "getenv"
   | GetMin -> "get-min"
   | MakeRef -> "make-ref"
@@ -932,10 +935,10 @@ let string_of_e1 = function
 
 let string_of_e2 = function
   | Let (n, t) ->
-      "let "^ String.quote n ^" "^ String.quote (T.to_string t)
-  | LetPair (n1, t1, n2, t2) ->
-      "let-pair "^ String.quote n1 ^" "^ String.quote (T.to_string t1)
-             ^" "^ String.quote n2 ^" "^ String.quote (T.to_string t2)
+      "let "^ String.quote n ^" "^ String.quote (T.mn_to_string t)
+  | LetPair (n1, mnt1, n2, mnt2) ->
+      "let-pair "^ String.quote n1 ^" "^ String.quote (T.mn_to_string mnt1)
+             ^" "^ String.quote n2 ^" "^ String.quote (T.mn_to_string mnt2)
   | Nth -> "nth"
   | Gt -> "gt"
   | Ge -> "ge"
@@ -966,8 +969,8 @@ let string_of_e2 = function
   | WriteByte -> "write-byte"
   | WriteBytes -> "write-bytes"
   | PokeByte -> "poke-byte"
-  | DataPtrAdd -> "data-ptr-add"
-  | DataPtrSub -> "data-ptr-sub"
+  | PtrAdd -> "ptr-add"
+  | PtrSub -> "ptr-sub"
   | And -> "and"
   | Or -> "or"
   | Cons -> "cons"
@@ -995,10 +998,10 @@ let string_of_e2 = function
   | ScaleWeights -> "scale-weights"
   | CharOfString -> "char-of-string"
   | Strftime -> "strftime"
-  | DataPtrOfAddress -> "data-ptr-of-address"
+  | PtrOfAddress -> "ptr-of-address"
   | While -> "while"
-  | ForEach (n, t) ->
-      "for-each "^ String.quote n ^" "^ String.quote (T.to_string t)
+  | ForEach (n, mn) ->
+      "for-each "^ String.quote n ^" "^ String.quote (T.mn_to_string mn)
   | SetRef -> "set-ref"
 
 let string_of_e3 = function
@@ -1007,9 +1010,9 @@ let string_of_e3 = function
   | BlitByte -> "blit-byte"
   | If -> "if"
   | Map -> "map"
-  | DataPtrOfPtr -> "data-ptr-of-ptr"
+  | PtrOfPtr -> "ptr-of-ptr"
   | FindSubstring -> "find-substring"
-  | Top mn -> "top "^ String.quote (T.string_of_maybe_nullable mn)
+  | Top mn -> "top "^ String.quote (T.mn_to_string mn)
   | InsertWeighted -> "insert-weighted"
   | Substring -> "substring"
 
@@ -1257,16 +1260,17 @@ struct
 
   let rec e = function
     (* e0 *)
+    | Lst [] -> E0 Void
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
-    | Lst [ Sym "myself" ; Str t ] ->
-        E0 (Myself (T.Parser.of_string t))
-    | Lst [ Sym "null" ; Str vt ] ->
-        E0 (Null (T.value_of_string vt))
+    | Lst [ Sym "myself" ; Str mn ] ->
+        E0 (Myself (T.mn_of_string mn))
+    | Lst [ Sym "null" ; Str t ] ->
+        E0 (Null (T.of_string t))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
-        E0 (EndOfList (T.Parser.of_string t))
+        E0 (EndOfList (T.mn_of_string t))
     | Lst [ Sym "empty-set" ; Str mn ] ->
-        E0 (EmptySet (T.maybe_nullable_of_string mn))
+        E0 (EmptySet (T.mn_of_string mn))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "random-float" ] -> E0 RandomFloat
     | Lst [ Sym "random-u8" ] -> E0 RandomU8
@@ -1274,7 +1278,6 @@ struct
     | Lst [ Sym "random-u64" ] -> E0 RandomU64
     | Lst [ Sym "random-u128" ] -> E0 RandomU128
     | Lst [ Sym "float" ; Sym f ] -> E0 (Float (float_of_anystring f))
-    | Lst [] -> E0 (Unit)
     | Lst [ Sym "string" ; Str s ] -> E0 (String s)
     | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
     | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
@@ -1319,18 +1322,18 @@ struct
     | Sym "nop" -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
     | Lst (Sym "make-lst" :: Str mn :: xs) ->
-        E0S (MakeLst (T.maybe_nullable_of_string mn), List.map e xs)
+        E0S (MakeLst (T.mn_of_string mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
-    | Lst (Sym "verbatim" :: Lst temps :: Str t :: xs) ->
+    | Lst (Sym "verbatim" :: Lst temps :: Str mn :: xs) ->
         let temp_of_strings = function
           | Lst [ Sym id ; Str temp ] -> backend_of_string id, temp
           | x ->
               Printf.sprintf2 "Cannot parse verbatim template %a" print_sexpr x |>
               failwith in
         let temps = List.map temp_of_strings temps in
-        E0S (Verbatim (temps, T.Parser.of_string t), List.map e xs)
+        E0S (Verbatim (temps, T.mn_of_string mn), List.map e xs)
     (* e1 *)
     | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
         (* Syntax for functions is:
@@ -1342,7 +1345,7 @@ struct
         let typs =
           Array.of_list typs |>
           Array.map (function
-            | Str s -> T.Parser.of_string s
+            | Str s -> T.mn_of_string s
             | x ->
                 Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
                 failwith
@@ -1358,8 +1361,8 @@ struct
         E1 (GetAlt s, e x)
     | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] ->
         let i = int_of_string i in
-        (match T.maybe_nullable_of_string mn with
-        | { vtyp = Sum mns ; nullable = false } ->
+        (match T.mn_of_string mn with
+        | { typ = Sum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
             if i > max_lbl then
               Printf.sprintf "Sum type %S has no label %d" mn i |>
@@ -1513,19 +1516,19 @@ struct
         E1 (MaskGet (int_of_symbol x d), e x1)
     | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
     | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
-        E1 (SlidingWindow (T.maybe_nullable_of_string mn), e x)
+        E1 (SlidingWindow (T.mn_of_string mn), e x)
     | Lst [ Sym "tumbling-window" ; Str mn ; x ] ->
-        E1 (TumblingWindow (T.maybe_nullable_of_string mn), e x)
+        E1 (TumblingWindow (T.mn_of_string mn), e x)
     | Lst [ Sym "sampling" ; Str mn ; x ] ->
-        E1 (Sampling (T.maybe_nullable_of_string mn), e x)
+        E1 (Sampling (T.mn_of_string mn), e x)
     | Lst [ Sym "hash-table" ; Str mn ; x ] ->
-        E1 (HashTable (T.maybe_nullable_of_string mn), e x)
+        E1 (HashTable (T.mn_of_string mn), e x)
     | Lst [ Sym "heap" ; x ] ->
         E1 (Heap, e x)
-    | Lst [ Sym "data-ptr-of-string" ; x ] ->
-        E1 (DataPtrOfString, e x)
-    | Lst [ Sym "data-ptr-of-buffer" ; x ] ->
-        E1 (DataPtrOfBuffer, e x)
+    | Lst [ Sym "ptr-of-string" ; x ] ->
+        E1 (PtrOfString, e x)
+    | Lst [ Sym "ptr-of-buffer" ; x ] ->
+        E1 (PtrOfBuffer, e x)
     | Lst [ Sym "getenv" ; x ] ->
         E1 (GetEnv, e x)
     | Lst [ Sym "get-min" ; x ] ->
@@ -1537,13 +1540,13 @@ struct
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
-    | Lst [ Sym "let" ; Str n ; Str t ; x1 ; x2 ] ->
-        let t = T.Parser.of_string t in
-        E2 (Let (n, t), e x1, e x2)
-    | Lst [ Sym "let-pair" ; Str n1 ; Str t1 ; Str n2 ; Str t2 ; x1 ; x2 ] ->
-        let t1 = T.Parser.of_string t1
-        and t2 = T.Parser.of_string t2 in
-        E2 (LetPair (n1, t1, n2, t2), e x1, e x2)
+    | Lst [ Sym "let" ; Str n ; Str mn ; x1 ; x2 ] ->
+        let mn = T.mn_of_string mn in
+        E2 (Let (n, mn), e x1, e x2)
+    | Lst [ Sym "let-pair" ; Str n1 ; Str mnt1 ; Str n2 ; Str mnt2 ; x1 ; x2 ] ->
+        let mnt1 = T.mn_of_string mnt1
+        and mnt2 = T.mn_of_string mnt2 in
+        E2 (LetPair (n1, mnt1, n2, mnt2), e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "lt" ; x1 ; x2 ] -> E2 (Gt, e x2, e x1)
@@ -1577,8 +1580,8 @@ struct
     | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
     | Lst [ Sym "write-bytes" ; x1 ; x2 ] -> E2 (WriteBytes, e x1, e x2)
     | Lst [ Sym "poke-byte" ; x1 ; x2 ] -> E2 (PokeByte, e x1, e x2)
-    | Lst [ Sym "data-ptr-add" ; x1 ; x2 ] -> E2 (DataPtrAdd, e x1, e x2)
-    | Lst [ Sym "data-ptr-sub" ; x1 ; x2 ] -> E2 (DataPtrSub, e x1, e x2)
+    | Lst [ Sym "ptr-add" ; x1 ; x2 ] -> E2 (PtrAdd, e x1, e x2)
+    | Lst [ Sym "ptr-sub" ; x1 ; x2 ] -> E2 (PtrSub, e x1, e x2)
     | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
@@ -1626,13 +1629,13 @@ struct
         E2 (CharOfString, e idx, e str)
     | Lst [ Sym "strftime" ; fmt ; time ] ->
         E2 (Strftime, e fmt, e time)
-    | Lst [ Sym "data-ptr-of-address" ; x1 ; x2 ] ->
-        E2 (DataPtrOfAddress, e x1, e x2)
+    | Lst [ Sym "ptr-of-address" ; x1 ; x2 ] ->
+        E2 (PtrOfAddress, e x1, e x2)
     | Lst [ Sym "while" ; x1 ; x2 ] ->
         E2 (While, e x1, e x2)
-    | Lst [ Sym "for-each" ; Str n ; Str t ; x1 ; x2 ] ->
-        let t = T.Parser.of_string t in
-        E2 (ForEach (n, t), e x1, e x2)
+    | Lst [ Sym "for-each" ; Str n ; Str mn ; x1 ; x2 ] ->
+        let mn = T.mn_of_string mn in
+        E2 (ForEach (n, mn), e x1, e x2)
     | Lst [ Sym "set-ref" ; x1 ; x2 ] ->
         E2 (SetRef, e x1, e x2)
     (* e3 *)
@@ -1641,12 +1644,12 @@ struct
     | Lst [ Sym "blit-byte" ; x1 ; x2 ; x3 ] -> E3 (BlitByte, e x1, e x2, e x3)
     | Lst [ Sym "if" ; x1 ; x2 ; x3 ] -> E3 (If, e x1, e x2, e x3)
     | Lst [ Sym "map" ; x1 ; x2 ; x3 ] -> E3 (Map, e x1, e x2, e x3)
-    | Lst [ Sym "data-ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
-        E3 (DataPtrOfPtr, e x1, e x2, e x3)
+    | Lst [ Sym "ptr-of-ptr" ; x1 ; x2 ; x3 ] ->
+        E3 (PtrOfPtr, e x1, e x2, e x3)
     | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
         E3 (FindSubstring, e x1, e x2, e x3)
     | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] ->
-        E3 (Top (T.maybe_nullable_of_string mn), e x1, e x2, e x3)
+        E3 (Top (T.mn_of_string mn), e x1, e x2, e x3)
     | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
         E3 (InsertWeighted, e x1, e x2, e x3)
     | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
@@ -1692,17 +1695,17 @@ let of_string s =
  * Notice that since there are no closures, the local environment is emptied
  * at function entry. *)
 type env =
-  { global : (t * T.t) list ;
-    local : (t * T.t) list ;
+  { global : (t * T.mn) list ;
+    local : (t * T.mn) list ;
     name : string option }
 
 let no_env = { global = [] ; local = [] ; name = None }
 
-exception Type_error of t * t * T.t * string
-exception Type_error_param of t * t * int * T.t * string
+exception Type_error of t * t * T.mn * string
+exception Type_error_param of t * t * int * T.mn * string
 exception Struct_error of t * string
 exception Apply_error of t * string
-exception Comparator_error of t * T.t * string
+exception Comparator_error of t * T.mn * string
 exception Unbound_identifier of t * env
 exception Unbound_parameter of t * param_id * env
 exception Invalid_expression of t * string
@@ -1734,10 +1737,10 @@ let find_identifier l e =
       raise (Unbound_identifier (e, l))
 
 let print_environment oc l =
-  let p oc (e, t) =
+  let p oc (e, mn) =
     Printf.fprintf oc "%a:%a"
       (print ~max_depth:2) e
-      T.print t in
+      T.print_mn mn in
   pretty_list_print p oc (l.global @ l.local)
 
 let rec add_local n t l =
@@ -1749,12 +1752,6 @@ let rec add_local n t l =
  * Will try hard to find a type, even in the presence of unbound identifiers.
  * This is how recursive functions are typed. *)
 and type_of l e0 =
-  let maybe_nullable_of l e =
-    let t = type_of l e in
-    try
-      T.to_maybe_nullable t
-    with Invalid_argument _ ->
-      raise (Type_error (e0, e, t, "be a possibly nullable value")) in
   let check_get_item n max_n =
     if n < 0 || n >= max_n then
       raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
@@ -1770,20 +1767,20 @@ and type_of l e0 =
     with Unbound_parameter _ -> type_of l e2
   in
   match e0 with
-  | E0 (Null vt) -> Data { vtyp = vt ; nullable = true }
+  | E0 (Null typ) -> T.{ typ ; nullable = true }
   | E0 (Myself out) ->
       let num_params =
         List.fold_left (fun n (e, _) ->
           match e with E0 (Param _) -> n + 1 | _ -> n
         ) 0 l.local in
-      let ins = Array.make num_params T.Void in
+      let ins = Array.make num_params T.void in
       List.iter (function
-        | E0 (Param (_, n)), t -> ins.(n) <- t
+        | E0 (Param (_, n)), mn -> ins.(n) <- mn
         | _ -> ()
       ) l.local ;
-      T.Function (ins, out)
-  | E0 (EndOfList t) -> SList t
-  | E0 (EmptySet mn) -> Data (T.required (T.Set (Simple, mn)))
+      T.(required (Function (ins, out)))
+  | E0 (EndOfList t) -> T.required (T.SList t)
+  | E0 (EmptySet mn) -> T.required (T.Set (Simple, mn))
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
   | E0 RandomU8 -> T.u8
@@ -1791,7 +1788,7 @@ and type_of l e0 =
   | E0 RandomU64 -> T.u64
   | E0 RandomU128 -> T.u128
   | E0 (Float _) -> T.float
-  | E0 Unit -> T.unit
+  | E0 Void -> T.void
   | E0 (String _) -> T.string
   | E0 (Bool _) -> T.bool
   | E0 (Char _) -> T.char
@@ -1813,29 +1810,28 @@ and type_of l e0 =
   | E0 (I56 _) -> T.i56
   | E0 (I64 _) -> T.i64
   | E0 (I128 _) -> T.i128
-  | E0 (Bit _) -> T.Bit
-  | E0 (Size _) -> T.Size
-  | E0 (Address _) -> T.Address
-  | E0 (Byte _) -> T.Byte
-  | E0 (Word _) -> T.Word
-  | E0 (DWord _) -> T.DWord
-  | E0 (QWord _) -> T.QWord
-  | E0 (OWord _) -> T.OWord
-  | E0 (Bytes _) -> T.Bytes
+  | E0 (Bit _) -> T.required T.Bit
+  | E0 (Size _) -> T.required T.Size
+  | E0 (Address _) -> T.required T.Address
+  | E0 (Byte _) -> T.required T.Byte
+  | E0 (Word _) -> T.required T.Word
+  | E0 (DWord _) -> T.required T.DWord
+  | E0 (QWord _) -> T.required T.QWord
+  | E0 (OWord _) -> T.required T.OWord
+  | E0 (Bytes _) -> T.required T.Bytes
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
-      T.Void
+      T.void
   | E0S (Seq, es) ->
       type_of l (List.last es)
   | E0S (MakeVec, []) ->
       raise (Struct_error (e0, "vector dimension must be > 1"))
   | E0S (MakeVec, (e0::_ as es)) ->
-      Data (T.required (Vec (List.length es, maybe_nullable_of l e0)))
+      T.required (Vec (List.length es, type_of l e0))
   | E0S (MakeLst mn, _) ->
-      Data (T.required (Lst mn))
+      T.required (Lst mn)
   | E0S (MakeTup, es) ->
-      Data (T.required (Tup (List.map (maybe_nullable_of l) es |>
-                            Array.of_list)))
+      T.required (Tup (List.enum es /@ type_of l |> Array.of_enum))
   | E0S (MakeRec, es) ->
       let prev_name, mns =
         List.fold_left (fun (prev_name, mns) e ->
@@ -1843,29 +1839,29 @@ and type_of l e0 =
           | None ->
               Some (field_name_of_expr e), mns
           | Some name ->
-              None, (name, maybe_nullable_of l e) :: mns
+              None, (name, type_of l e) :: mns
         ) (None, []) es in
       if prev_name <> None then
         raise (Struct_error (e0,
           "record expressions must have an even number of values")) ;
       let mns = List.rev mns in
-      Data (T.required (Rec (Array.of_list mns)))
+      T.required (Rec (Array.of_list mns))
   | E0S (MakeUsr n, _) ->
-      T.(Data (required (get_user_type n)))
+      T.(required (get_user_type n))
   | E0S (Verbatim (_, t), _) -> t
   | E1S (Apply, f, _) ->
       (match type_of l f with
-      | Function (_, t) -> t
+      | T.{ typ = Function (_, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, f, t, "be a function")))
   | E1 (GetItem n, E0S (MakeTup, es)) -> (* Shortcut: *)
       check_get_item n (List.length es) ;
       type_of l (List.nth es n)
   | E1 (GetItem n, e1) ->
-      (match type_of l e1 |> T.develop_user_types with
-      | Data { vtyp = Tup mns ; nullable = false } ->
+      (match type_of l e1 |> T.develop1 with
+      | { typ = Tup mns ; nullable = false } ->
           let num_n = Array.length mns in
           check_get_item n num_n ;
-          Data mns.(n)
+          mns.(n)
       | t ->
           raise (Type_error (e0, e1, t, "be a tuple")))
   | E1 (GetField name, E0S (MakeRec, es)) ->
@@ -1880,28 +1876,26 @@ and type_of l e0 =
             no_such_field name names in
       type_of l (loop es)
   | E1 (GetField name, e1) ->
-      (match type_of l e1 |> T.develop_user_types with
-      | Data { vtyp = Rec mns ; nullable = false } ->
-          (match array_assoc name mns with
-          | exception Not_found ->
-              no_such_field name (Array.enum mns /@ fst)
-          | mn ->
-              Data mn)
+      (match type_of l e1 |> T.develop1 with
+      | { typ = Rec mns ; nullable = false } ->
+          (try array_assoc name mns
+           with Not_found ->
+              no_such_field name (Array.enum mns /@ fst))
       | t ->
           raise (Type_error (e0, e1, t, "be a record")))
   | E1 ((GetAlt name), e1) ->
-      (match type_of l e1 |> T.develop_user_types with
-      | Data { vtyp = Sum mns ; nullable = false } ->
-          (match array_assoc name mns with
-          | exception Not_found ->
-              raise (Struct_error (e0, "no alternative named "^ name))
-          | mn -> Data mn)
+      (match type_of l e1 |> T.develop1 with
+      | { typ = Sum mns ; nullable = false } ->
+          (try array_assoc name mns
+           with Not_found ->
+              raise (Struct_error (e0, "no alternative named "^ name)))
       | t -> raise (Type_error (e0, e1, t, "be a union")))
-  | E1 ((Construct (mns, _)), _) -> Data (T.required (Sum mns))
+  | E1 ((Construct (mns, _)), _) ->
+      T.required (Sum mns)
   | E2 (Nth, _, e2) ->
-      (match type_of l e2 |> T.develop_user_types with
-      | Data { vtyp = (Vec (_, mn) | Lst mn) ; nullable = false } ->
-          Data mn
+      (match type_of l e2 |> T.develop1 with
+      | { typ = (Vec (_, mn) | Lst mn) ; nullable = false } ->
+          mn
       | t ->
           raise (Type_error (e0, e2, t, "be a vector or list")))
   | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
@@ -1945,109 +1939,107 @@ and type_of l e0 =
   | E1 (I56OfString, _) -> T.ni56
   | E1 (I64OfString, _) -> T.ni64
   | E1 (I128OfString, _) -> T.ni128
-  | E1 (CharOfPtr, _) -> T.pair T.char T.DataPtr
-  | E1 (FloatOfPtr, _) -> T.pair T.float T.DataPtr
-  | E1 (U8OfPtr, _) -> T.pair T.u8 T.DataPtr
-  | E1 (U16OfPtr, _) -> T.pair T.u16 T.DataPtr
-  | E1 (U24OfPtr, _) -> T.pair T.u24 T.DataPtr
-  | E1 (U32OfPtr, _) -> T.pair T.u32 T.DataPtr
-  | E1 (U40OfPtr, _) -> T.pair T.u40 T.DataPtr
-  | E1 (U48OfPtr, _) -> T.pair T.u48 T.DataPtr
-  | E1 (U56OfPtr, _) -> T.pair T.u56 T.DataPtr
-  | E1 (U64OfPtr, _) -> T.pair T.u64 T.DataPtr
-  | E1 (U128OfPtr, _) -> T.pair T.u128 T.DataPtr
-  | E1 (I8OfPtr, _) -> T.pair T.i8 T.DataPtr
-  | E1 (I16OfPtr, _) -> T.pair T.i16 T.DataPtr
-  | E1 (I24OfPtr, _) -> T.pair T.i24 T.DataPtr
-  | E1 (I32OfPtr, _) -> T.pair T.i32 T.DataPtr
-  | E1 (I40OfPtr, _) -> T.pair T.i40 T.DataPtr
-  | E1 (I48OfPtr, _) -> T.pair T.i48 T.DataPtr
-  | E1 (I56OfPtr, _) -> T.pair T.i56 T.DataPtr
-  | E1 (I64OfPtr, _) -> T.pair T.i64 T.DataPtr
-  | E1 (I128OfPtr, _) -> T.pair T.i128 T.DataPtr
+  | E1 (CharOfPtr, _) -> T.pair T.char T.ptr
+  | E1 (FloatOfPtr, _) -> T.pair T.float T.ptr
+  | E1 (U8OfPtr, _) -> T.pair T.u8 T.ptr
+  | E1 (U16OfPtr, _) -> T.pair T.u16 T.ptr
+  | E1 (U24OfPtr, _) -> T.pair T.u24 T.ptr
+  | E1 (U32OfPtr, _) -> T.pair T.u32 T.ptr
+  | E1 (U40OfPtr, _) -> T.pair T.u40 T.ptr
+  | E1 (U48OfPtr, _) -> T.pair T.u48 T.ptr
+  | E1 (U56OfPtr, _) -> T.pair T.u56 T.ptr
+  | E1 (U64OfPtr, _) -> T.pair T.u64 T.ptr
+  | E1 (U128OfPtr, _) -> T.pair T.u128 T.ptr
+  | E1 (I8OfPtr, _) -> T.pair T.i8 T.ptr
+  | E1 (I16OfPtr, _) -> T.pair T.i16 T.ptr
+  | E1 (I24OfPtr, _) -> T.pair T.i24 T.ptr
+  | E1 (I32OfPtr, _) -> T.pair T.i32 T.ptr
+  | E1 (I40OfPtr, _) -> T.pair T.i40 T.ptr
+  | E1 (I48OfPtr, _) -> T.pair T.i48 T.ptr
+  | E1 (I56OfPtr, _) -> T.pair T.i56 T.ptr
+  | E1 (I64OfPtr, _) -> T.pair T.i64 T.ptr
+  | E1 (I128OfPtr, _) -> T.pair T.i128 T.ptr
   | E1 (FloatOfQWord, _) -> T.float
-  | E1 (QWordOfFloat, _) -> T.QWord
+  | E1 (QWordOfFloat, _) -> T.qword
   | E1 (U8OfByte, _) -> T.u8
-  | E1 (ByteOfU8, _) -> T.Byte
+  | E1 (ByteOfU8, _) -> T.byte
   | E1 (U16OfWord, _) -> T.u16
-  | E1 (WordOfU16, _) -> T.Word
+  | E1 (WordOfU16, _) -> T.word
   | E1 (U32OfDWord, _) -> T.u32
-  | E1 (DWordOfU32, _) -> T.DWord
+  | E1 (DWordOfU32, _) -> T.dword
   | E1 (U64OfQWord, _) -> T.u64
-  | E1 (QWordOfU64, _) -> T.QWord
+  | E1 (QWordOfU64, _) -> T.qword
   | E1 (U128OfOWord, _) -> T.u128
-  | E1 (OWordOfU128, _) -> T.OWord
+  | E1 (OWordOfU128, _) -> T.oword
   | E1 (U8OfChar, _) -> T.u8
   | E1 (CharOfU8, _) -> T.char
-  | E1 (SizeOfU32, _) -> T.Size
+  | E1 (SizeOfU32, _) -> T.size
   | E1 (U32OfSize, _) -> T.u32
-  | E1 (AddressOfU64, _) -> T.Address
+  | E1 (AddressOfU64, _) -> T.address
   | E1 (U64OfAddress, _) -> T.u64
-  | E1 (BitOfBool, _) -> T.Bit
+  | E1 (BitOfBool, _) -> T.bit
   | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
-      (match type_of l e |> T.develop_user_types with
-      | SList (Data mn) -> Data (T.required (Lst mn))
-      | SList _ as t ->
-          raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = SList mn ; nullable = false } ->
+          T.required (Lst mn)
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (SetOfSList, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | SList (Data mn) -> Data (T.required (Set (Simple, mn)))
-      | SList _ as t ->
-          raise (Type_error (e0, e, t, "be a slist of maybe nullable values"))
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = SList mn ; nullable = false } ->
+          T.required (Set (Simple, mn))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (ListOfVec, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | T.Data ({ vtyp = Vec (_, mn) ; nullable = false }) ->
-          Data (T.required (Lst mn))
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Vec (_, mn) ; nullable = false } ->
+          T.required (Lst mn)
       | t ->
           raise (Type_error (e0, e, t, "be a vec")))
   | E1 (ListOfSet, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | T.Data ({ vtyp = Set (_, mn) ; nullable = false }) ->
-          Data (T.required (Lst mn))
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Set (_, mn) ; nullable = false } ->
+          T.required (Lst mn)
       | t ->
           raise (Type_error (e0, e, t, "be a set")))
   | E1 (U8OfBool, _) -> T.u8
   | E1 (BoolOfU8, _) -> T.bool
-  | E2 (AppendByte, _, _) -> T.Bytes
-  | E2 (AppendBytes, _, _) -> T.Bytes
+  | E2 (AppendByte, _, _) -> T.bytes
+  | E2 (AppendBytes, _, _) -> T.bytes
   | E2 (AppendString, _, _) -> T.string
   | E2 ((StartsWith | EndsWith), _, _) -> T.bool
   | E1 (StringLength, _) -> T.u32
   | E1 (StringOfBytes, _) -> T.string
-  | E1 (BytesOfString, _) -> T.Bytes
+  | E1 (BytesOfString, _) -> T.bytes
   | E1 (Cardinality, _) -> T.u32
-  | E3 (DataPtrOfPtr, _, _, _) -> T.DataPtr
+  | E3 (PtrOfPtr, _, _, _) -> T.ptr
   | E3 (FindSubstring, _, _, _) -> T.nu24
-  | E2 (GetBit, _, _) -> T.Bit
-  | E2 (GetVec, _, e1) -> T.Data (get_item_type ~lst:true ~vec:true e0 l e1)
-  | E3 ((SetBit | SetVec), _, _, _) -> T.Void
-  | E1 (ReadByte, _) -> T.pair T.Byte T.DataPtr
-  | E1 (ReadWord _, _) -> T.pair T.Word T.DataPtr
-  | E1 (ReadDWord _, _) -> T.pair T.DWord T.DataPtr
-  | E1 (ReadQWord _, _) -> T.pair T.QWord T.DataPtr
-  | E1 (ReadOWord _, _) -> T.pair T.OWord T.DataPtr
-  | E1 (Assert, _) -> T.Void
-  | E2 (ReadBytes, _, _) -> T.pair T.Bytes T.DataPtr
-  | E2 (PeekByte, _, _) -> T.Byte
-  | E2 (PeekWord _, _, _) -> T.Word
-  | E2 (PeekDWord _ , _, _)-> T.DWord
-  | E2 (PeekQWord _, _, _) -> T.QWord
-  | E2 (PeekOWord _, _, _) -> T.OWord
-  | E2 (WriteByte, _, _) -> T.DataPtr
-  | E2 (WriteWord _, _, _) -> T.DataPtr
-  | E2 (WriteDWord _, _, _) -> T.DataPtr
-  | E2 (WriteQWord _, _, _) -> T.DataPtr
-  | E2 (WriteOWord _, _, _) -> T.DataPtr
-  | E2 (WriteBytes, _, _) -> T.DataPtr
-  | E2 (PokeByte, _, _) -> T.DataPtr
-  | E3 (BlitByte, _, _, _) -> T.DataPtr
-  | E2 (DataPtrAdd, _, _) -> T.DataPtr
-  | E2 (DataPtrSub, _, _) -> T.Size
-  | E1 (RemSize, _) -> T.Size
-  | E1 (Offset, _) -> T.Size
+  | E2 (GetBit, _, _) -> T.bit
+  | E2 (GetVec, _, e1) -> T.(get_item_type ~lst:true ~vec:true e0 l e1)
+  | E3 ((SetBit | SetVec), _, _, _) -> T.void
+  | E1 (ReadByte, _) -> T.pair T.byte T.ptr
+  | E1 (ReadWord _, _) -> T.pair T.word T.ptr
+  | E1 (ReadDWord _, _) -> T.pair T.dword T.ptr
+  | E1 (ReadQWord _, _) -> T.pair T.qword T.ptr
+  | E1 (ReadOWord _, _) -> T.pair T.oword T.ptr
+  | E1 (Assert, _) -> T.void
+  | E2 (ReadBytes, _, _) -> T.pair T.bytes T.ptr
+  | E2 (PeekByte, _, _) -> T.byte
+  | E2 (PeekWord _, _, _) -> T.word
+  | E2 (PeekDWord _ , _, _)-> T.dword
+  | E2 (PeekQWord _, _, _) -> T.qword
+  | E2 (PeekOWord _, _, _) -> T.oword
+  | E2 (WriteByte, _, _) -> T.ptr
+  | E2 (WriteWord _, _, _) -> T.ptr
+  | E2 (WriteDWord _, _, _) -> T.ptr
+  | E2 (WriteQWord _, _, _) -> T.ptr
+  | E2 (WriteOWord _, _, _) -> T.ptr
+  | E2 (WriteBytes, _, _) -> T.ptr
+  | E2 (PokeByte, _, _) -> T.ptr
+  | E3 (BlitByte, _, _, _) -> T.ptr
+  | E2 (PtrAdd, _, _) -> T.ptr
+  | E2 (PtrSub, _, _) -> T.size
+  | E1 (RemSize, _) -> T.size
+  | E1 (Offset, _) -> T.size
   | E2 (And, _, _) -> T.bool
   | E2 (Or, _, _) -> T.bool
   | E1 (Not, _) -> T.bool
@@ -2079,22 +2071,22 @@ and type_of l e0 =
   | E1 (ToU128, _) -> T.u128
   | E1 (ToI128, _) -> T.i128
   | E1 (ToFloat, _) -> T.float
-  | E1 (DataPtrOfString, _) -> T.DataPtr
-  | E1 (DataPtrOfBuffer, _) -> T.DataPtr
-  | E2 (DataPtrOfAddress, _, _) -> T.DataPtr
-  | E2 (While, _, _) -> T.Void
-  | E2 (ForEach _, _, _) -> T.Void
-  | E2 (SetRef, _, _) -> T.Void
+  | E1 (PtrOfString, _) -> T.ptr
+  | E1 (PtrOfBuffer, _) -> T.ptr
+  | E2 (PtrOfAddress, _, _) -> T.ptr
+  | E2 (While, _, _) -> T.void
+  | E2 (ForEach _, _, _) -> T.void
+  | E2 (SetRef, _, _) -> T.void
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | T.Data { vtyp = Set (Heap, mn) ; nullable = false } -> T.Data mn
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Set (Heap, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E1 (MakeRef, e) ->
       T.ref (type_of l e)
   | E1 (GetRef, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | Ref t -> t
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Ref mn ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a ref")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
@@ -2104,45 +2096,43 @@ and type_of l e0 =
   | E1 (Fst, E2 (MakePair, e, _)) ->
       type_of l e
   | E1 (Fst, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | Pair (t, _) -> t
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Pair (mn, _) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Snd, E2 (MakePair, _, e)) ->
       type_of l e
   | E1 (Snd, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | Pair (_, t) -> t
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = Pair (_, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Head, E2 (Cons, e, _)) ->
       type_of l e
   | E1 (Head, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | SList t -> t
+      (match type_of l e |> T.develop1 with
+      | T.{ typ = SList mn ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   (* Shortcuts: *)
-  | E1 (Tail, E2 (Cons, _, E0 (EndOfList t))) ->
-      t
+  | E1 (Tail, E2 (Cons, _, E0 (EndOfList mn))) ->
+      mn
   | E1 (Tail, E2 (Cons, _, e)) ->
       type_of l (E1 (Tail, e))
   | E1 (Tail, e) ->
-      (match type_of l e |> T.develop_user_types with
-      | SList _ as t -> t
-      | t -> raise (Type_error (e0, e, t, "be a slist")))
+      type_of l e
   | E2 ((Min | Max), e1, e2) ->
       either e1 e2
   | E2 (Member, _, _) -> T.bool
   | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
       find_identifier l e
   | E0 (ExtIdentifier (Method { typ ; meth = Ser _ })) ->
-      T.func3 T.Mask T.(Data (required (ext typ))) T.DataPtr T.DataPtr
+      T.func3 T.mask T.(required (ext typ)) T.ptr T.ptr
   | E0 (ExtIdentifier (Method { typ ; meth = Des _ })) ->
-      T.func1 T.DataPtr T.(pair (Data (required (ext typ))) T.DataPtr)
+      T.func1 T.ptr T.(pair (required (ext typ)) T.ptr)
   | E0 (ExtIdentifier (Method { typ ; meth = SSize _ })) ->
-      T.func2 T.Mask T.(Data (required (ext typ))) T.Size
+      T.func2 T.mask T.(required (ext typ)) T.size
   | E0 (ExtIdentifier (Method { meth = Convert _ ; _ })) ->
-      T.func2 T.DataPtr T.DataPtr T.(pair DataPtr DataPtr)
+      T.func2 T.ptr T.ptr T.(pair ptr ptr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
-      T.Mask
+      T.mask
   | E2 (Let (n, t), _, e2) ->
       let l = add_local n t l in
       type_of l e2
@@ -2152,7 +2142,7 @@ and type_of l e0 =
       type_of l e2
   | E1 (Function (fid, ts), e) ->
       let l = enter_function fid ts l in
-      Function (ts, type_of l e)
+      T.func ts (type_of l e)
   | E0 (Param p) as e ->
       (try List.assoc e l.local
       with Not_found ->
@@ -2160,64 +2150,53 @@ and type_of l e0 =
   | E3 (If, _, e1, e2) ->
       either e1 e2
   | E3 (Map, _, f, set) ->
-      (match type_of l f |> T.develop_user_types with
-      | Function (_, ot) as f_t ->
-          let map_mn g =
-            match ot with
-            | T.Data mn -> T.(Data (required (g mn)))
-            | _ ->
-                let err = "be a function of a value type" in
-                raise (Type_error (e0, f, f_t, err)) in
-          (match type_of l set |> T.develop_user_types with
-          | T.Data { vtyp = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
-          | T.Data { vtyp = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
-          | T.Data { vtyp = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
-          | T.SList _ -> SList ot
+      (match type_of l f |> T.develop1 with
+      | T.{ typ = Function (_, ot) ; nullable = false } ->
+          let map_mn g = T.required (g ot) in
+          (match type_of l set |> T.develop1 with
+          | T.{ typ = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
+          | T.{ typ = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | T.{ typ = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
+          | T.{ typ = SList _ ; _ } -> T.slist ot
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
       | t ->
           raise (Type_error (e0, f, t, "be a function")))
   | E1 (MaskGet _, _) ->
-      T.Mask
+      T.mask
   | E1 (LabelOf, _) ->
       T.u16
   | E1 (SlidingWindow mn, _) ->
-      T.(data (required (set Sliding mn)))
+      T.(required (set Sliding mn))
   | E1 (TumblingWindow mn, _) ->
-      T.(data (required (set Tumbling mn)))
+      T.(required (set Tumbling mn))
   | E1 (Sampling mn, _) ->
-      T.(data (required (set Sampling mn)))
+      T.(required (set Sampling mn))
   | E1 (HashTable mn, _) ->
-      T.(data (required (set HashTable mn)))
+      T.(required (set HashTable mn))
   | E1 (Heap, cmp) ->
       let item_t = get_compared_type l cmp in
-      T.(data (required (set Heap item_t)))
+      T.(required (set Heap item_t))
   | E2 ((Insert | DelMin), _, _) ->
-      T.Void
+      T.void
   | E2 (SplitBy, _, _) ->
-      T.(data (required (lst (required (Base String)))))
+      T.(required (lst string))
   | E2 (SplitAt, _, _) ->
-      T.(data (required (tup [| required (Base String) ;
-                                required (Base String) |])))
+      T.(required (tup [| string ; string |]))
   | E2 (Join, _, _) ->
       T.string
   | E2 (AllocLst, _, e2) ->
-      let item_t =
-        match type_of l e2 with
-        | Data mn ->
-            mn
-        | t1 ->
-            raise (Type_error (e0, e2, t1, "be a possibly nullable value")) in
-      T.(data (required (lst item_t)))
+      let item_mn = type_of l e2 in
+      T.(required (lst item_mn))
   | E2 (PartialSort, _, _) ->
-      T.Void
+      T.void
   | E2 ((ChopBegin | ChopEnd), lst, _) ->
       type_of l lst
   | E2 (ScaleWeights, _, _) ->
-      T.Void
+      T.void
   | E3 (Top mn, _, _, _) ->
-      T.(data (required (set Top mn)))
+      T.(required (set Top mn))
   | E3 (InsertWeighted, _, _, _) ->
-      T.Void
+      T.void
   | E3 (Substring, _, _, _)
   | E2 (Strftime, _, _) ->
       T.string
@@ -2225,10 +2204,10 @@ and type_of l e0 =
       T.nchar
 
 and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
-  match type_of l e |> T.develop_user_types with
-  | Data { vtyp = Vec (_, mn) ; nullable = false } when vec -> Ok mn
-  | Data { vtyp = Lst mn ; nullable = false } when lst -> Ok mn
-  | Data { vtyp = Set (_, mn) ; nullable = false } when set -> Ok mn
+  match type_of l e |> T.develop1 with
+  | { typ = Vec (_, mn) ; nullable = false } when vec -> Ok mn
+  | { typ = Lst mn ; nullable = false } when lst -> Ok mn
+  | { typ = Set (_, mn) ; nullable = false } when set -> Ok mn
   | t -> Error t
 
 (* Return the element type or fail: *)
@@ -2243,7 +2222,7 @@ and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
 
 and get_compared_type l cmp =
   match type_of l cmp with
-  | Function ([| T.Data item_t ; _ |], _) ->
+  | T.{ typ = Function ([| item_t ; _ |], _) ; nullable = false } ->
       item_t
   | cmp_t ->
       let err = "should be a function of two values" in
@@ -2252,37 +2231,37 @@ and get_compared_type l cmp =
 (* Registering the constructor also register the type: *)
 and register_user_constructor name out_vt ?print ?parse def =
   (* Add identity to the passed definitions (aka "copy constructor"): *)
-  let out_t = T.(Data (required out_vt)) in
+  let out_t = T.required out_vt in
   let id = E1 (Function (0, [| out_t |]), E0 (Param (0, 0))) in
   let def = id :: def in
   (* Check constructors' signatures: *)
   let _ =
     List.fold_left (fun prev f ->
       match type_of no_env f with
-      | T.Function (ins, out_t') ->
-          if not (T.eq out_t' out_t) then
+      | T.{ typ = Function (ins, out_t') ; nullable = false } ->
+          if not (T.eq_mn out_t' out_t) then
             Printf.sprintf2 "register_user_constructor: constructors must \
                              output type %a (not %a)"
-              T.print out_t
-              T.print out_t' |>
+              T.print_mn out_t
+              T.print_mn out_t' |>
             invalid_arg ;
           (match prev with
           | None ->
               Some ([ ins ])
           | Some prev_ins ->
               let same_input_than ins' =
-                try Array.for_all2 T.eq ins ins'
+                try Array.for_all2 T.eq_mn ins ins'
                 with Invalid_argument _ -> false in
               if List.exists same_input_than prev_ins then
                 Printf.sprintf2 "register_user_constructor: constructors \
                                  signature %a appears more than once"
-                  (Array.print T.print) ins |>
+                  (Array.print T.print_mn) ins |>
                 invalid_arg ;
               Some (ins :: prev_ins))
-      | t ->
+      | mn ->
           Printf.sprintf2 "register_user_constructor: constructors must be \
                            functions (not %a)"
-            T.print t |>
+            T.print_mn mn |>
           invalid_arg
     ) None def in
   T.register_user_type name ?print ?parse out_vt ;
@@ -2297,7 +2276,7 @@ and register_user_constructor name out_vt ?print ?parse def =
 
 and check_fun_sign e0 l f ps =
   match type_of l f with
-  | Function (ts, _) ->
+  | T.{ typ = Function (ts, _) ; nullable = false } ->
       let lf = Array.length ts
       and lp = List.length ps in
       if lf <> lp then (
@@ -2306,8 +2285,8 @@ and check_fun_sign e0 l f ps =
         raise (Apply_error (e0, err))) ;
       List.iteri (fun i p ->
         let act = type_of l p in
-        if not (T.eq act ts.(i)) then
-          let expected = T.to_string ts.(i) in
+        if not (T.eq_mn act ts.(i)) then
+          let expected = T.mn_to_string ts.(i) in
           raise (Type_error (e0, p, act, "be a "^ expected))
       ) ps
   | t ->
@@ -2329,8 +2308,8 @@ let apply_constructor e0 l name ins =
       | exception Not_found ->
           let msg =
             Printf.sprintf2 "none of the constructors (%a) match input types %a"
-              (List.print (fun oc e -> T.print oc (type_of l e))) cs
-              (List.print (fun oc e -> T.print oc (type_of l e))) ins in
+              (List.print (fun oc e -> T.print_mn oc (type_of l e))) cs
+              (List.print (fun oc e -> T.print_mn oc (type_of l e))) ins in
           raise (Invalid_expression (e0, msg))
       | c ->
           E1S (Apply, c, ins))
@@ -2390,8 +2369,8 @@ let rec fold_env u l f e =
       let l' = add_local n1 t1 l |>
                add_local n2 t2 in
       fold_env (fold_env u l f e1) l' f e2
-  | E2 (ForEach(n, t), e1, e2) ->
-      let l' = add_local n t l in
+  | E2 (ForEach (n, mn), e1, e2) ->
+      let l' = add_local n mn l in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
@@ -2499,7 +2478,7 @@ let has_side_effect e =
              I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
-             WriteQWord _ | WriteOWord _ | PokeByte | DataPtrAdd |
+             WriteQWord _ | WriteOWord _ | PokeByte | PtrAdd |
              Insert | DelMin | AllocLst | PartialSort | SetRef), _, _)
       | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
           raise Exit
@@ -2516,9 +2495,9 @@ let can_duplicate e =
       (* Although not exactly a side effect, those functions produce a copy of
        * a given pointer that are then mutable and which address is used in
        * comparisons *)
-      | E1 ((DataPtrOfString | DataPtrOfBuffer), _)
-      | E2 (DataPtrOfAddress, _, _)
-      | E3 (DataPtrOfPtr, _, _, _)
+      | E1 ((PtrOfString | PtrOfBuffer), _)
+      | E2 (PtrOfAddress, _, _)
+      | E3 (PtrOfPtr, _, _, _)
       (* Similarly, sets and vec are mutable: *)
       | E0 (EmptySet _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
@@ -2539,79 +2518,75 @@ let can_duplicate e =
 let rec type_check l e =
   iter_env l (fun l e0 ->
     let check_void l e =
-      match type_of l e |> T.develop_user_types with
-      | Void -> ()
+      match type_of l e |> T.develop1 with
+      | T.{ typ = Void ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be Void")) in
     let check_nullable b l e =
-      match type_of l e |> T.develop_user_types with
-      | Data { nullable ; _ } when nullable = b -> ()
+      match type_of l e |> T.develop1 with
+      | { nullable ; _ } when nullable = b -> ()
       | t -> raise (Type_error (e0, e, t, "be a "^ (if b then "" else "not ") ^
                                           "nullable value")) in
     let rec is_comparable = function
-      | T.Size | Address | Byte | Word | DWord | QWord | OWord | Mask
-      | Data {
-          vtyp = Base (
-            Float | String | Bool | Char |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+      | T.{
+          typ =
+            (Size | Address | Byte | Word | DWord | QWord | OWord | Mask
+            | Base (
+                Float | String | Bool | Char |
+                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
           nullable = false } ->
           true
-      | Data { vtyp = Sum mns ; nullable = false } ->
-          Array.for_all (fun (_, mn) -> is_comparable (Data mn)) mns
-      | Data { nullable = true ; vtyp } ->
-          is_comparable (Data { nullable = false ; vtyp })
+      | { typ = Sum mns ; nullable = false } ->
+          Array.for_all (fun (_, mn) -> is_comparable mn) mns
+      | { nullable = true ; typ } ->
+          is_comparable { nullable = false ; typ }
       | _ ->
           false in
     let check_comparable l e =
-      let t = type_of l e |> T.develop_user_types_rec in
+      let t = type_of l e |> T.develop_mn in
       if not (is_comparable t) then
         raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_base=false) l e =
-      match type_of l e |> T.develop_user_types with
-      | Size | Address | Byte | Word | DWord | QWord | OWord when not only_base ->
+      match type_of l e |> T.develop1 with
+      | T.{ typ = Size | Address | Byte | Word | DWord | QWord | OWord ;
+          nullable = false } when not only_base ->
           ()
-      | Data {
-          vtyp = Base (
+      | { typ = Base (
             Float |
             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
-      match type_of l e |> T.develop_user_types with
-      | Size | Address | Byte | Word | DWord | QWord | OWord
-      | Data { vtyp = Base (
-          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-          I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+      match type_of l e |> T.develop1 with
+      | T.{ typ =
+            (Size | Address | Byte | Word | DWord | QWord | OWord
+            | Base (
+                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
           nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
-      | T.Size | Address
-      | Data { vtyp = Base (
-          U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
-          nullable = false } ->
+      | T.{ typ = (Size | Address |
+                   Base (U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128)) ;
+            nullable = false } ->
           true
       | _ ->
           false in
     let check_unsigned l e =
-      let t = type_of l e |> T.develop_user_types in
+      let t = type_of l e |> T.develop1 in
       if not (is_unsigned t) then
         raise (Type_error (e0, e, t, "be an unsigned integer")) in
     let check_eq l e exp =
       let act = type_of l e in
-      if not (T.eq act exp) then
-        let expected = T.to_string exp in
+      if not (T.eq_mn act exp) then
+        let expected = T.mn_to_string exp in
         raise (Type_error (e0, e, act, "be a "^ expected)) in
     let check_same_types l e1 e2 =
       let t1 = type_of l e1 in
       check_eq l e2 t1 in
     let check_all_same_types l e1 e2s =
       List.iter (check_same_types l e1) e2s in
-    let check_maybe_nullable l e =
-      match type_of l e |> T.develop_user_types with
-      | Data _ -> ()
-      | t -> raise (Type_error (e0, e, t,
-               "be a possibly nullable value")) in
     let check_vector l e =
       ignore (get_item_type ~vec:true e0 l e) in
     let check_set l e =
@@ -2623,31 +2598,26 @@ let rec type_check l e =
     let check_list_or_vector_or_set l e =
       ignore (get_item_type ~lst:true ~vec:true ~set:true e0 l e) in
     let check_slist l e =
-      match type_of l e |> T.develop_user_types with
-      | SList _ -> ()
+      match type_of l e |> T.develop1 with
+      | T.{ typ = SList _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let ref_type l e =
-      match type_of l e |> T.develop_user_types with
-      | Ref t -> t
+      match type_of l e |> T.develop1 with
+      | T.{ typ = Ref t ; nullable = false } -> t
       | t -> raise (Type_error (e0, e, t, "be a ref")) in
     let check_ref l e =
       ignore (ref_type l e) in
     let check_slist_same_type e1 l e =
-      match type_of l e |> T.develop_user_types with
-      | SList t -> check_eq l e1 t
+      match type_of l e |> T.develop1 with
+      | T.{ typ = SList mn ; nullable = false } -> check_eq l e1 mn
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
     let check_pair l e =
-      match type_of l e |> T.develop_user_types with
-      | Pair _ -> ()
+      match type_of l e |> T.develop1 with
+      | T.{ typ = Pair _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a pair")) in
-    let check_slist_of_maybe_nullable l e =
-      match type_of l e |> T.develop_user_types with
-      | SList (Data _) -> ()
-      | t -> raise (Type_error (e0, e, t,
-               "be a slist of maybe nullable values")) in
     let check_sum l e =
-      match type_of l e |> T.develop_user_types with
-      | Data { vtyp = Sum _ ; nullable = false } -> ()
+      match type_of l e |> T.develop1 with
+      | { typ = Sum _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign = check_fun_sign e0 in
@@ -2655,16 +2625,16 @@ let rec type_check l e =
       (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
-      match t |> T.develop_user_types with
-      | Data { vtyp = Base (U32 | U128) ; nullable = false } ->
+      match t |> T.develop1 with
+      | { typ = Base (U32 | U128) ; nullable = false } ->
           ()
-      | Data { vtyp = Sum mns ; nullable = false } when rec_ = false ->
-          Array.iter (fun (_, mn) -> check_ip ~rec_:true l (T.Data mn)) mns
+      | { typ = Sum mns ; nullable = false } when rec_ = false ->
+          Array.iter (fun (_, mn) -> check_ip ~rec_:true l mn) mns
       | t -> raise (Type_error (e0, e, t, "be an ip")) in
     match e0 with
     | E0 (Null _ | Myself _ | EndOfList _ | EmptySet _ | Now
          | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128
-         | Unit | Float _ | String _ | Bool _ | Char _
+         | Void | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Bit _ | Size _ | Address _
@@ -2685,14 +2655,12 @@ let rec type_check l e =
     | E0S (MakeVec, []) ->
         raise (Struct_error (e0, "vector dimension must be > 0"))
     | E0S (MakeVec, e1 :: e2s) ->
-        check_maybe_nullable l e1 ;
         check_all_same_types l e1 e2s
     | E0S (MakeLst mn, e1s) ->
-        List.iter (fun e1 -> check_eq l e1 (Data mn)) e1s
+        List.iter (fun e1 -> check_eq l e1 mn) e1s
     | E0S (MakeTup, es) ->
         if List.compare_length_with es 2 < 0 then
-          raise (Struct_error (e0, "tuple dimension must be ≥ 2")) ;
-        List.iter (check_maybe_nullable l) es
+          raise (Struct_error (e0, "tuple dimension must be ≥ 2"))
     | E0S (MakeRec, es) ->
         let len = List.length es in
         if len mod 2 <> 0 then
@@ -2702,7 +2670,6 @@ let rec type_check l e =
           raise (Struct_error (e0, "record dimension must be ≥ 1")) ;
         List.iteri (fun i e ->
           if i mod 2 = 0 then ignore (field_name_of_expr e)
-          else check_maybe_nullable l e
         ) es
     | E0S (MakeUsr name, es) ->
         ignore (apply_constructor e0 l name es)
@@ -2728,9 +2695,9 @@ let rec type_check l e =
         check_numeric ~only_base:true l e1 ;
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
-        (match type_of l e2 |> T.develop_user_types with
-        | Data { vtyp = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
-            check_eq l e1 (T.Data t)
+        (match type_of l e2 |> T.develop1 with
+        | { typ = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
+            check_eq l e1 t
         | t ->
             raise (Type_error (e0, e, t, "be a vector or list")))
     | E2 ((BitAnd | BitOr | BitXor), e1, e2) ->
@@ -2757,13 +2724,13 @@ let rec type_check l e =
          | U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr
          | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr
          | I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), e) ->
-        check_eq l e T.DataPtr
+        check_eq l e T.ptr
     | E1 ((FloatOfQWord | U64OfQWord), e) ->
-        check_eq l e T.QWord
+        check_eq l e T.qword
     | E1 ((QWordOfFloat | StringOfFloat), e) ->
         check_eq l e T.float
     | E1 (U8OfByte, e) ->
-        check_eq l e T.Byte
+        check_eq l e T.byte
     | E1 ((CharOfU8 | ByteOfU8 | BoolOfU8), e) ->
         check_eq l e T.u8
     | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
@@ -2771,11 +2738,11 @@ let rec type_check l e =
          | ToI128 | ToU128 | ToFloat), e) ->
         check_numeric l e
     | E1 (U16OfWord, e) ->
-        check_eq l e T.Word
+        check_eq l e T.word
     | E1 (WordOfU16, e) ->
         check_eq l e T.u16
     | E1 (U32OfDWord, e) ->
-        check_eq l e T.DWord
+        check_eq l e T.dword
     | E1 ((DWordOfU32 | SizeOfU32), e) ->
         check_eq l e T.u32
     | E1 ((QWordOfU64 | AddressOfU64), e) ->
@@ -2783,11 +2750,11 @@ let rec type_check l e =
     | E1 (OWordOfU128, e) ->
         check_eq l e T.u128
     | E1 (U128OfOWord, e) ->
-        check_eq l e T.OWord
+        check_eq l e T.oword
     | E1 (U32OfSize, e) ->
-        check_eq l e T.Size
+        check_eq l e T.size
     | E1 (U64OfAddress, e) ->
-        check_eq l e T.Address
+        check_eq l e T.address
     | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
     | E1 ((Abs | Neg), e) ->
@@ -2799,46 +2766,46 @@ let rec type_check l e =
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
     | E1 (BoolOfBit, e) ->
-        check_eq l e T.Bit
+        check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
-        check_slist_of_maybe_nullable l e
+        check_slist l e
     | E1 (ListOfVec, e) ->
         check_vector l e
     | E1 (ListOfSet, e) ->
         check_set l e
-    | E1 (DataPtrOfString, e) ->
+    | E1 (PtrOfString, e) ->
         check_eq l e T.string
-    | E1 (DataPtrOfBuffer, e) ->
-        check_eq l e T.Size
-    | E2 (DataPtrOfAddress, e1, e2) ->
-        check_eq l e1 T.Address ;
-        check_eq l e2 T.Size
+    | E1 (PtrOfBuffer, e) ->
+        check_eq l e T.size
+    | E2 (PtrOfAddress, e1, e2) ->
+        check_eq l e1 T.address ;
+        check_eq l e2 T.size
     | E2 (While, cond, body) ->
         check_eq l cond T.bool ;
-        check_eq l body T.Void
+        check_eq l body T.void
     | E2 (ForEach _, lst, body) ->
         check_list_or_vector_or_set l lst ;
-        check_eq l body T.Void
+        check_eq l body T.void
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
         check_set l e
     | E2 (AppendByte, e1, e2) ->
-        check_eq l e1 T.Bytes ;
-        check_eq l e2 T.Byte
+        check_eq l e1 T.bytes ;
+        check_eq l e2 T.byte
     | E2 (AppendBytes, e1, e2) ->
-        check_eq l e1 T.Bytes ;
-        check_eq l e2 T.Bytes
+        check_eq l e1 T.bytes ;
+        check_eq l e2 T.bytes
     | E2 ((AppendString | StartsWith | EndsWith | SplitBy), e1, e2) ->
         check_eq l e1 T.string ;
         check_eq l e2 T.string
     | E1 (StringOfBytes, e) ->
-        check_eq l e T.Bytes
+        check_eq l e T.bytes
     | E1 (Cardinality, e) ->
         check_list_or_vector_or_set l e
     | E2 (GetBit, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Size
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.size
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
         check_list_or_vector l e2
@@ -2857,56 +2824,56 @@ let rec type_check l e =
         check_eq l fmt T.string ;
         check_numeric l time
     | E3 (SetBit, e1, e2, e3) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Size ;
-        check_eq l e3 T.Bit
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.size ;
+        check_eq l e3 T.bit
     | E3 (SetVec, e1, e2, e3) ->
         check_integer l e1 ;
-        (match type_of l e2 |> T.develop_user_types with
-        | T.Data { vtyp = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
-            check_eq l e3 (Data mn)
+        (match type_of l e2 |> T.develop1 with
+        | { typ = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
+            check_eq l e3 mn
         | t ->
             raise (Type_error (e0, e1, t, "be a vector")))
     | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
-        check_eq l e T.DataPtr
+        check_eq l e T.ptr
     | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
          | PeekOWord _), e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Size
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.size
     | E2 ((WriteByte | PokeByte), e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Byte
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.byte
     | E2 (WriteWord _, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Word
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.word
     | E2 (WriteDWord _, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.DWord
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.dword
     | E2 (WriteQWord _, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.QWord
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.qword
     | E2 (WriteOWord _, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.OWord
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.oword
     | E2 (WriteBytes, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Bytes
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.bytes
     | E3 (BlitByte, e1, e2, e3) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Byte ;
-        check_eq l e3 T.Size
-    | E2 (DataPtrAdd, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Size
-    | E2 (DataPtrSub, e1, e2) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.DataPtr
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.byte ;
+        check_eq l e3 T.size
+    | E2 (PtrAdd, e1, e2) ->
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.size
+    | E2 (PtrSub, e1, e2) ->
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.ptr
     | E1 ((RemSize | Offset), e) ->
-        check_eq l e T.DataPtr
-    | E3 (DataPtrOfPtr, e1, e2, e3) ->
-        check_eq l e1 T.DataPtr ;
-        check_eq l e2 T.Size ;
-        check_eq l e3 T.Size
+        check_eq l e T.ptr
+    | E3 (PtrOfPtr, e1, e2, e3) ->
+        check_eq l e1 T.ptr ;
+        check_eq l e2 T.size ;
+        check_eq l e3 T.size
     | E3 (FindSubstring, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_eq l e2 T.string ;
@@ -2926,7 +2893,7 @@ let rec type_check l e =
                 i max_lbl in
             raise (Struct_error (e0, msg))
           ) ;
-          check_eq l e (Data (snd mns.(i)))
+          check_eq l e (snd mns.(i))
     | E1 (Fst, e) ->
         check_pair l e
     | E1 (Snd, e) ->
@@ -2938,38 +2905,34 @@ let rec type_check l e =
     | E2 (Cons, e1, e2) ->
         check_slist_same_type e1 l e2
     | E3 (Map, init, f, set) ->
-        (match type_of l f |> T.develop_user_types with
-        | Function ([| init_t ; item_t |], ot) as f_t ->
+        (match type_of l f |> T.develop1 with
+        | T.{ typ = Function ([| init_t ; item_t |], _) ; nullable = false }
+          as f_t ->
             check_eq l init init_t ;
-            let check_fun_type_with t must_output_mn =
+            let check_fun_type_with mn =
               (* FIXME: why isn't map allowed to change the item type?! *)
-              if not (T.eq t item_t) then (
-                let err = "be a function of "^ T.to_string t in
-                raise (Type_error (e0, f, f_t, err))) ;
-              if must_output_mn then
-                match ot with T.Data _ -> ()
-                | _ ->
-                    let err = "be a function returning a value type" in
-                    raise (Type_error (e0, f, f_t, err)) in
-            (match type_of l set |> T.develop_user_types with
-            | T.(Data { vtyp = Vec (_, mn) ; nullable = false }) ->
-                check_fun_type_with (T.Data mn) true
-            | T.(Data { vtyp = Lst mn ; nullable = false }) ->
-                check_fun_type_with (T.Data mn) true
-            | T.(Data { vtyp = Set (_, mn) ; nullable = false }) ->
-                check_fun_type_with (T.Data mn) true
-            | T.SList t ->
-                check_fun_type_with t false
+              if not (T.eq_mn mn item_t) then (
+                let err = "be a function of "^ T.mn_to_string mn in
+                raise (Type_error (e0, f, f_t, err))) in
+            (match type_of l set |> T.develop1 with
+            | T.{ typ = Vec (_, mn) ; nullable = false } ->
+                check_fun_type_with mn
+            | T.{ typ = Lst mn ; nullable = false } ->
+                check_fun_type_with mn
+            | T.{ typ = Set (_, mn) ; nullable = false } ->
+                check_fun_type_with mn
+            | T.{ typ = SList mn ; nullable = false } ->
+                check_fun_type_with mn
             | t ->
                 raise (Type_error (e0, set, t, "be an iterable")))
-        | Function _ as f_t ->
+        | { typ = Function _ ; nullable = false } as f_t ->
             raise (Type_error (e0, f, f_t, "be a function of one argument"))
         | t -> raise (Type_error (e0, f, t, "be a function")))
     | E3 (If, e1, e2, e3) ->
         check_eq l e1 T.bool ;
         check_same_types l e2 e3
     | E1 (MaskGet _, e1) ->
-        check_eq l e1 T.Mask
+        check_eq l e1 T.mask
     | E1 (LabelOf, e1) ->
         check_sum l e1
     | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _), e1) ->
@@ -2981,18 +2944,18 @@ let rec type_check l e =
         (* TODO: We could also accept a Null comparison function if the items
          * are readily comparable (as in [is_comparable]). *)
         (match cmp_t with
-        | Function (ts, _) ->
+        | T.{ typ = Function (ts, _) ; nullable = false } ->
             let ts_len = Array.length ts in
             if ts_len <> 2 then
               err "must have two parameters" ;
-            if not (T.eq ts.(0) ts.(1)) then
+            if not (T.eq_mn ts.(0) ts.(1)) then
               err "parameters must have the same type"
         | _ ->
             err "must be a function")
     | E2 (Insert, set, x) ->
-        (match type_of l set |> T.develop_user_types with
-        | T.Data { vtyp = T.Set (_, mn) ; nullable = false } ->
-            check_eq l x (Data mn)
+        (match type_of l set |> T.develop1 with
+        | { typ = T.Set (_, mn) ; nullable = false } ->
+            check_eq l x mn
         | t ->
             raise (Type_error (e0, set, t, "be a set")))
     | E2 (DelMin, set, n) ->
@@ -3006,16 +2969,15 @@ let rec type_check l e =
         let item_t = get_item_type ~lst:true ~vec:true e0 l e2 in
         if item_t <> T.(required (Base String)) then
           let msg = "be a list or vector of strings" in
-          raise (Type_error (e0, e, T.Data item_t, msg))
-    | E2 (AllocLst, e1, e2) ->
-        check_unsigned l e1 ;
-        check_maybe_nullable l e2
+          raise (Type_error (e0, e, item_t, msg))
+    | E2 (AllocLst, e1, _) ->
+        check_unsigned l e1
     | E2 (PartialSort, e1, e2) ->
-        let item_t1 = T.Data (get_item_type ~lst:true ~vec:true e0 l e1) in
+        let item_t1 = get_item_type ~lst:true ~vec:true e0 l e1 in
         if not (is_comparable item_t1) then
           raise (Type_error (e0, e1, item_t1,
                              "be a list or vector of comparable items")) ;
-        let item_t2 = T.Data (get_item_type ~lst:true ~vec:true e0 l e2) in
+        let item_t2 = get_item_type ~lst:true ~vec:true e0 l e2 in
         if not (is_unsigned item_t2) then
           raise (Type_error (e0, e2, item_t2,
                              "be a list or vector of unsigned integers"))
@@ -3027,10 +2989,10 @@ let rec type_check l e =
         check_unsigned l max_size ;
         check_numeric l sigmas
     | E3 (InsertWeighted, set, w, x) ->
-        (match type_of l set |> T.develop_user_types with
-        | T.Data { vtyp = T.Set (_, mn) ; nullable = false } ->
+        (match type_of l set |> T.develop1 with
+        | { typ = T.Set (_, mn) ; nullable = false } ->
             check_eq l w T.float ;
-            check_eq l x (Data mn)
+            check_eq l x mn
         | t ->
             raise (Type_error (e0, set, t, "be a set")))
     | E3 (Substring, str, start, stop) ->
@@ -3089,7 +3051,7 @@ let () =
             (to_pretty_string ~max_depth e0)
             (to_pretty_string ~max_depth e)
             s
-            T.print t)
+            T.print_mn t)
     | Type_error_param (e0, e, n, t, s) ->
         Some (
           Printf.sprintf2
@@ -3102,7 +3064,7 @@ let () =
             (if n >= 0 then "parameter "^ string_of_int n else "return type")
             (to_pretty_string ~max_depth e)
             s
-            T.print t)
+            T.print_mn t)
     | Struct_error (e0, s) ->
         Some (
           Printf.sprintf2
@@ -3119,7 +3081,7 @@ let () =
              %s"
             (to_pretty_string ~max_depth e0)
             s)
-    | Comparator_error (e0, t, s) ->
+    | Comparator_error (e0, mn, s) ->
         Some (
           Printf.sprintf2
             "Invalid comparator function:\
@@ -3127,7 +3089,7 @@ let () =
              %s but has type %a"
             (to_pretty_string ~max_depth e0)
             s
-            T.print t)
+            T.print_mn mn)
     | Unbound_identifier (e0, l) ->
         Some (
           Printf.sprintf2
@@ -3176,7 +3138,7 @@ let let_ ?name ~l value f =
   | E0 (Param _ | Identifier _)
   (* Also, if it's a constant then the optimizer will work better if it's
    * not hidden behind an identifier: *)
-  | E0 (Null _ | EndOfList _ | EmptySet _ | Unit | Float _ | Bool _ | Char _
+  | E0 (Null _ | EndOfList _ | EmptySet _ | Void | Float _ | Bool _ | Char _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Bit _ | Size _ | Address _
@@ -3204,11 +3166,11 @@ let for_each ?name ~l lst f =
   let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
   match get_item_type_err ~vec:true ~lst:true ~set:true l lst with
   | Ok mn ->
-      let l = add_local n (T.Data mn) l in
-      E2 (ForEach (n, T.Data mn), lst, f l (E0 (Identifier n)))
-  | Error t ->
+      let l = add_local n mn l in
+      E2 (ForEach (n, mn), lst, f l (E0 (Identifier n)))
+  | Error mn ->
       Printf.sprintf2 "for_each: argument must be a vector/list/set, not %a"
-        T.print t |>
+        T.print_mn mn |>
       invalid_arg
 
 (* Do not use a function to avoid leaking function parameters *)
@@ -3275,9 +3237,9 @@ let is_identity p = function
       false
 
 (*$< DessserTypes *)
-(*$= type_of & ~printer:(T.to_string)
-  (Pair (u24, DataPtr)) \
-    (type_of no_env Ops.(make_pair (to_u24 (i32 42l)) (data_ptr_of_string (string ""))))
+(*$= type_of & ~printer:(T.mn_to_string)
+  (T.pair T.u24 T.ptr) \
+    (type_of no_env Ops.(make_pair (to_u24 (i32 42l)) (ptr_of_string (string ""))))
 *)
 
 (*
@@ -3343,7 +3305,7 @@ struct
 
   let char n = E0 (Char n)
 
-  let unit = E0 Unit
+  let void = E0 Void
 
   let float n = E0 (Float n)
 
@@ -3666,7 +3628,7 @@ struct
 
   let param fid n = E0 (Param (fid, n))
 
-  let myself t = E0 (Myself t)
+  let myself mn = E0 (Myself mn)
 
   let add e1 e2 = E2 (Add, e1, e2)
 
@@ -3800,17 +3762,17 @@ struct
 
   let u128_of_oword e = E1 (U128OfOWord, e)
 
-  let data_ptr_add e1 e2 = E2 (DataPtrAdd, e1, e2)
+  let ptr_add e1 e2 = E2 (PtrAdd, e1, e2)
 
-  let data_ptr_sub e1 e2 = E2 (DataPtrSub, e1, e2)
+  let ptr_sub e1 e2 = E2 (PtrSub, e1, e2)
 
-  let data_ptr_of_string e = E1 (DataPtrOfString, e)
+  let ptr_of_string e = E1 (PtrOfString, e)
 
-  let data_ptr_of_buffer e = E1 (DataPtrOfBuffer, e)
+  let ptr_of_buffer e = E1 (PtrOfBuffer, e)
 
-  let data_ptr_of_address e1 e2 = E2 (DataPtrOfAddress, e1, e2)
+  let ptr_of_address e1 e2 = E2 (PtrOfAddress, e1, e2)
 
-  let data_ptr_of_ptr e1 e2 e3 = E3 (DataPtrOfPtr, e1, e2, e3)
+  let ptr_of_ptr e1 e2 e3 = E3 (PtrOfPtr, e1, e2, e3)
 
   let string_length e = E1 (StringLength, e)
 
@@ -3872,12 +3834,12 @@ struct
   (* It might be easier for users to accept also 0 or 1 expressions and turn
    * them into what's expected: *)
   let make_tup = function
-    | [] -> unit
+    | [] -> void
     | [ x ] -> x
     | es -> E0S (MakeTup, es)
 
   let make_rec = function
-    | [] -> unit
+    | [] -> void
     | es ->
         (* Flatten the list to comply with E0S structure: *)
         let es =
@@ -3948,19 +3910,19 @@ let () =
   and ip6_t = T.required (T.get_user_type "Ip6") in
   let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
   register_user_constructor "Ip" (Sum ip_mns)
-    [ func1 ~l:no_env T.(Data ip4_t) (fun _l x -> construct ip_mns 0 x) ;
-      func1 ~l:no_env T.(Data ip6_t) (fun _l x -> construct ip_mns 1 x) ] ;
+    [ func1 ~l:no_env ip4_t (fun _l x -> construct ip_mns 0 x) ;
+      func1 ~l:no_env ip6_t (fun _l x -> construct ip_mns 1 x) ] ;
   register_user_constructor "Cidr4"
     (Rec [| "ip", ip4_t ; "mask", T.required (Base U8) |])
-    [ func2 ~l:no_env T.(Data ip4_t) T.u8 (fun _l ip mask ->
+    [ func2 ~l:no_env ip4_t T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   register_user_constructor "Cidr6"
     (Rec [| "ip", ip6_t ; "mask", T.required (Base U8) |])
-    [ func2 ~l:no_env T.(Data ip6_t) T.u8 (fun _l ip mask ->
+    [ func2 ~l:no_env ip6_t T.u8 (fun _l ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   let cidr4_t = T.required (T.get_user_type "Cidr4")
   and cidr6_t = T.required (T.get_user_type "Cidr6") in
   let cidr_mns = [| "v4", cidr4_t ; "v6", cidr6_t |] in
   register_user_constructor "Cidr" (Sum cidr_mns)
-    [ func1 ~l:no_env T.(Data cidr4_t) (fun _l x -> construct cidr_mns 0 x) ;
-      func1 ~l:no_env T.(Data cidr6_t) (fun _l x -> construct cidr_mns 1 x) ]
+    [ func1 ~l:no_env cidr4_t (fun _l x -> construct cidr_mns 0 x) ;
+      func1 ~l:no_env cidr6_t (fun _l x -> construct cidr_mns 1 x) ]

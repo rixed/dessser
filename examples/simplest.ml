@@ -16,11 +16,11 @@ struct
   let id = User "test"
   type config = unit
   type state = unit
-  let ptr _vtyp = T.DataPtr
+  let ptr _vtyp = T.ptr
 
   let start ?(config=()) _vtyp _l src = config, src
   let stop () _l src = src
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
+  type des = state -> T.mn -> Path.t -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
   let from_byte v1 v2 _ _ l src =
     let b_src = read_byte src in
@@ -72,7 +72,7 @@ struct
   let list_sep () _ _ _ src = src
   let is_null () _ _ _ src =
     bool_of_u8 (u8_of_byte (peek_byte src (size 0)))
-  let dnull _t () _ _ _ src = data_ptr_add src (size 1)
+  let dnull _t () _ _ _ src = ptr_add src (size 1)
   let dnotnull = dnull
 end
 
@@ -82,11 +82,11 @@ struct
   let id = User "test"
   type config = unit
   type state = unit
-  let ptr _vtyp = T.DataPtr
+  let ptr _vtyp = T.ptr
 
   let start ?(config=()) _l _v dst = config, dst
   let stop () _l dst = dst
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
     write_byte dst (byte_of_u8 (u8_of_bool b))
@@ -132,7 +132,7 @@ struct
   let snull _t () _ _ _ dst = write_byte dst (byte Uint8.one)
   let snotnull _t () _ _ _ dst = write_byte dst (byte Uint8.zero)
 
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*valueptr*) E.t -> E.t
+  type ssizer = T.mn -> Path.t -> E.env -> (*valueptr*) E.t -> E.t
   let ssize_of_float _ _ _ _ = size 1
   let ssize_of_string _ _ _ _ = size 1
   let ssize_of_bool _ _ _ _ = size 1
@@ -170,11 +170,11 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let mn = T.{ vtyp = Tup [| { vtyp = Base U8 ; nullable = false } ;
-                             { vtyp = Base Char ; nullable = false } |] ;
+  let mn = T.{ typ = Tup [| { typ = Base U8 ; nullable = false } ;
+                            { typ = Base Char ; nullable = false } |] ;
                nullable = false } in
-  let src = data_ptr_of_string (string "\001X")
-  and dst = data_ptr_of_string (string "_____") in
+  let src = ptr_of_string (string "\001X")
+  and dst = ptr_of_string (string "_____") in
   E.Ops.let_ ~l:E.no_env (TestDesSer.desser mn E.no_env src dst) (fun _l e ->
     seq [ dump e ;
           dump (string "\n") ;

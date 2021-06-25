@@ -13,14 +13,14 @@ module StdLib = DessserStdLib
 type list_opener =
   (* When a list size is known from the beginning, implement this that
    * returns both the list size and the new src pointer: *)
-  | KnownSize of (T.maybe_nullable -> Path.t -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
+  | KnownSize of (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the list size is not known beforehand, rather implement
    * this pair of functions, one to parse the list header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the list is finished: *)
   | UnknownSize of
-      (T.maybe_nullable -> Path.t -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
-      (T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
+      (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
+      (T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
 
 (* Given the above we can built interesting expressions.
  * A DES(serializer) is a module that implements a particular serialization
@@ -38,9 +38,9 @@ sig
   (* RW state passed to every deserialization operations *)
   type state
   (* Wraps a DataPtr into whatever the DES needs *)
-  val ptr : T.maybe_nullable -> T.t
+  val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.maybe_nullable -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
@@ -51,7 +51,7 @@ sig
    * The [maybe_nullable] and [path] values are in the fully fledged global
    * type and therefore must be used cautiously! *)
   (* FIXME: make this type "private": *)
-  type des = state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*v*ptr*) E.t
+  type des = state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*v*ptr*) E.t
 
   val dfloat : des
   val dstring : des
@@ -82,25 +82,25 @@ sig
   (* Get rid of the _seps (in SExpr, use a state to add a separator before any
    * value instead). That would make the code generated for dessser significantly
    * simpler, and even more so when runtime fieldmasks enter the stage! *)
-  val tup_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : state -> T.mn -> Path.t -> T.mn array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Returns the label as an u16 and the new pointer: *)
-  val sum_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
-  val sum_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.maybe_nullable -> Path.t -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
+  val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val list_opn : state -> list_opener
-  val list_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val is_null : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
-  val dnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val dnotnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val is_null : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
+  val dnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnotnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
 module type SER =
@@ -113,13 +113,13 @@ sig
   (* RW state passed to every serialization operations *)
   type state
   (* Wraps a DataPtr into whatever the SER needs *)
-  val ptr : T.maybe_nullable -> T.t
+  val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.maybe_nullable -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
-  type ser = state -> T.maybe_nullable -> Path.t -> E.env -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  type ser = state -> T.mn -> Path.t -> E.env -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val sfloat : ser
   val sstring : ser
@@ -150,29 +150,29 @@ sig
    * fieldmask. RingBuff SER still does need it to compute the width of the
    * bitmask though. So the SER will need to be given the full representation
    * of the current fieldmask (as in CodeGen_OCaml). *)
-  val tup_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : state -> T.mn -> Path.t -> T.mn array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Takes the label as an u16: *)
-  val sum_opn : state -> T.maybe_nullable -> Path.t -> (string * T.maybe_nullable) array -> E.env -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val sum_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.maybe_nullable -> Path.t -> (*dim*) int -> T.maybe_nullable -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_opn : state -> T.maybe_nullable -> Path.t -> T.maybe_nullable -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_cls : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_opn : state -> T.mn -> Path.t -> T.mn -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val list_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val nullable : state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snotnull : T.value -> state -> T.maybe_nullable -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val nullable : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snotnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
-  type ssizer = T.maybe_nullable -> Path.t -> E.env -> (*value*) E.t -> E.t (*size*)
+  type ssizer = T.mn -> Path.t -> E.env -> (*value*) E.t -> E.t (*size*)
   val ssize_of_float : ssizer
   val ssize_of_string : ssizer
   val ssize_of_bool : ssizer
@@ -201,10 +201,10 @@ sig
   val ssize_of_sum : ssizer
   val ssize_of_vec : ssizer
   val ssize_of_list : ssizer
-  val ssize_of_null : T.maybe_nullable -> Path.t -> E.t (*size*)
+  val ssize_of_null : T.mn -> Path.t -> E.t (*size*)
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
-  val ssize_start : ?config:config -> T.maybe_nullable -> E.t (*size*)
+  val ssize_start : ?config:config -> T.mn -> E.t (*size*)
 end
 
 (* Now we can combine a DES and a SER to create a converter from one format
@@ -449,9 +449,9 @@ struct
                       (Ser.list_cls sstate mn0 path l dst) ]))))
 
   and desser_value = function
-    | T.Unknown | T.Ext _ -> invalid_arg "desser_value"
     | T.This -> assert false (* Because of Path.type_of_path *)
-    | T.Base Unit -> fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
+    | T.Void ->
+        fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
     | T.Base Float -> dsfloat
     | T.Base String -> dsstring
     | T.Base Bool -> dsbool
@@ -484,6 +484,7 @@ struct
     | T.Set (Simple, mn) -> dslist mn
     | T.Set _ -> todo "des/ser for non simple sets"
     | T.Map _ -> assert false (* No value of map type *)
+    | _ -> invalid_arg "desser_value"
 
   and desser_ transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
@@ -497,11 +498,11 @@ struct
          * if any of dnull/snull/snotnull/etc update the state, they will
          * do so in both branches of this alternative. *)
         if_ (Des.is_null dstate mn0 path l src)
-          ~then_:(dsnull mn.vtyp sstate dstate mn0 path l src dst)
-          ~else_:(dsnotnull mn.vtyp sstate dstate mn0 path l src dst |>
-                  desser_value mn.vtyp transform sstate dstate mn0 path l))
+          ~then_:(dsnull mn.typ sstate dstate mn0 path l src dst)
+          ~else_:(dsnotnull mn.typ sstate dstate mn0 path l src dst |>
+                  desser_value mn.typ transform sstate dstate mn0 path l))
     ) else (
-      desser_value mn.vtyp transform sstate dstate mn0 path l src_dst
+      desser_value mn.typ transform sstate dstate mn0 path l src_dst
     )
 
   let desser ?ser_config ?des_config mn0 ?transform l src dst =

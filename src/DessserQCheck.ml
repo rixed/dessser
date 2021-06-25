@@ -95,7 +95,7 @@ let user_type_gen =
   let user_type_keys = Hashtbl.keys T.user_types |> Array.of_enum in
   Gen.(sized (fun n _st ->
     let k = user_type_keys.(n mod Array.length user_type_keys) in
-    (Hashtbl.find T.user_types k).typ))
+    (Hashtbl.find T.user_types k).usr_typ))
 
 let rec value_type_gen_of_depth depth =
   let open Gen in
@@ -125,10 +125,10 @@ and maybe_nullable_gen_of_depth depth =
 (*$Q maybe_nullable_gen_of_depth
   (Q.int_range 0 9) (fun d -> \
     let mn = Q.Gen.generate1 (maybe_nullable_gen_of_depth d) in \
-    let dep = T.depth ~opaque_user_type:true mn.T.vtyp in \
+    let dep = T.depth ~opaque_user_type:true mn.T.typ in \
     if d <> dep then \
       BatPrintf.printf "type = %a, depth = %d <> %d\n%!" \
-        T.print_maybe_nullable mn dep d ; \
+        T.print_mn mn dep d ; \
     dep = d)
 *)
 
@@ -143,22 +143,22 @@ let maybe_nullable_gen =
   Gen.(sized_size (int_range 0 3) maybe_nullable_gen_of_depth)
 
 let rec size_of_value_type = function
-  | T.Unknown | T.Ext _ -> invalid_arg "size_of_value_type"
   (* Or the question has little practical interest: *)
   | T.This -> 1
   | T.Base _ | T.Usr _ -> 1
-  | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_maybe_nullable mn
+  | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_mn mn
   | T.Tup mns ->
-      Array.fold_left (fun s mn -> s + size_of_maybe_nullable mn) 0 mns
+      Array.fold_left (fun s mn -> s + size_of_mn mn) 0 mns
   | T.Rec mns ->
-      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
+      Array.fold_left (fun s (_, mn) -> s + size_of_mn mn) 0 mns
   | T.Sum mns ->
-      Array.fold_left (fun s (_, mn) -> s + size_of_maybe_nullable mn) 0 mns
+      Array.fold_left (fun s (_, mn) -> s + size_of_mn mn) 0 mns
   | T.Map (k, v) ->
-      size_of_maybe_nullable k + size_of_maybe_nullable v
+      size_of_mn k + size_of_mn v
+  | _ -> invalid_arg "size_of_value_type"
 
-and size_of_maybe_nullable mn =
-  size_of_value_type mn.vtyp
+and size_of_mn mn =
+  size_of_value_type mn.typ
 
 let shrink_mac_type mt =
   let to_simplest =
@@ -175,7 +175,7 @@ let shrink_mac_type mt =
   loop to_simplest
 
 let rec shrink_value_type =
-  let vt_of_mn mn = mn.T.vtyp in
+  let vt_of_mn mn = mn.T.typ in
   let shrink_fields mns make_typ f =
     Array.iter (fun (_, mn) -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
     let shrink_mns =
@@ -186,9 +186,7 @@ let rec shrink_value_type =
       Iter.map make_typ in
     shrink_mns f in
   function
-  | T.Unknown | T.This | T.Ext _ ->
-      Iter.empty
-  | T.Base Unit ->
+  | T.Void ->
       Iter.empty
   | T.Base mt ->
       (fun f ->
@@ -198,18 +196,18 @@ let rec shrink_value_type =
   | T.Vec (dim, mn) ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
-          f mn.vtyp ;
+          f mn.typ ;
           f (T.Vec (dim, mn))))
   | T.Lst mn ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
           f (T.Lst mn) ;
-          f mn.vtyp))
+          f mn.typ))
   | T.Set (st, mn) ->
       (fun f ->
         shrink_maybe_nullable mn (fun mn ->
           f (T.Set (st, mn)) ;
-          f mn.vtyp))
+          f mn.typ))
   | T.Tup mns ->
       (fun f ->
         Array.iter (fun mn -> shrink_maybe_nullable mn (f % vt_of_mn)) mns ;
@@ -230,35 +228,37 @@ let rec shrink_value_type =
           (Shrink.pair shrink_maybe_nullable shrink_maybe_nullable) (k, v) |>
           Iter.map (fun (k, v) -> T.Map (k, v)) in
         shrink_kv f)
+  | _ ->
+      Iter.empty
 
 and shrink_maybe_nullable mn =
-  let vt = mn.vtyp in
+  let vt = mn.typ in
   if mn.nullable then
     (fun f ->
-      shrink_value_type vt (fun vtyp ->
-        f { vtyp ; nullable = false } ;
-        f { vtyp ; nullable = true }))
+      shrink_value_type vt (fun typ ->
+        f { typ ; nullable = false } ;
+        f { typ ; nullable = true }))
   else
     (fun f ->
-      shrink_value_type vt (fun vtyp -> f { vtyp ; nullable = false }))
+      shrink_value_type vt (fun typ -> f { typ ; nullable = false }))
 
 let value_type =
-  let print = IO.to_string T.print_value
+  let print = IO.to_string T.print
   and small = size_of_value_type
   and shrink = shrink_value_type in
   make ~print ~small ~shrink value_type_gen
 
 let maybe_nullable =
-  let print = IO.to_string T.print_maybe_nullable
-  and small = size_of_maybe_nullable
+  let print = IO.to_string T.print_mn
+  and small = size_of_mn
   and shrink = shrink_maybe_nullable in
   make ~print ~small ~shrink maybe_nullable_gen
 
 (*$Q maybe_nullable & ~count:20
   maybe_nullable (fun mn -> \
-    let str = IO.to_string T.print_maybe_nullable mn in \
-    let mn' = T.maybe_nullable_of_string str in \
-    T.maybe_nullable_eq mn' mn)
+    let str = IO.to_string T.print_mn mn in \
+    let mn' = T.mn_of_string str in \
+    T.eq_mn mn' mn)
 *)
 
 (*
@@ -319,7 +319,7 @@ let e2_of_int n =
          LeftShift ; RightShift ; AppendBytes ; AppendString ;
          StartsWith ; EndsWith ; GetBit ; GetVec ;
          ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
-         DataPtrAdd ; DataPtrSub ; SetRef ;
+         PtrAdd ; PtrSub ; SetRef ;
          And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
          DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
          ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
@@ -437,7 +437,6 @@ and e1_gen l depth =
     1,
       join (
         map (fun ts ->
-          let ts = Array.map (fun mn -> T.Data mn) ts in
           let fid = get_next_fid () in
           let l = E.enter_function fid ts l in
           map (fun e ->
@@ -453,7 +452,7 @@ and e1_gen l depth =
     1, map2 read_dword endianness_gen expr ;
     1, map2 read_qword endianness_gen expr ;
     1, map2 read_oword endianness_gen expr ;
-    1, map data_ptr_of_string expr ;
+    1, map ptr_of_string expr ;
     10, map2 (fun n e -> E.E1 (e1_of_int n, e)) nat expr ]
 
 and e1s_gen l depth =
@@ -565,7 +564,7 @@ let expression =
     | exception _ -> \
         true \
     | () -> \
-        E.type_of E.no_env e = Void || can_be_compiled e)
+        T.eq_mn (E.type_of E.no_env e) T.void || can_be_compiled e)
 *)
 
 (* Non regression tests: *)
@@ -619,14 +618,12 @@ let int_string_gen mi ma =
 
 let to_sexpr lst = "("^ String.join " " lst ^")"
 
-let rec sexpr_of_vtyp_gen vtyp =
+let rec sexpr_of_typ_gen typ =
   let open Gen in
-  match vtyp with
-  | T.Unknown | T.Ext _ ->
-      invalid_arg "sexpr_of_vtyp_gen"
+  match typ with
   | T.This ->
-      sexpr_of_vtyp_gen !T.this
-  | T.Base Unit ->
+      sexpr_of_typ_gen !T.this
+  | T.Void ->
       return "()"
   | T.Base Float ->
       map hexstring_of_float float
@@ -655,7 +652,7 @@ let rec sexpr_of_vtyp_gen vtyp =
   | T.Base I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
   | T.Base I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
   | T.Base I128 -> map Int128.to_string i128_gen
-  | T.Usr ut -> sexpr_of_vtyp_gen ut.def
+  | T.Usr ut -> sexpr_of_typ_gen ut.def
   | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
   | T.Lst mn ->
@@ -666,7 +663,7 @@ let rec sexpr_of_vtyp_gen vtyp =
         else "") ^
         to_sexpr lst)
   | T.Set (_, mn) ->
-      sexpr_of_vtyp_gen (Lst mn)
+      sexpr_of_typ_gen (Lst mn)
   | T.Tup mns ->
       tup_gen mns
   | T.Rec mns ->
@@ -680,7 +677,9 @@ let rec sexpr_of_vtyp_gen vtyp =
         ) int
       )
   | T.Map (k, v) ->
-      sexpr_of_vtyp_gen (Lst { vtyp = Tup [| k ; v |] ; nullable = false })
+      sexpr_of_typ_gen (Lst { typ = Tup [| k ; v |] ; nullable = false })
+  | _ ->
+      invalid_arg "sexpr_of_typ_gen"
 
 and tup_gen mns st =
   "("^ (
@@ -695,9 +694,9 @@ and sexpr_of_mn_gen mn =
     join (
       (* Note: This "null" must obviously match the one used in DessserSExpr.ml *)
       map (function true -> return "null"
-                 | false -> sexpr_of_vtyp_gen mn.vtyp) bool)
+                 | false -> sexpr_of_typ_gen mn.typ) bool)
   else
-    sexpr_of_vtyp_gen mn.vtyp
+    sexpr_of_typ_gen mn.typ
 
 let sexpr mn =
   let print = BatPervasives.identity
@@ -726,14 +725,14 @@ let sexpr mn =
         (fun l src dst ->
           E.Ops.let_ ~l alloc_dst (fun l tdst ->
             E.with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
-              let tdst = data_ptr_of_ptr tdst (size 0) (data_ptr_sub tdst_end tdst) in
+              let tdst = ptr_of_ptr tdst (size 0) (ptr_sub tdst_end tdst) in
               let dst = secnd (T2S.desser mn l tdst dst) in
               make_pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     make_converter ~dev_mode:true be ~mn e
 
-  let test_data_desser = test_desser (data_ptr_of_buffer (size 50_000))
+  let test_data_desser = test_desser (ptr_of_buffer (size 50_000))
 
   let ocaml_be = (module DessserBackEndOCaml : BACKEND)
   let cpp_be = (module DessserBackEndCPP : BACKEND)
@@ -749,7 +748,7 @@ let sexpr mn =
     List.iter (fun s ->
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       if dbg then Printf.eprintf "Testing s-expr %S of type %a -> %S\n%!"
-        s T.print_maybe_nullable mn s' ;
+        s T.print_mn mn s' ;
       assert_equal ~printer:BatPervasives.identity s s') in
   try
     Gen.generate ~n:5 maybe_nullable_gen |>
@@ -770,7 +769,7 @@ let sexpr mn =
     List.iter (fun s ->
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       if dbg then Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
-        format s T.print_maybe_nullable mn s' ;
+        format s T.print_mn mn s' ;
       assert_equal ~printer:BatPervasives.identity s s')
 
   let test_format be mn des ser format =
@@ -802,7 +801,7 @@ let sexpr mn =
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
-    let mn_ringbuf = T.not_nullable_of mn in
+    let mn_ringbuf = T.{ mn with nullable = false } in
     (* CSV cannot encode some nullable compound types: *)
     let mn_csv = DessserCsv.make_serializable mn in
 
@@ -837,31 +836,31 @@ let sexpr mn =
  * back-end: *)
 (*$inject
   let check_sexpr be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let exe = sexpr_to_sexpr be mn in
     let rs = run_converter ~timeout:2 exe vs in
     if dbg then Printf.eprintf "\ncheck_sexpr: %S vs %S\n%!" rs vs ;
     String.trim rs = vs
   let check_rowbinary be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let des = (module DessserRowBinary.Des : DES)
     and ser = (module DessserRowBinary.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_ringbuffer be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let des = (module DessserRamenRingBuffer.Des : DES)
     and ser = (module DessserRamenRingBuffer.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_csv be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let des = (module DessserCsv.Des : DES)
     and ser = (module DessserCsv.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let e = heap_convert_expr mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -926,12 +925,12 @@ let sexpr mn =
   let sexpr_des = (module DessserSExpr.Des : DES)
 
   let check_ser ser be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let module Ser = (val ser : SER) in
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
+        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -940,12 +939,12 @@ let sexpr mn =
     hexify_string
 
   let check_des des be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let module Des = (val des : DES) in
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
+        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -977,11 +976,11 @@ let sexpr mn =
 (* Special version of check_des with a custom CSV configuration: *)
 (*$inject
   let check_des_csv ?config be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
+        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
           DS.desser ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -989,11 +988,11 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs)
 
   let check_ser_csv ?config be ts vs =
-    let mn = T.maybe_nullable_of_string ts in
+    let mn = T.mn_of_string ts in
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.DataPtr T.DataPtr (fun l src dst ->
+        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
           DS.desser ?ser_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
