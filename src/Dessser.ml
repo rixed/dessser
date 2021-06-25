@@ -348,21 +348,23 @@ struct
           (Des.vec_opn dstate mn0 path dim mn l src)
           (Ser.vec_opn sstate mn0 path dim mn l dst)) in
     let src_dst =
-      StdLib.repeat ~l
-        ~init:src_dst
-        ~from:(i32 0l) ~to_:(i32 (Int32.of_int dim))
-        ~body:(fun l n src_dst ->
-          (comment "Convert vector item"
-            (let subpath = Path.(append (RunTime (to_u32 n)) path) in
-            let src_dst =
-              if_ (eq n (i32 0l))
-                ~then_:src_dst
-                ~else_:(
-                  E.with_sploded_pair ~l "dsvec2" src_dst (fun l src dst ->
-                    make_pair
-                      (Des.vec_sep dstate mn0 subpath l src)
-                      (Ser.vec_sep sstate mn0 subpath l dst))) in
-            desser_ transform sstate dstate mn0 subpath l src_dst)))
+      let_ ~name:"src_dst_ref" ~l (make_ref src_dst) (fun l src_dst_ref ->
+        let src_dst = get_ref src_dst_ref in
+        seq [
+          StdLib.repeat ~l ~from:(i32 0l) ~to_:(i32_of_int dim) (fun l n ->
+            (comment "Convert vector item"
+              (let subpath = Path.(append (RunTime (to_u32 n)) path) in
+              let src_dst =
+                if_ (eq n (i32 0l))
+                  ~then_:src_dst
+                  ~else_:(
+                    E.with_sploded_pair ~l "dsvec2" src_dst (fun l src dst ->
+                      make_pair
+                        (Des.vec_sep dstate mn0 subpath l src)
+                        (Ser.vec_sep sstate mn0 subpath l dst))) in
+              desser_ transform sstate dstate mn0 subpath l src_dst |>
+              set_ref src_dst_ref))) ;
+          src_dst ])
     in
     E.with_sploded_pair ~l "dsvec3" src_dst (fun l src dst ->
       make_pair
@@ -389,22 +391,26 @@ struct
               let dim_src = list_opn mn0 path mn l src in
               E.with_sploded_pair ~l "dslist2" dim_src (fun l dim src ->
                 let dst = Ser.list_opn sstate mn0 path mn (Some dim) l dst in
-                StdLib.repeat ~l
-                  ~init:(make_pair src dst)
-                  ~from:(i32 0l) ~to_:(to_i32 dim)
-                  ~body:(fun l n src_dst ->
-                    (comment "Convert a list item"
-                      (let subpath = Path.(append (RunTime (to_u32 n)) path) in
-                      let src_dst =
-                        if_ (eq n (i32 0l))
-                          ~then_:src_dst
-                          ~else_:(
-                            E.with_sploded_pair ~l "dslist3" src_dst (fun l psrc pdst ->
-                              make_pair
-                                (Des.list_sep dstate mn0 subpath l psrc)
-                                (Ser.list_sep sstate mn0 subpath l pdst))
-                          ) in
-                      desser_ transform sstate dstate mn0 subpath l src_dst)))) in
+                let src_dst_ref = make_ref (make_pair src dst) in
+                let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
+                  let src_dst = get_ref src_dst_ref in
+                  seq [
+                    StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
+                      (comment "Convert a list item"
+                        (let subpath = Path.(append (RunTime (to_u32 n)) path) in
+                        let src_dst =
+                          if_ (eq n (i32 0l))
+                            ~then_:src_dst
+                            ~else_:(
+                              E.with_sploded_pair ~l "dslist3" src_dst
+                                (fun l psrc pdst ->
+                                make_pair
+                                  (Des.list_sep dstate mn0 subpath l psrc)
+                                  (Ser.list_sep sstate mn0 subpath l pdst))
+                            ) in
+                        desser_ transform sstate dstate mn0 subpath l src_dst |>
+                        set_ref src_dst_ref))) ;
+                    src_dst ])) in
             let_pair ~n1:"src" ~n2:"dst" ~l src_dst (fun l src dst ->
               make_pair
                 (Des.list_cls dstate mn0 path l src)

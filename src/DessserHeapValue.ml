@@ -63,9 +63,11 @@ struct
         let dim_src = list_opn mn0 path mn l src in
         let inits_src =
           E.with_sploded_pair ~l "dslist1" dim_src (fun l dim src ->
-            StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim)
-              ~body:
-                (fun l n inits_src ->
+            let inits_src_ref = make_ref (make_pair (end_of_list init_t) src) in
+            let_ ~name:"inits_src_ref" ~l inits_src_ref (fun l inits_src_ref ->
+              let inits_src = get_ref inits_src_ref in
+              seq [
+                StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
                   E.with_sploded_pair ~l "dslist2" inits_src (fun l inits src ->
                     let src =
                       if_ (eq n (i32 0l))
@@ -74,8 +76,9 @@ struct
                     let subpath = Path.(append (RunTime n) path) in
                     let v_src = make1 dstate mn0 subpath mn l src in
                     E.with_sploded_pair ~l "dslist3" v_src (fun _l v src ->
-                      make_pair (cons v inits) src)))
-              ~init:(make_pair (end_of_list init_t) src)) in
+                      make_pair (cons v inits) src) |>
+                    set_ref inits_src_ref)) ;
+                inits_src ])) in
         E.with_sploded_pair ~l "dslist4" inits_src (fun l inits src ->
           let v = of_slist inits
           and src = Des.list_cls dstate mn0 path l src in
@@ -457,18 +460,16 @@ struct
   and sslist mn mn0 path l v sz =
     let sz =
       Ser.ssize_of_list mn0 path l v |> add sz in
-    let len = cardinality v in
-    let init = make_pair sz v in
-    StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) ~init
-      ~body:
-        (fun l n init ->
-          let sz = first init
-          and v = secnd init in
+    let_ ~name:"sz_ref" ~l (make_ref sz) (fun l sz_ref ->
+      let sz = get_ref sz_ref in
+      let len = cardinality v in
+      seq [
+        StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) (fun l n ->
           let v' = nth n v in
           let subpath = Path.(append (RunTime n) path) in
-          let sz = sersz1 mn mn0 subpath l v' copy_field sz in
-          make_pair sz v) |>
-    first
+          sersz1 mn mn0 subpath l v' copy_field sz |>
+          set_ref sz_ref) ;
+        sz ])
 
   and sstup mns ma mn0 path l v sz =
     let sz =

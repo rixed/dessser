@@ -41,17 +41,13 @@ let coalesce l es =
   loop 0 l es
 
 (* Implement a simple for-loop: *)
-let repeat ~l ~from ~to_ ~body ~init =
-  let_ ~name:"repeat_res" ~l (make_ref init) (fun l res_ref ->
-    let res = get_ref res_ref in
-    let_ ~name:"repeat_n" ~l (make_ref (to_i32 from)) (fun l n_ref ->
-      let n = get_ref n_ref in
-      seq [
-        while_ (lt n (to_i32 to_))
-          (seq [
-            set_ref res_ref (body l n res) ;
-            set_ref n_ref (add n (i32_of_int 1)) ]) ;
-        res ]))
+let repeat ~l ~from ~to_ body =
+  let_ ~name:"repeat_n" ~l (make_ref (to_i32 from)) (fun l n_ref ->
+    let n = get_ref n_ref in
+    while_ (lt n (to_i32 to_))
+      (seq [
+        body l n ;
+        set_ref n_ref (add n (i32_of_int 1)) ]))
 
 let random_i32 =
   to_i32 random_u32
@@ -61,10 +57,13 @@ let rec random_slist mn =
   let from = i32_of_int 0
   and to_ =
     force ~what:"random_slist rem"
-      (rem (add (i32_of_int 1) random_i32) max_list_length)
-  and body _l _idx lst = cons (random mn) lst
-  and init = eol T.(Data mn) in
-  repeat ~l:E.no_env ~from ~to_ ~body ~init
+      (rem (add (i32_of_int 1) random_i32) max_list_length) in
+  let_ ~name:"slst" ~l:E.no_env (make_ref (eol T.(Data mn))) (fun l slst_ref ->
+    let slst = get_ref slst_ref in
+    seq [
+      repeat ~l ~from ~to_ (fun _l _n ->
+        set_ref slst_ref (cons (random mn) slst)) ;
+      slst ])
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
@@ -86,13 +85,14 @@ and random mn =
       eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
   | Base String ->
       (* Just 5 random letters for now: *)
-      repeat
-        ~l:E.no_env
-        ~from:(i32 0l) ~to_:(i32 5l)
-        ~init:(string "")
-        ~body:(fun _l _i s ->
-          let c = random T.(required (Base Char)) in
-          append_string s (string_of_char_ c))
+      let_ ~name:"s_ref" ~l:E.no_env (make_ref (string "")) (fun l s_ref ->
+        let s = get_ref s_ref in
+        seq [
+          repeat ~l ~from:(i32 0l) ~to_:(i32 5l) (fun _l _i ->
+              let c = random T.(required (Base Char)) in
+              let s' = append_string s (string_of_char_ c) in
+              (set_ref s_ref s')) ;
+          s ])
   | Base Char ->
       (* Just a random lowercase letter for now *)
       (char_of_u8
@@ -300,8 +300,8 @@ let exists ~l lst f =
   (* FIXME: a way to exit the loop that iterates through a container *)
   let_ ~name:"res" ~l (make_ref false_) (fun l res_ref ->
     let res = get_ref res_ref in
-  for_each ~name:"item" ~l lst (fun l item ->
-    set_ref res_ref (or_ res (f l item))))
+    for_each ~name:"item" ~l lst (fun l item ->
+      set_ref res_ref (or_ res (f l item))))
 
 let first_ip_of_cidr width all_ones cidr =
   let open E.Ops in
