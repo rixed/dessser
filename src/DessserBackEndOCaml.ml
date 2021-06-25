@@ -1,7 +1,9 @@
 open Batteries
 open Stdint
+
 open Dessser
 open DessserBackEndCLike
+open DessserMiscTypes
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -121,6 +123,7 @@ let make_get_prefix mn =
   fun vt ->
     Hashtbl.find_default prefixes vt ""
 
+(* FIXME: if not initialized, make the default output a guaranteed unique field name prefixed with a hash of the type *)
 let get_prefix = ref (fun _ -> "")
 
 let init mn =
@@ -128,7 +131,7 @@ let init mn =
 
 module Config =
 struct
-  let id = T.OCaml
+  let id = OCaml
 
   let valid_source_name n =
     if n = "" then "f" else
@@ -185,7 +188,7 @@ struct
     valid_upper_identifier (prefix ^ n)
 
   let mod_of_set_type = function
-    | T.Simple -> "SimpleSet"
+    | Simple -> "SimpleSet"
     | Sliding -> "SlidingWindow"
     | Tumbling -> "TumblingWindow"
     | Sampling -> "Sampling"
@@ -1743,7 +1746,7 @@ struct
          type _unused_for_syntax_only_ = unit\n"
 
   let source_outro _ =
-    "\nend [@@ocaml.warning \"-8-26\"] (* DessserGen module *)\n"
+    "\nend [@@ocaml.warning \"-8-26-30\"] (* DessserGen module *)\n"
 end
 
 include DessserBackEndCLike.Make (Config)

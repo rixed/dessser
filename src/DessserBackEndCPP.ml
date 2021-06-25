@@ -1,7 +1,9 @@
 open Batteries
 open Stdint
+
 open Dessser
 open DessserBackEndCLike
+open DessserMiscTypes
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -13,7 +15,7 @@ let valid_identifier = DessserBackEndCLike.valid_identifier
 
 module Config =
 struct
-  let id = T.Cpp
+  let id = Cpp
   let valid_source_name n = n
 
   let preferred_def_extension = "cc"

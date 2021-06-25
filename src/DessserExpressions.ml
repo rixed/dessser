@@ -1,6 +1,7 @@
 open Batteries
 open Stdint
 
+open DessserMiscTypes
 open DessserTools
 open DessserFloatTools
 module T = DessserTypes
@@ -32,23 +33,23 @@ let param_print oc (f, n) =
   Printf.fprintf oc "%d:%d" f n
 
 type type_method =
-  | Ser of T.encoding_id  (* serialize into this encoding *)
-  | Des of T.encoding_id  (* deserialize from this encoding *)
-  | SSize of T.encoding_id  (* serialized size in this encoding *)
-  | Convert of T.encoding_id * T.encoding_id  (* convert from a to b encodings *)
+  | Ser of encoding_id  (* serialize into this encoding *)
+  | Des of encoding_id  (* deserialize from this encoding *)
+  | SSize of encoding_id  (* serialized size in this encoding *)
+  | Convert of encoding_id * encoding_id  (* convert from a to b encodings *)
 
 let string_of_type_method = function
   | Ser enc ->
-      "to-"^ T.string_of_encoding enc
+      "to-"^ string_of_encoding enc
   | Des enc ->
-      "of-"^ T.string_of_encoding enc
+      "of-"^ string_of_encoding enc
   | SSize enc ->
-      "sersize-of-"^ T.string_of_encoding enc
+      "sersize-of-"^ string_of_encoding enc
   | Convert (from_, to_) ->
-      T.string_of_encoding to_ ^"-of-"^ T.string_of_encoding from_
+      string_of_encoding to_ ^"-of-"^ string_of_encoding from_
 
 let type_method_of_string s =
-  let to_enc n s = T.encoding_of_string (String.lchop ~n s) in
+  let to_enc n s = encoding_of_string (String.lchop ~n s) in
   let s = String.lowercase_ascii s in
   if String.starts_with s "to-" then Ser (to_enc 3 s) else
   if String.starts_with s "of-" then Des (to_enc 3 s) else
@@ -136,7 +137,7 @@ type e0s =
   | MakeUsr of string
   (* The Dessser equivalent of the `asm` directive.
    * The templates may use %1, %2 etc where the arguments should go. *)
-  | Verbatim of ((T.backend_id * string) list * (* output type: *) T.t)
+  | Verbatim of ((backend_id * string) list * (* output type: *) T.t)
 
 type e1 =
   | Function of (*function id*) int * (*args*) T.t array
@@ -680,15 +681,15 @@ let rec default_value ?(allow_null=true) ?this mn =
       assert false (* no value of map type *)
 
 let string_of_backend = function
-  | T.DIL -> "DIL"
-  | T.OCaml -> "OCaml"
-  | T.Cpp -> "C++"
+  | DIL -> "DIL"
+  | OCaml -> "OCaml"
+  | Cpp -> "C++"
 
 let backend_of_string s =
   match String.lowercase s with
-  | "dil" -> T.DIL
-  | "ocaml" -> T.OCaml
-  | "c++" -> T.Cpp
+  | "dil" -> DIL
+  | "ocaml" -> OCaml
+  | "c++" -> Cpp
   | _ -> invalid_arg ("backend_of_string: "^ s)
 
 let string_of_e0 = function

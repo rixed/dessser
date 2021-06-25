@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
+
 open Dessser
+open DessserMiscTypes
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
@@ -19,7 +21,7 @@ let default_config =
 
 module Ser : SER with type config = sexpr_config =
 struct
-  let id = T.SExpr
+  let id = SExpr
 
   type config = sexpr_config
 
@@ -224,7 +226,7 @@ end
 
 module Des : DES with type config = sexpr_config =
 struct
-  let id = T.SExpr
+  let id = SExpr
 
   type config = sexpr_config
 

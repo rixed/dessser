@@ -1,4 +1,5 @@
 open Dessser
+open DessserMiscTypes
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
@@ -6,7 +7,7 @@ open E.Ops
 
 module Ser : SER with type config = unit =
 struct
-  let id = T.Null
+  let id = Null
 
   type config = unit
   type state = unit

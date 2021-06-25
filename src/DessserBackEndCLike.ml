@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 
 open Dessser
+open DessserMiscTypes
 open DessserTools
 module E = DessserExpressions
 module P = DessserPrinter
@@ -41,7 +42,7 @@ let valid_identifier s =
 
 module type CONFIG =
 sig
-  val id : T.backend_id
+  val id : backend_id
   val valid_source_name : string -> string
   val preferred_def_extension : string
   val preferred_decl_extension : string

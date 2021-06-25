@@ -109,6 +109,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserFloatTools.ml \
 	src/DessserIpTools.ml \
 	src/DessserCompilConfig.ml \
+	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserPath.ml \
@@ -252,6 +253,7 @@ LINKED_FOR_TESTS = \
 	src/DessserTools.ml \
 	src/DessserFloatTools.ml \
 	src/DessserIpTools.ml \
+	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
 	src/DessserPath.ml \

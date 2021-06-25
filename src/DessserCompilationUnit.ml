@@ -1,3 +1,4 @@
+open DessserMiscTypes
 module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
@@ -9,7 +10,7 @@ type t =
   { identifiers : (string * identifier * T.t) list ;
     external_identifiers : (string * T.t) list ;
     verbatim_definitions : verbatim_definition list ;
-    external_types : (string * (P.t -> T.backend_id -> string)) list ;
+    external_types : (string * (P.t -> backend_id -> string)) list ;
     (* User may prefer some specific name for some types: *)
     type_names : (T.value * string) list }
 
@@ -17,7 +18,7 @@ and verbatim_definition =
   { name : string ; (* or empty string *)
     typ : T.t ;
     dependencies : string list ;
-    backend : T.backend_id ;
+    backend : backend_id ;
     location : verbatim_location ;
     printer : (P.t, unit) BatIO.printer }
 

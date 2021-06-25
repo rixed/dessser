@@ -2,9 +2,10 @@
 open Batteries
 
 open Dessser
-open DessserTools
-open DessserDSTools
 open DessserCompilConfig
+open DessserDSTools
+open DessserMiscTypes
+open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 module M = DessserMasks
@@ -26,14 +27,14 @@ let module_of_backend = function
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
 let des_of_encoding = function
-  | T.RingBuff -> (module DessserRamenRingBuffer.Des : DES)
+  | RingBuff -> (module DessserRamenRingBuffer.Des : DES)
   | RowBinary -> (module DessserRowBinary.Des : DES)
   | SExpr -> (module DessserSExpr.Des : DES)
   | CSV -> (module DessserCsv.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
-  | T.Null -> (module DessserDevNull.Ser : SER)
+  | Null -> (module DessserDevNull.Ser : SER)
   | RingBuff -> (module DessserRamenRingBuffer.Ser : SER)
   | RowBinary -> (module DessserRowBinary.Ser : SER)
   | SExpr -> (module DessserSExpr.Ser : SER)
@@ -97,7 +98,7 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
       | T.Ext name ->
           let is_myself = name = "this" in
           U.register_external_type compunit name (fun _p -> function
-            | T.DIL ->
+            | DIL ->
                 Printf.sprintf "%S" ("$" ^ name)
             | OCaml ->
                 if is_myself then
@@ -371,7 +372,7 @@ let docv_of_enum l =
 
 let known_inputs =
   T.[ RingBuff ; RowBinary ; SExpr ; CSV ] |>
-  List.map (fun enc -> T.string_of_encoding enc, enc)
+  List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_in =
   let doc = "encoding format for input" in
@@ -381,7 +382,7 @@ let encoding_in =
 
 let known_outputs =
   T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ] |>
-  List.map (fun enc -> T.string_of_encoding enc, enc)
+  List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_out =
   let doc = "encoding format for output" in

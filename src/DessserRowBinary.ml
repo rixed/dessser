@@ -1,6 +1,8 @@
 open Batteries
 open Stdint
+
 open Dessser
+open DessserMiscTypes
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
@@ -8,7 +10,7 @@ open E.Ops
 
 module Ser : SER with type config = unit =
 struct
-  let id = T.RowBinary
+  let id = RowBinary
   type config = unit
   type state = unit
   let ptr _mn = T.DataPtr
@@ -199,7 +201,7 @@ end
 
 module Des : DES with type config = unit =
 struct
-  let id = T.RowBinary
+  let id = RowBinary
   type config = unit
   type state = unit
   let ptr _mn = T.DataPtr

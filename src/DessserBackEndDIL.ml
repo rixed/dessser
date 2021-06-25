@@ -1,12 +1,14 @@
 (* Backend for the Dessser Intermediate Language *)
 open Batteries
+
 open Dessser
+open DessserMiscTypes
 module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
 module U = DessserCompilationUnit
 
-let id = T.DIL
+let id = DIL
 
 (* The only place where we need explicit types in DIL are in strings for instance
  * in the null or list expressions. There, types are expressed in the syntax

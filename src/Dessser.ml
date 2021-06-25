@@ -1,5 +1,7 @@
 open Batteries
 open Stdint
+
+open DessserMiscTypes
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -27,7 +29,7 @@ type list_opener =
  * DataPtr to a heap value, or a converter between two formats. *)
 module type DES =
 sig
-  val id : T.encoding_id
+  val id : encoding_id
 
   (* DES and SER can have some configurable parameters: *)
   type config
@@ -103,7 +105,7 @@ end
 
 module type SER =
 sig
-  val id : T.encoding_id
+  val id : encoding_id
 
   (* DES and SER can have some configurable parameters: *)
   type config
@@ -535,7 +537,7 @@ type link = Object | SharedObject | Executable
 
 module type BACKEND =
 sig
-  val id : T.backend_id
+  val id : backend_id
   val print_definitions : (U.t, 'b) IO.printer
   val print_declarations : (U.t, 'b) IO.printer
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a

@@ -1,7 +1,9 @@
 open Batteries
 open Stdint
-open DessserTools
+
 open Dessser
+open DessserMiscTypes
+open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
@@ -212,7 +214,7 @@ end
 
 module Ser : SER with type config = unit =
 struct
-  let id = T.RingBuff
+  let id = RingBuff
 
   type config = unit
   type state = unit
@@ -611,7 +613,7 @@ end
 
 module Des : DES with type config = unit =
 struct
-  let id = T.RingBuff
+  let id = RingBuff
 
   type config = unit
   type state = unit

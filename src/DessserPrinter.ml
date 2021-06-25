@@ -1,6 +1,7 @@
 open Batteries
 
 open DessserTools
+open DessserMiscTypes
 module T = DessserTypes
 
 type context = Declaration | Definition
@@ -13,7 +14,7 @@ type t =
     mutable indent : string ;
     (* The set of all type ids that have already been declared *)
     mutable declared : Set.String.t ;
-    mutable external_types : (string * (t -> T.backend_id -> string)) list ;
+    mutable external_types : (string * (t -> backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses of type names: *)
     mutable type_names : (T.value * string) list }

@@ -2,6 +2,7 @@ open Batteries
 open Stdint
 
 open Dessser
+open DessserMiscTypes
 open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
@@ -193,7 +194,7 @@ let is_in_fixed_string mn0 path =
 
 module Ser : SER with type config = csv_config =
 struct
-  let id = T.CSV
+  let id = CSV
 
   type config = csv_config
 
@@ -385,7 +386,7 @@ end
 
 module Des : DES with type config = csv_config =
 struct
-  let id = T.CSV
+  let id = CSV
 
   type config = csv_config
 

@@ -1,8 +1,10 @@
 open Batteries
 open Stdint
+
 open Dessser
-open DessserTools
 open DessserDSTools
+open DessserMiscTypes
+open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
@@ -11,7 +13,7 @@ open E.Ops
 (* The simplest possible deserializer *)
 module TestDes : DES with type config = unit =
 struct
-  let id = T.User "test"
+  let id = User "test"
   type config = unit
   type state = unit
   let ptr _vtyp = T.DataPtr
@@ -77,7 +79,7 @@ end
 (* The simplest possible serializer *)
 module TestSer : SER with type config = unit =
 struct
-  let id = T.User "test"
+  let id = User "test"
   type config = unit
   type state = unit
   let ptr _vtyp = T.DataPtr
