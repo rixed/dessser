@@ -19,11 +19,11 @@ struct Pointer {
    *        be constant there, though.
    */
   // Shared with all pointers derived from this one:
-  //std::shared_ptr<Byte[]> buffer;
+  //std::shared_ptr<uint8_t[]> buffer;
   // Work around MacOS c17 issue:
-  std::shared_ptr<Byte> buffer;
+  std::shared_ptr<uint8_t> buffer;
   // If the pointer was created from an address (to some non-managed memory):
-  Byte *bytes;
+  uint8_t *bytes;
   // Total size of the buffer/bytes arena (regardless of offset)
   size_t size;
   // Current location of the read/write pointer inside the buffer/bytes:
@@ -37,7 +37,7 @@ struct Pointer {
 
   /* Construct (with uninitialized buffer) from a size: */
   Pointer(Size const &sz) :
-    buffer(new Byte[sz]),
+    buffer(new uint8_t[sz]),
     bytes(nullptr),
     size(sz),
     offset(0)
@@ -45,7 +45,7 @@ struct Pointer {
 
   /* Construct from a string: */
   Pointer(std::string const &str) :
-    buffer(new Byte[str.size()]),
+    buffer(new uint8_t[str.size()]),
     bytes(nullptr),
     size(str.size()),
     offset(0)
@@ -92,7 +92,7 @@ struct Pointer {
         std::to_string(size - offs) + " bytes short");
   }
 
-  Byte get(size_t offs) const
+  uint8_t get(size_t offs) const
   {
     return bytes ? bytes[offs] : buffer.get()[offs];
   }
@@ -118,164 +118,164 @@ struct Pointer {
     return !!(get(off) & (1 << bit));
   }
 
-  Byte peekByte(size_t at = 0) const
+  uint8_t peekU8(size_t at = 0) const
   {
     checkOffset(offset + at + 1);
     return get(offset + at);
   }
 
-  Pair<Byte, Pointer> readByte() const
+  Pair<uint8_t, Pointer> readU8() const
   {
-    return Pair<Byte, Pointer>(
-      peekByte(), skip(1));
+    return Pair<uint8_t, Pointer>(
+      peekU8(), skip(1));
   }
 
-  Word peekWordLe() const
-  {
-    checkOffset(offset + 2);
-    return (((Word)get(offset + 1)) << 8) | get(offset);
-  }
-
-  Pair<Word, Pointer> readWordLe() const
-  {
-    return Pair<Word, Pointer>(
-      peekWordLe(), skip(2));
-  }
-
-  Word peekWordBe() const
+  uint16_t peekU16Le() const
   {
     checkOffset(offset + 2);
-    return (((Word)get(offset)) << 8) | get(offset + 1);
+    return (((uint16_t)get(offset + 1)) << 8) | get(offset);
   }
 
-  Pair<Word, Pointer> readWordBe() const
+  Pair<uint16_t, Pointer> readU16Le() const
   {
-    return Pair<Word, Pointer>(
-      peekWordBe(), skip(2));
+    return Pair<uint16_t, Pointer>(
+      peekU16Le(), skip(2));
   }
 
-  DWord peekDWordLe() const
+  uint16_t peekU16Be() const
+  {
+    checkOffset(offset + 2);
+    return (((uint16_t)get(offset)) << 8) | get(offset + 1);
+  }
+
+  Pair<uint16_t, Pointer> readU16Be() const
+  {
+    return Pair<uint16_t, Pointer>(
+      peekU16Be(), skip(2));
+  }
+
+  uint32_t peekU32Le() const
   {
     checkOffset(offset + 4);
-    return (((DWord)get(offset + 3)) << 24) |
-           (((DWord)get(offset + 2)) << 16) |
-           (((DWord)get(offset + 1)) << 8) |
+    return (((uint32_t)get(offset + 3)) << 24) |
+           (((uint32_t)get(offset + 2)) << 16) |
+           (((uint32_t)get(offset + 1)) << 8) |
            get(offset);
   }
 
-  Pair<DWord, Pointer> readDWordLe() const
+  Pair<uint32_t, Pointer> readU32Le() const
   {
-    return Pair<DWord, Pointer>(
-      peekDWordLe(), skip(4));
+    return Pair<uint32_t, Pointer>(
+      peekU32Le(), skip(4));
   }
 
-  DWord peekDWordBe() const
+  uint32_t peekU32Be() const
   {
     checkOffset(offset + 4);
-    return (((DWord)get(offset)) << 24) |
-           (((DWord)get(offset + 1)) << 16) |
-           (((DWord)get(offset + 2)) << 8) |
+    return (((uint32_t)get(offset)) << 24) |
+           (((uint32_t)get(offset + 1)) << 16) |
+           (((uint32_t)get(offset + 2)) << 8) |
            get(offset + 3);
   }
 
-  Pair<DWord, Pointer> readDWordBe() const
+  Pair<uint32_t, Pointer> readU32Be() const
   {
-    return Pair<DWord, Pointer>(
-      peekDWordBe(), skip(4));
+    return Pair<uint32_t, Pointer>(
+      peekU32Be(), skip(4));
   }
 
-  QWord peekQWordLe() const
+  uint64_t peekU64Le() const
   {
     checkOffset(offset + 8);
-    return (((QWord)get(offset + 7)) << 56) |
-           (((QWord)get(offset + 6)) << 48) |
-           (((QWord)get(offset + 5)) << 40) |
-           (((QWord)get(offset + 4)) << 32) |
-           (((QWord)get(offset + 3)) << 24) |
-           (((QWord)get(offset + 2)) << 16) |
-           (((QWord)get(offset + 1)) << 8) |
+    return (((uint64_t)get(offset + 7)) << 56) |
+           (((uint64_t)get(offset + 6)) << 48) |
+           (((uint64_t)get(offset + 5)) << 40) |
+           (((uint64_t)get(offset + 4)) << 32) |
+           (((uint64_t)get(offset + 3)) << 24) |
+           (((uint64_t)get(offset + 2)) << 16) |
+           (((uint64_t)get(offset + 1)) << 8) |
            get(offset);
   }
 
-  Pair<QWord, Pointer> readQWordLe() const
+  Pair<uint64_t, Pointer> readU64Le() const
   {
-    return Pair<QWord, Pointer>(
-      peekQWordLe(), skip(8));
+    return Pair<uint64_t, Pointer>(
+      peekU64Le(), skip(8));
   }
 
-  QWord peekQWordBe() const
+  uint64_t peekU64Be() const
   {
     checkOffset(offset + 8);
-    return (((QWord)get(offset)) << 56) |
-           (((QWord)get(offset + 1)) << 48) |
-           (((QWord)get(offset + 2)) << 40) |
-           (((QWord)get(offset + 3)) << 32) |
-           (((QWord)get(offset + 4)) << 24) |
-           (((QWord)get(offset + 5)) << 16) |
-           (((QWord)get(offset + 6)) << 8) |
+    return (((uint64_t)get(offset)) << 56) |
+           (((uint64_t)get(offset + 1)) << 48) |
+           (((uint64_t)get(offset + 2)) << 40) |
+           (((uint64_t)get(offset + 3)) << 32) |
+           (((uint64_t)get(offset + 4)) << 24) |
+           (((uint64_t)get(offset + 5)) << 16) |
+           (((uint64_t)get(offset + 6)) << 8) |
            get(offset + 7);
   }
 
-  Pair<QWord, Pointer> readQWordBe() const
+  Pair<uint64_t, Pointer> readU64Be() const
   {
-    return Pair<QWord, Pointer>(
-      peekQWordBe(), skip(8));
+    return Pair<uint64_t, Pointer>(
+      peekU64Be(), skip(8));
   }
 
-  OWord peekOWordLe() const
+  uint128_t peekU128Le() const
   {
     checkOffset(offset + 16);
-    return (((OWord)get(offset + 15)) << 120) |
-           (((OWord)get(offset + 14)) << 112) |
-           (((OWord)get(offset + 13)) << 104) |
-           (((OWord)get(offset + 12)) << 96) |
-           (((OWord)get(offset + 11)) << 88) |
-           (((OWord)get(offset + 10)) << 80) |
-           (((OWord)get(offset + 9)) << 72) |
-           (((OWord)get(offset + 8)) << 64) |
-           (((OWord)get(offset + 7)) << 56) |
-           (((OWord)get(offset + 6)) << 48) |
-           (((OWord)get(offset + 5)) << 40) |
-           (((OWord)get(offset + 4)) << 32) |
-           (((OWord)get(offset + 3)) << 24) |
-           (((OWord)get(offset + 2)) << 16) |
-           (((OWord)get(offset + 1)) << 8) |
+    return (((uint128_t)get(offset + 15)) << 120) |
+           (((uint128_t)get(offset + 14)) << 112) |
+           (((uint128_t)get(offset + 13)) << 104) |
+           (((uint128_t)get(offset + 12)) << 96) |
+           (((uint128_t)get(offset + 11)) << 88) |
+           (((uint128_t)get(offset + 10)) << 80) |
+           (((uint128_t)get(offset + 9)) << 72) |
+           (((uint128_t)get(offset + 8)) << 64) |
+           (((uint128_t)get(offset + 7)) << 56) |
+           (((uint128_t)get(offset + 6)) << 48) |
+           (((uint128_t)get(offset + 5)) << 40) |
+           (((uint128_t)get(offset + 4)) << 32) |
+           (((uint128_t)get(offset + 3)) << 24) |
+           (((uint128_t)get(offset + 2)) << 16) |
+           (((uint128_t)get(offset + 1)) << 8) |
            get(offset);
   }
 
-  Pair<OWord, Pointer> readOWordLe() const
+  Pair<uint128_t, Pointer> readU128Le() const
   {
     checkOffset(offset + 16);
-    return Pair<OWord, Pointer>(
-      peekOWordLe(), skip(16));
+    return Pair<uint128_t, Pointer>(
+      peekU128Le(), skip(16));
   }
 
-  OWord peekOWordBe() const
+  uint128_t peekU128Be() const
   {
     checkOffset(offset + 16);
-    return (((OWord)get(offset)) << 120) |
-           (((OWord)get(offset + 1)) << 112) |
-           (((OWord)get(offset + 2)) << 104) |
-           (((OWord)get(offset + 3)) << 96) |
-           (((OWord)get(offset + 4)) << 88) |
-           (((OWord)get(offset + 5)) << 80) |
-           (((OWord)get(offset + 6)) << 72) |
-           (((OWord)get(offset + 7)) << 64) |
-           (((OWord)get(offset + 8)) << 56) |
-           (((OWord)get(offset + 9)) << 48) |
-           (((OWord)get(offset + 10)) << 40) |
-           (((OWord)get(offset + 11)) << 32) |
-           (((OWord)get(offset + 12)) << 24) |
-           (((OWord)get(offset + 13)) << 16) |
-           (((OWord)get(offset + 14)) << 8) |
+    return (((uint128_t)get(offset)) << 120) |
+           (((uint128_t)get(offset + 1)) << 112) |
+           (((uint128_t)get(offset + 2)) << 104) |
+           (((uint128_t)get(offset + 3)) << 96) |
+           (((uint128_t)get(offset + 4)) << 88) |
+           (((uint128_t)get(offset + 5)) << 80) |
+           (((uint128_t)get(offset + 6)) << 72) |
+           (((uint128_t)get(offset + 7)) << 64) |
+           (((uint128_t)get(offset + 8)) << 56) |
+           (((uint128_t)get(offset + 9)) << 48) |
+           (((uint128_t)get(offset + 10)) << 40) |
+           (((uint128_t)get(offset + 11)) << 32) |
+           (((uint128_t)get(offset + 12)) << 24) |
+           (((uint128_t)get(offset + 13)) << 16) |
+           (((uint128_t)get(offset + 14)) << 8) |
            get(offset + 15);
   }
 
-  Pair<OWord, Pointer> readOWordBe() const
+  Pair<uint128_t, Pointer> readU128Be() const
   {
     checkOffset(offset + 16);
-    return Pair<OWord, Pointer>(
-      peekOWordBe(), skip(16));
+    return Pair<uint128_t, Pointer>(
+      peekU128Be(), skip(16));
   }
 
   Pair<Bytes, Pointer> readBytes(Size const &sz) const
@@ -287,7 +287,7 @@ struct Pointer {
       skip(sz));
   }
 
-  void set(size_t offs, Byte v)
+  void set(size_t offs, uint8_t v)
   {
     if (bytes) {
       bytes[offs] = v;
@@ -301,23 +301,23 @@ struct Pointer {
     size_t const off = offset + b / 8;
     size_t const bit = b & 7;
     checkOffset(off + 1);
-    Byte const mask = 1 << bit;
+    uint8_t const mask = 1 << bit;
     set(off, v ? get(off) | mask : get(off) & ~mask);
   }
 
-  void pokeByte(Byte v)
+  void pokeU8(uint8_t v)
   {
     checkOffset(offset + 1);
     set(offset, v);
   }
 
-  Pointer writeByte(Byte v)
+  Pointer writeU8(uint8_t v)
   {
-    pokeByte(v);
+    pokeU8(v);
     return skip(1);
   }
 
-  Pointer writeWordLe(Word v)
+  Pointer writeU16Le(uint16_t v)
   {
     checkOffset(offset + 2);
     set(offset, v);
@@ -325,7 +325,7 @@ struct Pointer {
     return skip(2);
   }
 
-  Pointer writeWordBe(Word v)
+  Pointer writeU16Be(uint16_t v)
   {
     checkOffset(offset + 2);
     set(offset+1, v);
@@ -333,7 +333,7 @@ struct Pointer {
     return skip(2);
   }
 
-  Pointer writeDWordLe(DWord v)
+  Pointer writeU32Le(uint32_t v)
   {
     checkOffset(offset + 4);
     set(offset, v);
@@ -343,7 +343,7 @@ struct Pointer {
     return skip(4);
   }
 
-  Pointer writeDWordBe(DWord v)
+  Pointer writeU32Be(uint32_t v)
   {
     checkOffset(offset + 4);
     set(offset+3, v);
@@ -353,7 +353,7 @@ struct Pointer {
     return skip(4);
   }
 
-  Pointer writeQWordLe(QWord v)
+  Pointer writeU64Le(uint64_t v)
   {
     checkOffset(offset + 8);
     set(offset, v);
@@ -367,7 +367,7 @@ struct Pointer {
     return skip(8);
   }
 
-  Pointer writeQWordBe(QWord v)
+  Pointer writeU64Be(uint64_t v)
   {
     checkOffset(offset + 8);
     set(offset+7, v);
@@ -381,7 +381,7 @@ struct Pointer {
     return skip(8);
   }
 
-  Pointer writeOWordLe(OWord v)
+  Pointer writeU128Le(uint128_t v)
   {
     checkOffset(offset + 16);
     set(offset, v);
@@ -403,7 +403,7 @@ struct Pointer {
     return skip(16);
   }
 
-  Pointer writeOWordBe(OWord v)
+  Pointer writeU128Be(uint128_t v)
   {
     checkOffset(offset + 16);
     set(offset+15, v);
@@ -428,15 +428,15 @@ struct Pointer {
   Pointer writeBytes(Bytes const &v)
   {
     checkOffset(offset + v.size);
-    Byte *dest = bytes ? bytes : buffer.get();
+    uint8_t *dest = bytes ? bytes : buffer.get();
     memcpy(dest + offset, v.buffer.get() + v.offset, v.size);
     return skip(v.size);
   }
 
-  Pointer blitBytes(Byte const b, Size const &sz)
+  Pointer blitBytes(uint8_t const b, Size const &sz)
   {
     checkOffset(offset + sz);
-    Byte *dest = bytes ? bytes : buffer.get();
+    uint8_t *dest = bytes ? bytes : buffer.get();
     memset(dest + offset, b, sz);
     return skip(sz);
   }
@@ -461,12 +461,26 @@ struct Pointer {
   }
 };
 
+inline bool operator==(const Pointer& lhs, const Pointer& rhs)
+{
+  return
+      lhs.buffer == rhs.buffer &&
+      lhs.bytes == rhs.bytes &&
+      lhs.size == rhs.size &&
+      lhs.offset == rhs.offset;
+}
+
+inline bool operator!=(const Pointer& lhs, const Pointer& rhs)
+{
+  return !(lhs == rhs);
+}
+
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 #include <cctype>
 
-static inline std::string printable_string_of_byte(Byte const b)
+static inline std::string printable_string_of_byte(uint8_t const b)
 {
   std::stringstream stream;
   if (isprint(b)) stream << (char)b;
@@ -476,7 +490,7 @@ static inline std::string printable_string_of_byte(Byte const b)
 
 static inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
 {
-  Byte *dest = p.bytes ? p.bytes : p.buffer.get();
+  uint8_t *dest = p.bytes ? p.bytes : p.buffer.get();
 
   if (dest) {
     os << '"';

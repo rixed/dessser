@@ -7,9 +7,9 @@
 
 struct Bytes {
   /* Shared with pointers: */
-  //std::shared_ptr<Byte[]> buffer;
+  //std::shared_ptr<uint8_t[]> buffer;
   // Work around MacOS c17 issue:
-  std::shared_ptr<Byte> buffer;
+  std::shared_ptr<uint8_t> buffer;
   /* total capacity of the whole buffer: */
   size_t capa;
   /* Size of this byte string: */
@@ -24,7 +24,7 @@ struct Bytes {
     offset(0)
   {}
 
-  Bytes(std::shared_ptr<Byte> buffer_, size_t size_, size_t offset_) :
+  Bytes(std::shared_ptr<uint8_t> buffer_, size_t size_, size_t offset_) :
     buffer(buffer_),
     capa(size_),
     size(size_),
@@ -34,13 +34,13 @@ struct Bytes {
   Bytes(std::string const s)
   {
     capa = size = s.size();
-    buffer = std::shared_ptr<Byte>(new Byte[size]);
+    buffer = std::shared_ptr<uint8_t>(new uint8_t[size]);
     offset = 0;
     memcpy(buffer.get(), s.c_str(), size);
   }
 
-  Bytes(Byte *bytes, size_t size_) :
-    buffer(new Byte[size_]),
+  Bytes(uint8_t *bytes, size_t size_) :
+    buffer(new uint8_t[size_]),
     capa(size_),
     size(size_),
     offset(0)
@@ -72,14 +72,14 @@ struct Bytes {
       copyFrom(b1);
     } else { /* slow path */
       capa = size = b1.size + b2.size;
-      buffer = std::shared_ptr<Byte>(new Byte[size]);
+      buffer = std::shared_ptr<uint8_t>(new uint8_t[size]);
       offset = 0;
       memcpy(buffer.get(), b1.buffer.get()+b1.offset, b1.size);
       memcpy(buffer.get()+b1.size, b2.buffer.get()+b2.offset, b2.size);
     }
   }
 
-  Bytes(Bytes const &b1, Byte b)
+  Bytes(Bytes const &b1, uint8_t b)
   {
     if (b1.offset + b1.size < b1.capa &&
         b1.buffer.get()[b1.offset + b1.size] == b) { /* fast path */
@@ -89,7 +89,7 @@ struct Bytes {
       size = b1.size + 1;
     } else { /* slow path */
       capa = size = b1.size + 1;
-      buffer = std::shared_ptr<Byte>(new Byte[size]);
+      buffer = std::shared_ptr<uint8_t>(new uint8_t[size]);
       offset = 0;
       memcpy(buffer.get(), b1.buffer.get()+b1.offset, b1.size);
       buffer.get()[b1.size] = b;

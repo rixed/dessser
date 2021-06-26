@@ -48,7 +48,7 @@ struct
 
   let is_mutable t =
     match T.develop_mn t with
-    | T.{ typ = (Bytes | Ref _ | Vec _) ; _ } ->
+    | T.{ typ = (Bytes | Vec _) ; _ } ->
         true
     | _ ->
         false
@@ -139,6 +139,7 @@ struct
     | Ext n ->
         P.get_external_type p n Cpp
     | Tup mns ->
+        (* FIXME: use std::tuple *)
         let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         P.declared_type p t (fun oc type_id ->
           print_struct p oc type_id mns) |>
@@ -188,15 +189,8 @@ struct
     | Ptr -> "Pointer"
     | Size -> "Size"
     | Address -> "Address"
-    | Bit -> "bool"
-    | Byte -> "uint8_t"
-    | Word -> "uint16_t"
-    | DWord -> "uint32_t"
-    | QWord -> "uint64_t"
-    | OWord -> "uint128_t"
     | Bytes -> "Bytes"
     | Mask -> "Mask"
-    | Ref mn -> type_identifier_mn mn
 
   (* Identifiers used for function parameters: *)
   let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
@@ -407,17 +401,17 @@ struct
         emit ?name p l e (print_float_literal f)
     | E.E0 (String s) ->
         emit ?name p l e (fun oc -> String.print_quoted oc s)
-    | E.E0 (Bit b) | E.E0 (Bool b) ->
+    | E.E0 (Bool b) ->
         emit ?name p l e (fun oc -> Bool.print oc b)
     | E.E0 (Char c) ->
         emit ?name p l e (fun oc -> pp oc "'%s'" (c_char_of c))
-    | E.E0 (Byte i) | E.E0 (U8 i) ->
+    | E.E0 (U8 i) ->
         emit ?name p l e (fun oc -> pp oc "%s" (Uint8.to_string i))
-    | E.E0 (Word i) | E.E0 (U16 i) ->
+    | E.E0 (U16 i) ->
         emit ?name p l e (fun oc -> pp oc "%s" (Uint16.to_string i))
     | E.E0 (U24 u) ->
         emit ?name p l e (fun oc -> pp oc "%s" (Uint24.to_string u))
-    | E.E0 (DWord u) | E.E0 (U32 u) ->
+    | E.E0 (U32 u) ->
         emit ?name p l e (fun oc -> pp oc "%sU" (Uint32.to_string u))
     | E.E0 (U40 u) ->
         emit ?name p l e (fun oc -> pp oc "%sUL" (Uint40.to_string u))
@@ -425,9 +419,9 @@ struct
         emit ?name p l e (fun oc -> pp oc "%sUL" (Uint48.to_string u))
     | E.E0 (U56 u) ->
         emit ?name p l e (fun oc -> pp oc "%sUL" (Uint56.to_string u))
-    | E.E0 (QWord u) | E.E0 (U64 u) ->
+    | E.E0 (U64 u) ->
         emit ?name p l e (fun oc -> pp oc "%sUL" (Uint64.to_string u))
-    | E.E0 (OWord u) | E.E0 (U128 u) ->
+    | E.E0 (U128 u) ->
         emit ?name p l e (fun oc ->
           let lo = Uint128.to_uint64 u
           and hi = Uint128.(to_uint64 (shift_right_logical u 64)) in
@@ -612,7 +606,7 @@ struct
         unary_func "i128_of_string" e1
     | E.E1 (CharOfPtr, e1) ->
         let n = print emit p l e1 in
-        emit ?name p l e (fun oc -> pp oc "char(%s.peekByte(0))" n)
+        emit ?name p l e (fun oc -> pp oc "char(%s.peekU8(0))" n)
     | E.E1 (FloatOfPtr, e1) ->
         let n = print emit p l e1 in
         let start = gen_sym "start_" in
@@ -691,9 +685,9 @@ struct
         ppi p.P.def "std::size_t count_ = i128_from_chars(%s, %s, &%s);"
           start stop val_ ;
         emit ?name p l e (fun oc -> pp oc "%s, %s.skip(count_)" val_ n)
-    | E.E1 (FloatOfQWord, e1) ->
+    | E.E1 (FloatOfU64, e1) ->
         unary_func "float_of_qword" e1
-    | E.E1 (QWordOfFloat, e1) ->
+    | E.E1 (U64OfFloat, e1) ->
         unary_func "qword_of_float" e1
     | E.E1 (StringOfFloat, e1) ->
         unary_func "hex_string_of_float" e1
@@ -702,15 +696,6 @@ struct
         (* This will use the list-initializer. Beware that "1, %s" would _also_ use
          * the list initializer, not the (count, char) constructor! *)
         emit ?name p l e (fun oc -> pp oc "%s" n)
-    | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)
-    | E.E1 (WordOfU16, e1) | E.E1 (U16OfWord, e1)
-    | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)
-    | E.E1 (U64OfQWord, e1) | E.E1 (QWordOfU64, e1)
-    | E.E1 (U128OfOWord, e1) | E.E1 (OWordOfU128, e1)
-    | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1) ->
-        (* Those are NoOps: *)
-        let n = print emit p l e1 in
-        n
     | E.E1 (U8OfChar, e1) | E.E1 (CharOfU8, e1)
     | E.E1 (SizeOfU32, e1) | E.E1 (U32OfSize, e1)
     | E.E1 (AddressOfU64, e1) | E.E1 (U64OfAddress, e1)
@@ -790,66 +775,66 @@ struct
         and n2 = print emit p l e2
         and n3 = print emit p l e3 in
         emit ?name p l e (fun oc -> pp oc "%s[%s] = %s" n2 n1 n3)
-    | E.E1 (ReadByte, e1) ->
-        method_call e1 "readByte" []
-    | E.E1 (ReadWord LittleEndian, e1) ->
-        method_call e1 "readWordLe" []
-    | E.E1 (ReadWord BigEndian, e1) ->
-        method_call e1 "readWordBe" []
-    | E.E1 (ReadDWord LittleEndian, e1) ->
-        method_call e1 "readDWordLe" []
-    | E.E1 (ReadDWord BigEndian, e1) ->
-        method_call e1 "readDWordBe" []
-    | E.E1 (ReadQWord LittleEndian, e1) ->
-        method_call e1 "readQWordLe" []
-    | E.E1 (ReadQWord BigEndian, e1) ->
-        method_call e1 "readQWordBe" []
-    | E.E1 (ReadOWord LittleEndian, e1) ->
-        method_call e1 "readOWordLe" []
-    | E.E1 (ReadOWord BigEndian, e1) ->
-        method_call e1 "readOWordBe" []
+    | E.E1 (ReadU8, e1) ->
+        method_call e1 "readU8" []
+    | E.E1 (ReadU16 LittleEndian, e1) ->
+        method_call e1 "readU16Le" []
+    | E.E1 (ReadU16 BigEndian, e1) ->
+        method_call e1 "readU16Be" []
+    | E.E1 (ReadU32 LittleEndian, e1) ->
+        method_call e1 "readU32Le" []
+    | E.E1 (ReadU32 BigEndian, e1) ->
+        method_call e1 "readU32Be" []
+    | E.E1 (ReadU64 LittleEndian, e1) ->
+        method_call e1 "readU64Le" []
+    | E.E1 (ReadU64 BigEndian, e1) ->
+        method_call e1 "readU64Be" []
+    | E.E1 (ReadU128 LittleEndian, e1) ->
+        method_call e1 "readU128Le" []
+    | E.E1 (ReadU128 BigEndian, e1) ->
+        method_call e1 "readU128Be" []
     | E.E2 (ReadBytes, e1, e2) ->
         method_call e1 "readBytes" [ e2 ]
-    | E.E2 (PeekByte, e1, e2) ->
-        method_call e1 "peekByte" [ e2 ]
-    | E.E2 (PeekWord LittleEndian, e1, e2) ->
+    | E.E2 (PeekU8, e1, e2) ->
+        method_call e1 "peekU8" [ e2 ]
+    | E.E2 (PeekU16 LittleEndian, e1, e2) ->
         method_call e1 "peekWorkLe" [ e2 ]
-    | E.E2 (PeekWord BigEndian, e1, e2) ->
+    | E.E2 (PeekU16 BigEndian, e1, e2) ->
         method_call e1 "peekWorkBe" [ e2 ]
-    | E.E2 (PeekDWord LittleEndian, e1, e2) ->
+    | E.E2 (PeekU32 LittleEndian, e1, e2) ->
         method_call e1 "peekDWorkLe" [ e2 ]
-    | E.E2 (PeekDWord BigEndian, e1, e2) ->
+    | E.E2 (PeekU32 BigEndian, e1, e2) ->
         method_call e1 "peekDWorkBe" [ e2 ]
-    | E.E2 (PeekQWord LittleEndian, e1, e2) ->
+    | E.E2 (PeekU64 LittleEndian, e1, e2) ->
         method_call e1 "peekQWorkLe" [ e2 ]
-    | E.E2 (PeekQWord BigEndian, e1, e2) ->
+    | E.E2 (PeekU64 BigEndian, e1, e2) ->
         method_call e1 "peekQWorkBe" [ e2 ]
-    | E.E2 (PeekOWord LittleEndian, e1, e2) ->
+    | E.E2 (PeekU128 LittleEndian, e1, e2) ->
         method_call e1 "peekOWorkLe" [ e2 ]
-    | E.E2 (PeekOWord BigEndian, e1, e2) ->
+    | E.E2 (PeekU128 BigEndian, e1, e2) ->
         method_call e1 "peekOWorkBe" [ e2 ]
-    | E.E2 (WriteByte, e1, e2) ->
-        method_call e1 "writeByte" [ e2 ]
-    | E.E2 (WriteWord LittleEndian, e1, e2) ->
-        method_call e1 "writeWordLe" [ e2 ]
-    | E.E2 (WriteWord BigEndian, e1, e2) ->
-        method_call e1 "writeWordBe" [ e2 ]
-    | E.E2 (WriteDWord LittleEndian, e1, e2) ->
-        method_call e1 "writeDWordLe" [ e2 ]
-    | E.E2 (WriteDWord BigEndian, e1, e2) ->
-        method_call e1 "writeDWordBe" [ e2 ]
-    | E.E2 (WriteQWord LittleEndian, e1, e2) ->
-        method_call e1 "writeQWordLe" [ e2 ]
-    | E.E2 (WriteQWord BigEndian, e1, e2) ->
-        method_call e1 "writeQWordBe" [ e2 ]
-    | E.E2 (WriteOWord LittleEndian, e1, e2) ->
-        method_call e1 "writeOWordLe" [ e2 ]
-    | E.E2 (WriteOWord BigEndian, e1, e2) ->
-        method_call e1 "writeOWordBe" [ e2 ]
+    | E.E2 (WriteU8, e1, e2) ->
+        method_call e1 "writeU8" [ e2 ]
+    | E.E2 (WriteU16 LittleEndian, e1, e2) ->
+        method_call e1 "writeU16Le" [ e2 ]
+    | E.E2 (WriteU16 BigEndian, e1, e2) ->
+        method_call e1 "writeU16Be" [ e2 ]
+    | E.E2 (WriteU32 LittleEndian, e1, e2) ->
+        method_call e1 "writeU32Le" [ e2 ]
+    | E.E2 (WriteU32 BigEndian, e1, e2) ->
+        method_call e1 "writeU32Be" [ e2 ]
+    | E.E2 (WriteU64 LittleEndian, e1, e2) ->
+        method_call e1 "writeU64Le" [ e2 ]
+    | E.E2 (WriteU64 BigEndian, e1, e2) ->
+        method_call e1 "writeU64Be" [ e2 ]
+    | E.E2 (WriteU128 LittleEndian, e1, e2) ->
+        method_call e1 "writeU128Le" [ e2 ]
+    | E.E2 (WriteU128 BigEndian, e1, e2) ->
+        method_call e1 "writeU128Be" [ e2 ]
     | E.E2 (WriteBytes, e1, e2) ->
         method_call e1 "writeBytes" [ e2 ]
-    | E.E2 (PokeByte, e1, e2) ->
-        method_call e1 "pokeByte" [ e2 ]
+    | E.E2 (PokeU8, e1, e2) ->
+        method_call e1 "pokeU8" [ e2 ]
     | E.E3 (BlitByte, e1, e2, e3) ->
         method_call e1 "blitBytes" [ e2 ; e3 ]
     | E.E2 (PtrAdd, e1, e2) ->
@@ -964,15 +949,6 @@ struct
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
-    | E.E1 (MakeRef, e1) ->
-        print ?name emit p l e1
-    | E.E1 (GetRef, e1) ->
-        print ?name emit p l e1
-    | E.E2 (SetRef, e1, e2) ->
-        let n1 = print emit p l e1 in
-        let n2 = print emit p l e2 in
-        ppi p.P.def "%s = %s;" n1 n2 ;
-        "VOID"
     | E.E1 (Fst, e1) ->
         member e1 "v1"
     | E.E1 (Snd, e1) ->

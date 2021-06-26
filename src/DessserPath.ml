@@ -40,8 +40,8 @@ let type_and_name_of_path t0 path =
     | [] -> t, field_name
     | CompTime i :: path ->
         let rec type_of = function
-          | T.(Unknown | Base _ | Ext _ | Map _ | Ref _ |
-               Size | Bit | Byte | Word | DWord | QWord | OWord |
+          | T.(Unknown | Base _ | Ext _ | Map _ |
+               Size |
                Void | Ptr | Address | Bytes | Mask | Function _) ->
               assert false
           | This ->
@@ -75,8 +75,8 @@ let type_and_name_of_path t0 path =
          * Here it's given a caracteristic name for debugging purposes only: *)
         let no_fieldname = "__no_fieldname_at_runtime__" in
         let rec type_of = function
-          | T.(Unknown | Base _ | Ext _ | Map _ | Ref _ |
-               Size | Bit | Byte | Word | DWord | QWord | OWord |
+          | T.(Unknown | Base _ | Ext _ | Map _ |
+               Size |
                Void | Ptr | Address | Bytes | Mask | Function _) ->
               assert false
           | This ->

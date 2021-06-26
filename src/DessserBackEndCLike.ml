@@ -130,7 +130,7 @@ struct
         Param _ | Null _ |
         EndOfList _ | Float _ | String _ | Bool _ | Bytes _ |
         Identifier _ | ExtIdentifier _ |
-        Bit _ | Char _ | Size _ | Byte _ | Word _ | DWord _ | QWord _ | OWord _ |
+        Char _ | Size _ |
         U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _ |
         I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _ |
         CopyField | SkipField | SetFieldNull)
@@ -141,13 +141,11 @@ struct
         CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |
         U24OfPtr | I24OfPtr | U32OfPtr | I32OfPtr | U40OfPtr | I40OfPtr |
         U48OfPtr | I48OfPtr | U56OfPtr | I56OfPtr | U64OfPtr | I64OfPtr |
-        U128OfPtr | I128OfPtr | FloatOfQWord | QWordOfFloat | U8OfByte |
-        ByteOfU8 | U16OfWord | WordOfU16 | U32OfDWord | DWordOfU32 |
-        U64OfQWord | QWordOfU64 | U128OfOWord | OWordOfU128 | U8OfChar |
+        U128OfPtr | I128OfPtr | FloatOfU64 | U64OfFloat | U8OfChar |
         CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
-        BitOfBool | BoolOfBit | U8OfBool | BoolOfU8 |
+        U8OfBool | BoolOfU8 |
         BitNot | StringLength | RemSize | Not | Abs | Neg |
-        Fst | Snd | Head | Tail | Ignore | Identity | GetRef), _)
+        Fst | Snd | Head | Tail | Ignore | Identity), _)
     | E2 ((
         Nth | Gt | Ge | Eq | Add | Sub | Mul | Min | Max |
         BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit), _, _) ->

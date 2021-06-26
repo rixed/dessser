@@ -23,18 +23,18 @@ struct
   type des = state -> T.mn -> Path.t -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
   let from_byte v1 v2 _ _ l src =
-    let b_src = read_byte src in
+    let b_src = read_u8 src in
     E.with_sploded_pair ~l "from_byte" b_src (fun _l b src ->
       make_pair
-        (if_ (bool_of_u8 (u8_of_byte b)) ~then_:v1 ~else_:v2)
+        (if_ (bool_of_u8 b) ~then_:v1 ~else_:v2)
         src)
 
   let dfloat () = from_byte (float 1.) (float 0.)
   let dstring () = from_byte (string "x") (string "")
   let dbool () = from_byte true_ false_
   let dchar () _ _ l src =
-    E.with_sploded_pair ~l "dchar" (read_byte src) (fun _l b src ->
-      make_pair (char_of_u8 (u8_of_byte b)) src)
+    E.with_sploded_pair ~l "dchar" (read_u8 src) (fun _l b src ->
+      make_pair (char_of_u8 b) src)
   let di8 () = from_byte (i8 Int8.one) (i8 Int8.zero)
   let di16 () = from_byte (i16 Int16.one) (i16 Int16.zero)
   let di24 () = from_byte (i24 Int24.one) (i24 Int24.zero)
@@ -66,12 +66,12 @@ struct
   let vec_sep () _ _ _ src = src
   let list_opn () =
     KnownSize (fun _ _ _ l src ->
-      E.with_sploded_pair ~l "b_src" (read_byte src) (fun _l b src ->
-        make_pair (to_u32 (u8_of_byte b)) src))
+      E.with_sploded_pair ~l "b_src" (read_u8 src) (fun _l b src ->
+        make_pair (to_u32 b) src))
   let list_cls () _ _ _ src = src
   let list_sep () _ _ _ src = src
   let is_null () _ _ _ src =
-    bool_of_u8 (u8_of_byte (peek_byte src (size 0)))
+    bool_of_u8 (peek_u8 src (size 0))
   let dnull _t () _ _ _ src = ptr_add src (size 1)
   let dnotnull = dnull
 end
@@ -89,13 +89,13 @@ struct
   type ser = state -> T.mn -> Path.t -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
-    write_byte dst (byte_of_u8 (u8_of_bool b))
+    write_u8 dst (u8_of_bool b)
   let from_eq v1 v = from_bool (eq v1 v)
   let sfloat () _ _ _ = from_eq (float 1.)
   let sstring () _ _ _ v = from_bool (ge (string_length v) (u32 Uint32.zero))
   let sbool () _ _ _ = from_bool
 
-  let schar () _ _ _ b dst = write_byte dst (byte_of_u8 (u8_of_char b))
+  let schar () _ _ _ b dst = write_u8 dst (u8_of_char b)
   let si8 () _ _ _ = from_eq (i8 Int8.one)
   let si16 () _ _ _ = from_eq (i16 Int16.one)
   let si24 () _ _ _ = from_eq (i24 Int24.one)
@@ -129,8 +129,8 @@ struct
   let list_cls () _ _ _ dst = dst
   let list_sep () _ _ _ dst = dst
   let nullable () _ _ _ dst = dst
-  let snull _t () _ _ _ dst = write_byte dst (byte Uint8.one)
-  let snotnull _t () _ _ _ dst = write_byte dst (byte Uint8.zero)
+  let snull _t () _ _ _ dst = write_u8 dst (u8_of_int 1)
+  let snotnull _t () _ _ _ dst = write_u8 dst (u8_of_int 0)
 
   type ssizer = T.mn -> Path.t -> E.env -> (*valueptr*) E.t -> E.t
   let ssize_of_float _ _ _ _ = size 1

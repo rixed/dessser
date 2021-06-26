@@ -73,13 +73,6 @@ and t =
   | Size
   (* An arbitrary address, used for DataPtrOfAddress: *)
   | Address
-  (* FIXME: still worth it? *)
-  | Bit
-  | Byte
-  | Word
-  | DWord
-  | QWord
-  | OWord
   | Bytes
   (* Types for the runtime representation of a field mask: *)
   | Mask  (* What to do with a tree of fields *)
@@ -96,12 +89,9 @@ and t =
    * of "[]". *)
   | SList of mn
   | Function of (* arguments: *) mn array * (* result: *) mn
-  (* Makes mn mutable: *)
-  | Ref of mn
 
 and mn =
   { typ : t ; nullable : bool }
-
 
 (* dessserc will set this to the global schema: *)
 let this = ref Unknown
@@ -166,8 +156,6 @@ let rec eq ?(opaque_user_type=false) t1 t2 =
       eq_mn mn1 mn2
   | Function (pt1, rt1), Function (pt2, rt2) ->
       array_for_all2_no_exc eq_mn pt1 pt2 && eq_mn rt1 rt2
-  | Ref mn1, Ref mn2 ->
-      eq_mn mn1 mn2
   | t1, t2 ->
       t1 = t2
 
@@ -211,6 +199,8 @@ let rec develop = function
       Map (develop_mn mn1, develop_mn mn2)
   | Pair (mn1, mn2) ->
       Pair (develop_mn mn1, develop_mn mn2)
+  | SList mn ->
+      SList (develop_mn mn)
   | t -> t
 
 and develop_mn mn =
@@ -232,7 +222,7 @@ let rec fold u f t =
   match t with
   | Usr { def ; _ } ->
       fold u f def
-  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn | Ref mn ->
+  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn ->
       fold_mn u f mn
   | Tup mns ->
       Array.fold_left (fun u mn -> fold_mn u f mn) u mns
@@ -368,12 +358,6 @@ let rec print ?(sorted=false) oc =
   | Ptr -> sp "Ptr"
   | Size -> sp "Size"
   | Address -> sp "Address"
-  | Bit -> sp "Bit"
-  | Byte -> sp "Byte"
-  | Word -> sp "Word"
-  | DWord -> sp "DWord"
-  | QWord -> sp "QWord"
-  | OWord -> sp "OWord"
   | Bytes -> sp "Bytes"
   | Mask -> sp "Mask"
   | Pair (mn1, mn2) ->
@@ -388,8 +372,6 @@ let rec print ?(sorted=false) oc =
       pp oc "(%a -> %a)"
         (Array.print ~first:"" ~last:"" ~sep:" -> " print_mn) mns
         print_mn mn2
-  | Ref mn ->
-      pp oc "&%a" print_mn mn
 
 and print_mn ?sorted oc mn =
   pp oc "%a%s"
@@ -567,12 +549,6 @@ struct
         (strinG "ptr" >>: fun () -> Ptr) |<|
         (strinG "size" >>: fun () -> Size) |<|
         (strinG "address" >>: fun () -> Address) |<|
-        (strinG "bit" >>: fun () -> Bit) |<|
-        (strinG "byte" >>: fun () -> Byte) |<|
-        (strinG "word" >>: fun () -> Word) |<|
-        (strinG "dword" >>: fun () -> DWord) |<|
-        (strinG "qword" >>: fun () -> QWord) |<|
-        (strinG "oword" >>: fun () -> OWord) |<|
         (strinG "bytes" >>: fun () -> Bytes) |<|
         (strinG "mask" >>: fun () -> Mask) |<|
         (
@@ -586,7 +562,7 @@ struct
           char ')' >>: fun (ptyps, rtyp) ->
             Function (Array.of_list ptyps, rtyp)
         ) |<| (
-          char '&' -- opt_blanks -+ mn >>: fun mn -> Ref mn
+          char '&' -- opt_blanks -+ mn >>: fun mn -> Vec (1, mn)
         )
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
@@ -918,7 +894,7 @@ let rec depth ?(opaque_user_type=true) = function
       0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn | Ref mn ->
+  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn ->
       1 + depth ~opaque_user_type mn.typ
   | Tup mns ->
       1 + Array.fold_left (fun d mn ->
@@ -982,7 +958,6 @@ let shrink t =
     | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
     | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
     | Pair (mn1, mn2) -> Pair (do_mn mn1, do_mn mn2)
-    | Ref mn -> Ref (do_mn mn)
     | t -> t
   in
   (* Avoid replacing the whole type with This: *)
@@ -1033,12 +1008,6 @@ let tuple = function
   | [| x |] -> x
   | mns -> required (Tup mns)
 
-let bit = required Bit
-let byte = required Byte
-let word = required Word
-let dword = required DWord
-let qword = required QWord
-let oword = required OWord
 let pair mn1 mn2 = required (Pair (mn1, mn2))
 let address = required Address
 let size = required Size
@@ -1054,7 +1023,7 @@ let func2 i1 i2 out = required (Function ([| i1 ; i2 |], out))
 let func3 i1 i2 i3 out = required (Function ([| i1 ; i2 ; i3 |], out))
 let func4 i1 i2 i3 i4 out = required (Function ([| i1 ; i2 ; i3 ; i4 |], out))
 
-let ref mn = required (Ref mn)
+let ref mn = required (Vec (1, mn))
 
 (* Some short cuts for often used types: *)
 let void = required Void

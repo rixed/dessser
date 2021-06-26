@@ -30,15 +30,15 @@ let to_u128 = function
   | E0 (I56 n) -> Int56.to_uint128 n
   | E0 (I64 n) -> Int64.to_uint128 n
   | E0 (I128 n) -> Int128.to_uint128 n
-  | E0 (U8 n | Byte n) -> Uint8.to_uint128 n
-  | E0 (U16 n| Word n) -> Uint16.to_uint128 n
+  | E0 (U8 n) -> Uint8.to_uint128 n
+  | E0 (U16 n) -> Uint16.to_uint128 n
   | E0 (U24 n) -> Uint24.to_uint128 n
-  | E0 (U32 n| DWord n) -> Uint32.to_uint128 n
+  | E0 (U32 n) -> Uint32.to_uint128 n
   | E0 (U40 n) -> Uint40.to_uint128 n
   | E0 (U48 n) -> Uint48.to_uint128 n
   | E0 (U56 n) -> Uint56.to_uint128 n
-  | E0 (U64 n | QWord n) -> Uint64.to_uint128 n
-  | E0 (U128 n | OWord n) -> Uint128.to_uint128 n
+  | E0 (U64 n) -> Uint64.to_uint128 n
+  | E0 (U128 n) -> Uint128.to_uint128 n
   | E0 (Float n) -> Uint128.of_float n
   | E0 (Size n) -> Uint128.of_int n
   | E0 (Address n) -> Uint128.of_uint64 n
@@ -54,15 +54,15 @@ let to_i128 = function
   | E0 (I56 n) -> Int56.to_int128 n
   | E0 (I64 n) -> Int64.to_int128 n
   | E0 (I128 n) -> Int128.to_int128 n
-  | E0 (U8 n | Byte n) -> Uint8.to_int128 n
-  | E0 (U16 n | Word n) -> Uint16.to_int128 n
+  | E0 (U8 n) -> Uint8.to_int128 n
+  | E0 (U16 n) -> Uint16.to_int128 n
   | E0 (U24 n) -> Uint24.to_int128 n
-  | E0 (U32 n | DWord n) -> Uint32.to_int128 n
+  | E0 (U32 n) -> Uint32.to_int128 n
   | E0 (U40 n) -> Uint40.to_int128 n
   | E0 (U48 n) -> Uint48.to_int128 n
   | E0 (U56 n) -> Uint56.to_int128 n
-  | E0 (U64 n | QWord n) -> Uint64.to_int128 n
-  | E0 (U128 n | OWord n) -> Uint128.to_int128 n
+  | E0 (U64 n) -> Uint64.to_int128 n
+  | E0 (U128 n) -> Uint128.to_int128 n
   | E0 (Float n) -> Int128.of_float n
   | E0 (Size n) -> Int128.of_int n
   | E0 (Address n) -> Int128.of_uint64 n
@@ -125,11 +125,6 @@ let arith2 e1 e2 op_float op_i128 op_u128 =
   | E0 (I56 _), _ -> arith2' e1 e2 op_i128 (i56 % Int128.to_int56)
   | E0 (I64 _), _ -> arith2' e1 e2 op_i128 (i64 % Int128.to_int64)
   | E0 (I128 _), _ -> arith2' e1 e2 op_i128 (i128 % Int128.to_int128)
-  | E0 (Byte _), _ -> arith2' e1 e2 op_i128 (byte % Int128.to_uint8)
-  | E0 (Word _), _ -> arith2' e1 e2 op_i128 (word % Int128.to_uint16)
-  | E0 (DWord _), _ -> arith2' e1 e2 op_i128 (dword % Int128.to_uint32)
-  | E0 (QWord _), _ -> arith2' e1 e2 op_i128 (qword % Int128.to_uint64)
-  | E0 (OWord _), _ -> arith2' e1 e2 op_i128 (oword % Int128.to_uint128)
   | E0 (Size _), _ -> arith2' e1 e2 op_i128 (size % Int128.to_int)
   | E0 (Address _), _ -> arith2' e1 e2 op_i128 (address % Int128.to_uint64)
   | E0 (Float a), E0 (Float b) -> float (op_float a b)
@@ -137,16 +132,13 @@ let arith2 e1 e2 op_float op_i128 op_u128 =
 
 let comp2 e1 e2 op_gen op_i128 op_u128 =
   match e1, e2 with
-  | E.E0 (U8 a), E.E0 (U8 b)
-  | E0 (Byte a), E0 (Byte b) ->
+  | E.E0 (U8 a), E.E0 (U8 b) ->
       op_i128 (Uint8.to_int128 a) (Uint8.to_int128 b)
-  | E0 (U16 a), E0 (U16 b)
-  | E0 (Word a), E0 (Word b) ->
+  | E0 (U16 a), E0 (U16 b) ->
       op_i128 (Uint16.to_int128 a) (Uint16.to_int128 b)
   | E0 (U24 a), E0 (U24 b) ->
       op_i128 (Uint24.to_int128 a) (Uint24.to_int128 b)
-  | E0 (U32 a), E0 (U32 b)
-  | E0 (DWord a), E0 (DWord b) ->
+  | E0 (U32 a), E0 (U32 b) ->
       op_i128 (Uint32.to_int128 a) (Uint32.to_int128 b)
   | E0 (U40 a), E0 (U40 b) ->
       op_i128 (Uint40.to_int128 a) (Uint40.to_int128 b)
@@ -155,11 +147,9 @@ let comp2 e1 e2 op_gen op_i128 op_u128 =
   | E0 (U56 a), E0 (U56 b) ->
       op_i128 (Uint56.to_int128 a) (Uint56.to_int128 b)
   | E0 (U64 a), E0 (U64 b)
-  | E0 (QWord a), E0 (QWord b)
   | E0 (Address a), E0 (Address b) ->
       op_i128 (Uint64.to_int128 a) (Uint64.to_int128 b)
-  | E0 (U128 a), E0 (U128 b)
-  | E0 (OWord a), E0 (OWord b) ->
+  | E0 (U128 a), E0 (U128 b) ->
       op_u128 a b
   | E0 (I8 a), E0 (I8 b) ->
       op_i128 (Int8.to_int128 a) (Int8.to_int128 b)
@@ -186,10 +176,10 @@ let comp2 e1 e2 op_gen op_i128 op_u128 =
    * here in the future by explicitly enumerating all valid cases ; better
    * miss an optimisation opportunity than introduce a erroneous
    * optimisation: *)
-  | E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
+  | E0 (Float _ | String _ | Bool _ | Char _ |
         Null _ | EndOfList _ | EmptySet _ | Void |
         CopyField | SkipField | SetFieldNull as a),
-    E0 (Float _ | String _ | Bool _ | Char _ | Bit _ |
+    E0 (Float _ | String _ | Bool _ | Char _ |
         Null _ | EndOfList _ | EmptySet _ | Void |
         CopyField | SkipField | SetFieldNull as b) ->
       op_gen a b
@@ -352,7 +342,14 @@ let rec peval l e =
   let no_float _ = assert false in
   let p = peval l in
   (* Apply [f] to expression [e] and call once more [p] on the result,
-   * unless it's no different from [e], which have gone through [p] already: *)
+   * unless it's no different from [e], which have gone through [p] already.
+   * This is useful when a final expression (already simplified since
+   * simplification happens before extraction of the final expression) has
+   * to be put back in place with no modification (ie. no need for another
+   * simplification pass). If that's a new expression that must be simplified
+   * then it cannot be simplified befire being replaced in its context (for
+   * unbound identifiers) and will probably not be simplified by this
+   * function so it has to be simplified explicitly after replacement. *)
   let repl f e =
     let e' = f e in
     if E.eq e e' then e else p e' in
@@ -379,6 +376,29 @@ let rec peval l e =
           (match loop [] es with
           | [ e ] -> e
           | es -> seq es )
+      (* If we build a tuple out of the very fields of another tuple, just
+       * use that one. This can actually happen when manipulating pairs. *)
+      | MakeTup, es ->
+          let def = E.E0S (MakeTup, es) in
+          (match
+            List.fold_left (fun (n, src_tup, side_fx) e ->
+              let f = final_expression e in
+              match f with
+              | E1 (GetItem n', src_tup')
+                when n' = n &&
+                     (src_tup = None || E.eq (Option.get src_tup) src_tup') ->
+                  n + 1,
+                  src_tup,
+                  replace_final_expression_anonymously e side_fx
+              | _ ->
+                  raise Exit
+            ) (0, None, nop) es with
+          | exception Exit ->
+              def
+          | _, Some src_tup, side_fx ->
+              seq [ side_fx ; src_tup ] |> p
+          | _ ->
+              def)
       | op, es -> E0S (op, es))
   | E1 (Function (fid, ts), body) ->
       let l = E.enter_function fid ts l in
@@ -395,7 +415,9 @@ let rec peval l e =
             List.fold_lefti (fun es i e ->
               if i = n then es else ignore_ e :: es
             ) [] es in
-          seq (List.rev (got :: es)) |> repl
+          seq (List.rev (got :: es)) |>
+          replace_final_expression e1 |>
+          p
       | GetField n, E0S (MakeRec, es) ->
           let rec loop got es = function
             | [] -> got, es
@@ -412,24 +434,26 @@ let rec peval l e =
           (match loop None [] es with
           | exception _ -> def
           | None, _ -> def
-          | Some got, es -> seq (List.rev (got :: es)) |> repl)
+          | Some got, es ->
+              seq (List.rev (got :: es)) |>
+              replace_final_expression e1 |> p)
       | GetAlt n, E1 (Construct (mns, i), e)
         when i < Array.length mns && fst mns.(i) = n ->
-          repl e |> p
-      | Ignore, e ->
-          if T.eq_mn (E.type_of l e) T.void then repl e
+          repl e
+      | Ignore, f1 ->
+          if T.eq_mn (E.type_of l f1) T.void then repl f1
           (* In theory any expression of type Void and with no side effect should
            * be disposed of. Ignore is the only way to build such an expression,
            * though, so it is enough to test this case only: *)
-          else if not (E.has_side_effect e1) then seq []
+          else if not (E.has_side_effect e1) then nop
           else E1 (op, e1)
       | IsNull, E0 (Null _) -> repl true_
       | IsNull, E1 (NotNull, _) -> repl false_
       | NotNull, E1 (Force _, e) -> repl e
       | Force _, E1 (NotNull, e) -> repl e
-      | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl
-      | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl
-      | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl
+      | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl |> p
+      | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl |> p
+      | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl |> p
       | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n) |> repl
       | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n) |> repl
       | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n) |> repl
@@ -471,28 +495,13 @@ let rec peval l e =
       | I56OfString, E0 (String s) -> or_null_ (Base I56) i56 Int56.of_string s |> repl
       | I64OfString, E0 (String s) -> or_null_ (Base I64) i64 Int64.of_string s |> repl
       | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s |> repl
-      | ByteOfU8, E0 (U8 n) -> byte n |> repl
       | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0) |> repl
       | BoolOfU8, E1 (U8OfBool, e) -> repl e
-      | WordOfU16, E0 (U16 n) -> word n |> repl
-      | WordOfU16, E1 (U16OfWord, e) -> repl e
-      | DWordOfU32, E0 (U32 n) -> dword n |> repl
-      | DWordOfU32, E1 (U32OfDWord, e) -> repl e
-      | QWordOfU64, E0 (U64 n) -> qword n |> repl
-      | QWordOfU64, E1 (U64OfQWord, e) -> repl e
-      | OWordOfU128, E0 (U128 n) -> oword n |> repl
-      | OWordOfU128, E1 (U128OfOWord, e) -> repl e
-      | U8OfByte, E0 (Byte n) -> u8 n |> repl
-      | U8OfByte, E1 (ByteOfU8, e) -> repl e
       | U8OfChar, E0 (Char c) -> u8 (Uint8.of_int (Char.code c)) |> repl
       | U8OfChar, E1 (CharOfU8, e) -> repl e
       | U8OfBool, E0 (Bool false) -> u8 (Uint8.of_int 0) |> repl
       | U8OfBool, E0 (Bool true) -> u8 (Uint8.of_int 1) |> repl
       | U8OfBool, E1 (BoolOfU8, e) -> repl e
-      | BoolOfBit, E0 (Bit b) -> bool b |> repl
-      | BoolOfBit, E1 (BitOfBool, e) -> repl e
-      | BitOfBool, E0 (Bool b) -> bit b |> repl
-      | BitOfBool, E1 (BoolOfBit, e) -> repl e
       | CharOfU8, E0 (U8 n) -> char (Char.chr (Uint8.to_int n)) |> repl
       | CharOfU8, E1 (U8OfChar, e) -> repl e
       | U32OfSize, E0 (Size n) -> u32 (Uint32.of_int n) |> repl
@@ -510,12 +519,12 @@ let rec peval l e =
       | Tail, E2 (Cons, _, e) -> repl e |> p
       | MaskGet _, (E0 (CopyField | SkipField | SetFieldNull) as m) -> repl m
       | LabelOf, E1 (Construct (_, i), _) -> u16 (Uint16.of_int i) |> repl
-      | FloatOfQWord, E0 (QWord n) ->
+      | FloatOfU64, E0 (U64 n) ->
           float (BatInt64.float_of_bits (Uint64.to_int64 n)) |> repl
-      | FloatOfQWord, E1 (QWordOfFloat, e) -> repl e
-      | QWordOfFloat, E0 (Float f) ->
-          qword (Uint64.of_int64 (BatInt64.bits_of_float f)) |> repl
-      | QWordOfFloat, E1 (FloatOfQWord, e) -> repl e
+      | FloatOfU64, E1 (U64OfFloat, e) -> repl e
+      | U64OfFloat, E0 (Float f) ->
+          u64 (Uint64.of_int64 (BatInt64.bits_of_float f)) |> repl
+      | U64OfFloat, E1 (FloatOfU64, e) -> repl e
       | Not, E0 (Bool b) -> bool (not b) |> repl
       | Not, E1 (Not, e) -> repl e
       (* Shorten cascades of converters: *)
@@ -634,14 +643,6 @@ let rec peval l e =
       | TanH, E0 (Float n) -> float (tanh n) |> repl
       | Lower, E0 (String s) -> string (String.lowercase_ascii s) |> repl
       | Upper, E0 (String s) -> string (String.uppercase_ascii s) |> repl
-      | U16OfWord, E0 (Word w) -> u16 w |> repl
-      | U16OfWord, E1 (WordOfU16, e) -> repl e
-      | U32OfDWord, E0 (DWord d) -> u32 d |> repl
-      | U32OfDWord, E1 (DWordOfU32, e) -> repl e
-      | U64OfQWord, E0 (QWord q) -> u64 q |> repl
-      | U64OfQWord, E1 (QWordOfU64, e) -> repl e
-      | U128OfOWord, E0 (OWord o) -> u128 o |> repl
-      | U128OfOWord, E1 (OWordOfU128, e) -> repl e
       | StringLength, E0 (String s) -> u32_of_int (String.length s) |> repl
       | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
           u32_of_int 1 |> repl
@@ -656,14 +657,13 @@ let rec peval l e =
       | BitNot, f1 ->
           (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl
           with Invalid_argument _ -> E.E1 (BitNot, e1))
-      | GetRef, E1 (MakeRef, e) -> repl e
       | op, _ -> E.E1 (op, e1))
   | E1S (Apply, e1, es) ->
       let e1 = p e1 in
       let es = List.map p es in
-      let repl = repl (replace_final_expression e1) in
       (match final_expression e1, es with
-      | E1 (Function _, body), [] -> repl body |> p
+      | E1 (Function _, body), [] ->
+          replace_final_expression e1 body |> p
       (* If [f] is constant we cannot proceed directly with variable
        * substitutions unless each variable is used only once. We can
        * turn the apply into a sequence of lets that will further
@@ -787,7 +787,7 @@ let rec peval l e =
             match final_expression value with
             | E.E2 (MakePair, e1, e2) as final_make_pair ->
                 (* So this makepair would be replaced with the body, where
-                 * each occurances of n1/n2 have been replaced by the full
+                 * each occurrences of n1/n2 have been replaced by the full
                  * e1/e2: *)
                 let body_swap =
                   E.map (function
@@ -801,7 +801,8 @@ let rec peval l e =
                 let new_e =
                   E.map (fun e ->
                     if e == final_make_pair then body_swap else e
-                  ) value in
+                  ) value |>
+                  p in
                 (* Is that worth it? *)
                 let def_sz = E.size def
                 and new_sz = E.size new_e in
@@ -1233,13 +1234,13 @@ let rec peval l e =
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
 
-  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"Ptr\" (read-dword little-endian (param 0 0)) (make-pair (u32-of-dword (identifier \"inner1\")) (ptr-add (identifier \"innerPtr\") (size 4)))))" \
+  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" (read-u32 little-endian (param 0 0)) (make-pair (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
     (test_peval 3 \
       "(fun 0 \"Ptr\" \"Ptr\" \
         (let-pair \"outer1\" \"U32\" \"outerPtr\" \"Ptr\" \
-          (let-pair \"inner1\" \"DWord\" \"innerPtr\" \"Ptr\" \
-            (read-dword little-endian (param 0 0)) \
-            (make-pair (u32-of-dword (identifier \"inner1\")) (identifier \"innerPtr\"))) \
+          (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" \
+            (read-u32 little-endian (param 0 0)) \
+            (make-pair (identifier \"inner1\") (identifier \"innerPtr\"))) \
           (make-pair (identifier \"outer1\") \
                      (ptr-add (identifier \"outerPtr\") (size 4)))))")
 

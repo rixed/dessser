@@ -300,29 +300,27 @@ let e1_of_int n =
          I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
          ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
-         BitNot ; FloatOfQWord ; QWordOfFloat ; U8OfByte ; ByteOfU8 ; U16OfWord
-         ; WordOfU16 ; U32OfDWord ; DWordOfU32 ; U64OfQWord ; QWordOfU64 ;
-         U128OfOWord ; OWordOfU128 ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
-         U32OfSize ; BitOfBool ; BoolOfBit ; ListOfSList ; ListOfSListRev ;
-         SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ; BoolOfU8 ;
-         StringLength ; StringOfBytes ; BytesOfString ; Cardinality ; ReadByte
-         ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
+         Fst ; Snd ; Identity ; GetEnv ; GetMin ; BitNot ; FloatOfU64 ;
+         U64OfFloat ; U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ListOfSList
+         ; ListOfSListRev ; SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ;
+         BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
+         ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
          UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ; Round ; Cos ; Sin ;
          Tan ; ACos ; ASin ; ATan ; CosH ; SinH ; TanH ; Lower ; Upper ; Hash ;
-         Fst ; Snd ; Identity ; GetEnv ; GetMin ; MakeRef ; GetRef |] in
+         Identity ; GetEnv ; GetMin |] in
   e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
   let e2s =
     E.[| Nth ; Gt ; Ge ; Eq ; Add ; Sub ; Mul ; Div ; UnsafeDiv ;
          Rem ; UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ;
-         LeftShift ; RightShift ; AppendBytes ; AppendString ;
-         StartsWith ; EndsWith ; GetBit ; GetVec ;
-         ReadBytes ; PeekByte ; WriteByte ; WriteBytes ; PokeByte ;
-         PtrAdd ; PtrSub ; SetRef ;
          And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
-         DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
-         ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
+         LeftShift ; RightShift ; AppendBytes ; AppendString ; StartsWith ;
+         EndsWith ; GetBit ; GetVec ; ReadBytes ; PeekU8 ; WriteU8 ;
+         WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ;
+         Max ; Member ; Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ;
+         PartialSort ; ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |]
+         in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
@@ -367,13 +365,7 @@ let rec e0_gen l depth =
     1, map (E.Ops.i56 % Int56.of_int) int ;
     1, map (E.Ops.i64 % Int64.of_int) int ;
     1, map (E.Ops.i128 % Int128.of_int) int ;
-    1, map E.Ops.bit bool ;
     1, map E.Ops.size small_nat ;
-    1, map (E.Ops.byte % Uint8.of_int) (int_bound 255) ;
-    1, map (E.Ops.word % Uint16.of_int) (int_bound 65535) ;
-    1, map (E.Ops.dword % Uint32.of_int32) ui32 ;
-    1, map (E.Ops.qword % Uint64.of_int64) ui64 ;
-    1, map oword ui128_gen ;
   ] in
   let lst =
     if depth > 0 then
@@ -448,10 +440,10 @@ and e1_gen l depth =
     1, map2 get_item tiny_int expr ;
     1, map2 get_field field_name_gen expr ;
     1, map2 get_alt field_name_gen expr ;
-    1, map2 read_word endianness_gen expr ;
-    1, map2 read_dword endianness_gen expr ;
-    1, map2 read_qword endianness_gen expr ;
-    1, map2 read_oword endianness_gen expr ;
+    1, map2 read_u16 endianness_gen expr ;
+    1, map2 read_u32 endianness_gen expr ;
+    1, map2 read_u64 endianness_gen expr ;
+    1, map2 read_u128 endianness_gen expr ;
     1, map ptr_of_string expr ;
     10, map2 (fun n e -> E.E1 (e1_of_int n, e)) nat expr ]
 
@@ -476,14 +468,14 @@ and e2_gen l depth =
               with _ ->
                 generate1 (e2_gen l depth)
             ) let_name_gen expr ;
-    1, map3 peek_word endianness_gen expr expr ;
-    1, map3 peek_dword endianness_gen expr expr ;
-    1, map3 peek_qword endianness_gen expr expr ;
-    1, map3 peek_oword endianness_gen expr expr ;
-    1, map3 write_word endianness_gen expr expr ;
-    1, map3 write_dword endianness_gen expr expr ;
-    1, map3 write_qword endianness_gen expr expr ;
-    1, map3 write_oword endianness_gen expr expr ;
+    1, map3 peek_u16 endianness_gen expr expr ;
+    1, map3 peek_u32 endianness_gen expr expr ;
+    1, map3 peek_u64 endianness_gen expr expr ;
+    1, map3 peek_u128 endianness_gen expr expr ;
+    1, map3 write_u16 endianness_gen expr expr ;
+    1, map3 write_u32 endianness_gen expr expr ;
+    1, map3 write_u64 endianness_gen expr expr ;
+    1, map3 write_u128 endianness_gen expr expr ;
     10, map3 (fun n e1 e2 -> E.E2 (e2_of_int n, e1, e2)) nat expr expr ]
 
 and e3_gen l depth =

@@ -109,14 +109,8 @@ type e0 =
   | I56 of Int56.t
   | I64 of Int64.t
   | I128 of Int128.t
-  | Bit of bool
   | Size of int
   | Address of Uint64.t
-  | Byte of Uint8.t
-  | Word of Uint16.t
-  | DWord of Uint32.t
-  | QWord of Uint64.t
-  | OWord of Uint128.t
   | Bytes of Bytes.t
   (* Constant mask actions: *)
   | CopyField
@@ -223,26 +217,14 @@ type e1 =
   | ToI128
   | ToFloat
   | BitNot
-  | FloatOfQWord
-  | QWordOfFloat
-  | U8OfByte
-  | ByteOfU8
-  | U16OfWord
-  | WordOfU16
-  | U32OfDWord
-  | DWordOfU32
-  | U64OfQWord
-  | QWordOfU64
-  | U128OfOWord
-  | OWordOfU128
+  | FloatOfU64
+  | U64OfFloat
   | U8OfChar
   | CharOfU8
   | SizeOfU32
   | U32OfSize
   | AddressOfU64
   | U64OfAddress
-  | BitOfBool
-  | BoolOfBit
   | ListOfSList
   | ListOfSListRev
   | SetOfSList
@@ -255,7 +237,7 @@ type e1 =
   | StringOfBytes
   | BytesOfString
   | Cardinality (* of lists, vectors or sets *)
-  | ReadByte
+  | ReadU8
   | RemSize
   | Offset
   | Not
@@ -291,10 +273,10 @@ type e1 =
   (* FIXME: make Head and Tail return nullables: *)
   | Head
   | Tail
-  | ReadWord of endianness
-  | ReadDWord of endianness
-  | ReadQWord of endianness
-  | ReadOWord of endianness
+  | ReadU16 of endianness
+  | ReadU32 of endianness
+  | ReadU64 of endianness
+  | ReadU128 of endianness
   | Assert
   (* For tuples, int is the index of the item in the tuple.
    * For records, the index of the field in definition order: *)
@@ -317,9 +299,6 @@ type e1 =
   | GetEnv
   (* Get the minimal value of a set (heap): *)
   | GetMin
-  (* Make a value mutable: *)
-  | MakeRef
-  | GetRef
 
 type e1s =
   | Apply
@@ -362,10 +341,10 @@ type e2 =
   | GetBit
   | GetVec (* first the index then the vector or list (as in Getfield) *)
   | ReadBytes
-  | PeekByte
-  | WriteByte
+  | PeekU8
+  | WriteU8
   | WriteBytes
-  | PokeByte
+  | PokeU8
   | PtrAdd
   | PtrSub
   | And
@@ -377,14 +356,14 @@ type e2 =
   (* Membership test for vectors, lists and sets; Not for CIDRs nor strings.
    * Args are: item, container *)
   | Member
-  | PeekWord of endianness
-  | PeekDWord of endianness
-  | PeekQWord of endianness
-  | PeekOWord of endianness
-  | WriteWord of endianness
-  | WriteDWord of endianness
-  | WriteQWord of endianness
-  | WriteOWord of endianness
+  | PeekU16 of endianness
+  | PeekU32 of endianness
+  | PeekU64 of endianness
+  | PeekU128 of endianness
+  | WriteU16 of endianness
+  | WriteU32 of endianness
+  | WriteU64 of endianness
+  | WriteU128 of endianness
   | Insert (* args are: set, item *)
   (* Not implemented for all types of sets. args are: set, how many.
    * Will merely empty the set if number of deleted item is greater than
@@ -415,7 +394,6 @@ type e2 =
   | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
   | ForEach of (string * T.mn) (* list/vector/set * body *)
-  | SetRef (* ref * value *)
 
 type e3 =
   | SetBit
@@ -515,8 +493,7 @@ let rec can_precompute f i = function
   | E0 (Void | Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-       | Char _ | Bit _ | Size _ | Address _
-       | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Char _ | Size _ | Address _
        | Bytes _ | CopyField | SkipField | SetFieldNull
        | ExtIdentifier _) ->
       true
@@ -668,8 +645,7 @@ let rec default ?(allow_null=true) ?this t =
       E3 (Top mn, size, max_size, sigmas)
   | Map _ ->
       assert false (* no value of map type *)
-  | Bytes | Mask | Pair _ | SList _ | Ref _
-  | Size | Bit | Byte | Word | DWord | QWord | OWord ->
+  | Bytes | Mask | Pair _ | SList _ | Size ->
       todo "default"
   | Function _ ->
       todo "default functions"
@@ -730,14 +706,8 @@ let string_of_e0 = function
   | I56 n -> "i56 "^ Int56.to_string n
   | I64 n -> "i64 "^ Int64.to_string n
   | I128 n -> "i128 "^ Int128.to_string n
-  | Bit b -> "bit "^ Bool.to_string b
   | Size n -> "size "^ string_of_int n
   | Address n -> "address "^ Uint64.to_string n
-  | Byte n -> "byte "^ Uint8.to_string n
-  | Word n -> "word "^ Uint16.to_string n
-  | DWord n -> "dword "^ Uint32.to_string n
-  | QWord n -> "qword "^ Uint64.to_string n
-  | OWord n -> "oword "^ Uint128.to_string n
   | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
   | Identifier s -> "identifier "^ String.quote s
   | ExtIdentifier (Verbatim s) -> "ext-identifier "^ String.quote s
@@ -846,26 +816,14 @@ let string_of_e1 = function
   | ToI128 -> "to-i128"
   | ToFloat -> "to-float"
   | BitNot -> "bit-not"
-  | FloatOfQWord -> "float-of-qword"
-  | QWordOfFloat -> "qword-of-float"
-  | U8OfByte -> "u8-of-byte"
-  | ByteOfU8 -> "byte-of-u8"
-  | U16OfWord -> "u16-of-word"
-  | WordOfU16 -> "word-of-u16"
-  | U32OfDWord -> "u32-of-dword"
-  | DWordOfU32 -> "dword-of-u32"
-  | U64OfQWord -> "u64-of-qword"
-  | QWordOfU64 -> "qword-of-u64"
-  | U128OfOWord -> "u128-of-oword"
-  | OWordOfU128 -> "oword-of-u128"
+  | FloatOfU64 -> "float-of-u64"
+  | U64OfFloat -> "u64-of-float"
   | U8OfChar -> "u8-of-char"
   | CharOfU8 -> "char-of-u8"
   | SizeOfU32 -> "size-of-u32"
   | U32OfSize -> "u32-of-size"
   | AddressOfU64 -> "address-of-u64"
   | U64OfAddress -> "u64-of-address"
-  | BitOfBool -> "bit-of-bool"
-  | BoolOfBit -> "bool-of-bit"
   | ListOfSList -> "list-of-slist"
   | ListOfSListRev -> "list-of-slist-rev"
   | SetOfSList -> "set-of-slist"
@@ -877,7 +835,7 @@ let string_of_e1 = function
   | StringOfBytes -> "string-of-bytes"
   | BytesOfString -> "bytes-of-string"
   | Cardinality -> "cardinality"
-  | ReadByte -> "read-byte"
+  | ReadU8 -> "read-u8"
   | RemSize -> "rem-size"
   | Offset -> "offset"
   | Not -> "not"
@@ -909,10 +867,10 @@ let string_of_e1 = function
   | Snd -> "snd"
   | Head -> "head"
   | Tail -> "tail"
-  | ReadWord en -> "read-word "^ string_of_endianness en
-  | ReadDWord en -> "read-dword "^ string_of_endianness en
-  | ReadQWord en -> "read-qword "^ string_of_endianness en
-  | ReadOWord en -> "read-oword "^ string_of_endianness en
+  | ReadU16 en -> "read-u16 "^ string_of_endianness en
+  | ReadU32 en -> "read-u32 "^ string_of_endianness en
+  | ReadU64 en -> "read-u64 "^ string_of_endianness en
+  | ReadU128 en -> "read-u128 "^ string_of_endianness en
   | Assert -> "assert"
   | MaskGet d -> "mask-get "^ string_of_int d
   | LabelOf -> "label-of"
@@ -930,8 +888,6 @@ let string_of_e1 = function
   | PtrOfBuffer -> "ptr-of-buffer"
   | GetEnv -> "getenv"
   | GetMin -> "get-min"
-  | MakeRef -> "make-ref"
-  | GetRef -> "get-ref"
 
 let string_of_e2 = function
   | Let (n, t) ->
@@ -965,10 +921,10 @@ let string_of_e2 = function
   | GetBit -> "get-bit"
   | GetVec -> "get-vec"
   | ReadBytes -> "read-bytes"
-  | PeekByte -> "peek-byte"
-  | WriteByte -> "write-byte"
+  | PeekU8 -> "peek-u8"
+  | WriteU8 -> "write-u8"
   | WriteBytes -> "write-bytes"
-  | PokeByte -> "poke-byte"
+  | PokeU8 -> "poke-u8"
   | PtrAdd -> "ptr-add"
   | PtrSub -> "ptr-sub"
   | And -> "and"
@@ -978,14 +934,14 @@ let string_of_e2 = function
   | Min -> "min"
   | Max -> "max"
   | Member -> "mem"
-  | PeekWord en -> "peek-word "^ string_of_endianness en
-  | PeekDWord en -> "peek-dword "^ string_of_endianness en
-  | PeekQWord en -> "peek-qword "^ string_of_endianness en
-  | PeekOWord en -> "peek-oword "^ string_of_endianness en
-  | WriteWord en -> "write-word "^ string_of_endianness en
-  | WriteDWord en -> "write-dword "^ string_of_endianness en
-  | WriteQWord en -> "write-qword "^ string_of_endianness en
-  | WriteOWord en -> "write-oword "^ string_of_endianness en
+  | PeekU16 en -> "peek-u16 "^ string_of_endianness en
+  | PeekU32 en -> "peek-u32 "^ string_of_endianness en
+  | PeekU64 en -> "peek-u64 "^ string_of_endianness en
+  | PeekU128 en -> "peek-u128 "^ string_of_endianness en
+  | WriteU16 en -> "write-u16 "^ string_of_endianness en
+  | WriteU32 en -> "write-u32 "^ string_of_endianness en
+  | WriteU64 en -> "write-u64 "^ string_of_endianness en
+  | WriteU128 en -> "write-u128 "^ string_of_endianness en
   | Insert -> "insert"
   | DelMin -> "del-min"
   | SplitBy -> "split-on"
@@ -1002,7 +958,6 @@ let string_of_e2 = function
   | While -> "while"
   | ForEach (n, mn) ->
       "for-each "^ String.quote n ^" "^ String.quote (T.mn_to_string mn)
-  | SetRef -> "set-ref"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1090,15 +1045,15 @@ let to_pretty_string ?max_depth e =
 let to_cst_int =
   let m = max_int in
   function
-  | E0 (U8 n | Byte n) -> Uint8.to_int n
-  | E0 (U16 n | Word n) -> Uint16.to_int n
+  | E0 (U8 n) -> Uint8.to_int n
+  | E0 (U16 n) -> Uint16.to_int n
   | E0 (U24 n) -> Uint24.to_int n
-  | E0 (U32 n | DWord n) when Uint64.(compare (of_uint32 n) (of_int m) <= 0) -> Uint32.to_int n
+  | E0 (U32 n) when Uint64.(compare (of_uint32 n) (of_int m) <= 0) -> Uint32.to_int n
   | E0 (U40 n) when Uint64.(compare (of_uint40 n) (of_int m) <= 0) -> Uint40.to_int n
   | E0 (U48 n) when Uint64.(compare (of_uint48 n) (of_int m) <= 0) -> Uint48.to_int n
   | E0 (U56 n) when Uint64.(compare (of_uint56 n) (of_int m) <= 0) -> Uint56.to_int n
-  | E0 (U64 n | QWord n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
-  | E0 (U128 n | OWord n) when Uint128.(compare n (of_int m) <= 0) -> Uint128.to_int n
+  | E0 (U64 n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
+  | E0 (U128 n) when Uint128.(compare n (of_int m) <= 0) -> Uint128.to_int n
   | E0 (I8 n) -> Int8.to_int n
   | E0 (I16 n) -> Int16.to_int n
   | E0 (I24 n) -> Int24.to_int n
@@ -1299,14 +1254,8 @@ struct
     | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int56.of_string n))
     | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
     | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
-    | Lst [ Sym "bit" ; Sym b ] -> E0 (Bit (Bool.of_string b))
     | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
     | Lst [ Sym "address" ; Sym n ] -> E0 (Address (Uint64.of_string n))
-    | Lst [ Sym "byte" ; Sym n ] -> E0 (Byte (Uint8.of_string n))
-    | Lst [ Sym "word" ; Sym n ] -> E0 (Word (Uint16.of_string n))
-    | Lst [ Sym "dword" ; Sym n ] -> E0 (DWord (Uint32.of_string n))
-    | Lst [ Sym "qword" ; Sym n ] -> E0 (QWord (Uint64.of_string n))
-    | Lst [ Sym "oword" ; Sym n ] -> E0 (OWord (Uint128.of_string n))
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
     | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier (Verbatim s))
@@ -1440,26 +1389,14 @@ struct
     | Lst [ Sym "to-i128" ; x ] -> E1 (ToI128, e x)
     | Lst [ Sym "to-float" ; x ] -> E1 (ToFloat, e x)
     | Lst [ Sym "bit-not" ; x ] -> E1 (BitNot, e x)
-    | Lst [ Sym "float-of-qword" ; x ] -> E1 (FloatOfQWord, e x)
-    | Lst [ Sym "qword-of-float" ; x ] -> E1 (QWordOfFloat, e x)
-    | Lst [ Sym "u8-of-byte" ; x ] -> E1 (U8OfByte, e x)
-    | Lst [ Sym "byte-of-u8" ; x ] -> E1 (ByteOfU8, e x)
-    | Lst [ Sym "u16-of-word" ; x ] -> E1 (U16OfWord, e x)
-    | Lst [ Sym "word-of-u16" ; x ] -> E1 (WordOfU16, e x)
-    | Lst [ Sym "u32-of-dword" ; x ] -> E1 (U32OfDWord, e x)
-    | Lst [ Sym "dword-of-u32" ; x ] -> E1 (DWordOfU32, e x)
-    | Lst [ Sym "u64-of-qword" ; x ] -> E1 (U64OfQWord, e x)
-    | Lst [ Sym "qword-of-u64" ; x ] -> E1 (QWordOfU64, e x)
-    | Lst [ Sym "u128-of-oword" ; x ] -> E1 (U128OfOWord, e x)
-    | Lst [ Sym "oword-of-u128" ; x ] -> E1 (OWordOfU128, e x)
+    | Lst [ Sym "float-of-u64" ; x ] -> E1 (FloatOfU64, e x)
+    | Lst [ Sym "u64-of-float" ; x ] -> E1 (U64OfFloat, e x)
     | Lst [ Sym "u8-of-char" ; x ] -> E1 (U8OfChar, e x)
     | Lst [ Sym "char-of-u8" ; x ] -> E1 (CharOfU8, e x)
     | Lst [ Sym "size-of-u32" ; x ] -> E1 (SizeOfU32, e x)
     | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
     | Lst [ Sym "address-of-u64" ; x ] -> E1 (AddressOfU64, e x)
     | Lst [ Sym "u64-of-address" ; x ] -> E1 (U64OfAddress, e x)
-    | Lst [ Sym "bit-of-bool" ; x ] -> E1 (BitOfBool, e x)
-    | Lst [ Sym "bool-of-bit" ; x ] -> E1 (BoolOfBit, e x)
     | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
     | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
     | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
@@ -1471,7 +1408,7 @@ struct
     | Lst [ Sym "string-of-bytes" ; x ] -> E1 (StringOfBytes, e x)
     | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
     | Lst [ Sym "cardinality" ; x ] -> E1 (Cardinality, e x)
-    | Lst [ Sym "read-byte" ; x ] -> E1 (ReadByte, e x)
+    | Lst [ Sym "read-u8" ; x ] -> E1 (ReadU8, e x)
     | Lst [ Sym "rem-size" ; x ] -> E1 (RemSize, e x)
     | Lst [ Sym "offset" ; x ] -> E1 (Offset, e x)
     | Lst [ Sym "not" ; x ] -> E1 (Not, e x)
@@ -1503,14 +1440,14 @@ struct
     | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
     | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
     | Lst [ Sym "tail" ; x ] -> E1 (Tail, e x)
-    | Lst [ Sym "read-word" ; Sym en ; x ] ->
-        E1 (ReadWord (endianness_of_string en), e x)
-    | Lst [ Sym "read-dword" ; Sym en ; x ] ->
-        E1 (ReadDWord (endianness_of_string en), e x)
-    | Lst [ Sym "read-qword" ; Sym en ; x ] ->
-        E1 (ReadQWord (endianness_of_string en), e x)
-    | Lst [ Sym "read-oword" ; Sym en ; x ] ->
-        E1 (ReadOWord (endianness_of_string en), e x)
+    | Lst [ Sym "read-u16" ; Sym en ; x ] ->
+        E1 (ReadU16 (endianness_of_string en), e x)
+    | Lst [ Sym "read-u32" ; Sym en ; x ] ->
+        E1 (ReadU32 (endianness_of_string en), e x)
+    | Lst [ Sym "read-u64" ; Sym en ; x ] ->
+        E1 (ReadU64 (endianness_of_string en), e x)
+    | Lst [ Sym "read-u128" ; Sym en ; x ] ->
+        E1 (ReadU128 (endianness_of_string en), e x)
     | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
     | Lst [ Sym "mask-get" ; Sym d ; x1 ] as x ->
         E1 (MaskGet (int_of_symbol x d), e x1)
@@ -1533,10 +1470,6 @@ struct
         E1 (GetEnv, e x)
     | Lst [ Sym "get-min" ; x ] ->
         E1 (GetMin, e x)
-    | Lst [ Sym "make-ref" ; x ] ->
-        E1 (MakeRef, e x)
-    | Lst [ Sym "get-ref" ; x ] ->
-        E1 (GetRef, e x)
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
@@ -1576,10 +1509,10 @@ struct
     | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
     | Lst [ Sym "get-vec" ; x1 ; x2 ] -> E2 (GetVec, e x1, e x2)
     | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
-    | Lst [ Sym "peek-byte" ; x1 ; x2 ] -> E2 (PeekByte, e x1, e x2)
-    | Lst [ Sym "write-byte" ; x1 ; x2 ] -> E2 (WriteByte, e x1, e x2)
+    | Lst [ Sym "peek-u8" ; x1 ; x2 ] -> E2 (PeekU8, e x1, e x2)
+    | Lst [ Sym "write-u8" ; x1 ; x2 ] -> E2 (WriteU8, e x1, e x2)
     | Lst [ Sym "write-bytes" ; x1 ; x2 ] -> E2 (WriteBytes, e x1, e x2)
-    | Lst [ Sym "poke-byte" ; x1 ; x2 ] -> E2 (PokeByte, e x1, e x2)
+    | Lst [ Sym "poke-u8" ; x1 ; x2 ] -> E2 (PokeU8, e x1, e x2)
     | Lst [ Sym "ptr-add" ; x1 ; x2 ] -> E2 (PtrAdd, e x1, e x2)
     | Lst [ Sym "ptr-sub" ; x1 ; x2 ] -> E2 (PtrSub, e x1, e x2)
     | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
@@ -1589,22 +1522,22 @@ struct
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
-    | Lst [ Sym "peek-word" ; Sym en ; x1 ; x2 ] ->
-        E2 (PeekWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "peek-dword" ; Sym en ; x1 ; x2 ] ->
-        E2 (PeekDWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "peek-qword" ; Sym en ; x1 ; x2 ] ->
-        E2 (PeekQWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "peek-oword" ; Sym en ; x1 ; x2 ] ->
-        E2 (PeekOWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "write-word" ; Sym en ; x1 ; x2 ] ->
-        E2 (WriteWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "write-dword" ; Sym en ; x1 ; x2 ] ->
-        E2 (WriteDWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "write-qword" ; Sym en ; x1 ; x2 ] ->
-        E2 (WriteQWord (endianness_of_string en), e x1, e x2)
-    | Lst [ Sym "write-oword" ; Sym en ; x1 ; x2 ] ->
-        E2 (WriteOWord (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-u16" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekU16 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-u32" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekU32 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-u64" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekU64 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "peek-u128" ; Sym en ; x1 ; x2 ] ->
+        E2 (PeekU128 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-u16" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteU16 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-u32" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteU32 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-u64" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteU64 (endianness_of_string en), e x1, e x2)
+    | Lst [ Sym "write-u128" ; Sym en ; x1 ; x2 ] ->
+        E2 (WriteU128 (endianness_of_string en), e x1, e x2)
     | Lst [ Sym "insert" ; x1 ; x2 ] ->
         E2 (Insert, e x1, e x2)
     | Lst [ Sym "del-min" ; x1 ; x2 ] ->
@@ -1636,8 +1569,6 @@ struct
     | Lst [ Sym "for-each" ; Str n ; Str mn ; x1 ; x2 ] ->
         let mn = T.mn_of_string mn in
         E2 (ForEach (n, mn), e x1, e x2)
-    | Lst [ Sym "set-ref" ; x1 ; x2 ] ->
-        E2 (SetRef, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1810,14 +1741,8 @@ and type_of l e0 =
   | E0 (I56 _) -> T.i56
   | E0 (I64 _) -> T.i64
   | E0 (I128 _) -> T.i128
-  | E0 (Bit _) -> T.required T.Bit
   | E0 (Size _) -> T.required T.Size
   | E0 (Address _) -> T.required T.Address
-  | E0 (Byte _) -> T.required T.Byte
-  | E0 (Word _) -> T.required T.Word
-  | E0 (DWord _) -> T.required T.DWord
-  | E0 (QWord _) -> T.required T.QWord
-  | E0 (OWord _) -> T.required T.OWord
   | E0 (Bytes _) -> T.required T.Bytes
   | E0S (Seq, [])
   | E1 ((Dump | Ignore), _) ->
@@ -1959,26 +1884,14 @@ and type_of l e0 =
   | E1 (I56OfPtr, _) -> T.pair T.i56 T.ptr
   | E1 (I64OfPtr, _) -> T.pair T.i64 T.ptr
   | E1 (I128OfPtr, _) -> T.pair T.i128 T.ptr
-  | E1 (FloatOfQWord, _) -> T.float
-  | E1 (QWordOfFloat, _) -> T.qword
-  | E1 (U8OfByte, _) -> T.u8
-  | E1 (ByteOfU8, _) -> T.byte
-  | E1 (U16OfWord, _) -> T.u16
-  | E1 (WordOfU16, _) -> T.word
-  | E1 (U32OfDWord, _) -> T.u32
-  | E1 (DWordOfU32, _) -> T.dword
-  | E1 (U64OfQWord, _) -> T.u64
-  | E1 (QWordOfU64, _) -> T.qword
-  | E1 (U128OfOWord, _) -> T.u128
-  | E1 (OWordOfU128, _) -> T.oword
+  | E1 (FloatOfU64, _) -> T.float
+  | E1 (U64OfFloat, _) -> T.u64
   | E1 (U8OfChar, _) -> T.u8
   | E1 (CharOfU8, _) -> T.char
   | E1 (SizeOfU32, _) -> T.size
   | E1 (U32OfSize, _) -> T.u32
   | E1 (AddressOfU64, _) -> T.address
   | E1 (U64OfAddress, _) -> T.u64
-  | E1 (BitOfBool, _) -> T.bit
-  | E1 (BoolOfBit, _) -> T.bool
   | E1 ((ListOfSList | ListOfSListRev), e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = SList mn ; nullable = false } ->
@@ -2013,28 +1926,28 @@ and type_of l e0 =
   | E1 (Cardinality, _) -> T.u32
   | E3 (PtrOfPtr, _, _, _) -> T.ptr
   | E3 (FindSubstring, _, _, _) -> T.nu24
-  | E2 (GetBit, _, _) -> T.bit
+  | E2 (GetBit, _, _) -> T.bool
   | E2 (GetVec, _, e1) -> T.(get_item_type ~lst:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
-  | E1 (ReadByte, _) -> T.pair T.byte T.ptr
-  | E1 (ReadWord _, _) -> T.pair T.word T.ptr
-  | E1 (ReadDWord _, _) -> T.pair T.dword T.ptr
-  | E1 (ReadQWord _, _) -> T.pair T.qword T.ptr
-  | E1 (ReadOWord _, _) -> T.pair T.oword T.ptr
+  | E1 (ReadU8, _) -> T.pair T.u8 T.ptr
+  | E1 (ReadU16 _, _) -> T.pair T.u16 T.ptr
+  | E1 (ReadU32 _, _) -> T.pair T.u32 T.ptr
+  | E1 (ReadU64 _, _) -> T.pair T.u64 T.ptr
+  | E1 (ReadU128 _, _) -> T.pair T.u128 T.ptr
   | E1 (Assert, _) -> T.void
   | E2 (ReadBytes, _, _) -> T.pair T.bytes T.ptr
-  | E2 (PeekByte, _, _) -> T.byte
-  | E2 (PeekWord _, _, _) -> T.word
-  | E2 (PeekDWord _ , _, _)-> T.dword
-  | E2 (PeekQWord _, _, _) -> T.qword
-  | E2 (PeekOWord _, _, _) -> T.oword
-  | E2 (WriteByte, _, _) -> T.ptr
-  | E2 (WriteWord _, _, _) -> T.ptr
-  | E2 (WriteDWord _, _, _) -> T.ptr
-  | E2 (WriteQWord _, _, _) -> T.ptr
-  | E2 (WriteOWord _, _, _) -> T.ptr
+  | E2 (PeekU8, _, _) -> T.u8
+  | E2 (PeekU16 _, _, _) -> T.u16
+  | E2 (PeekU32 _ , _, _)-> T.u32
+  | E2 (PeekU64 _, _, _) -> T.u64
+  | E2 (PeekU128 _, _, _) -> T.u128
+  | E2 (WriteU8, _, _) -> T.ptr
+  | E2 (WriteU16 _, _, _) -> T.ptr
+  | E2 (WriteU32 _, _, _) -> T.ptr
+  | E2 (WriteU64 _, _, _) -> T.ptr
+  | E2 (WriteU128 _, _, _) -> T.ptr
   | E2 (WriteBytes, _, _) -> T.ptr
-  | E2 (PokeByte, _, _) -> T.ptr
+  | E2 (PokeU8, _, _) -> T.ptr
   | E3 (BlitByte, _, _, _) -> T.ptr
   | E2 (PtrAdd, _, _) -> T.ptr
   | E2 (PtrSub, _, _) -> T.size
@@ -2076,18 +1989,11 @@ and type_of l e0 =
   | E2 (PtrOfAddress, _, _) -> T.ptr
   | E2 (While, _, _) -> T.void
   | E2 (ForEach _, _, _) -> T.void
-  | E2 (SetRef, _, _) -> T.void
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = Set (Heap, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
-  | E1 (MakeRef, e) ->
-      T.ref (type_of l e)
-  | E1 (GetRef, e) ->
-      (match type_of l e |> T.develop1 with
-      | T.{ typ = Ref mn ; nullable = false } -> mn
-      | t -> raise (Type_error (e0, e, t, "be a ref")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
   | E2 (MakePair, e1, e2) ->
@@ -2469,17 +2375,17 @@ let has_side_effect e =
     iter (function
       | E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
       | E0S (MakeVec, _)
-      | E1 ((Dump | ReadByte | ReadWord _ | MakeRef |
-             ReadDWord _ | ReadQWord _ |ReadOWord _ | Assert |
+      | E1 ((Dump | ReadU8 | ReadU16 _ |
+             ReadU32 _ | ReadU64 _ |ReadU128 _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
              U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
              U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
              I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
-      | E2 ((ReadBytes | WriteByte | WriteBytes | WriteWord _ | WriteDWord _ |
-             WriteQWord _ | WriteOWord _ | PokeByte | PtrAdd |
-             Insert | DelMin | AllocLst | PartialSort | SetRef), _, _)
+      | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
+             WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
+             Insert | DelMin | AllocLst | PartialSort), _, _)
       | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
           raise Exit
       | _ -> ()
@@ -2529,7 +2435,7 @@ let rec type_check l e =
     let rec is_comparable = function
       | T.{
           typ =
-            (Size | Address | Byte | Word | DWord | QWord | OWord | Mask
+            (Size | Address | Mask
             | Base (
                 Float | String | Bool | Char |
                 U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
@@ -2548,7 +2454,7 @@ let rec type_check l e =
         raise (Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_base=false) l e =
       match type_of l e |> T.develop1 with
-      | T.{ typ = Size | Address | Byte | Word | DWord | QWord | OWord ;
+      | T.{ typ = Size | Address ;
           nullable = false } when not only_base ->
           ()
       | { typ = Base (
@@ -2560,7 +2466,7 @@ let rec type_check l e =
     let check_integer l e =
       match type_of l e |> T.develop1 with
       | T.{ typ =
-            (Size | Address | Byte | Word | DWord | QWord | OWord
+            (Size | Address
             | Base (
                 U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
                 I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
@@ -2601,12 +2507,6 @@ let rec type_check l e =
       match type_of l e |> T.develop1 with
       | T.{ typ = SList _ ; nullable = false } -> ()
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
-    let ref_type l e =
-      match type_of l e |> T.develop1 with
-      | T.{ typ = Ref t ; nullable = false } -> t
-      | t -> raise (Type_error (e0, e, t, "be a ref")) in
-    let check_ref l e =
-      ignore (ref_type l e) in
     let check_slist_same_type e1 l e =
       match type_of l e |> T.develop1 with
       | T.{ typ = SList mn ; nullable = false } -> check_eq l e1 mn
@@ -2637,13 +2537,11 @@ let rec type_check l e =
          | Void | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-         | Bit _ | Size _ | Address _
-         | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+         | Size _ | Address _
          | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
-    | E1 ((Comment _ | Dump | Identity | Ignore | Function _
-          | Hash | MakeRef), _)
+    | E1 ((Comment _ | Dump | Identity | Ignore | Function _ | Hash), _)
     | E2 ((MakePair | Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
@@ -2725,37 +2623,25 @@ let rec type_check l e =
          | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr
          | I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), e) ->
         check_eq l e T.ptr
-    | E1 ((FloatOfQWord | U64OfQWord), e) ->
-        check_eq l e T.qword
-    | E1 ((QWordOfFloat | StringOfFloat), e) ->
+    | E1 (FloatOfU64, e) ->
+        check_eq l e T.u64
+    | E1 ((U64OfFloat | StringOfFloat), e) ->
         check_eq l e T.float
-    | E1 (U8OfByte, e) ->
-        check_eq l e T.byte
-    | E1 ((CharOfU8 | ByteOfU8 | BoolOfU8), e) ->
+    | E1 ((CharOfU8 | BoolOfU8), e) ->
         check_eq l e T.u8
     | E1 ((ToU8 | ToI8 | ToI16 | ToU16 | ToI24 | ToU24 | ToI32 | ToU32
          | ToI40 | ToU40 | ToI48 | ToU48 | ToI56 | ToU56 | ToI64 | ToU64
          | ToI128 | ToU128 | ToFloat), e) ->
         check_numeric l e
-    | E1 (U16OfWord, e) ->
-        check_eq l e T.word
-    | E1 (WordOfU16, e) ->
-        check_eq l e T.u16
-    | E1 (U32OfDWord, e) ->
-        check_eq l e T.dword
-    | E1 ((DWordOfU32 | SizeOfU32), e) ->
+    | E1 (SizeOfU32, e) ->
         check_eq l e T.u32
-    | E1 ((QWordOfU64 | AddressOfU64), e) ->
+    | E1 (AddressOfU64, e) ->
         check_eq l e T.u64
-    | E1 (OWordOfU128, e) ->
-        check_eq l e T.u128
-    | E1 (U128OfOWord, e) ->
-        check_eq l e T.oword
     | E1 (U32OfSize, e) ->
         check_eq l e T.size
     | E1 (U64OfAddress, e) ->
         check_eq l e T.address
-    | E1 ((BitOfBool | U8OfBool | Not | Assert), e) ->
+    | E1 ((U8OfBool | Not | Assert), e) ->
         check_eq l e T.bool
     | E1 ((Abs | Neg), e) ->
         check_numeric l e
@@ -2765,8 +2651,6 @@ let rec type_check l e =
         check_eq l e T.float
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
-    | E1 (BoolOfBit, e) ->
-        check_eq l e T.bit
     | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
         check_slist l e
     | E1 (ListOfVec, e) ->
@@ -2792,7 +2676,7 @@ let rec type_check l e =
         check_set l e
     | E2 (AppendByte, e1, e2) ->
         check_eq l e1 T.bytes ;
-        check_eq l e2 T.byte
+        check_eq l e2 T.u8
     | E2 (AppendBytes, e1, e2) ->
         check_eq l e1 T.bytes ;
         check_eq l e2 T.bytes
@@ -2809,11 +2693,6 @@ let rec type_check l e =
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
         check_list_or_vector l e2
-    | E1 (GetRef, e1) ->
-        check_ref l e1
-    | E2 (SetRef, e1, e2) ->
-        let ref_t = ref_type l e1 in
-        check_eq l e2 ref_t
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
@@ -2826,7 +2705,7 @@ let rec type_check l e =
     | E3 (SetBit, e1, e2, e3) ->
         check_eq l e1 T.ptr ;
         check_eq l e2 T.size ;
-        check_eq l e3 T.bit
+        check_eq l e3 T.bool
     | E3 (SetVec, e1, e2, e3) ->
         check_integer l e1 ;
         (match type_of l e2 |> T.develop1 with
@@ -2834,33 +2713,33 @@ let rec type_check l e =
             check_eq l e3 mn
         | t ->
             raise (Type_error (e0, e1, t, "be a vector")))
-    | E1 ((ReadByte | ReadWord _ | ReadDWord _ | ReadQWord _ | ReadOWord _), e) ->
+    | E1 ((ReadU8 | ReadU16 _ | ReadU32 _ | ReadU64 _ | ReadU128 _), e) ->
         check_eq l e T.ptr
-    | E2 ((ReadBytes | PeekByte | PeekWord _ | PeekDWord _ | PeekQWord _
-         | PeekOWord _), e1, e2) ->
+    | E2 ((ReadBytes | PeekU8 | PeekU16 _ | PeekU32 _ | PeekU64 _
+         | PeekU128 _), e1, e2) ->
         check_eq l e1 T.ptr ;
         check_eq l e2 T.size
-    | E2 ((WriteByte | PokeByte), e1, e2) ->
+    | E2 ((WriteU8 | PokeU8), e1, e2) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.byte
-    | E2 (WriteWord _, e1, e2) ->
+        check_eq l e2 T.u8
+    | E2 (WriteU16 _, e1, e2) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.word
-    | E2 (WriteDWord _, e1, e2) ->
+        check_eq l e2 T.u16
+    | E2 (WriteU32 _, e1, e2) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.dword
-    | E2 (WriteQWord _, e1, e2) ->
+        check_eq l e2 T.u32
+    | E2 (WriteU64 _, e1, e2) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.qword
-    | E2 (WriteOWord _, e1, e2) ->
+        check_eq l e2 T.u64
+    | E2 (WriteU128 _, e1, e2) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.oword
+        check_eq l e2 T.u128
     | E2 (WriteBytes, e1, e2) ->
         check_eq l e1 T.ptr ;
         check_eq l e2 T.bytes
     | E3 (BlitByte, e1, e2, e3) ->
         check_eq l e1 T.ptr ;
-        check_eq l e2 T.byte ;
+        check_eq l e2 T.u8 ;
         check_eq l e3 T.size
     | E2 (PtrAdd, e1, e2) ->
         check_eq l e1 T.ptr ;
@@ -3018,7 +2897,7 @@ let rec type_check l e =
 *)
 
 (*$T pass_type_check
-   not (pass_type_check "(get-item 2 (read-qword big-endian (u64 17)))")
+   not (pass_type_check "(get-item 2 (read-u64 big-endian (u64 17)))")
    not (pass_type_check "(get-alt \"pejh\" (random-float))")
    not (pass_type_check "(apply (string \"blabla\") (bool false))")
 *)
@@ -3141,8 +3020,7 @@ let let_ ?name ~l value f =
   | E0 (Null _ | EndOfList _ | EmptySet _ | Void | Float _ | Bool _ | Char _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
-       | Bit _ | Size _ | Address _
-       | Byte _ | Word _ | DWord _ | QWord _ | OWord _
+       | Size _ | Address _
        | CopyField | SkipField | SetFieldNull)
   | E0S (Seq, []) ->
       f l value
@@ -3265,7 +3143,7 @@ struct
 
   let true_ = bool true
 
-  let bit n = E0 (Bit n)
+  let bit n = E0 (Bool n)
 
   let i8 n = E0 (I8 n)
 
@@ -3311,23 +3189,21 @@ struct
 
   let string n = E0 (String n)
 
-  let byte n = E0 (Byte n)
+  let u8 n = E0 (U8 n)
 
   let size n = E0 (Size n)
 
   let address n = E0 (Address n)
 
-  let word n = E0 (Word n)
+  let u16 n = E0 (U16 n)
 
-  let dword n = E0 (DWord n)
+  let u32 n = E0 (U32 n)
 
-  let qword n = E0 (QWord n)
+  let u64 n = E0 (U64 n)
 
-  let oword n = E0 (OWord n)
+  let u128 n = E0 (U128 n)
 
   let bytes s = E0 (Bytes s)
-
-  let byte_of_int n = byte (Uint8.of_int n)
 
   let i8_of_int n = i8 (Int8.of_int n)
 
@@ -3369,39 +3245,39 @@ struct
 
   let nth e1 e2 = E2 (Nth, e1, e2)
 
-  let read_byte e1 = E1 (ReadByte, e1)
+  let read_u8 e1 = E1 (ReadU8, e1)
 
-  let read_word en e1 = E1 (ReadWord en, e1)
+  let read_u16 en e1 = E1 (ReadU16 en, e1)
 
-  let read_dword en e1 = E1 (ReadDWord en, e1)
+  let read_u32 en e1 = E1 (ReadU32 en, e1)
 
-  let read_qword en e1 = E1 (ReadQWord en, e1)
+  let read_u64 en e1 = E1 (ReadU64 en, e1)
 
-  let read_oword en e1 = E1 (ReadOWord en, e1)
+  let read_u128 en e1 = E1 (ReadU128 en, e1)
 
-  let peek_word en e1 e2 = E2 (PeekWord en, e1, e2)
+  let peek_u16 en e1 e2 = E2 (PeekU16 en, e1, e2)
 
-  let peek_dword en e1 e2 = E2 (PeekDWord en, e1, e2)
+  let peek_u32 en e1 e2 = E2 (PeekU32 en, e1, e2)
 
-  let peek_qword en e1 e2 = E2 (PeekQWord en, e1, e2)
+  let peek_u64 en e1 e2 = E2 (PeekU64 en, e1, e2)
 
-  let peek_oword en e1 e2 = E2 (PeekOWord en, e1, e2)
+  let peek_u128 en e1 e2 = E2 (PeekU128 en, e1, e2)
 
   let read_bytes e1 e2 = E2 (ReadBytes, e1, e2)
 
-  let peek_byte e1 e2 = E2 (PeekByte, e1, e2)
+  let peek_u8 e1 e2 = E2 (PeekU8, e1, e2)
 
   let write_bytes e1 e2 = E2 (WriteBytes, e1, e2)
 
-  let write_byte e1 e2 = E2 (WriteByte, e1, e2)
+  let write_u8 e1 e2 = E2 (WriteU8, e1, e2)
 
-  let write_word en e1 e2 = E2 (WriteWord en, e1, e2)
+  let write_u16 en e1 e2 = E2 (WriteU16 en, e1, e2)
 
-  let write_dword en e1 e2 = E2 (WriteDWord en, e1, e2)
+  let write_u32 en e1 e2 = E2 (WriteU32 en, e1, e2)
 
-  let write_qword en e1 e2 = E2 (WriteQWord en, e1, e2)
+  let write_u64 en e1 e2 = E2 (WriteU64 en, e1, e2)
 
-  let write_oword en e1 e2 = E2 (WriteOWord en, e1, e2)
+  let write_u128 en e1 e2 = E2 (WriteU128 en, e1, e2)
 
   let insert set x = E2 (Insert, set, x)
 
@@ -3516,31 +3392,13 @@ struct
 
   let i128_of_ptr e = E1 (I128OfPtr, e)
 
-  let byte_of_u8 e = E1 (ByteOfU8, e)
-
   let bool_of_u8 e = E1 (BoolOfU8, e)
-
-  let word_of_u16 e = E1 (WordOfU16, e)
-
-  let dword_of_u32 e = E1 (DWordOfU32, e)
-
-  let qword_of_u64 e = E1 (QWordOfU64, e)
-
-  let oword_of_u128 e = E1 (OWordOfU128, e)
-
-  let u8_of_byte e = E1 (U8OfByte, e)
 
   let u8_of_char e = E1 (U8OfChar, e)
 
+  let u8_of_const_char c = E1 (U8OfChar, E0 (Char c))
+
   let u8_of_bool e = E1 (U8OfBool, e)
-
-  let bool_of_bit e = E1 (BoolOfBit, e)
-
-  let bit_of_bool e = E1 (BitOfBool, e)
-
-  let u8_of_bit = u8_of_bool % bool_of_bit
-
-  let bit_of_u8 = bit_of_bool % bool_of_u8
 
   let char_of_u8 e = E1 (CharOfU8, e)
 
@@ -3596,17 +3454,13 @@ struct
 
   let tail e = E1 (Tail, e)
 
-  let byte_of_char e = byte_of_u8 (u8_of_char e)
-
-  let byte_of_const_char c = byte_of_char (char c)
-
   let rec if_ cond ~then_ ~else_ = E3 (If, cond, then_, else_)
 
   let if_null d ~then_ ~else_ = if_ (is_null d) ~then_ ~else_
 
-  let float_of_qword e = E1 (FloatOfQWord, e)
+  let float_of_u64 e = E1 (FloatOfU64, e)
 
-  let qword_of_float e = E1 (QWordOfFloat, e)
+  let u64_of_float e = E1 (U64OfFloat, e)
 
   let comment n e1 = E1 (Comment n, e1)
 
@@ -3754,14 +3608,6 @@ struct
 
   let hash e = E1 (Hash, e)
 
-  let u16_of_word e = E1 (U16OfWord, e)
-
-  let u32_of_dword e = E1 (U32OfDWord, e)
-
-  let u64_of_qword e = E1 (U64OfQWord, e)
-
-  let u128_of_oword e = E1 (U128OfOWord, e)
-
   let ptr_add e1 e2 = E2 (PtrAdd, e1, e2)
 
   let ptr_sub e1 e2 = E2 (PtrSub, e1, e2)
@@ -3864,16 +3710,6 @@ struct
 
   let ends_with e1 e2 = E2 (EndsWith, e1, e2)
 
-  let size_of_dword = size_of_u32 % u32_of_dword
-
-  let bool_of_byte = bool_of_u8 % u8_of_byte
-
-  let byte_of_bool = byte_of_u8 % u8_of_bool
-
-  let char_of_byte = char_of_u8 % u8_of_byte
-
-  let byte_of_char = byte_of_u8 % u8_of_char
-
   let mask_get i m = E1 (MaskGet i, m)
 
   let label_of e = E1 (LabelOf, e)
@@ -3888,13 +3724,14 @@ struct
 
   let string_of_char_ e = E1 (StringOfChar, e)
 
-  let make_ref e = E1 (MakeRef, e)
+  let make_ref e = E0S (MakeVec, [ e ])
 
-  let get_ref e = E1 (GetRef, e)
+  let get_ref e = E2 (GetVec, u8_of_int 0, e)
 
-  let set_ref e x = E2 (SetRef, e, x)
+  let set_ref e x = E3 (SetVec, u8_of_int 0, e, x)
 
   let chop_begin lst n = E2 (ChopBegin, lst, n)
+
   let chop_end lst n = E2 (ChopEnd, lst, n)
 end
 

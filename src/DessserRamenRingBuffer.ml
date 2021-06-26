@@ -231,8 +231,8 @@ struct
   let zero_nullmask_const l bits p =
     let sz = (bits + 7) / 8 in
     let words = words_of_const_bytes (sz + 1) in
-    let p = write_byte p (byte (Uint8.of_int words)) in
-    let p = blit_byte p (byte Uint8.zero) (size sz) in
+    let p = write_u8 p (u8_of_int words) in
+    let p = blit_byte p (u8_of_int 0) (size sz) in
     align_const l p (1 + sz)
 
   (* Zero the nullmask known only at runtime and advance the pointer *)
@@ -240,8 +240,8 @@ struct
     let_ ~name:"sz_" ~l (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
       (fun l sz ->
         let words = words_of_dyn_bytes (add sz (u32_of_int 1)) in
-        let p = write_byte p (byte_of_u8 (to_u8 words)) in
-        let p = blit_byte p (byte Uint8.zero) (size_of_u32 sz) in
+        let p = write_u8 p (to_u8 words) in
+        let p = blit_byte p (u8_of_int 0) (size_of_u32 sz) in
         align_dyn l p (add (size 1) (size_of_u32 sz)))
 
   (* Enter a new compound type by zeroing a nullmask of the given max width
@@ -290,7 +290,7 @@ struct
   let sfloat () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun _l p ->
       with_debug p "float"
-        (write_qword LittleEndian p (qword_of_float v)))
+        (write_u64 LittleEndian p (u64_of_float v)))
 
   let sstring () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
@@ -301,36 +301,36 @@ struct
               debug (string " of length ") ;
               debug (string_of_int_ len) ;
               debug (char '\n') ;
-              write_dword LittleEndian p (dword_of_u32 len) ] in
+              write_u32 LittleEndian p len ] in
       let bytes = bytes_of_string v in
       let p = write_bytes p bytes in
       align_dyn l p (size_of_u32 len))
 
   let sbool () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = with_debug p "bool" (write_byte p (byte_of_bool v)) in
+      let p = with_debug p "bool" (write_u8 p (u8_of_bool v)) in
       align_const l p 1)
 
   let schar () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = with_debug p "char" (write_byte p (byte_of_u8 (u8_of_char v))) in
+      let p = with_debug p "char" (write_u8 p (u8_of_char v)) in
       align_const l p 1)
 
   let si8 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = with_debug p "i8" (write_byte p (byte_of_u8 (to_u8 v))) in
+      let p = with_debug p "i8" (write_u8 p (to_u8 v)) in
       align_const l p 1)
 
   let si16 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "i16"
-                (write_word LittleEndian p (word_of_u16 (to_u16 v))) in
+                (write_u16 LittleEndian p (to_u16 v)) in
       align_const l p 2)
 
   let si32 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "i24/32"
-                (write_dword LittleEndian p (dword_of_u32 (to_u32 v))) in
+                (write_u32 LittleEndian p (to_u32 v)) in
       align_const l p 4)
 
   let si24 = si32
@@ -338,7 +338,7 @@ struct
   let si64 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "i40/48/56/64"
-                (write_qword LittleEndian p (qword_of_u64 (to_u64 v))) in
+                (write_u64 LittleEndian p (to_u64 v)) in
       align_const l p 8)
 
   let si40 = si64
@@ -350,24 +350,24 @@ struct
   let si128 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "i128"
-                (write_oword LittleEndian p (oword_of_u128 (to_u128 v))) in
+                (write_u128 LittleEndian p (to_u128 v)) in
       align_const l p 16)
 
   let su8 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      let p = with_debug p "u8" (write_byte p (byte_of_u8 v)) in
+      let p = with_debug p "u8" (write_u8 p v) in
       align_const l p 1)
 
   let su16 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "u16"
-                (write_word LittleEndian p (word_of_u16 v)) in
+                (write_u16 LittleEndian p v) in
       align_const l p 2)
 
   let su32 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "u24/32"
-                (write_dword LittleEndian p (dword_of_u32 v)) in
+                (write_u32 LittleEndian p v) in
       align_const l p 4)
 
   let su24 () vt0 path l v p = su32 () vt0 path l (to_u32 v) p
@@ -375,7 +375,7 @@ struct
   let su64 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "u40/48/56/64"
-                (write_qword LittleEndian p (qword_of_u64 v)) in
+                (write_u64 LittleEndian p v) in
       align_const l p 8)
 
   let su40 () vt0 path l v p = su64 () vt0 path l (to_u64 v) p
@@ -387,7 +387,7 @@ struct
   let su128 () mn0 path l v p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       let p = with_debug p "u128"
-                (write_oword LittleEndian p (oword_of_u128 v)) in
+                (write_u128 LittleEndian p v) in
       align_const l p 16)
 
   (* The given mns has all the types of the input structure, regardless of the
@@ -440,9 +440,9 @@ struct
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
       (* And zero that nullmask: *)
-      let p = write_word LittleEndian p (word_of_u16 (u16 Uint16.zero)) in
+      let p = write_u16 LittleEndian p (u16_of_int 0) in
       (* Then the label: *)
-      let p = write_word LittleEndian p (word_of_u16 lbl) in
+      let p = write_u16 LittleEndian p lbl in
       let p = align_const l p 4 in
       make_pair p stk)
 
@@ -469,7 +469,7 @@ struct
     let has_nullmask, nullmask_bits = NullMaskWidth.lst_bits mn n in
     let p_stk =
       E.with_sploded_pair ~l "with_data_ptr" p_stk (fun _l p stk ->
-        let p = write_dword LittleEndian p (dword_of_u32 n) in
+        let p = write_u32 LittleEndian p n in
         make_pair p stk) in
     (* Nullmask must still be present for an empty list of nullable items: *)
     enter_frame_dyn ~has_nullmask nullmask_bits mn0 path l p_stk
@@ -636,7 +636,7 @@ struct
           debug (string "\n") ;
           let p =
             if has_nullmask then
-              let words = read_byte p |> first in
+              let words = read_u8 p |> first in
               let bytes = left_shift (to_u32 words)
                                      (u8_of_int (log2 word_size)) in
               ptr_add p (size_of_u32 bytes)
@@ -667,118 +667,118 @@ struct
       seq [ debug (string "desser a float from ") ;
             debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
-            E.with_sploded_pair ~l "dfloat" (read_qword LittleEndian p) (fun _l w p ->
-              make_pair (float_of_qword w) p) ])
+            E.with_sploded_pair ~l "dfloat" (read_u64 LittleEndian p) (fun _l w p ->
+              make_pair (float_of_u64 w) p) ])
 
   let dstring () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
       seq [ debug (string "deser a string from ") ;
             debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
-            E.with_sploded_pair ~l "dstring1" (read_dword LittleEndian p) (fun l len p ->
-              let len = size_of_dword len in
+            E.with_sploded_pair ~l "dstring1" (read_u32 LittleEndian p) (fun l len p ->
+              let len = size_of_u32 len in
               E.with_sploded_pair ~l "dstring2" (read_bytes p len) (fun l bs p ->
                 make_pair (string_of_bytes bs) (align_dyn l p len))) ])
 
   let dbool () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "dbool" (read_byte p) (fun l b p ->
-        make_pair (bool_of_byte b) (align_const l p 1)))
+      E.with_sploded_pair ~l "dbool" (read_u8 p) (fun l b p ->
+        make_pair (bool_of_u8 b) (align_const l p 1)))
 
   let dchar () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "dchar" (read_byte p) (fun l b p ->
-        make_pair (char_of_byte b) (align_const l p 1)))
+      E.with_sploded_pair ~l "dchar" (read_u8 p) (fun l b p ->
+        make_pair (char_of_u8 b) (align_const l p 1)))
 
   let du8 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du8" (read_byte p) (fun l b p ->
-        make_pair (u8_of_byte b) (align_const l p 1)))
+      E.with_sploded_pair ~l "du8" (read_u8 p) (fun l b p ->
+        make_pair b (align_const l p 1)))
 
   let du16 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du16" (read_word LittleEndian p) (fun l w p ->
-        make_pair (u16_of_word w) (align_const l p 2)))
+      E.with_sploded_pair ~l "du16" (read_u16 LittleEndian p) (fun l w p ->
+        make_pair w (align_const l p 2)))
 
   let du24 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du24" (read_dword LittleEndian p) (fun l w p ->
-        make_pair (to_u24 (u32_of_dword w)) (align_const l p 4)))
+      E.with_sploded_pair ~l "du24" (read_u32 LittleEndian p) (fun l w p ->
+        make_pair (to_u24 w) (align_const l p 4)))
 
   let du32 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du32" (read_dword LittleEndian p) (fun l w p ->
-        make_pair (u32_of_dword w) (align_const l p 4)))
+      E.with_sploded_pair ~l "du32" (read_u32 LittleEndian p) (fun l w p ->
+        make_pair w (align_const l p 4)))
 
   let du40 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du40" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_u40 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "du40" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_u40 w) (align_const l p 8)))
 
   let du48 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du48" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_u48 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "du48" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_u48 w) (align_const l p 8)))
 
   let du56 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du56" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_u56 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "du56" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_u56 w) (align_const l p 8)))
 
   let du64 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du64" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (u64_of_qword w) (align_const l p 8)))
+      E.with_sploded_pair ~l "du64" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair w (align_const l p 8)))
 
   let du128 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "du128" (read_oword LittleEndian p) (fun l w p ->
-        make_pair (u128_of_oword w) (align_const l p 8)))
+      E.with_sploded_pair ~l "du128" (read_u128 LittleEndian p) (fun l w p ->
+        make_pair w (align_const l p 8)))
 
   let di8 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di8" (read_byte p) (fun l b p ->
-        make_pair (to_i8 (u8_of_byte b)) (align_const l p 1)))
+      E.with_sploded_pair ~l "di8" (read_u8 p) (fun l b p ->
+        make_pair (to_i8 b) (align_const l p 1)))
 
   let di16 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di16" (read_word LittleEndian p) (fun l w p ->
-        make_pair (to_i16 (u16_of_word w)) (align_const l p 2)))
+      E.with_sploded_pair ~l "di16" (read_u16 LittleEndian p) (fun l w p ->
+        make_pair (to_i16 w) (align_const l p 2)))
 
   let di24 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di24" (read_dword LittleEndian p) (fun l w p ->
-        make_pair (to_i24 (u32_of_dword w)) (align_const l p 4)))
+      E.with_sploded_pair ~l "di24" (read_u32 LittleEndian p) (fun l w p ->
+        make_pair (to_i24 w) (align_const l p 4)))
 
   let di32 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di32" (read_dword LittleEndian p) (fun l w p ->
-        make_pair (to_i32 (u32_of_dword w)) (align_const l p 4)))
+      E.with_sploded_pair ~l "di32" (read_u32 LittleEndian p) (fun l w p ->
+        make_pair (to_i32 w) (align_const l p 4)))
 
   let di40 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di40" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_i40 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "di40" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_i40 w) (align_const l p 8)))
 
   let di48 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di48" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_i48 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "di48" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_i48 w) (align_const l p 8)))
 
   let di56 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di56" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_i56 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "di56" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_i56 w) (align_const l p 8)))
 
   let di64 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di64" (read_qword LittleEndian p) (fun l w p ->
-        make_pair (to_i64 (u64_of_qword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "di64" (read_u64 LittleEndian p) (fun l w p ->
+        make_pair (to_i64 w) (align_const l p 8)))
 
   let di128 () mn0 path l p_stk =
     with_nullbit_done mn0 path l p_stk (fun l p ->
-      E.with_sploded_pair ~l "di128" (read_oword LittleEndian p) (fun l w p ->
-        make_pair (to_i128 (u128_of_oword w)) (align_const l p 8)))
+      E.with_sploded_pair ~l "di128" (read_u128 LittleEndian p) (fun l w p ->
+        make_pair (to_i128 w) (align_const l p 8)))
 
   let tup_rec_opn mn0 path _mns l p_stk =
     E.with_sploded_pair ~l
@@ -823,9 +823,9 @@ struct
       (* Skip that nullmask: *)
       let p = ptr_add p (size 2) in
       (* Read the label: *)
-      let w_p = read_word LittleEndian p in
+      let w_p = read_u16 LittleEndian p in
       E.with_sploded_pair ~l "sum_opn3" w_p (fun l w p ->
-        let lbl = u16_of_word w in
+        let lbl = w in
         let p = align_const l p 4 in
         make_pair lbl (make_pair p stk)))
 
@@ -835,8 +835,7 @@ struct
   let list_opn () = KnownSize
     (fun mn0 path mn l p_stk ->
       E.with_sploded_pair ~l "list_opn1" p_stk (fun l p stk ->
-        E.with_sploded_pair ~l "list_opn2" (read_dword LittleEndian p) (fun l n p ->
-          let n = u32_of_dword n in
+        E.with_sploded_pair ~l "list_opn2" (read_u32 LittleEndian p) (fun l n p ->
           let has_nullmask = mn.T.nullable in
           let p_stk = enter_frame ~has_nullmask mn0 path l p stk in
           make_pair n p_stk)))
@@ -853,7 +852,7 @@ struct
     (* Do not advance the nullbit index as it's already done on a per
      * value basis: *)
     E.with_sploded_pair ~l "is_null2" (head (secnd p_stk)) (fun l p bi ->
-      let_ ~l (not_ (bool_of_bit (get_bit p bi))) (fun _l b ->
+      let_ ~l (not_ (get_bit p bi)) (fun _l b ->
         seq [ debug (string "des: get nullbit at ") ;
               debug (string_of_int_ bi) ;
               debug (string " -> ") ;

@@ -20,7 +20,7 @@ struct
   type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
   let sfloat () _ _ _ v p =
-    write_qword LittleEndian p (qword_of_float v)
+    write_u64 LittleEndian p (u64_of_float v)
 
   (* v must be a u32: *)
   let write_leb128 l p v =
@@ -33,10 +33,9 @@ struct
               (let b =
                 if_ (lt v (u32 (Uint32.of_int 128)))
                   ~then_:(to_u8 v)
-                  ~else_:(bit_or (to_u8 v) (u8_of_int 128)) |>
-                byte_of_u8 in
+                  ~else_:(bit_or (to_u8 v) (u8_of_int 128)) in
               seq [
-                set_ref p_ref (write_byte (get_ref p_ref) b) ;
+                set_ref p_ref (write_u8 (get_ref p_ref) b) ;
                 set_ref v_ref (right_shift v (u8_of_int 7)) ;
                 (comment "Condition for write_leb128 (until v is 0)"
                   (gt v (u32 Uint32.zero))) ]))
@@ -48,25 +47,25 @@ struct
     write_bytes p (bytes_of_string v)
 
   let sbool () _ _ _ v p =
-    write_byte p (byte_of_u8 (u8_of_bool v))
+    write_u8 p (u8_of_bool v)
 
   let schar () _ _ _ v p =
-    write_byte p (byte_of_u8 (u8_of_char v))
+    write_u8 p (u8_of_char v)
 
   let si8 () _ _ _ v p =
-    write_byte p (byte_of_u8 (to_u8 v))
+    write_u8 p (to_u8 v)
 
   let si16 () _ _ _ v p =
-    write_word LittleEndian p (word_of_u16 (to_u16 v))
+    write_u16 LittleEndian p (to_u16 v)
 
   let si32 () _ _ _ v p =
-    write_dword LittleEndian p (dword_of_u32 (to_u32 v))
+    write_u32 LittleEndian p (to_u32 v)
 
   let si24 () mn0 path l v p =
     si32 () mn0 path l (to_i32 v) p
 
   let si64 () _ _ _ v p =
-    write_qword LittleEndian p (qword_of_u64 (to_u64 v))
+    write_u64 LittleEndian p (to_u64 v)
 
   let si40 () mn0 path l v p =
     si64 () mn0 path l (to_i64 v) p
@@ -76,22 +75,22 @@ struct
   let si56 = si40
 
   let si128 () _ _ _ v p =
-    write_oword LittleEndian p (oword_of_u128 (to_u128 v))
+    write_u128 LittleEndian p (to_u128 v)
 
   let su8 () _ _ _ v p =
-    write_byte p (byte_of_u8 v)
+    write_u8 p v
 
   let su16 () _ _ _ v p =
-    write_word LittleEndian p (word_of_u16 v)
+    write_u16 LittleEndian p v
 
   let su32 () _ _ _ v p =
-    write_dword LittleEndian p (dword_of_u32 v)
+    write_u32 LittleEndian p v
 
   let su24 () mn0 path l v p =
     su32 () mn0 path l (to_u32 v) p
 
   let su64 () _ _ _ v p =
-    write_qword LittleEndian p (qword_of_u64 v)
+    write_u64 LittleEndian p v
 
   let su40 () mn0 path l v p =
     su64 () mn0 path l (to_u64 v) p
@@ -101,7 +100,7 @@ struct
   let su56 = su40
 
   let su128 () _ _ _ v p =
-    write_oword LittleEndian p (oword_of_u128 v)
+    write_u128 LittleEndian p v
 
   let tup_opn () _ _ _ _ p = p
   let tup_cls () _ _ _ p = p
@@ -135,10 +134,10 @@ struct
   let nullable () _ _ _ p = p
 
   let snull _t () _ _ _ p =
-    write_byte p (byte Uint8.one)
+    write_u8 p (u8_of_int 1)
 
   let snotnull _t () _ _ _ p =
-    write_byte p (byte Uint8.zero)
+    write_u8 p (u8_of_int 0)
 
   type ssizer = T.mn -> Path.t -> E.env -> E.t -> E.t
 
@@ -211,9 +210,9 @@ struct
   type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
   let dfloat () _ _ l p =
-    let w_p = read_qword LittleEndian p in
+    let w_p = read_u64 LittleEndian p in
     E.with_sploded_pair ~l "dfloat" w_p (fun _l w p ->
-      make_pair (float_of_qword w) p)
+      make_pair (float_of_u64 w) p)
 
   (* Returns a size and a Ptr: *)
   let read_leb128 l p =
@@ -225,14 +224,14 @@ struct
           let p = get_ref p_ref in
           seq [
             while_
-              (E.with_sploded_pair ~l "leb128" (read_byte p) (fun _l b p' ->
-                let b' = bit_and (u8_of_byte b) (u8_of_int 127) in
+              (E.with_sploded_pair ~l "leb128" (read_u8 p) (fun _l b p' ->
+                let b' = bit_and b (u8_of_int 127) in
                 seq [
                   set_ref p_ref p' ;
                   set_ref leb_ref (bit_or (left_shift (to_u32 b') shft) leb) ;
                   set_ref shft_ref (add shft (u8_of_int 7)) ;
                   (comment "Condition for read_leb128"
-                    (ge b (byte_of_int 128))) ]))
+                    (ge b (u8_of_int 128))) ]))
               nop ;
             make_pair (size_of_u32 leb) p ])))
 
@@ -247,84 +246,84 @@ struct
         make_pair (string_of_bytes bs) p))
 
   let dbool () _ _ l p =
-    E.with_sploded_pair ~l "dbool" (read_byte p) (fun _l b p ->
-      make_pair (not_ (eq (u8_of_byte b) (u8 Uint8.zero))) p)
+    E.with_sploded_pair ~l "dbool" (read_u8 p) (fun _l b p ->
+      make_pair (not_ (eq b (u8 Uint8.zero))) p)
 
   let dchar () _ _ l p =
-    E.with_sploded_pair ~l "dchar" (read_byte p) (fun _l b p ->
-      make_pair (char_of_u8 (u8_of_byte b)) p)
+    E.with_sploded_pair ~l "dchar" (read_u8 p) (fun _l b p ->
+      make_pair (char_of_u8 b) p)
 
   let di8 () _ _ l p =
-    E.with_sploded_pair ~l "di8" (read_byte p) (fun _l b p ->
-      make_pair (to_i8 (u8_of_byte b)) p)
+    E.with_sploded_pair ~l "di8" (read_u8 p) (fun _l b p ->
+      make_pair (to_i8 b) p)
 
   let du8 () _ _ l p =
-    E.with_sploded_pair ~l "du8" (read_byte p) (fun _l b p ->
-      make_pair (u8_of_byte b) p)
+    E.with_sploded_pair ~l "du8" (read_u8 p) (fun _l b p ->
+      make_pair b p)
 
   let di16 () _ _ l p =
-    E.with_sploded_pair ~l "di16" (read_word LittleEndian p) (fun _l w p ->
-      make_pair (to_i16 (u16_of_word w)) p)
+    E.with_sploded_pair ~l "di16" (read_u16 LittleEndian p) (fun _l w p ->
+      make_pair (to_i16 w) p)
 
   let du16 () _ _ l p =
-    E.with_sploded_pair ~l "du16" (read_word LittleEndian p) (fun _l w p ->
-      make_pair (u16_of_word w) p)
+    E.with_sploded_pair ~l "du16" (read_u16 LittleEndian p) (fun _l w p ->
+      make_pair w p)
 
   let di24 () _ _ l p =
-    E.with_sploded_pair ~l "di24" (read_dword LittleEndian p) (fun _l w p ->
-      make_pair (to_i24 (u32_of_dword w)) p)
+    E.with_sploded_pair ~l "di24" (read_u32 LittleEndian p) (fun _l w p ->
+      make_pair (to_i24 w) p)
 
   let du24 () _ _ l p =
-    E.with_sploded_pair ~l "du24" (read_dword LittleEndian p) (fun _l w p ->
-      make_pair (to_u24 (u32_of_dword w)) p)
+    E.with_sploded_pair ~l "du24" (read_u32 LittleEndian p) (fun _l w p ->
+      make_pair (to_u24 w) p)
 
   let di32 () _ _ l p =
-    E.with_sploded_pair ~l "di32" (read_dword LittleEndian p) (fun _l w p ->
-      make_pair (to_i32 (u32_of_dword w)) p)
+    E.with_sploded_pair ~l "di32" (read_u32 LittleEndian p) (fun _l w p ->
+      make_pair (to_i32 w) p)
 
   let du32 () _ _ l p =
-    E.with_sploded_pair ~l "du32" (read_dword LittleEndian p) (fun _l w p ->
-      make_pair (u32_of_dword w) p)
+    E.with_sploded_pair ~l "du32" (read_u32 LittleEndian p) (fun _l w p ->
+      make_pair w p)
 
   let di40 () _ _ l p =
-    E.with_sploded_pair ~l "di40" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_i40 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "di40" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_i40 w) p)
 
   let du40 () _ _ l p =
-    E.with_sploded_pair ~l "du40" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_u40 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "du40" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_u40 w) p)
 
   let di48 () _ _ l p =
-    E.with_sploded_pair ~l "di48" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_i48 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "di48" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_i48 w) p)
 
   let du48 () _ _ l p =
-    E.with_sploded_pair ~l "du48" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_u48 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "du48" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_u48 w) p)
 
   let di56 () _ _ l p =
-    E.with_sploded_pair ~l "di56" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_i56 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "di56" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_i56 w) p)
 
   let du56 () _ _ l p =
-    E.with_sploded_pair ~l "du56" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_u56 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "du56" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_u56 w) p)
 
   let di64 () _ _ l p =
-    E.with_sploded_pair ~l "di64" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (to_i64 (u64_of_qword w)) p)
+    E.with_sploded_pair ~l "di64" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair (to_i64 w) p)
 
   let du64 () _ _ l p =
-    E.with_sploded_pair ~l "du64" (read_qword LittleEndian p) (fun _l w p ->
-      make_pair (u64_of_qword w) p)
+    E.with_sploded_pair ~l "du64" (read_u64 LittleEndian p) (fun _l w p ->
+      make_pair w p)
 
   let di128 () _ _ l p =
-    E.with_sploded_pair ~l "di128" (read_oword LittleEndian p) (fun _l w p ->
-      make_pair (to_i128 (u128_of_oword w)) p)
+    E.with_sploded_pair ~l "di128" (read_u128 LittleEndian p) (fun _l w p ->
+      make_pair (to_i128 w) p)
 
   let du128 () _ _ l p =
-    E.with_sploded_pair ~l "di128" (read_oword LittleEndian p) (fun _l w p ->
-      make_pair (u128_of_oword w) p)
+    E.with_sploded_pair ~l "di128" (read_u128 LittleEndian p) (fun _l w p ->
+      make_pair w p)
 
   (* Items of a tuples are just concatenated together: *)
   let tup_opn () _ _ _ _ p = p
@@ -368,7 +367,7 @@ struct
    * interpreted as a separate value. If 0, the value after the byte is not
    * NULL." *)
   let is_null () _ _ _ p =
-    eq (peek_byte p (size 0)) (byte Uint8.one)
+    eq (peek_u8 p (size 0)) (u8_of_int 1)
 
   let dnull _t () _ _ _ p =
     ptr_add p (size 1)

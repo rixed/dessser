@@ -211,7 +211,7 @@ struct
     | None ->
         p
     | Some c ->
-        write_byte p (byte_of_const_char c)
+        write_u8 p (u8_of_const_char c)
 
   type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
@@ -219,12 +219,12 @@ struct
     write_bytes p (bytes_of_string (string_of_float_ v))
 
   let sbytes_quoted conf _l v p =
-    let quote_byte = byte_of_const_char (Option.get conf.quote) in
+    let quote_byte = u8_of_const_char (Option.get conf.quote) in
     (* Quote systematically: *)
-    let p = write_byte p quote_byte in
+    let p = write_u8 p quote_byte in
     (* FIXME: escape double quotes: *)
     let p = write_bytes p v in
-    write_byte p quote_byte
+    write_u8 p quote_byte
 
   let sbytes _conf _l v p =
     (* FIXME: escape separator/newline: *)
@@ -240,7 +240,7 @@ struct
   let schar conf mn0 path l v p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
       comment "char in a FixedString"
-        (write_byte p (byte_of_char v))
+        (write_u8 p (u8_of_char v))
     else
       (if conf.quote = None then sbytes else sbytes_quoted)
         conf l (bytes_of_string (string_of_char v)) p
@@ -273,7 +273,7 @@ struct
   let su128 = si
 
   let sep conf _l p =
-    write_byte p (byte_of_const_char conf.separator)
+    write_u8 p (u8_of_const_char conf.separator)
 
   let tup_opn _conf _ _ _ _ p = p
 
@@ -298,29 +298,29 @@ struct
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
-      | Some q -> write_byte p (byte_of_const_char q)
+      | Some q -> write_u8 p (u8_of_const_char q)
     else if not conf.clickhouse_syntax then p
     else
       (* FIXME: we are supposed to switch to clickhouse's TSV from now on. *)
       (* Use mn0 and path to find out if opening that string is required *)
-      let p = write_byte p (byte_of_const_char '"') in
-      write_byte p (byte_of_const_char '[')
+      let p = write_u8 p (u8_of_const_char '"') in
+      write_u8 p (u8_of_const_char '[')
 
   let vec_cls conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
-      | Some q -> write_byte p (byte_of_const_char q)
+      | Some q -> write_u8 p (u8_of_const_char q)
     else if not conf.clickhouse_syntax then p
     else
       (* Use mn0 and path to find out if opening that string is required *)
-      let p = write_byte p (byte_of_const_char ']') in
-      write_byte p (byte_of_const_char '"')
+      let p = write_u8 p (u8_of_const_char ']') in
+      write_u8 p (u8_of_const_char '"')
 
   let vec_sep conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
     if not conf.clickhouse_syntax then sep conf l p else
-    write_byte p (byte_of_const_char ',')
+    write_u8 p (u8_of_const_char ',')
 
   (* Lists are prefixed with a column or their length: *)
   let list_opn conf mn0 path t n l p =
@@ -405,13 +405,13 @@ struct
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
     if debug then
-      seq [ assert_ (eq (peek_byte p (size 0)) b) ;
+      seq [ assert_ (eq (peek_u8 p (size 0)) b) ;
             skip 1 p ]
     else
       skip 1 p
 
   let skip_char c p =
-    skip_byte (byte_of_const_char c) p
+    skip_byte (u8_of_const_char c) p
 
   let skip_sep conf p =
     skip_char conf.separator p
@@ -444,26 +444,26 @@ struct
     (* TODO: find out where is the first distinct char of true and false (that
      * may not be in position 0) and test only that one *)
     assert (String.length conf.true_ > 0) ;
-    if_ (eq (peek_byte p (size 0)) (byte_of_const_char (conf.true_.[0])))
+    if_ (eq (peek_u8 p (size 0)) (u8_of_const_char (conf.true_.[0])))
       ~then_:(make_pair true_ (skip (String.length conf.true_) p))
       ~else_:(make_pair false_ (skip (String.length conf.false_) p))
 
   let is_sep_or_newline conf _l b =
-    let sep_byte = byte_of_const_char conf.separator in
+    let sep_byte = u8_of_const_char conf.separator in
     match conf.newline with
     | None ->
         eq b sep_byte
     | Some c ->
         or_ (eq b sep_byte)
-            (eq b (byte_of_const_char c))
+            (eq b (u8_of_const_char c))
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes_quoted conf op l p =
     (* Skip the double-quote: *)
-    let quote_byte = byte_of_const_char (Option.get conf.quote) in
+    let quote_byte = u8_of_const_char (Option.get conf.quote) in
     let_ ~name:"had_quote" ~l
       (and_ (ge (rem_size p) (size 2))
-            (eq (peek_byte p (size 0)) quote_byte))
+            (eq (peek_u8 p (size 0)) quote_byte))
       (fun l had_quote ->
         let init_p =
           if_ had_quote
@@ -475,7 +475,7 @@ struct
             let sz = get_ref sz_ref in
             seq [
               while_
-                (E.with_sploded_pair ~l "dbytes_quoted" (read_byte p)
+                (E.with_sploded_pair ~l "dbytes_quoted" (read_u8 p)
                                      (fun l b p' ->
                   seq [
                     set_ref p_ref p' ;
@@ -498,7 +498,7 @@ struct
         let sz = get_ref sz_ref in
         seq [
           while_
-            (E.with_sploded_pair ~l "dbytes" (read_byte p) (fun l b p' ->
+            (E.with_sploded_pair ~l "dbytes" (read_u8 p) (fun l b p' ->
               seq [
                 set_ref p_ref p' ;
                 (* Read up to next double-quote or separator/newline *)
@@ -514,8 +514,8 @@ struct
   (* Chars are encoded as single char strings (unless part of a FixedString) *)
   let dchar conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
-      E.with_sploded_pair ~l "dchar" (read_byte p) (fun _l b p ->
-        make_pair (char_of_byte b) p)
+      E.with_sploded_pair ~l "dchar" (read_u8 p) (fun _l b p ->
+        make_pair (char_of_u8 b) p)
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
         conf (fun e ->
@@ -601,7 +601,7 @@ struct
         (fun _ _ _ _ p -> p),
         (fun _mn0 _path _l p ->
           (* Won't work for nested compound types: *)
-          (eq (peek_byte p (size 0)) (byte_of_const_char ']'))))
+          (eq (peek_u8 p (size 0)) (u8_of_const_char ']'))))
 
   let list_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
@@ -617,13 +617,13 @@ struct
       if i >= len then
         comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
-               (let_ ~l ~name:"b" (peek_byte p (size len)) (fun _l b ->
+               (let_ ~l ~name:"b" (peek_u8 p (size len)) (fun _l b ->
                  is_sep_or_newline conf l b)))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)
-            (let b = byte (Uint8.of_int (Char.code conf.null.[i])) in
-             eq (peek_byte p (size i)) b))
+            (let b = u8_of_const_char conf.null.[i] in
+             eq (peek_u8 p (size i)) b))
           (loop (i + 1))
     in
     (* Note: avoids a warning when comparing size >= len if len is 0: *)

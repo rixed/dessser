@@ -36,7 +36,7 @@ struct
     | None ->
         p
     | Some c ->
-        write_byte p (byte_of_const_char c)
+        write_u8 p (u8_of_const_char c)
 
   type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
@@ -44,17 +44,17 @@ struct
     write_bytes p (bytes_of_string (string_of_float_ v))
 
   let sbytes _l v p =
-    let quo = byte_of_const_char '"' in
-    let p = write_byte p quo in
+    let quo = u8_of_const_char '"' in
+    let p = write_u8 p quo in
     (* FIXME: escape double quotes: *)
     let p = write_bytes p v in
-    write_byte p quo
+    write_u8 p quo
 
   let sstring _conf _ _ l v p = sbytes l (bytes_of_string v) p
   let schar _conf _ _ l v p = sbytes l (bytes_of_string (string_of_char v)) p
 
   let sbool _conf _ _ _ v p =
-    write_byte p (if_ v (byte_of_const_char 'T') (byte_of_const_char 'F'))
+    write_u8 p (if_ v (u8_of_const_char 'T') (u8_of_const_char 'F'))
 
   let si _conf _ _ _ v p =
     write_bytes p (bytes_of_string (string_of_int_ v))
@@ -80,22 +80,22 @@ struct
 
   (* Could also write the field names with the value in a pair... *)
   let tup_opn _conf _ _ _ _ p =
-    write_byte p (byte_of_const_char '(')
+    write_u8 p (u8_of_const_char '(')
 
   let tup_cls _conf _ _ _ p =
-    write_byte p (byte_of_const_char ')')
+    write_u8 p (u8_of_const_char ')')
 
   let tup_sep _conf _ _ _ p =
-    write_byte p (byte_of_const_char ' ')
+    write_u8 p (u8_of_const_char ' ')
 
   let rec_opn _conf _ _ _ _ p =
-    write_byte p (byte_of_const_char '(')
+    write_u8 p (u8_of_const_char '(')
 
   let rec_cls _conf _ _ _ p =
-    write_byte p (byte_of_const_char ')')
+    write_u8 p (u8_of_const_char ')')
 
   let rec_sep _conf _ _ _ p =
-    write_byte p (byte_of_const_char ' ')
+    write_u8 p (u8_of_const_char ' ')
 
   let sum_opn st mn0 path mos lbl l p =
     let p = tup_opn st mn0 path mos l p in
@@ -106,13 +106,13 @@ struct
     tup_cls st mn0 path l p
 
   let vec_opn _conf _ _ _ _ _ p =
-    write_byte p (byte_of_const_char '(')
+    write_u8 p (u8_of_const_char '(')
 
   let vec_cls _conf _ _ _ p =
-    write_byte p (byte_of_const_char ')')
+    write_u8 p (u8_of_const_char ')')
 
   let vec_sep _conf _ _ _ p =
-    write_byte p (byte_of_const_char ' ')
+    write_u8 p (u8_of_const_char ' ')
 
   let list_opn conf mn0 path _ n l p =
     let p =
@@ -120,23 +120,23 @@ struct
         match n with
         | Some n ->
             let p = su32 conf mn0 path l n p in
-            write_byte p (byte_of_const_char ' ')
+            write_u8 p (u8_of_const_char ' ')
         | None ->
             failwith "SExpr.Ser needs list length upfront"
       else
         p in
-    write_byte p (byte_of_const_char '(')
+    write_u8 p (u8_of_const_char '(')
 
   let list_cls _conf _ _ _ p =
-    write_byte p (byte_of_const_char ')')
+    write_u8 p (u8_of_const_char ')')
 
   let list_sep _conf _ _ _ p =
-    write_byte p (byte_of_const_char ' ')
+    write_u8 p (u8_of_const_char ' ')
 
   let nullable _conf _ _ _ p = p
 
   let snull _t _conf _ _ _ p =
-    write_dword LittleEndian p (dword (Uint32.of_int32 0x6c_6c_75_6el))
+    write_u32 LittleEndian p (u32 (Uint32.of_int32 0x6c_6c_75_6el))
 
   let snotnull _t _conf _ _ _ p = p
 
@@ -243,13 +243,13 @@ struct
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
     if debug then
-      seq [ assert_ (eq (peek_byte p (size 0)) b) ;
+      seq [ assert_ (eq (peek_u8 p (size 0)) b) ;
             skip1 p ]
     else
       skip1 p
 
   let skip_char c p =
-    skip_byte (byte_of_const_char c) p
+    skip_byte (u8_of_const_char c) p
 
   let stop conf _ p =
     match conf.newline with
@@ -270,8 +270,8 @@ struct
     float_of_ptr p
 
   let dbool _conf _ _ l p =
-    E.with_sploded_pair ~l "dbool" (read_byte p) (fun _l b p ->
-      make_pair (eq b (byte_of_const_char 'T')) p)
+    E.with_sploded_pair ~l "dbool" (read_u8 p) (fun _l b p ->
+      make_pair (eq b (u8_of_const_char 'T')) p)
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes conv l p =
@@ -284,15 +284,15 @@ struct
       let str = get_ref str_ref in
       let_ ~name:"p_ref" ~l (make_ref p) (fun l p_ref ->
         let p = get_ref p_ref in
-        let_ ~name:"b_ref" ~l (make_ref (byte_of_int 0)) (fun l b_ref ->
+        let_ ~name:"b_ref" ~l (make_ref (u8_of_int 0)) (fun l b_ref ->
           let b = get_ref b_ref in
           seq [
             while_
-              (E.with_sploded_pair ~l "dbytes" (read_byte p) (fun _l b' p' ->
+              (E.with_sploded_pair ~l "dbytes" (read_u8 p) (fun _l b' p' ->
                 seq [
                   set_ref p_ref p' ;
                   set_ref b_ref b' ;
-                  ne b' (byte_of_const_char '"') ]))
+                  ne b' (u8_of_const_char '"') ]))
               (set_ref str_ref (append_byte str b)) ;
             make_pair (conv str) p ])))
 
@@ -360,7 +360,7 @@ struct
       UnknownSize (
         (fun _ _ _ _ p -> skip1 p),
         (fun _ _ _ p ->
-          eq (peek_byte p (size 0)) (byte_of_const_char ')')))
+          eq (peek_u8 p (size 0)) (u8_of_const_char ')')))
 
   let list_cls _conf _ _ _ p = skip1 p
 
@@ -368,14 +368,14 @@ struct
 
   let is_null _conf _ _ l p =
     (* null *)
-    and_ (and_ (eq (peek_byte p (size 0)) (byte (Uint8.of_int 0x6e)))
-               (and_ (eq (peek_byte p (size 1)) (byte (Uint8.of_int 0x75)))
-                     (and_ (eq (peek_byte p (size 2)) (byte (Uint8.of_int 0x6c)))
-                           (eq (peek_byte p (size 3)) (byte (Uint8.of_int 0x6c))))))
+    and_ (and_ (eq (peek_u8 p (size 0)) (u8_of_int 0x6e))
+               (and_ (eq (peek_u8 p (size 1)) (u8_of_int 0x75))
+                     (and_ (eq (peek_u8 p (size 2)) (u8_of_int 0x6c))
+                           (eq (peek_u8 p (size 3)) (u8_of_int 0x6c)))))
          (or_ (eq (rem_size p) (size 4))
-              (let_ ~name:"b" ~l (peek_byte p (size 4)) (fun _l b ->
-                or_ (eq b (byte_of_const_char ' '))
-                    (eq b (byte_of_const_char ')')))))
+              (let_ ~name:"b" ~l (peek_u8 p (size 4)) (fun _l b ->
+                or_ (eq b (u8_of_const_char ' '))
+                    (eq b (u8_of_const_char ')')))))
 
   let dnull _t _conf _ _ _ p = skip 4 p
 

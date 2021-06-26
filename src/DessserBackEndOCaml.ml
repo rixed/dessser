@@ -305,12 +305,6 @@ struct
     | Ptr -> "Pointer.t"
     | Size -> "Size.t"
     | Address -> "Uint64.t"
-    | Bit -> "bool"
-    | Byte -> "Uint8.t"
-    | Word -> "Uint16.t"
-    | DWord -> "Uint32.t"
-    | QWord -> "Uint64.t"
-    | OWord -> "Uint128.t"
     | Bytes -> "Slice.t"
     | Pair (mn1, mn2) ->
         "("^ type_identifier_mn p mn1 ^" * "^ type_identifier_mn p mn2 ^")"
@@ -324,7 +318,6 @@ struct
             String.print oc (type_identifier_mn p mn))
         ) args ^" -> "^ type_identifier_mn p ret ^")"
     | Mask -> "DessserMasks.t"
-    | Ref mn -> type_identifier_mn p mn ^" ref"
 
   let rec mod_name = function
     | T.{ typ = Base Char ; nullable = false } -> "Char"
@@ -354,12 +347,6 @@ struct
     | { typ = Ptr ; nullable = false } -> "Pointer"
     | { typ = Size ; nullable = false } -> "Size"
     | { typ = Address ; nullable = false } -> "Uint64"
-    | { typ = Bit ; nullable = false } -> "Bool"
-    | { typ = Byte ; nullable = false } -> "Uint8"
-    | { typ = Word ; nullable = false } -> "Uint16"
-    | { typ = DWord ; nullable = false } -> "Uint32"
-    | { typ = QWord ; nullable = false } -> "Uint64"
-    | { typ = OWord ; nullable = false } -> "Uint128"
     | { typ = Bytes ; nullable = false } -> "Slice"
     | t ->
         Printf.sprintf2 "No module implementing %a"
@@ -367,8 +354,7 @@ struct
         invalid_arg
 
   let rec num_name = function
-    | T.{ typ = (Byte | Word | DWord | QWord | OWord |
-                 Base (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
+    | T.{ typ = (Base (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
                        U40 | I40 | U48 | I48 | U56 | I56 | U64 | I64 |
                        U128 | I128 | Float)) ;
           nullable = false } as mn ->
@@ -664,17 +650,17 @@ struct
         emit ?name p l e (fun oc -> pp oc "()")
     | E.E0 (String s) ->
         emit ?name p l e (preallocate String.print_quoted s)
-    | E.E0 (Bit b) | E.E0 (Bool b) ->
+    | E.E0 (Bool b) ->
         emit ?name p l e (fun oc -> Bool.print oc b)
     | E.E0 (Char c) ->
         emit ?name p l e (fun oc -> pp oc "%C" c)
-    | E.E0 (Byte i) | E.E0 (U8 i) ->
+    | E.E0 (U8 i) ->
         emit ?name p l e (fun oc -> pp oc "Uint8.of_int (%s)" (Uint8.to_string i))
-    | E.E0 (Word i) | E.E0 (U16 i) ->
+    | E.E0 (U16 i) ->
         emit ?name p l e (fun oc -> pp oc "Uint16.of_int (%s)" (Uint16.to_string i))
     | E.E0 (U24 i) ->
         emit ?name p l e (fun oc -> pp oc "Uint24.of_int (%s)" (Uint24.to_string i))
-    | E.E0 (DWord u) | E.E0 (U32 u) ->
+    | E.E0 (U32 u) ->
         emit ?name p l e (preallocate lift_u32 u)
     | E.E0 (U40 u) ->
         emit ?name p l e (preallocate lift_u40 u)
@@ -682,9 +668,9 @@ struct
         emit ?name p l e (preallocate lift_u48 u)
     | E.E0 (U56 u) ->
         emit ?name p l e (preallocate lift_u56 u)
-    | E.E0 (QWord u) | E.E0 (U64 u) ->
+    | E.E0 (U64 u) ->
         emit ?name p l e (preallocate lift_u64 u)
-    | E.E0 (OWord u) | E.E0 (U128 u) ->
+    | E.E0 (U128 u) ->
         emit ?name p l e (preallocate lift_u128 u)
     | E.E0 (Bytes s) ->
         emit ?name p l e (fun oc -> pp oc "Slice.of_string %S" (Bytes.to_string s))
@@ -859,7 +845,7 @@ struct
         let n = print p l e1 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          pp oc "Char.chr (Uint8.to_int (%s.peekByte %s)), %s.skip %s 1"
+          pp oc "Char.chr (Uint8.to_int (%s.peekU8 %s)), %s.skip %s 1"
             m n m n)
     | E.E1 (FloatOfPtr, e1) ->
         let n1 = print p l e1 in
@@ -927,11 +913,11 @@ struct
             pp oc "%slet n_, o_ = %s.of_substring ~pos:(snd %s) s_ in\n"
               p.P.indent m n1 ;
             pp oc "%sn_, %s.skip %s (o_ - snd %s)" p.P.indent m1 n1 n1))
-    | E.E1 (FloatOfQWord, e1) ->
+    | E.E1 (FloatOfU64, e1) ->
         let n = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "BatInt64.float_of_bits (Uint64.to_int64 %s)" n)
-    | E.E1 (QWordOfFloat, e1) ->
+    | E.E1 (U64OfFloat, e1) ->
         let n = print p l e1 in
         emit ?name p l e (fun oc ->
           pp oc "Uint64.of_int64 (BatInt64.bits_of_float %s)" n)
@@ -939,12 +925,6 @@ struct
         unary_op "DessserFloatTools.hexstring_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         unary_op "string_of_char" e1
-    | E.E1 (ByteOfU8, e1) | E.E1 (U8OfByte, e1)
-    | E.E1 (WordOfU16, e1) | E.E1 (U16OfWord, e1)
-    | E.E1 (U32OfDWord, e1) | E.E1 (DWordOfU32, e1)
-    | E.E1 (U64OfQWord, e1) | E.E1 (QWordOfU64, e1)
-    | E.E1 (U128OfOWord, e1) | E.E1 (OWordOfU128, e1)
-    | E.E1 (BitOfBool, e1) | E.E1 (BoolOfBit, e1)
     | E.E1 (ListOfVec, e1) ->
         (* Those are NOPs *)
         print ?name p l e1
@@ -1057,98 +1037,98 @@ struct
         and n3 = print p l e3
         and m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s) <- %s" n2 m n1 n3)
-    | E.E1 (ReadByte, e1) ->
+    | E.E1 (ReadU8, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readByte") e1
-    | E.E1 (ReadWord LittleEndian, e1) ->
+        unary_op (m ^".readU8") e1
+    | E.E1 (ReadU16 LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readWordLittle") e1
-    | E.E1 (ReadWord BigEndian, e1) ->
+        unary_op (m ^".readU16Little") e1
+    | E.E1 (ReadU16 BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readWordBig") e1
-    | E.E1 (ReadDWord LittleEndian, e1) ->
+        unary_op (m ^".readU16Big") e1
+    | E.E1 (ReadU32 LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readDWordLittle") e1
-    | E.E1 (ReadDWord BigEndian, e1) ->
+        unary_op (m ^".readU32Little") e1
+    | E.E1 (ReadU32 BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readDWordBig") e1
-    | E.E1 (ReadQWord LittleEndian, e1) ->
+        unary_op (m ^".readU32Big") e1
+    | E.E1 (ReadU64 LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readQWordLittle") e1
-    | E.E1 (ReadQWord BigEndian, e1) ->
+        unary_op (m ^".readU64Little") e1
+    | E.E1 (ReadU64 BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readQWordBig") e1
-    | E.E1 (ReadOWord LittleEndian, e1) ->
+        unary_op (m ^".readU64Big") e1
+    | E.E1 (ReadU128 LittleEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readOWordLittle") e1
-    | E.E1 (ReadOWord BigEndian, e1) ->
+        unary_op (m ^".readU128Little") e1
+    | E.E1 (ReadU128 BigEndian, e1) ->
         let m = mod_name (E.type_of l e1) in
-        unary_op (m ^".readOWordBig") e1
+        unary_op (m ^".readU128Big") e1
     | E.E2 (ReadBytes, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".readBytes") e1 e2
-    | E.E2 (PeekByte, e1, e2) ->
+    | E.E2 (PeekU8, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekByte") e1 e2
-    | E.E2 (PeekWord LittleEndian, e1, e2) ->
+        binary_op (m ^".peekU8") e1 e2
+    | E.E2 (PeekU16 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekWordLittle") e1 e2
-    | E.E2 (PeekWord BigEndian, e1, e2) ->
+        binary_op (m ^".peekU16Little") e1 e2
+    | E.E2 (PeekU16 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekWordBig") e1 e2
-    | E.E2 (PeekDWord LittleEndian, e1, e2) ->
+        binary_op (m ^".peekU16Big") e1 e2
+    | E.E2 (PeekU32 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekDWordLittle") e1 e2
-    | E.E2 (PeekDWord BigEndian, e1, e2) ->
+        binary_op (m ^".peekU32Little") e1 e2
+    | E.E2 (PeekU32 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekDWordBig") e1 e2
-    | E.E2 (PeekQWord LittleEndian, e1, e2) ->
+        binary_op (m ^".peekU32Big") e1 e2
+    | E.E2 (PeekU64 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekQWordLittle") e1 e2
-    | E.E2 (PeekQWord BigEndian, e1, e2) ->
+        binary_op (m ^".peekU64Little") e1 e2
+    | E.E2 (PeekU64 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekQWordBig") e1 e2
-    | E.E2 (PeekOWord LittleEndian, e1, e2) ->
+        binary_op (m ^".peekU64Big") e1 e2
+    | E.E2 (PeekU128 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekOWordLittle") e1 e2
-    | E.E2 (PeekOWord BigEndian, e1, e2) ->
+        binary_op (m ^".peekU128Little") e1 e2
+    | E.E2 (PeekU128 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".peekOWordBig") e1 e2
-    | E.E2 (WriteByte, e1, e2) ->
+        binary_op (m ^".peekU128Big") e1 e2
+    | E.E2 (WriteU8, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeByte") e1 e2
-    | E.E2 (WriteWord LittleEndian, e1, e2) ->
+        binary_op (m ^".writeU8") e1 e2
+    | E.E2 (WriteU16 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeWordLittle") e1 e2
-    | E.E2 (WriteWord BigEndian, e1, e2) ->
+        binary_op (m ^".writeU16Little") e1 e2
+    | E.E2 (WriteU16 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeWordBig") e1 e2
-    | E.E2 (WriteDWord LittleEndian, e1, e2) ->
+        binary_op (m ^".writeU16Big") e1 e2
+    | E.E2 (WriteU32 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeDWordLittle") e1 e2
-    | E.E2 (WriteDWord BigEndian, e1, e2) ->
+        binary_op (m ^".writeU32Little") e1 e2
+    | E.E2 (WriteU32 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeDWordBig") e1 e2
-    | E.E2 (WriteQWord LittleEndian, e1, e2) ->
+        binary_op (m ^".writeU32Big") e1 e2
+    | E.E2 (WriteU64 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeQWordLittle") e1 e2
-    | E.E2 (WriteQWord BigEndian, e1, e2) ->
+        binary_op (m ^".writeU64Little") e1 e2
+    | E.E2 (WriteU64 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeQWordBig") e1 e2
-    | E.E2 (WriteOWord LittleEndian, e1, e2) ->
+        binary_op (m ^".writeU64Big") e1 e2
+    | E.E2 (WriteU128 LittleEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeOWordLittle") e1 e2
-    | E.E2 (WriteOWord BigEndian, e1, e2) ->
+        binary_op (m ^".writeU128Little") e1 e2
+    | E.E2 (WriteU128 BigEndian, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
-        binary_op (m ^".writeOWordBig") e1 e2
+        binary_op (m ^".writeU128Big") e1 e2
     | E.E2 (WriteBytes, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".writeBytes") e1 e2
-    | E.E2 (PokeByte, e1, e2) ->
+    | E.E2 (PokeU8, e1, e2) ->
         let ptr = print ?name p l e1
         and v = print p l e2 in
         let m = mod_name (E.type_of l e1) in
-        ppi p.P.def "%s.pokeByte %s %s;" m ptr v ;
+        ppi p.P.def "%s.pokeU8 %s %s;" m ptr v ;
         ptr
     | E.E3 (BlitByte, e1, e2, e3) ->
         let m = mod_name (E.type_of l e1) in
@@ -1259,14 +1239,6 @@ struct
         let n1 = print p l e1
         and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
-    | E.E1 (MakeRef, e1) ->
-        let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "ref %s" n1)
-    | E.E1 (GetRef, e1) ->
-        let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "!%s" n1)
-    | E.E2 (SetRef, e1, e2) ->
-        binary_infix_op e1 ":=" e2
     | E.E1 (Fst, e1) ->
         unary_op "fst" e1
     | E.E1 (Snd, e1) ->

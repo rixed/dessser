@@ -386,165 +386,165 @@ struct
   let offset (_, o) =
     Size.of_int o
 
-  let peekByte (p, o) at =
+  let peekU8 (p, o) at =
     check_input_length (o + at + 1) p.stop ;
     p.impl.peek1 (o + at)
 
-  let peekWordLittle (p, o) at =
+  let peekU16Little (p, o) at =
     check_input_length (o + at + 2) p.stop ;
     p.impl.peek2_le (o + at)
 
-  let peekWordBig (p, o) at =
+  let peekU16Big (p, o) at =
     check_input_length (o + at + 2) p.stop ;
     p.impl.peek2_be (o + at)
 
-  let peekDWordLittle (p, o) at =
+  let peekU32Little (p, o) at =
     check_input_length (o + at + 4) p.stop ;
     p.impl.peek4_le (o + at)
 
-  let peekDWordBig (p, o) at =
+  let peekU32Big (p, o) at =
     check_input_length (o + at + 4) p.stop ;
     p.impl.peek4_be (o + at)
 
-  let peekQWordLittle (p, o) at =
+  let peekU64Little (p, o) at =
     check_input_length (o + at + 8) p.stop ;
     p.impl.peek8_le (o + at)
 
-  let peekQWordBig (p, o) at =
+  let peekU64Big (p, o) at =
     check_input_length (o + at + 8) p.stop ;
     p.impl.peek8_be (o + at)
 
-  let peekOWordLittle (p, o) at =
+  let peekU128Little (p, o) at =
     check_input_length (o + at + 8) p.stop ;
     p.impl.peek16_le (o + at)
 
-  let peekOWordBig (p, o) at =
+  let peekU128Big (p, o) at =
     check_input_length (o + at + 8) p.stop ;
     p.impl.peek16_be (o + at)
 
   let getBit p_o bi =
-    let b = peekByte p_o (bi/8) in
+    let b = peekU8 p_o (bi/8) in
     Uint8.(compare one (logand (shift_right_logical b (bi mod 8)) one) = 0)
 
-  let readByte p_o =
-    peekByte p_o 0, skip p_o 1
+  let readU8 p_o =
+    peekU8 p_o 0, skip p_o 1
 
-  let readWordLittle p_o =
-    peekWordLittle p_o 0, skip p_o 2
+  let readU16Little p_o =
+    peekU16Little p_o 0, skip p_o 2
 
-  let readWordBig p_o =
-    peekWordBig p_o 0, skip p_o 2
+  let readU16Big p_o =
+    peekU16Big p_o 0, skip p_o 2
 
-  let readDWordLittle p_o =
-    peekDWordLittle p_o 0, skip p_o 4
+  let readU32Little p_o =
+    peekU32Little p_o 0, skip p_o 4
 
-  let readDWordBig p_o =
-    peekDWordBig p_o 0, skip p_o 4
+  let readU32Big p_o =
+    peekU32Big p_o 0, skip p_o 4
 
-  let readQWordLittle p_o =
-    peekQWordLittle p_o 0, skip p_o 8
+  let readU64Little p_o =
+    peekU64Little p_o 0, skip p_o 8
 
-  let readQWordBig p_o =
-    peekQWordBig p_o 0, skip p_o 8
+  let readU64Big p_o =
+    peekU64Big p_o 0, skip p_o 8
 
-  let readOWordLittle p_o =
-    peekOWordLittle p_o 0, skip p_o 16
+  let readU128Little p_o =
+    peekU128Little p_o 0, skip p_o 16
 
-  let readOWordBig p_o =
-    peekOWordBig p_o 0, skip p_o 16
+  let readU128Big p_o =
+    peekU128Big p_o 0, skip p_o 16
 
   let readBytes (p, o) sz =
     check_input_length (o + sz) p.stop ;
     p.impl.peekn o sz,
     (p, o + sz)
 
-  let pokeByte (p, o) v =
+  let pokeU8 (p, o) v =
     check_input_length (o + 1) p.stop ;
     p.impl.poke1 o v
 
-  let pokeWordLittle (p, o) v =
+  let pokeU16Little (p, o) v =
     check_input_length (o + 2) p.stop ;
     if debug then
       Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
     p.impl.poke2_le o v
 
-  let pokeWordBig (p, o) v =
+  let pokeU16Big (p, o) v =
     check_input_length (o + 2) p.stop ;
     if debug then
       Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
     p.impl.poke2_be o v
 
-  let pokeDWordLittle (p, o) v =
+  let pokeU32Little (p, o) v =
     check_input_length (o + 4) p.stop ;
     if debug then
-      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
+      Printf.eprintf "Poke U32 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
     p.impl.poke4_le o v
 
-  let pokeDWordBig (p, o) v =
+  let pokeU32Big (p, o) v =
     check_input_length (o + 4) p.stop ;
     if debug then
-      Printf.eprintf "Poke DWord 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
+      Printf.eprintf "Poke U32 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
     p.impl.poke4_be o v
 
-  let pokeQWordLittle (p, o) v =
+  let pokeU64Little (p, o) v =
     check_input_length (o + 8) p.stop ;
     p.impl.poke8_le o v
 
-  let pokeQWordBig (p, o) v =
+  let pokeU64Big (p, o) v =
     check_input_length (o + 8) p.stop ;
     p.impl.poke8_be o v
 
-  let pokeOWordLittle (p, o) v =
+  let pokeU128Little (p, o) v =
     check_input_length (o + 16) p.stop ;
     p.impl.poke16_le o v
 
-  let pokeOWordBig (p, o) v =
+  let pokeU128Big (p, o) v =
     check_input_length (o + 16) p.stop ;
     p.impl.poke16_be o v
 
   let setBit (p, o) bi v =
     let bit = Uint8.(shift_left one (bi mod 8)) in
     let o' = o + bi/8 in
-    let b = peekByte (p, o') 0 in
+    let b = peekU8 (p, o') 0 in
     let b =
       if v then Uint8.(logor b bit)
            else Uint8.(logand b (lognot bit)) in
-    pokeByte (p, o') b
+    pokeU8 (p, o') b
 
-  let writeByte p v =
-    pokeByte p v ;
+  let writeU8 p v =
+    pokeU8 p v ;
     skip p 1
 
-  let writeWordLittle p v =
-    pokeWordLittle p v ;
+  let writeU16Little p v =
+    pokeU16Little p v ;
     skip p 2
 
-  let writeWordBig p v =
-    pokeWordBig p v ;
+  let writeU16Big p v =
+    pokeU16Big p v ;
     skip p 2
 
-  let writeDWordLittle p v =
-    pokeDWordLittle p v ;
+  let writeU32Little p v =
+    pokeU32Little p v ;
     skip p 4
 
-  let writeDWordBig p v =
-    pokeDWordBig p v ;
+  let writeU32Big p v =
+    pokeU32Big p v ;
     skip p 4
 
-  let writeQWordLittle p v =
-    pokeQWordLittle p v ;
+  let writeU64Little p v =
+    pokeU64Little p v ;
     skip p 8
 
-  let writeQWordBig p v =
-    pokeQWordBig p v ;
+  let writeU64Big p v =
+    pokeU64Big p v ;
     skip p 8
 
-  let writeOWordLittle p v =
-    pokeOWordLittle p v ;
+  let writeU128Little p v =
+    pokeU128Little p v ;
     skip p 16
 
-  let writeOWordBig p v =
-    pokeOWordBig p v ;
+  let writeU128Big p v =
+    pokeU128Big p v ;
     skip p 16
 
   let writeBytes (p, o) v =
