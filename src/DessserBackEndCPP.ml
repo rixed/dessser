@@ -62,7 +62,19 @@ struct
     | _ ->
         false
 
-  let rec print_struct p oc id mns =
+  let rec print_tuple p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
+    let id = valid_identifier id in
+    ppi oc "typedef std::tuple<" ;
+    P.indent_more p (fun () ->
+      Array.iteri (fun i mn ->
+        let typ_id = type_identifier_mn p mn in
+        ppi oc "%s%s"
+          typ_id (if i < Array.length mns - 1 then "," else "")
+      ) mns) ;
+    ppi oc "> %s;\n" id
+
+  and print_struct p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s {" id ;
@@ -140,10 +152,8 @@ struct
     | Ext n ->
         P.get_external_type p n Cpp
     | Tup mns ->
-        (* FIXME: use std::tuple *)
-        let mns = Array.mapi (fun i vt -> tuple_field_name i, vt) mns in
         P.declared_type p t (fun oc type_id ->
-          print_struct p oc type_id mns) |>
+          print_tuple p oc type_id mns) |>
         valid_identifier
     | Rec mns ->
         P.declared_type p t (fun oc type_id ->
@@ -1100,7 +1110,7 @@ struct
     | E.E1 (GetItem n, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 (tuple_field_name n))
+          Printf.fprintf oc "std::get<%d>(%s)" n n1)
     | E.E1 (GetField s, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc ->
@@ -1300,6 +1310,7 @@ struct
       "#include <arpa/inet.h>\n\
        #include <functional>\n\
        #include <optional>\n\
+       #include <tuple>\n\
        #include <variant>\n\
        #include <vector>\n\
        #include \"dessser/runtime.h\"\n\
@@ -1319,6 +1330,7 @@ struct
        #include <iostream>\n\
        #include <optional>\n\
        #include <random>\n\
+       #include <tuple>\n\
        #include <utility>\n\
        #include <variant>\n\
        #include <vector>\n\
