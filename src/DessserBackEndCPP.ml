@@ -63,39 +63,40 @@ struct
         false
 
   let rec print_struct p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
-    pp oc "%sstruct %s {\n" p.P.indent id ;
+    ppi oc "struct %s {" id ;
     P.indent_more p (fun () ->
       Array.iter (fun (field_name, vt) ->
         let typ_id = type_identifier_mn p vt in
-        pp oc "%s%s %s;\n" p.P.indent typ_id (valid_identifier field_name)
+        ppi oc "%s %s;" typ_id (valid_identifier field_name)
       ) mns ;
       if cpp_std_version >= 20 then
-        pp oc "%sbool operator==(%s const &) const & = default;\n" p.P.indent id
+        ppi oc "bool operator==(%s const &) const & = default;" id
       else (
-        pp oc "%sbool operator==(%s const &other) const {\n" p.P.indent id ;
+        ppi oc "bool operator==(%s const &other) const {" id ;
         P.indent_more p (fun () ->
-          pp oc "%sreturn %a;\n"
-            p.P.indent
+          ppi oc "return %a;"
             (Array.print ~first:"" ~last:"" ~sep:" && "
               (fun oc (field_name, _) ->
                 let id = valid_identifier field_name in
                 Printf.fprintf oc "%s == other.%s" id id)) mns) ;
-        pp oc "%s}\n" p.P.indent
+        ppi oc "}"
       )) ;
-    pp oc "%s};\n\n" p.P.indent
+    ppi oc "};\n"
 
   and print_variant p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
-    pp oc "%stypedef std::variant<\n" p.P.indent ;
+    ppi oc "typedef std::variant<" ;
     P.indent_more p (fun () ->
       Array.iteri (fun i (_, mn) ->
         let typ_id = type_identifier_mn p mn in
-        pp oc "%s%s%s\n"
-          p.P.indent typ_id (if i < Array.length mns - 1 then "," else "")
+        ppi oc "%s%s"
+          typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
     ) ;
-    pp oc "%s> %s;\n\n" p.P.indent id
+    ppi oc "> %s;\n" id
 
   and type_identifier_mn p mn =
     if mn.T.nullable then
