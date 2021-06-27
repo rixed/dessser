@@ -64,7 +64,6 @@ type ext_identifier =
   | Method of { typ : string ; meth : type_method }
 
 type e0 =
-  | Void
   | Param of param_id
   (* Special identifier referencing the currently executing function.
    * Allows to encode recursive calls even though the name of the enclosing
@@ -484,7 +483,7 @@ and eq e1 e2 =
 let rec can_precompute f i = function
   | E0 (Now | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128) ->
       false
-  | E0 (Void | Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _
+  | E0 (Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Size _ | Address _
@@ -549,7 +548,7 @@ let rec default ?(allow_null=true) ?this t =
   | T.Unknown | This | Ext _ | Ptr | Address ->
       invalid_arg "default"
   | Void ->
-      E0 Void
+      E0S (Seq, [])
   | Base Float ->
       E0 (Float 0.)
   | Base String ->
@@ -666,7 +665,6 @@ let backend_of_string s =
   | _ -> invalid_arg ("backend_of_string: "^ s)
 
 let string_of_e0 = function
-  | Void -> ""
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
   | Myself mn -> "myself "^ String.quote (T.mn_to_string mn)
   | Null t -> "null "^ String.quote (T.to_string t)
@@ -1206,7 +1204,6 @@ struct
 
   let rec e = function
     (* e0 *)
-    | Lst [] -> E0 Void
     | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
         E0 (Param (int_of_string fid, int_of_string n))
     | Lst [ Sym "myself" ; Str mn ] ->
@@ -1259,6 +1256,7 @@ struct
     | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
     (* e0s *)
     | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
+    | Lst [] -> E0S (Seq, [])
     | Sym "nop" -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
     | Lst (Sym "make-lst" :: Str mn :: xs) ->
@@ -1709,7 +1707,6 @@ and type_of l e0 =
   | E0 RandomU64 -> T.u64
   | E0 RandomU128 -> T.u128
   | E0 (Float _) -> T.float
-  | E0 Void -> T.void
   | E0 (String _) -> T.string
   | E0 (Bool _) -> T.bool
   | E0 (Char _) -> T.char
@@ -2506,7 +2503,7 @@ let rec type_check l e =
     match e0 with
     | E0 (Null _ | Myself _ | EndOfList _ | EmptySet _ | Now
          | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128
-         | Void | Float _ | String _ | Bool _ | Char _
+         | Float _ | String _ | Bool _ | Char _
          | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
          | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
          | Size _ | Address _
@@ -2985,7 +2982,7 @@ let let_ ?name ~l value f =
   | E0 (Param _ | Identifier _)
   (* Also, if it's a constant then the optimizer will work better if it's
    * not hidden behind an identifier: *)
-  | E0 (Null _ | EndOfList _ | EmptySet _ | Void | Float _ | Bool _ | Char _
+  | E0 (Null _ | EndOfList _ | EmptySet _ | Float _ | Bool _ | Char _
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Size _ | Address _
@@ -3150,8 +3147,6 @@ struct
   let u128 n = E0 (U128 n)
 
   let char n = E0 (Char n)
-
-  let void = E0 Void
 
   let float n = E0 (Float n)
 
@@ -3518,6 +3513,8 @@ struct
 
   let nop = seq []
 
+  let void = nop
+
   let apply f es = E1S (Apply, f, es)
 
   let while_ cond body = E2 (While, cond, body)
@@ -3646,7 +3643,7 @@ struct
   (* It might be easier for users to accept also 0 or 1 expressions and turn
    * them into what's expected: *)
   let make_tup = function
-    | [] -> void
+    | [] -> nop
     | [ x ] -> x
     | es -> E0S (MakeTup, es)
 

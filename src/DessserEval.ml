@@ -177,10 +177,10 @@ let comp2 e1 e2 op_gen op_i128 op_u128 =
    * miss an optimisation opportunity than introduce a erroneous
    * optimisation: *)
   | E0 (Float _ | String _ | Bool _ | Char _ |
-        Null _ | EndOfList _ | EmptySet _ | Void |
+        Null _ | EndOfList _ | EmptySet _ |
         CopyField | SkipField | SetFieldNull as a),
     E0 (Float _ | String _ | Bool _ | Char _ |
-        Null _ | EndOfList _ | EmptySet _ | Void |
+        Null _ | EndOfList _ | EmptySet _ |
         CopyField | SkipField | SetFieldNull as b) ->
       op_gen a b
   | _ ->

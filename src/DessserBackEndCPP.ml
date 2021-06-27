@@ -444,8 +444,6 @@ struct
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "std::nullopt")
-    | E.E0 Void ->
-        emit ?name p l e (fun oc -> pp oc "VOID")
     | E.E0 (Float f) ->
         emit ?name p l e (print_float_literal f)
     | E.E0 (String s) ->

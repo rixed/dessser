@@ -45,6 +45,7 @@ let make_get_prefix mn =
   let shortest_path p1 p2 =
     if List.compare_lengths p1 p2 > 0 then p2 else p1 in
   let record_name n vt path =
+    let vt = T.develop vt in
     Hashtbl.modify_opt n (function
       | Some l ->
           let l, found =
@@ -121,6 +122,7 @@ let make_get_prefix mn =
     ) l
   ) renamings ;
   fun vt ->
+    let vt = T.develop vt in
     Hashtbl.find_default prefixes vt ""
 
 (* FIXME: if not initialized, make the default output a guaranteed unique field name prefixed with a hash of the type *)
@@ -644,8 +646,6 @@ struct
         emit ?name p l e (fun oc -> pp oc "Null")
     | E.E0 (Float f) ->
         emit ?name p l e (preallocate print_float_literal f)
-    | E.E0 Void ->
-        emit ?name p l e (fun oc -> pp oc "()")
     | E.E0 (String s) ->
         emit ?name p l e (preallocate String.print_quoted s)
     | E.E0 (Bool b) ->
