@@ -304,8 +304,10 @@ let exists ~l lst f =
   (* FIXME: a way to exit the loop that iterates through a container *)
   let_ ~name:"res" ~l (make_ref false_) (fun l res_ref ->
     let res = get_ref res_ref in
-    for_each ~name:"item" ~l lst (fun l item ->
-      set_ref res_ref (or_ res (f l item))))
+    seq [
+      for_each ~name:"item" ~l lst (fun l item ->
+        set_ref res_ref (or_ res (f l item))) ;
+      res ])
 
 let first_ip_of_cidr width all_ones cidr =
   let open E.Ops in
