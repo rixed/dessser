@@ -131,6 +131,14 @@ let get_prefix = ref (fun _ -> "")
 let init mn =
   get_prefix := make_get_prefix mn
 
+let uniq_field_name vt n =
+  let prefix = !get_prefix vt in
+  valid_identifier (prefix ^ n)
+
+let uniq_cstr_name vt n =
+  let prefix = !get_prefix vt in
+  valid_upper_identifier (prefix ^ n)
+
 module Config =
 struct
   let id = OCaml
@@ -180,14 +188,6 @@ struct
       | SharedObject -> "-shared"
       | Executable -> "-linkpkg")
       src dst
-
-  let uniq_field_name vt n =
-    let prefix = !get_prefix vt in
-    valid_identifier (prefix ^ n)
-
-  let uniq_cstr_name vt n =
-    let prefix = !get_prefix vt in
-    valid_upper_identifier (prefix ^ n)
 
   let mod_of_set_type = function
     | Simple -> "SimpleSet"
