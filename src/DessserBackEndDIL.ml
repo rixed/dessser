@@ -17,6 +17,10 @@ let type_identifier _p t =
   Printf.sprintf2 "%a" T.print t |>
   String.quote
 
+let type_identifier_mn _p t =
+  Printf.sprintf2 "%a" T.print_mn t |>
+  String.quote
+
 let print_definitions oc compunit =
   (* Print in the order of definition: *)
   List.rev compunit.U.identifiers |>

@@ -191,7 +191,8 @@ let lmdb main
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
-  init_backend backend T.(required (Tup [| key_schema ; val_schema |])) ;
+  init_backend backend T.(required (Rec [| "key", key_schema ;
+                                           "value", val_schema |])) ;
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
     E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser key_schema l) in

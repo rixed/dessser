@@ -51,6 +51,8 @@ sig
 
   val type_identifier : P.t -> T.t -> string
 
+  val type_identifier_mn : P.t -> T.mn -> string
+
   val print_binding :
     P.t -> T.mn -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
@@ -81,6 +83,7 @@ struct
   let preferred_decl_extension = C.preferred_decl_extension
   let preferred_comp_extension = C.preferred_comp_extension
   let type_identifier = C.type_identifier
+  let type_identifier_mn = C.type_identifier_mn
 
   let valid_source_name fname =
     let ext = Filename.extension fname
