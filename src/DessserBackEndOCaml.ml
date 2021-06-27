@@ -121,12 +121,17 @@ let make_get_prefix mn =
         ) prefixes
     ) l
   ) renamings ;
-  fun vt ->
-    let vt = T.develop vt in
-    Hashtbl.find_default prefixes vt ""
+  fun t ->
+    let t = T.develop t in
+    Hashtbl.find_default prefixes t ""
 
-(* FIXME: if not initialized, make the default output a guaranteed unique field name prefixed with a hash of the type *)
-let get_prefix = ref (fun _ -> "")
+(* When [get_prefix] is not initialized, the default is to always prefix with a
+ * hash of the type: *)
+let default_get_prefix t =
+  let t = T.develop t in
+  valid_module_name T.(uniq_id t) ^"_"
+
+let get_prefix = ref default_get_prefix
 
 let init mn =
   get_prefix := make_get_prefix mn
