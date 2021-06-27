@@ -198,12 +198,12 @@ struct
     | Heap -> "Heap"
     | Top -> "Top"
 
- let mod_of_set_type_of_expr l set =
-   match E.type_of l set |> T.develop_mn with
-   | { typ = Set (st, _) ; nullable = false } ->
-       mod_of_set_type st
-   | _ ->
-       invalid_arg "mod_of_set_type_of_expr"
+  let mod_of_set_type_of_expr l set =
+    match E.type_of l set |> T.develop_mn with
+    | { typ = Set (st, _) ; nullable = false } ->
+        mod_of_set_type st
+    | _ ->
+        invalid_arg "mod_of_set_type_of_expr"
 
   let sum_has_arg (_, mn) =
     not T.(eq_mn mn void)
@@ -810,10 +810,10 @@ struct
           | { typ = Sum mns as typ ; _ } ->
               (* Since the type checking accept any sum type made of u32 and
                * u128, let's be as general as possible: *)
-              ppi oc "match %s with\n" n1 ;
+              ppi oc "match %s with" n1 ;
               P.indent_more p (fun () ->
                 Array.iter (fun (cstr, mn) ->
-                  ppi oc "| %s ip_ ->\n" (uniq_cstr_name typ cstr) ;
+                  ppi oc "| %s ip_ ->" (uniq_cstr_name typ cstr) ;
                   P.indent_more p (fun () -> case_u mn "ip_")
                 ) mns)
           | mn ->
@@ -1440,7 +1440,7 @@ struct
           match E.type_of l e1 |> T.develop_mn with
           | { typ = Tup mns ; nullable = false } -> Array.length mns
           | _ -> assert false in
-        ppi p.P.def "let %t = %s in\n"
+        ppi p.P.def "let %t = %s in"
           (fun oc ->
             for i = 0 to max_n - 1 do
               if i > 0 then String.print oc ", " ;
