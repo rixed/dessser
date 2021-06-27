@@ -163,7 +163,7 @@ and random mn =
       todo "random for sum types"
   | Map _ ->
       invalid_arg "random for Map type"
-  | Size | Ptr | Address | Bytes | Mask | Pair _ | SList _ ->
+  | Size | Ptr | Address | Bytes | Mask | SList _ ->
       todo "random"
   | Function _ ->
       todo "randomfunctions"

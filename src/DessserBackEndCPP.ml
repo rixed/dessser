@@ -65,22 +65,41 @@ struct
   let rec print_tuple p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
-    ppi oc "typedef std::tuple<" ;
+    let is_pair = Array.length mns = 2 in
+    if is_pair then
+      ppi oc "typedef std::tuple<"
+    else
+      ppi oc "struct %s : public std::tuple<" id ;
     P.indent_more p (fun () ->
       Array.iteri (fun i mn ->
         let typ_id = type_identifier_mn p mn in
         ppi oc "%s%s"
           typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns) ;
-    ppi oc "> %s;\n" id
+    if is_pair then
+      ppi oc "> %s;\n" id
+    else
+      ppi oc "> { using tuple::tuple; };" ;
+    if not is_pair then (
+      ppi oc "std::ostream &operator<<(std::ostream &os, %s const &t) {" id ;
+      P.indent_more p (fun () ->
+        ppi oc "os << '<'" ;
+        for i = 0 to Array.length mns - 1 do
+          ppi oc "   << std::get<%d>(t)%s"
+            i (if i < Array.length mns - 1 then " << \", \"" else "")
+        done ;
+        ppi oc "   << '>';" ;
+        ppi oc "return os;") ;
+      ppi oc "}\n"
+    )
 
-  and print_struct p oc id mns =
+  and print_rec p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s {" id ;
     P.indent_more p (fun () ->
-      Array.iter (fun (field_name, vt) ->
-        let typ_id = type_identifier_mn p vt in
+      Array.iter (fun (field_name, mn) ->
+        let typ_id = type_identifier_mn p mn in
         ppi oc "%s %s;" typ_id (valid_identifier field_name)
       ) mns ;
       if cpp_std_version >= 20 then
@@ -95,12 +114,24 @@ struct
                 Printf.fprintf oc "%s == other.%s" id id)) mns) ;
         ppi oc "}"
       )) ;
-    ppi oc "};\n"
+    ppi oc "};" ;
+    ppi oc "std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
+    P.indent_more p (fun () ->
+      ppi oc "os << '{';" ;
+      Array.iteri (fun i (field_name, _) ->
+        ppi oc "os << %S << r.%s%s;"
+          (field_name ^ ":")
+          (valid_identifier field_name)
+          (if i < Array.length mns - 1 then " << ','" else "")
+      ) mns ;
+      ppi oc "os << '}';" ;
+      ppi oc "return os;") ;
+    ppi oc "}\n"
 
   and print_variant p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
-    ppi oc "typedef std::variant<" ;
+    ppi oc "struct %s : public std::variant<" id ;
     P.indent_more p (fun () ->
       Array.iteri (fun i (_, mn) ->
         let typ_id = type_identifier_mn p mn in
@@ -108,7 +139,19 @@ struct
           typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns
     ) ;
-    ppi oc "> %s;\n" id
+    ppi oc "> { using variant::variant; };" ;
+    ppi oc "std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
+    P.indent_more p (fun () ->
+      (* too smart for its own good:
+       * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
+      ppi oc "switch (v.index()) {" ;
+      P.indent_more p (fun () ->
+        for i = 0 to Array.length mns - 1 do
+          ppi oc "case %d: os << std::get<%d>(v); break;" i i
+        done) ;
+      ppi oc "}" ;
+      ppi oc "return os;") ;
+    ppi oc "}\n"
 
   and type_identifier_mn p mn =
     if mn.T.nullable then
@@ -157,7 +200,7 @@ struct
         valid_identifier
     | Rec mns ->
         P.declared_type p t (fun oc type_id ->
-          print_struct p oc type_id mns) |>
+          print_rec p oc type_id mns) |>
         valid_identifier
     | Sum mns ->
         P.declared_type p t (fun oc type_id ->
@@ -183,8 +226,6 @@ struct
         todo "C++ back-end for TOPs"
     | Map _ ->
         assert false (* No value of map type *)
-    | Pair (mn1, mn2) ->
-        "Pair<"^ type_identifier_mn mn1 ^", "^ type_identifier_mn mn2 ^">"
     | SList mn1 ->
         "SList<"^ type_identifier_mn mn1 ^">"
     | Function (args, ret) ->
@@ -311,9 +352,6 @@ struct
       emit ?name p l e (fun oc ->
         pp oc "%s%s%s%a" n1 deref_with m
           (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns) in
-    let member e1 m =
-      let n1 = print emit p l e1 in
-      emit ?name p l e (fun oc -> pp oc "%s.%s" n1 m) in
     let null_of_nan res =
       ppi p.P.def "if (std::isnan(*%s)) %s.reset();" res res ;
       res in
@@ -956,14 +994,6 @@ struct
         method_call e1 "head" []
     | E.E1 (Tail, e1) ->
         method_call e1 "tail" []
-    | E.E2 (MakePair, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
-    | E.E1 (Fst, e1) ->
-        member e1 "v1"
-    | E.E1 (Snd, e1) ->
-        member e1 "v2"
     | E.E2 ((Min | Max as op), e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2
@@ -1024,8 +1054,10 @@ struct
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "{" ;
         P.indent_more p (fun () ->
-          ppi p.P.def "auto [%s, %s] = %s;"
-            (valid_identifier name1) (valid_identifier name2) n1 ;
+          ppi p.P.def "auto %s { std::get<0>(%s) };"
+            (valid_identifier name1) n1 ;
+          ppi p.P.def "auto %s { std::get<1>(%s) };"
+            (valid_identifier name2) n1 ;
           let tmp = print emit p l e2 in
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;

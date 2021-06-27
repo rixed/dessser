@@ -300,9 +300,9 @@ let e1_of_int n =
          I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
          ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
-         Fst ; Snd ; Identity ; GetEnv ; GetMin ; BitNot ; FloatOfU64 ;
-         U64OfFloat ; U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ListOfSList
-         ; ListOfSListRev ; SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ;
+         Identity ; GetEnv ; GetMin ; BitNot ; FloatOfU64 ; U64OfFloat ;
+         U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ListOfSList ;
+         ListOfSListRev ; SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ;
          BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
          ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
          UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ; Round ; Cos ; Sin ;
@@ -312,15 +312,13 @@ let e1_of_int n =
 
 let e2_of_int n =
   let e2s =
-    E.[| Nth ; Gt ; Ge ; Eq ; Add ; Sub ; Mul ; Div ; UnsafeDiv ;
-         Rem ; UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ;
-         And ; Or ; MakePair ; Min ; Max ; Member ; Insert ;
-         LeftShift ; RightShift ; AppendBytes ; AppendString ; StartsWith ;
-         EndsWith ; GetBit ; GetVec ; ReadBytes ; PeekU8 ; WriteU8 ;
-         WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ;
-         Max ; Member ; Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ;
-         PartialSort ; ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |]
-         in
+    E.[| Nth ; Gt ; Ge ; Eq ; Add ; Sub ; Mul ; Div ; UnsafeDiv ; Rem ;
+    UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ; And ; Or ; Min ;
+    Max ; Member ; Insert ; LeftShift ; RightShift ; AppendBytes ; AppendString
+    ; StartsWith ; EndsWith ; GetBit ; GetVec ; ReadBytes ; PeekU8 ; WriteU8 ;
+    WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ; Max ; Member ;
+    Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
+    ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

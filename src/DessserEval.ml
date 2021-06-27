@@ -282,11 +282,11 @@ let rec known_positive ~strict =
  * Secnd, and in total: *)
 let count_pair_uses name e =
   E.fold (0, 0, 0) (fun (fst, snd, tot as prev) -> function
-    | E.E1 (Fst, E0 (Identifier n)) when n = name ->
+    | E.E1 (GetItem 0, E0 (Identifier n)) when n = name ->
         (* Note: leave tot as is since fold is going to iterate on the
          * Identifier independently *)
         fst + 1, snd, tot
-    | E.E1 (Snd, E0 (Identifier n)) when n = name ->
+    | E.E1 (GetItem 1, E0 (Identifier n)) when n = name ->
         fst, snd + 1, tot
     | E.E2 (LetPair _, E0 (Identifier n), _) when n = name ->
         (* A LetPair using this pair count both for First and Secnd, but we
@@ -512,8 +512,6 @@ let rec peval l e =
       | U64OfAddress, E1 (AddressOfU64, e) -> repl e
       | AddressOfU64, E0 (U64 n) -> address n |> repl
       | AddressOfU64, E1 (U64OfAddress, e) -> repl e
-      | Fst, E2 (MakePair, e, _) -> repl e
-      | Snd, E2 (MakePair, _, e) -> repl e
       | Head, E2 (Cons, e, _) -> repl e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
       | Tail, E2 (Cons, _, e) -> repl e |> p
@@ -740,7 +738,9 @@ let rec peval l e =
            * expression, then use a LetPair instead and save the intermediary
            * bindings: *)
           else match value_t with
-          | T.{ typ = Pair (mn1, mn2) ; nullable = false } ->
+          (* FIXME: would work as well if Tup had any number of items and was only
+           * ever used with GetItem. *)
+          | T.{ typ = Tup [| mn1 ; mn2 |] ; nullable = false } ->
               (* Also count how many times the identifier is used to find out if
                * the identifier is used outside of fst/snd: *)
               let fst_count, snd_count, tot_count = count_pair_uses name body in
@@ -748,15 +748,15 @@ let rec peval l e =
               let n1 = "fst_"^ name and n2 = "snd_"^ name in
               let body =
                 E.map (function
-                  | E1 (Fst, E0 (Identifier n)) when n = name ->
+                  | E1 (GetItem 0, E0 (Identifier n)) when n = name ->
                       E0 (Identifier n1)
-                  | E1 (Snd, E0 (Identifier n)) when n = name ->
+                  | E1 (GetItem 1, E0 (Identifier n)) when n = name ->
                       E0 (Identifier n2)
                   | E2 (LetPair _ as letpair, E0 (Identifier n), body)
                     when n = name ->
                       (* This will be further simplified: *)
-                      E.E2 (letpair, E2 (MakePair, E0 (Identifier n1),
-                                                   E0 (Identifier n2)), body)
+                      let tup = E.[ E0 (Identifier n1) ; E0 (Identifier n2) ] in
+                      E.E2 (letpair, E0S (MakeTup, tup), body)
                   | e -> e
                 ) body in
               E.E2 (LetPair (n1, mn1, n2, mn2), value, body) |> p
@@ -775,18 +775,18 @@ let rec peval l e =
       else if snd_count = 0 then
         E.E2 (Let (n1, mn1), first value, body) |> p
       else (match value with
-        | E.E2 (MakePair, e1, e2) ->
+        | E.E0S (MakeTup, [ e1 ; e2 ]) ->
             E.E2 (Let (n1, mn1), e1, E2 (Let (n2, mn2), e2, body)) |> p
         | _ ->
-            (* The value could still result in a MakePair after some
+            (* The value could still result in a MakeTup after some
              * intermediary let/let-pair definitions. In that case, if the
              * identifiers n1 and n2 are used only a few times then it is
-             * beneficial to inline the MakePair arguments into the body,
+             * beneficial to inline the MakeTup arguments into the body,
              * despite we cannot split the pair as easily as above. *)
             let def = E.E2 (LetPair (n1, mn1, n2, mn2), value, body) in
             match final_expression value with
-            | E.E2 (MakePair, e1, e2) as final_make_pair ->
-                (* So this makepair would be replaced with the body, where
+            | E.E0S (MakeTup, [ e1 ; e2 ]) as final_make_pair ->
+                (* So this MakeTup would be replaced with the body, where
                  * each occurrences of n1/n2 have been replaced by the full
                  * e1/e2: *)
                 let body_swap =
@@ -796,7 +796,7 @@ let rec peval l e =
                     | e -> e
                   ) body in
                 (* The new expression would then be [value], where that final
-                 * MakePair is replaced by that new body, and the initial
+                 * MakeTup is replaced by that new body, and the initial
                  * let-pair is gone: *)
                 let new_e =
                   E.map (fun e ->
@@ -1010,10 +1010,6 @@ let rec peval l e =
       | Or, E0 (Bool true), _ -> bool true |> repl1 (* [e2] not evaluated *)
       (* Cannot ignore [e1] event if e2 is demonstrably true because if its
        * possible side effects! *)
-      | MakePair, E1 (Fst, a), E1 (Snd, b) when E.eq a b ->
-          replace_final_expression e1 a |>
-          replace_final_expression_anonymously e2 |>
-          p
       (* Those are created empty: *)
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) ->
@@ -1194,22 +1190,22 @@ let rec peval l e =
     e
 *)
 (*$= test_peval & ~printer:BatPervasives.identity
-  "(make-pair (size 4) (size 0))" \
+  "(make-tup (size 4) (size 0))" \
     (test_peval 3 \
-      "(let \"useless\" \"(SIZE * SIZE)\" (make-pair (add (size 0) (size 0)) (size 0)) \
-          (make-pair (add (size 4) (fst (identifier \"useless\"))) \
+      "(let \"useless\" \"(SIZE ; SIZE)\" (make-tup (add (size 0) (size 0)) (size 0)) \
+          (make-tup (add (size 4) (fst (identifier \"useless\"))) \
           (snd (identifier \"useless\"))))")
 
-  "(make-pair (size 8) (size 0))" \
-    (test_peval 3 "(make-pair (add (size 4) (size 4)) (size 0))")
+  "(make-tup (size 8) (size 0))" \
+    (test_peval 3 "(make-tup (add (size 4) (size 4)) (size 0))")
 
   "(let \"a\" \"U8\" (u8 1) (let \"b\" \"U8\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
-    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-pair (u8 1) (u8 2)) \
+    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-tup (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
   "(dump (u8 6))" \
-    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-pair (u8 1) (u8 2)) \
+    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-tup (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
@@ -1229,25 +1225,25 @@ let rec peval l e =
   "(fun 0 \"U16\" (add (u16 1) (param 0 0)))" \
     (test_peval 3 \
       "(fun 0 \"U16\" \
-        (let \"p\" \"(U8*U16)\" (make-pair (u8 1) (param 0 0)) \
+        (let \"p\" \"(U8;U16)\" (make-tup (u8 1) (param 0 0)) \
           (let-pair \"a\" \"U8\" \"b\" \"U16\" (identifier \"p\") \
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
 
-  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" (read-u32 little-endian (param 0 0)) (make-pair (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
+  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" (read-u32 little-endian (param 0 0)) (make-tup (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
     (test_peval 3 \
       "(fun 0 \"Ptr\" \"Ptr\" \
         (let-pair \"outer1\" \"U32\" \"outerPtr\" \"Ptr\" \
           (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" \
             (read-u32 little-endian (param 0 0)) \
-            (make-pair (identifier \"inner1\") (identifier \"innerPtr\"))) \
-          (make-pair (identifier \"outer1\") \
+            (make-tup (identifier \"inner1\") (identifier \"innerPtr\"))) \
+          (make-tup (identifier \"outer1\") \
                      (ptr-add (identifier \"outerPtr\") (size 4)))))")
 
   "(let \"a\" \"U8\" (random-u8) (add (identifier \"a\") (identifier \"a\")))" \
     (test_peval 0 \
       "(fst (let \"a\" \"U8\" (random-u8) \
-              (make-pair (add (identifier \"a\") (identifier \"a\")) (u8 0))))")
+              (make-tup (add (identifier \"a\") (identifier \"a\")) (u8 0))))")
 
   "(random-u8)" \
     (test_peval 3 \

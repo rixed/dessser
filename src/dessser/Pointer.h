@@ -1,11 +1,18 @@
 #ifndef POINTER_H_191025
 #define POINTER_H_191025
 #include <cassert>
-#include <memory>
 #include <cstring>
+#include <memory>
+#include <tuple>
 #include "dessser/Bytes.h"
-#include "dessser/Pair.h"
 #include "dessser/typedefs.h"
+
+#include <iostream>
+#include <iomanip>
+#include <sstream>
+#include <cctype>
+
+namespace dessser_gen {
 
 /* Pointers that point to a byte buffer used to (de)serialize values. */
 
@@ -124,9 +131,9 @@ struct Pointer {
     return get(offset + at);
   }
 
-  Pair<uint8_t, Pointer> readU8() const
+  std::tuple<uint8_t, Pointer> readU8() const
   {
-    return Pair<uint8_t, Pointer>(
+    return std::tuple<uint8_t, Pointer>(
       peekU8(), skip(1));
   }
 
@@ -136,9 +143,9 @@ struct Pointer {
     return (((uint16_t)get(offset + 1)) << 8) | get(offset);
   }
 
-  Pair<uint16_t, Pointer> readU16Le() const
+  std::tuple<uint16_t, Pointer> readU16Le() const
   {
-    return Pair<uint16_t, Pointer>(
+    return std::tuple<uint16_t, Pointer>(
       peekU16Le(), skip(2));
   }
 
@@ -148,9 +155,9 @@ struct Pointer {
     return (((uint16_t)get(offset)) << 8) | get(offset + 1);
   }
 
-  Pair<uint16_t, Pointer> readU16Be() const
+  std::tuple<uint16_t, Pointer> readU16Be() const
   {
-    return Pair<uint16_t, Pointer>(
+    return std::tuple<uint16_t, Pointer>(
       peekU16Be(), skip(2));
   }
 
@@ -163,9 +170,9 @@ struct Pointer {
            get(offset);
   }
 
-  Pair<uint32_t, Pointer> readU32Le() const
+  std::tuple<uint32_t, Pointer> readU32Le() const
   {
-    return Pair<uint32_t, Pointer>(
+    return std::tuple<uint32_t, Pointer>(
       peekU32Le(), skip(4));
   }
 
@@ -178,9 +185,9 @@ struct Pointer {
            get(offset + 3);
   }
 
-  Pair<uint32_t, Pointer> readU32Be() const
+  std::tuple<uint32_t, Pointer> readU32Be() const
   {
-    return Pair<uint32_t, Pointer>(
+    return std::tuple<uint32_t, Pointer>(
       peekU32Be(), skip(4));
   }
 
@@ -197,9 +204,9 @@ struct Pointer {
            get(offset);
   }
 
-  Pair<uint64_t, Pointer> readU64Le() const
+  std::tuple<uint64_t, Pointer> readU64Le() const
   {
-    return Pair<uint64_t, Pointer>(
+    return std::tuple<uint64_t, Pointer>(
       peekU64Le(), skip(8));
   }
 
@@ -216,9 +223,9 @@ struct Pointer {
            get(offset + 7);
   }
 
-  Pair<uint64_t, Pointer> readU64Be() const
+  std::tuple<uint64_t, Pointer> readU64Be() const
   {
-    return Pair<uint64_t, Pointer>(
+    return std::tuple<uint64_t, Pointer>(
       peekU64Be(), skip(8));
   }
 
@@ -243,10 +250,10 @@ struct Pointer {
            get(offset);
   }
 
-  Pair<uint128_t, Pointer> readU128Le() const
+  std::tuple<uint128_t, Pointer> readU128Le() const
   {
     checkOffset(offset + 16);
-    return Pair<uint128_t, Pointer>(
+    return std::tuple<uint128_t, Pointer>(
       peekU128Le(), skip(16));
   }
 
@@ -271,17 +278,17 @@ struct Pointer {
            get(offset + 15);
   }
 
-  Pair<uint128_t, Pointer> readU128Be() const
+  std::tuple<uint128_t, Pointer> readU128Be() const
   {
     checkOffset(offset + 16);
-    return Pair<uint128_t, Pointer>(
+    return std::tuple<uint128_t, Pointer>(
       peekU128Be(), skip(16));
   }
 
-  Pair<Bytes, Pointer> readBytes(Size const &sz) const
+  std::tuple<Bytes, Pointer> readBytes(Size const &sz) const
   {
     checkOffset(offset + sz);
-    return Pair<Bytes, Pointer>(
+    return std::tuple<Bytes, Pointer>(
       bytes ?
         Bytes(bytes + offset, sz) : Bytes(buffer, sz, offset),
       skip(sz));
@@ -475,11 +482,6 @@ inline bool operator!=(const Pointer& lhs, const Pointer& rhs)
   return !(lhs == rhs);
 }
 
-#include <iostream>
-#include <iomanip>
-#include <sstream>
-#include <cctype>
-
 static inline std::string printable_string_of_byte(uint8_t const b)
 {
   std::stringstream stream;
@@ -505,5 +507,7 @@ static inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
   }
   return os;
 }
+
+};
 
 #endif

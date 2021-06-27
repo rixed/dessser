@@ -3,6 +3,8 @@
 #include <string>
 #include "dessser/runtime.h"
 
+using namespace dessser_gen;
+
 void test_i128(std::string const s)
 {
   std::optional<int128_t> const v { i128_of_string(s) };

@@ -7,6 +7,10 @@
 #include "dessser/Lst.h"
 #include "dessser/SimpleSet.h"
 
+#include <sstream>
+
+namespace dessser_gen {
+
 template<class T>
 struct SList {
   struct Cell {
@@ -90,8 +94,6 @@ struct SList {
   }
 };
 
-#include <sstream>
-
 template<class T>
 static inline std::ostream &operator<<(std::ostream &os, SList<T> const &l)
 {
@@ -102,5 +104,7 @@ static inline std::ostream &operator<<(std::ostream &os, SList<T> const &l)
   }
   return os;
 }
+
+};
 
 #endif

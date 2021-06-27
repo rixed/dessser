@@ -81,8 +81,6 @@ and t =
    * use the value-types, as we cannot embed a pointer in there. So here are
    * defined two specific compound types: a pair and an homogeneous list
    * (sufficient in practice and better than untyped car/cdr!) *)
-  (* FIXME: still worth it? *)
-  | Pair of mn * mn
   (* A Data Lst is just a vector which length is unknown at compile time,
    * whereas an SList can actually be constructed/destructed element by element.
    * "SList" is for "singly-chained" list, and is written using "[[]]" instead
@@ -150,8 +148,6 @@ let rec eq ?(opaque_user_type=false) t1 t2 =
       eq ut1.def t
   | t, Usr ut2 when not opaque_user_type ->
       eq t ut2.def
-  | Pair (mn11, mn12), Pair (mn21, mn22) ->
-      eq_mn mn11 mn21 && eq_mn mn12 mn22
   | SList mn1, SList mn2 ->
       eq_mn mn1 mn2
   | Function (pt1, rt1), Function (pt2, rt2) ->
@@ -197,8 +193,6 @@ let rec develop = function
       Sum (Array.map (fun (n, mn) -> n, develop_mn mn) cs)
   | Map (mn1, mn2) ->
       Map (develop_mn mn1, develop_mn mn2)
-  | Pair (mn1, mn2) ->
-      Pair (develop_mn mn1, develop_mn mn2)
   | SList mn ->
       SList (develop_mn mn)
   | t -> t
@@ -228,7 +222,7 @@ let rec fold u f t =
       Array.fold_left (fun u mn -> fold_mn u f mn) u mns
   | Rec mns | Sum mns ->
       Array.fold_left (fun u (_, mn) -> fold_mn u f mn) u mns
-  | Map (mn1, mn2) | Pair (mn1, mn2) ->
+  | Map (mn1, mn2) ->
       fold_mn (fold_mn u f mn1) f mn2
   | _ ->
       u
@@ -360,10 +354,6 @@ let rec print ?(sorted=false) oc =
   | Address -> sp "Address"
   | Bytes -> sp "Bytes"
   | Mask -> sp "Mask"
-  | Pair (mn1, mn2) ->
-      pp oc "(%a * %a)"
-        print_mn mn1
-        print_mn mn2
   | SList mn ->
       pp oc "%a[[]]" print_mn mn
   | Function ([||], mn) ->
@@ -552,10 +542,6 @@ struct
         (strinG "bytes" >>: fun () -> Bytes) |<|
         (strinG "mask" >>: fun () -> Mask) |<|
         (
-          char '(' -- opt_blanks -+ mn +- opt_blanks +-
-          char '*' +- opt_blanks ++ mn +- opt_blanks +- char ')' >>:
-            fun (mn1, mn2) -> Pair (mn1, mn2)
-        ) |<| (
           let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
           char '(' -+
             repeat ~sep mn +- sep ++ mn +- opt_blanks +-
@@ -904,7 +890,7 @@ let rec depth ?(opaque_user_type=true) = function
       1 + Array.fold_left (fun d (_, mn) ->
         max d (depth ~opaque_user_type mn.typ)
       ) 0 mns
-  | Map (mn1, mn2) | Pair (mn1, mn2) ->
+  | Map (mn1, mn2) ->
       1 + max (depth ~opaque_user_type mn1.typ)
               (depth ~opaque_user_type mn2.typ)
   | _ -> 0
@@ -957,7 +943,6 @@ let shrink t =
     | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
     | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
     | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
-    | Pair (mn1, mn2) -> Pair (do_mn mn1, do_mn mn2)
     | t -> t
   in
   (* Avoid replacing the whole type with This: *)
@@ -1008,7 +993,7 @@ let tuple = function
   | [| x |] -> x
   | mns -> required (Tup mns)
 
-let pair mn1 mn2 = required (Pair (mn1, mn2))
+let pair mn1 mn2 = tuple [| mn1 ; mn2 |]
 let address = required Address
 let size = required Size
 let ptr = required Ptr
@@ -1084,7 +1069,7 @@ let force mn =
  *)
 
 let pair_of_tpair = function
-  | { typ = Pair (mn1, mn2) ; nullable = false } -> mn1, mn2
+  | { typ = Tup [| mn1 ; mn2 |] ; nullable = false } -> mn1, mn2
   | _ -> invalid_arg "pair_of_tpair"
 
 let is_defined t =

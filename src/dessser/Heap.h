@@ -5,6 +5,8 @@
 #include <vector>
 #include "dessser/Set.h"
 
+namespace dessser_gen {
+
 template<class T>
 struct Heap : public Set<T> {
   /* From oldest to youngest: */
@@ -53,6 +55,8 @@ struct Heap : public Set<T> {
   T const &getMin() override {
     return &(*h.cbegin());
   }
+};
+
 };
 
 #endif

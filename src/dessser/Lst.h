@@ -3,10 +3,12 @@
 /* Like Vec, but for when the size is unknown statically */
 #include <functional>
 #include <initializer_list>
+#include <iostream>
 #include <vector>
 #include "dessser/Vec.h"
 #include "dessser/Set.h"
 
+namespace dessser_gen {
 template<class T>
 struct Lst : public std::vector<T> {
   Lst()
@@ -59,5 +61,20 @@ struct Lst : public std::vector<T> {
   }
 };
 
-#endif
+template<class T>
+std::ostream &operator<<(std::ostream &os, Lst<T> const &v)
+{
+  os << '[';
+  bool sep = false;
+  for (T const &i : v) {
+    if (sep) os << ", ";
+    sep = true;
+    os << i;
+  }
+  os << ']';
+  return os;
+}
 
+};
+
+#endif

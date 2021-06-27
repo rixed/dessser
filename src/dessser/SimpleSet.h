@@ -2,6 +2,8 @@
 #define SIMPLESET_H_201202
 #include "dessser/Set.h"
 
+namespace dessser_gen {
+
 template<class T>
 struct SimpleSet : public Set<T> {
   /* From oldest to youngest: */
@@ -33,6 +35,8 @@ struct SimpleSet : public Set<T> {
       f(x);
     }
   }
+};
+
 };
 
 #endif

@@ -3,6 +3,8 @@
 #include <cassert>
 #include <vector>
 
+namespace dessser_gen {
+
 struct Mask {
   enum Op { COPY, SKIP, SET_NULL, RECURSE } op;
   std::vector<Mask> recurse; /* Only set when op is RECURSE */
@@ -34,5 +36,7 @@ inline bool operator!=(const Mask& lhs, const Mask& rhs)
 {
   return !(lhs == rhs);
 }
+
+};
 
 #endif

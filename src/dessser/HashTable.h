@@ -3,6 +3,8 @@
 #include <unordered_set>
 #include "dessser/Set.h"
 
+namespace dessser_gen {
+
 template<class T>
 struct HashTable : public Set<T> {
   /* From oldest to youngest: */
@@ -36,6 +38,8 @@ struct HashTable : public Set<T> {
       f(x);
     }
   }
+};
+
 };
 
 #endif

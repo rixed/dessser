@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <cstddef>
 
+namespace dessser_gen {
+
 typedef __uint128_t uint128_t;
 typedef __int128_t int128_t;
 
@@ -11,5 +13,7 @@ typedef void *Address;
 
 typedef bool Void;
 #define VOID false
+
+}
 
 #endif

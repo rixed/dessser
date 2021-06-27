@@ -2,6 +2,8 @@
 #define TUMBLINGWINDOW_H_201202
 #include "dessser/Set.h"
 
+namespace dessser_gen {
+
 template<class T>
 struct TumblingWindow : public Set<T> {
   /* From oldest to youngest: */
@@ -24,6 +26,8 @@ struct TumblingWindow : public Set<T> {
       f(x);
     }
   }
+};
+
 };
 
 #endif

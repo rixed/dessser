@@ -6,6 +6,8 @@
 #include <ostream>
 #include <utility>
 
+namespace dessser_gen {
+
 /* Generic set (see more specific implementations Set*.h */
 template<class T>
 struct Set {
@@ -37,6 +39,8 @@ struct Set {
     std::cerr << "scale not implemented for this set\n" << std::endl;
     assert(!"Not Implemented");
   }
+};
+
 };
 
 #endif

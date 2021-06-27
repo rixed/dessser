@@ -16,6 +16,9 @@ static std::string readWholeFile(std::string const fname)
 let converter ?(out_buf_size=50_000) entry_point =
   readWholeFile ^
   Printf.sprintf {|
+
+using namespace dessser_gen;
+
 int main(int numArgs, char **args)
 {
   char const *fname = "/dev/stdin";
@@ -42,25 +45,26 @@ int main(int numArgs, char **args)
     }
   }
 
-  std::string input =
+  std::string input_str =
     single_input ?
       single_input :
       readWholeFile(fname);
-  Pointer src(input);
+  Pointer src(input_str);
 
   while (src.rem() > 0) {
     Pointer dst { %d };
 
-    Pair<Pointer, Pointer> ptrs = dessser_gen::%s(src, dst);
+    std::tuple<Pointer, Pointer> ptrs = %s(src, dst);
 
     // Print serialized:
-    assert(ptrs.v2.offset < ptrs.v2.size-1);
-    if (ptrs.v2.buffer) {
-      fwrite(ptrs.v2.buffer.get(), 1, ptrs.v2.offset, stdout);
+    dst = std::get<1>(ptrs);
+    assert(dst.offset < dst.size-1);
+    if (dst.buffer) {
+      fwrite(dst.buffer.get(), 1, dst.offset, stdout);
       if (delim != '\0') fwrite(&delim, sizeof(delim), 1, stdout);
     } // else it's a heap value
 
-    src = ptrs.v1;
+    src = std::get<0>(ptrs);
 
     if (single_input && src.rem() > 0) {
       std::cerr << src.rem() << " bytes left of input" << std::endl;
@@ -83,6 +87,9 @@ let loader ?(out_buf_size=50_000) _convert_key_name _convert_val_name =
 let aggregator ?(out_buf_size=50_000) _state_name input_name output_name =
   readWholeFile ^
   Printf.sprintf {|
+
+using namespace dessser_gen;
+
 int main(int numArgs, char **args)
 {
   char const *fname = "/dev/stdin";
@@ -109,17 +116,17 @@ int main(int numArgs, char **args)
     }
   }
 
-  std::string input { readWholeFile(fname) };
-  Pointer src(input);
+  std::string input_str { readWholeFile(fname) };
+  Pointer src(input_str);
 
   while (src.rem() > 0) {
     /* Accumulate that input into the global state: */
-    src = dessser_gen::%s(src);
+    src = %s(src);
   }
 
   /* Output the finalized state: */
   Pointer dst { %d };
-  dst = dessser_gen::%s(dst);
+  dst = %s(dst);
   assert(dst.offset < dst.size-1);
 
   if (dst.buffer) {

@@ -5,6 +5,8 @@
 #include <cstring>
 #include "dessser/typedefs.h"
 
+namespace dessser_gen {
+
 struct Bytes {
   /* Shared with pointers: */
   //std::shared_ptr<uint8_t[]> buffer;
@@ -100,6 +102,8 @@ struct Bytes {
   {
     return std::string((char const *)(buffer.get() + offset), size);
   }
+};
+
 };
 
 #endif

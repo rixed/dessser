@@ -58,10 +58,6 @@ let type_and_name_of_path t0 path =
           | Tup mns ->
               assert (i < Array.length mns) ;
               loop ("field_"^ string_of_int i) mns.(i) path
-          | Pair (mn1, mn2) ->
-              assert (i < 2) ;
-              let mn = if i = 0 then mn1 else mn2 in
-              loop ("field_"^ string_of_int i) mn path
           | Rec mns ->
               assert (i < Array.length mns) ;
               loop (fst mns.(i)) (snd mns.(i)) path
@@ -89,7 +85,7 @@ let type_and_name_of_path t0 path =
               loop no_fieldname mn path
           | Set (_, mn) ->
               loop no_fieldname mn path
-          | Tup _ | Rec _ | Sum _ | Pair _ ->
+          | Tup _ | Rec _ | Sum _ ->
               invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"
         in
         type_of t.typ in

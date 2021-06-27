@@ -306,8 +306,6 @@ struct
     | Size -> "Size.t"
     | Address -> "Uint64.t"
     | Bytes -> "Slice.t"
-    | Pair (mn1, mn2) ->
-        "("^ type_identifier_mn p mn1 ^" * "^ type_identifier_mn p mn2 ^")"
     | SList mn ->
         type_identifier_mn p mn ^" list"
     | Function ([||], mn) ->
@@ -1235,14 +1233,6 @@ struct
         unary_op "List.hd" e1
     | E.E1 (Tail, e1) ->
         unary_op "List.tl" e1
-    | E.E2 (MakePair, e1, e2) ->
-        let n1 = print p l e1
-        and n2 = print p l e2 in
-        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
-    | E.E1 (Fst, e1) ->
-        unary_op "fst" e1
-    | E.E1 (Snd, e1) ->
-        unary_op "snd" e1
     | E.E2 (Min, e1, e2) ->
         binary_op "min" e1 e2
     | E.E2 (Max, e1, e2) ->

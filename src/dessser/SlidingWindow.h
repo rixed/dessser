@@ -2,6 +2,8 @@
 #define SLIDINGWINDOW_H_201202
 #include "dessser/Set.h"
 
+namespace dessser_gen {
+
 template<class T>
 struct SlidingWindow : public Set<T> {
   size_t num_inserts;
@@ -63,6 +65,8 @@ struct SlidingWindow : public Set<T> {
       i = i >= length - 1 ? 0 : i + 1;
     } while (i != stop);
   }
+};
+
 };
 
 #endif

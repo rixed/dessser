@@ -20,11 +20,12 @@
 #include "dessser/HashTable.h"
 #include "dessser/Heap.h"
 #include "dessser/SList.h"
-#include "dessser/Pair.h"
 #include "dessser/Mask.h"
 
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)
+
+namespace dessser_gen {
 
 inline uint64_t qword_of_float(double v)
 {
@@ -180,5 +181,45 @@ inline std::string string_join(std::string sep, Lst<std::string> strs)
   }
   return res;
 }
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, std::optional<T> const &o)
+{
+  if (o.has_value()) os << o.value();
+  else os << "??";
+  return os;
+}
+
+std::ostream &operator<<(std::ostream &os, uint128_t n)
+{
+  os << string_of_u128(n);
+  return os;
+}
+
+std::ostream &operator<<(std::ostream &os, int128_t n)
+{
+  os << string_of_i128(n);
+  return os;
+}
+
+/* In general tuples a distinct type is created with a distinct output
+ * operator. This is required, since types that are distinct for dessser might
+ * not be distinct for C++ (for instance, both Size and U32 being mapped into
+ * uint32_t), and so we would risk redefining several times the same
+ * operator<< function, which is an error.
+ * But because many runtime functions (such as Pointer.reader) return a
+ * pair, and those types cannot conveniently be given a name both the runtime
+ * and the generated code agree on, then it's better to use non distinct
+ * types for those, and then also define operator<< for pairs.
+ * We could do this for longer tuples while we are at it, if it's beneficial. */
+
+template <typename T1, typename T2>
+std::ostream &operator<<(std::ostream &os, std::tuple<T1,T2> const &t)
+{
+  os << '<' << std::get<0>(t) << ", " << std::get<1>(t) << ">";
+  return os;
+}
+
+};
 
 #endif

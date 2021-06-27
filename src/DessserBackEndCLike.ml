@@ -145,7 +145,7 @@ struct
         CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
         U8OfBool | BoolOfU8 |
         BitNot | StringLength | RemSize | Not | Abs | Neg |
-        Fst | Snd | Head | Tail | Ignore | Identity), _)
+        Head | Tail | Ignore | Identity), _)
     | E2 ((
         Nth | Gt | Ge | Eq | Add | Sub | Mul | Min | Max |
         BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit), _, _) ->

@@ -265,11 +265,6 @@ type e1 =
   | Lower
   | Upper
   | Hash (* Turns anything into an u64 *)
-  (* WARNING: never use Fst and Snd on the same expression or that expression
-   * will be computed twice!
-   * Instead, use a Let expression *)
-  | Fst
-  | Snd
   (* FIXME: make Head and Tail return nullables: *)
   | Head
   | Tail
@@ -350,7 +345,6 @@ type e2 =
   | And
   | Or
   | Cons
-  | MakePair
   | Min
   | Max
   (* Membership test for vectors, lists and sets; Not for CIDRs nor strings.
@@ -645,7 +639,7 @@ let rec default ?(allow_null=true) ?this t =
       E3 (Top mn, size, max_size, sigmas)
   | Map _ ->
       assert false (* no value of map type *)
-  | Bytes | Mask | Pair _ | SList _ | Size ->
+  | Bytes | Mask | SList _ | Size ->
       todo "default"
   | Function _ ->
       todo "default functions"
@@ -863,8 +857,6 @@ let string_of_e1 = function
   | Lower -> "lower"
   | Upper -> "upper"
   | Hash -> "hash"
-  | Fst -> "fst"
-  | Snd -> "snd"
   | Head -> "head"
   | Tail -> "tail"
   | ReadU16 en -> "read-u16 "^ string_of_endianness en
@@ -930,7 +922,6 @@ let string_of_e2 = function
   | And -> "and"
   | Or -> "or"
   | Cons -> "cons"
-  | MakePair -> "make-pair"
   | Min -> "min"
   | Max -> "max"
   | Member -> "mem"
@@ -1436,8 +1427,8 @@ struct
     | Lst [ Sym "lower" ; x ] -> E1 (Lower, e x)
     | Lst [ Sym "upper" ; x ] -> E1 (Upper, e x)
     | Lst [ Sym "hash" ; x ] -> E1 (Hash, e x)
-    | Lst [ Sym "fst" ; x ] -> E1 (Fst, e x)
-    | Lst [ Sym "snd" ; x ] -> E1 (Snd, e x)
+    | Lst [ Sym "fst" ; x ] -> E1 (GetItem 0, e x)
+    | Lst [ Sym "snd" ; x ] -> E1 (GetItem 1, e x)
     | Lst [ Sym "head" ; x ] -> E1 (Head, e x)
     | Lst [ Sym "tail" ; x ] -> E1 (Tail, e x)
     | Lst [ Sym "read-u16" ; Sym en ; x ] ->
@@ -1518,7 +1509,6 @@ struct
     | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
-    | Lst [ Sym "make-pair" ; x1 ; x2 ] -> E2 (MakePair, e x1, e x2)
     | Lst [ Sym "min" ; x1 ; x2 ] -> E2 (Min, e x1, e x2)
     | Lst [ Sym "max" ; x1 ; x2 ] -> E2 (Max, e x1, e x2)
     | Lst [ Sym "mem" ; x1 ; x2 ] -> E2 (Member, e x1, e x2)
@@ -1996,21 +1986,7 @@ and type_of l e0 =
       | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E2 (Cons, e1, _e2) ->
       T.slist (type_of l e1)
-  | E2 (MakePair, e1, e2) ->
-      T.pair (type_of l e1) (type_of l e2)
   (* Shortcut: *)
-  | E1 (Fst, E2 (MakePair, e, _)) ->
-      type_of l e
-  | E1 (Fst, e) ->
-      (match type_of l e |> T.develop1 with
-      | T.{ typ = Pair (mn, _) ; nullable = false } -> mn
-      | t -> raise (Type_error (e0, e, t, "be a pair")))
-  | E1 (Snd, E2 (MakePair, _, e)) ->
-      type_of l e
-  | E1 (Snd, e) ->
-      (match type_of l e |> T.develop1 with
-      | T.{ typ = Pair (_, mn) ; nullable = false } -> mn
-      | t -> raise (Type_error (e0, e, t, "be a pair")))
   | E1 (Head, E2 (Cons, e, _)) ->
       type_of l e
   | E1 (Head, e) ->
@@ -2511,10 +2487,6 @@ let rec type_check l e =
       match type_of l e |> T.develop1 with
       | T.{ typ = SList mn ; nullable = false } -> check_eq l e1 mn
       | t -> raise (Type_error (e0, e, t, "be a slist")) in
-    let check_pair l e =
-      match type_of l e |> T.develop1 with
-      | T.{ typ = Pair _ ; nullable = false } -> ()
-      | t -> raise (Type_error (e0, e, t, "be a pair")) in
     let check_sum l e =
       match type_of l e |> T.develop1 with
       | { typ = Sum _ ; nullable = false } -> ()
@@ -2542,7 +2514,7 @@ let rec type_check l e =
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
     | E1 ((Comment _ | Dump | Identity | Ignore | Function _ | Hash), _)
-    | E2 ((MakePair | Let _ | LetPair _), _, _) ->
+    | E2 ((Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
     | E0S (Seq, es) ->
@@ -2773,10 +2745,6 @@ let rec type_check l e =
             raise (Struct_error (e0, msg))
           ) ;
           check_eq l e (snd mns.(i))
-    | E1 (Fst, e) ->
-        check_pair l e
-    | E1 (Snd, e) ->
-        check_pair l e
     | E1 (Head, e) ->
         check_slist l e
     | E1 (Tail, e) ->
@@ -3033,8 +3001,8 @@ let let_ ?name ~l value f =
 let let_pair ?n1 ?n2 ~l value f =
   let name = function Some n -> gen_id n | None -> gen_id "gen" in
   let n1 = name n1 and n2 = name n2 in
-  let t1 = type_of l (E1 (Fst, value))
-  and t2 = type_of l (E1 (Snd, value)) in
+  let t1 = type_of l (E1 (GetItem 0, value))
+  and t2 = type_of l (E1 (GetItem 1, value)) in
   let l = add_local n1 t1 l |>
           add_local n2 t2 in
   let id n = E0 (Identifier n) in
@@ -3440,13 +3408,11 @@ struct
 
   let random_u128 = E0 RandomU128
 
-  let make_pair e1 e2 = E2 (MakePair, e1, e2)
+  let make_pair e1 e2 = E0S (MakeTup, [ e1 ; e2 ])
 
-  let pair = make_pair
+  let first e = E1 (GetItem 0, e)
 
-  let first e = E1 (Fst, e)
-
-  let secnd e = E1 (Snd, e)
+  let secnd e = E1 (GetItem 1, e)
 
   let cons e1 e2 = E2 (Cons, e1, e2)
 
