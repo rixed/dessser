@@ -3312,7 +3312,7 @@ struct
   let not_null e = E1 (NotNull, e)
 
   let or_null_ vt op conv s =
-    try not_null (op (conv s)) with Invalid_argument _ -> null vt
+    try not_null (op (conv s)) with _ -> null vt
 
   let float_of_string_ e = E1 (FloatOfString, e)
 

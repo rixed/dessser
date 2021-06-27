@@ -1254,6 +1254,9 @@ let rec peval l e =
       "(get-vec (u8 1) \
          (let \"a\" \"U8\" (random-u8) \
            (make-vec (identifier \"a\") (identifier \"a\"))))")
+
+  "(null \"FLOAT\")" \
+    (test_peval 3 "(float-of-string (string \"POISON\"))")
 *)
 (* This one is but a wish for now:
   "(fun 0 \"u32\" \
