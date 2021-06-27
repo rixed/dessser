@@ -477,14 +477,20 @@ struct
               while_
                 (E.with_sploded_pair ~l "dbytes_quoted" (read_u8 p)
                                      (fun l b p' ->
-                  seq [
-                    set_ref p_ref p' ;
-                    (* Read up to next double-quote or separator/newline,
-                     * depending on had_quote: *)
-                    (* FIXME: handle escaping the separator/newline! *)
+                  (* Read up to next double-quote or separator/newline,
+                   * depending on had_quote, without advancing the pointer
+                   * after the delimiter: *)
+                  (* FIXME: handle escaping the separator/newline! *)
+                  let continue =
                     if_ had_quote
                       ~then_:(ne b quote_byte)
-                      ~else_:(not_ (is_sep_or_newline conf l b)) ]))
+                      ~else_:(not_ (is_sep_or_newline conf l b)) in
+                  let_ ~name:"continue" ~l continue (fun _l continue ->
+                    seq [
+                      if_ (or_ had_quote continue)
+                        ~then_:(set_ref p_ref p')
+                        ~else_:nop ;
+                      continue ])))
                 (set_ref sz_ref (add sz (size 1))) ;
               (* Skip the initial double-quote: *)
               let bytes_p = read_bytes init_p sz in
@@ -499,10 +505,14 @@ struct
         seq [
           while_
             (E.with_sploded_pair ~l "dbytes" (read_u8 p) (fun l b p' ->
-              seq [
-                set_ref p_ref p' ;
-                (* Read up to next double-quote or separator/newline *)
-                not_ (is_sep_or_newline conf l b) ]))
+              (* Read up to next double-quote or separator/newline *)
+              let continue = not_ (is_sep_or_newline conf l b) in
+              let_ ~name:"continue" ~l continue (fun _l continue ->
+                seq [
+                  if_ continue
+                    ~then_:(set_ref p_ref p')
+                    ~else_:nop ;
+                  continue ])))
             (set_ref sz_ref (add sz (size 1))) ;
           let bytes_p = read_bytes init_p sz in
           make_pair (op (first bytes_p)) (secnd bytes_p) ]))
