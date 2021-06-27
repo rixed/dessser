@@ -585,7 +585,7 @@ struct
                 Some (E.field_name_of_expr e), inits
             | Some name ->
                 let n = print p l e in
-                None, (valid_identifier name, n) :: inits
+                None, (name, n) :: inits
           ) (None, []) es in
         let inits = List.rev inits in
         let mn = E.type_of l e |> T.develop_mn in
