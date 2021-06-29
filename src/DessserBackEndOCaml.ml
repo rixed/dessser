@@ -254,7 +254,7 @@ struct
 
   and type_identifier_mn p mn =
     if mn.T.nullable then
-      type_identifier p mn.typ ^" nullable"
+      type_identifier p mn.typ ^" option"
     else
       type_identifier p mn.typ
 
@@ -262,7 +262,7 @@ struct
     let type_identifier = type_identifier p in
     let declare_if_named s =
       P.declare_if_named p t s (fun oc type_id ->
-          pp oc "and %s = %s\n\n" type_id s) in
+          pp oc "and %s = %s\n" type_id s) in
     match t with
     | Unknown -> invalid_arg "type_identifier"
     | This -> "t"
@@ -494,11 +494,11 @@ struct
     let unary_op_or_null op e1 =
       let n1 = print p l e1 in
       emit ?name p l e (fun oc ->
-        pp oc "(try NotNull (%s %s)" op n1 ;
+        pp oc "(try Some (%s %s)" op n1 ;
         pp oc " with _ as e ->" ;
         if debug then
           pp oc "   Printf.eprintf \"%s %%S\\n\" %s ;" op n1 ;
-        pp oc "   Null)") in
+        pp oc "   None)") in
     let unary_mod_op_or_null op e1 =
       let mn = E.type_of l e in
       let mn = { mn with nullable = false } in
@@ -634,7 +634,7 @@ struct
         "()"
     | E.E1 (IsNull, e1) ->
         let n = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s = Null" n)
+        emit ?name p l e (fun oc -> pp oc "%s = None" n)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print p l e1 in
         let n2 = print p l e2 in
@@ -643,15 +643,15 @@ struct
           Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
     | E.E1 (NotNull, e1) ->
         let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "NotNull %s" n1)
+        emit ?name p l e (fun oc -> pp oc "Some %s" n1)
     | E.E1 (Force what, e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "Nullable.get %s%s"
+          Printf.fprintf oc "nullable_get %s%s"
             (if what = "" then "" else "~what:"^ String.quote what ^" ")
             n1)
     | E.E0 (Null _) ->
-        emit ?name p l e (fun oc -> pp oc "Null")
+        emit ?name p l e (fun oc -> pp oc "None")
     | E.E0 (Float f) ->
         emit ?name p l e (preallocate print_float_literal f)
     | E.E0 (String s) ->
@@ -723,11 +723,11 @@ struct
                          |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
               _ } as t ->
               let op_name = match op with Div -> "div" | _ -> "rem" in
-              pp oc "try NotNull (%s.%s %s %s) with Division_by_zero -> Null"
+              pp oc "try Some (%s.%s %s %s) with Division_by_zero -> None"
                 (mod_name t) op_name n1 n2
           | { typ = Base Float ; _ } ->
               let op_name = match op with Div -> "(/.)" | _ -> "Float.rem" in
-              pp oc "Nullable.of_nan (%s %s %s)" op_name n1 n2
+              pp oc "nullable_of_nan (%s %s %s)" op_name n1 n2
           | _ ->
               assert false)
     | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
@@ -751,18 +751,18 @@ struct
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_mn with
           | { typ = Base Float ; _ } ->
-              pp oc "Nullable.of_nan (%s ** %s)" n1 n2
+              pp oc "nullable_of_nan (%s ** %s)" n1 n2
           | { typ = Base (I32 | I64) ; _ } as t ->
-              pp oc "try NotNull (Bat%s.pow %s %s) \
-                     with Invalid_argument _ -> Null"
+              pp oc "try Some (Bat%s.pow %s %s) \
+                     with Invalid_argument _ -> None"
                 (mod_name t) n1 n2
           | {
               typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                           |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
               (* For through floats *)
               let m = mod_name t in
-              pp oc "Nullable.map %s.of_float \
-                       (Nullable.of_nan (%s.to_float %s ** %s.to_float %s))"
+              pp oc "nullable_map %s.of_float \
+                       (nullable_of_nan (%s.to_float %s ** %s.to_float %s))"
                 m m n1 m n2
           | _ ->
               assert false (* because of type-checking *))
@@ -1016,7 +1016,7 @@ struct
     | E.E1 (GetEnv, e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
-          pp oc "try NotNull (Sys.getenv %s) with Not_found -> Null" n1)
+          pp oc "try Some (Sys.getenv %s) with Not_found -> None" n1)
     | E.E3 (PtrOfPtr, e1, e2, e3) ->
         let n1 = print p l e1
         and n2 = print p l e2
@@ -1164,15 +1164,15 @@ struct
     | E.E1 (Exp, e1) ->
         unary_op "exp" e1
     | E.E1 (Log, e1) ->
-        unary_op "(Nullable.of_nan % log)" e1
+        unary_op "(nullable_of_nan % log)" e1
     | E.E1 (UnsafeLog, e1) ->
         unary_op "log" e1
     | E.E1 (Log10, e1) ->
-        unary_op "(Nullable.of_nan % log10)" e1
+        unary_op "(nullable_of_nan % log10)" e1
     | E.E1 (UnsafeLog10, e1) ->
         unary_op "log10" e1
     | E.E1 (Sqrt, e1) ->
-        unary_op "(Nullable.of_nan % sqrt)" e1
+        unary_op "(nullable_of_nan % sqrt)" e1
     | E.E1 (UnsafeSqrt, e1) ->
         unary_op "sqrt" e1
     | E.E1 (Ceil, e1) ->
@@ -1186,11 +1186,11 @@ struct
     | E.E1 (Sin, e1) ->
         unary_op "sin" e1
     | E.E1 (Tan, e1) ->
-        unary_op "(Nullable.of_nan % tan)" e1
+        unary_op "(nullable_of_nan % tan)" e1
     | E.E1 (ACos, e1) ->
-        unary_op "(Nullable.of_nan % acos)" e1
+        unary_op "(nullable_of_nan % acos)" e1
     | E.E1 (ASin, e1) ->
-        unary_op "(Nullable.of_nan % asin)" e1
+        unary_op "(nullable_of_nan % asin)" e1
     | E.E1 (ATan, e1) ->
         unary_op "atan" e1
     | E.E1 (CosH, e1) ->
@@ -1624,8 +1624,8 @@ struct
         and str = print p l str in
         emit ?name p l e (fun oc ->
           pp oc "(let n_ = %s.to_int %s and s_ = %s in \
-                  if n_ < String.length s_ then NotNull s_.[n_] \
-                  else Null)" m_idx idx str)
+                  if n_ < String.length s_ then Some s_.[n_] \
+                  else None)" m_idx idx str)
     | E.E2 (Strftime, fmt, time) ->
         let fmt = print p l fmt
         and time = to_float p l time in
@@ -1636,10 +1636,10 @@ struct
         and n2 = print p l e2
         and n3 = print p l e3 in
         emit ?name p l e (fun oc ->
-          pp oc "try NotNull (Uint24.of_int \
+          pp oc "try Some (Uint24.of_int \
                    ((if %s then string_find else string_rfind) %s %s))"
             n1 n3 n2 ;
-          pp oc "with Not_found -> Null")
+          pp oc "with Not_found -> None")
     | E.E3 (Top _, size, max_size, sigmas) ->
         let m_size = mod_name (E.type_of l size)
         and m_max_size = mod_name (E.type_of l max_size) in

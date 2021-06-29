@@ -140,95 +140,39 @@ let () =
     | _ ->
         None)
 
-type 'a nullable = Null | NotNull of 'a
-
 (* Nulls propagate outward. The quickest way to implement this is to fire an
  * exception when encountering a Null, to longjmp to the outward operation. *)
 exception ImNull
 
-module Nullable =
-struct
-  (*$< Nullable *)
+let nullable_get ?what = function
+  | None ->
+      let what =
+        match what with
+        | None -> ""
+        | Some msg -> " ("^ msg ^")" in
+      invalid_arg ("nullable_get"^ what)
+  | Some x ->
+      x
 
-  type 'a t = 'a nullable
+let nullable_of_nan (x : float) =
+  if x <> x then None else Some x
 
-  let map f = function
-    | Null -> Null
-    | NotNull x ->
-        (try NotNull (f x) with ImNull -> Null)
+(*$= nullable_of_nan
+  None (nullable_of_nan nan)
+  (Some 0.) (nullable_of_nan 0.)
+  (Some infinity) (nullable_of_nan infinity)
+  (Some neg_infinity) (nullable_of_nan neg_infinity)
+*)
 
-  let may f = function
-    | Null -> ()
-    | NotNull x -> f x
+let nullable_map f = function
+  | None -> None
+  | Some x ->
+      (try Some (f x) with ImNull -> None)
 
-  let map_no_fail f = function
-    | Null -> Null
-    | NotNull x ->
-        (try NotNull (f x) with _ -> Null)
-
-  let get ?what = function
-    | Null ->
-        let what =
-          match what with
-          | None -> ""
-          | Some msg -> " ("^ msg ^")" in
-        invalid_arg ("Nullable.get"^ what)
-    | NotNull x ->
-        x
-
-  let (|!) a b =
-    match a with Null -> b | NotNull a -> a
-
-  let default d = function
-    | Null -> d
-    | NotNull x -> x
-
-  let default_delayed f = function
-    | Null -> f ()
-    | NotNull x -> x
-
-  let of_option = function
-    | None -> Null
-    | Some x -> NotNull x
-
-  let to_option = function
-    | Null -> None
-    | NotNull x -> Some x
-
-  (* The following 3 comparison functions are used to *order* values and are
-   * therefore not nullable (in particular, [cmp Null Null] is not [Null]).
-   * Null values are considered smaller than everything else. *)
-  let compare cmp a b =
-    match a, b with
-    | Null, Null -> 0
-    | Null, _ -> -1
-    | _, Null -> 1
-    | a, b -> cmp a b
-
-  let compare_left cmp a b =
-    match a with
-    | Null -> -1
-    | a -> cmp a b
-
-  let compare_right cmp a b =
-    match b with
-    | Null -> 1
-    | b -> cmp a b
-
-  let of_nan (x : float) =
-    if x <> x then Null else NotNull x
-
-  (*$= of_nan
-    Null (of_nan nan)
-    (NotNull 0.) (of_nan 0.)
-    (NotNull infinity) (of_nan infinity)
-    (NotNull neg_infinity) (of_nan neg_infinity)
-  *)
-
-  (*$>*)
-end
-
-let (|!) = Nullable.(|!)
+let nullable_map_no_fail f = function
+  | None -> None
+  | Some x ->
+      (try Some (f x) with _ -> None)
 
 module Size =
 struct
