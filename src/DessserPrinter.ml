@@ -68,6 +68,10 @@ let declared_type p t f =
     id
   )
 
+let declare_if_named p t s f =
+  if List.mem_assoc t p.type_names then declared_type p t f
+  else s
+
 let get_external_type p name backend_id =
   match List.assoc name p.external_types with
   | exception (Not_found as e) ->

@@ -258,71 +258,74 @@ struct
     else
       type_identifier p mn.typ
 
-  and type_identifier p mn =
+  and type_identifier p t =
     let type_identifier = type_identifier p in
-    match mn with
+    let declare_if_named s =
+      P.declare_if_named p t s (fun oc type_id ->
+          pp oc "and %s = %s\n\n" type_id s) in
+    match t with
     | Unknown -> invalid_arg "type_identifier"
     | This -> "t"
-    | Base Char -> "char"
-    | Base String -> "string"
-    | Base Bool -> "bool"
-    | Base Float -> "float"
-    | Base U8 -> "Uint8.t"
-    | Base I8 -> "Int8.t"
-    | Base U16 -> "Uint16.t"
-    | Base I16 -> "Int16.t"
-    | Base U24 -> "Uint24.t"
-    | Base I24 -> "Int24.t"
-    | Base U32 -> "Uint32.t"
-    | Base I32 -> "Int32.t"
-    | Base U40 -> "Uint40.t"
-    | Base I40 -> "Int40.t"
-    | Base U48 -> "Uint48.t"
-    | Base I48 -> "Int48.t"
-    | Base U56 -> "Uint56.t"
-    | Base I56 -> "Int56.t"
-    | Base U64 -> "Uint64.t"
-    | Base I64 -> "Int64.t"
-    | Base U128 -> "Uint128.t"
-    | Base I128 -> "Int128.t"
+    | Base Char -> "char" |> declare_if_named
+    | Base String -> "string" |> declare_if_named
+    | Base Bool -> "bool" |> declare_if_named
+    | Base Float -> "float" |> declare_if_named
+    | Base U8 -> "Uint8.t" |> declare_if_named
+    | Base I8 -> "Int8.t" |> declare_if_named
+    | Base U16 -> "Uint16.t" |> declare_if_named
+    | Base I16 -> "Int16.t" |> declare_if_named
+    | Base U24 -> "Uint24.t" |> declare_if_named
+    | Base I24 -> "Int24.t" |> declare_if_named
+    | Base U32 -> "Uint32.t" |> declare_if_named
+    | Base I32 -> "Int32.t" |> declare_if_named
+    | Base U40 -> "Uint40.t" |> declare_if_named
+    | Base I40 -> "Int40.t" |> declare_if_named
+    | Base U48 -> "Uint48.t" |> declare_if_named
+    | Base I48 -> "Int48.t" |> declare_if_named
+    | Base U56 -> "Uint56.t" |> declare_if_named
+    | Base I56 -> "Int56.t" |> declare_if_named
+    | Base U64 -> "Uint64.t" |> declare_if_named
+    | Base I64 -> "Int64.t" |> declare_if_named
+    | Base U128 -> "Uint128.t" |> declare_if_named
+    | Base I128 -> "Int128.t" |> declare_if_named
     | Usr t ->
-        type_identifier t.def
+        type_identifier t.def |> declare_if_named
     | Ext n ->
-        P.get_external_type p n OCaml
+        P.get_external_type p n OCaml |> declare_if_named
     | (Vec (_, t) | Lst t) ->
-        type_identifier_mn p t ^" array"
+        type_identifier_mn p t ^" array" |> declare_if_named
     | Set (st, t) ->
         let m = mod_of_set_type st in
-        type_identifier_mn p t ^" "^ m ^".t"
-    | Tup mns as mn ->
-        P.declared_type p mn (fun oc type_id ->
+        type_identifier_mn p t ^" "^ m ^".t" |> declare_if_named
+    | Tup mns as t ->
+        P.declared_type p t (fun oc type_id ->
           print_tuple p oc type_id mns) |>
         valid_identifier
-    | Rec mns as mn ->
-        P.declared_type p mn (fun oc type_id ->
+    | Rec mns as t ->
+        P.declared_type p t (fun oc type_id ->
           print_record p oc type_id mns) |>
         valid_identifier
-    | Sum mns as mn ->
-        P.declared_type p mn (fun oc type_id ->
+    | Sum mns as t ->
+        P.declared_type p t (fun oc type_id ->
           print_sum p oc type_id mns) |>
         valid_identifier
     | Map _ ->
         assert false (* no value of map type *)
-    | Void -> "unit"
-    | Ptr -> "Pointer.t"
-    | Size -> "Size.t"
-    | Address -> "Uint64.t"
-    | Bytes -> "Slice.t"
+    | Void -> "unit" |> declare_if_named
+    | Ptr -> "Pointer.t" |> declare_if_named
+    | Size -> "Size.t" |> declare_if_named
+    | Address -> "Uint64.t" |> declare_if_named
+    | Bytes -> "Slice.t" |> declare_if_named
     | SList mn ->
-        type_identifier_mn p mn ^" list"
+        type_identifier_mn p mn ^" list" |> declare_if_named
     | Function ([||], mn) ->
-        "(unit -> "^ type_identifier_mn p mn ^")"
+        "(unit -> "^ type_identifier_mn p mn ^")" |> declare_if_named
     | Function (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc mn ->
             String.print oc (type_identifier_mn p mn))
-        ) args ^" -> "^ type_identifier_mn p ret ^")"
-    | Mask -> "DessserMasks.t"
+        ) args ^" -> "^ type_identifier_mn p ret ^")" |> declare_if_named
+    | Mask -> "DessserMasks.t" |> declare_if_named
 
   let rec mod_name = function
     | T.{ typ = Base Char ; nullable = false } -> "Char"
