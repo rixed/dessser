@@ -1085,17 +1085,18 @@ struct
         | Some n -> n)
     | E.E3 (If, e1, e2, e3) ->
         let cond = print emit p l e1 in
-        let res = gen_sym ?name "choose_res_" in
         let t2 = E.type_of l e2 in
-        ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
+        let has_res = not (T.eq_mn t2 T.void) in
+        let res = if has_res then gen_sym ?name "choose_res_" else "VOID" in
+        if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "if (%s) {" cond ;
         P.indent_more p (fun () ->
           let n = print emit p l e2 in
-          ppi p.P.def "%s = %s;" res n) ;
+          if has_res then ppi p.P.def "%s = %s;" res n) ;
         ppi p.P.def "} else {" ;
         P.indent_more p (fun () ->
           let n = print emit p l e3 in
-          ppi p.P.def "%s = %s;" res n) ;
+          if has_res then ppi p.P.def "%s = %s;" res n) ;
         ppi p.P.def "}" ;
         res
     | E.E2 (While, cond, body) ->
