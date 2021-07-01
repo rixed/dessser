@@ -86,8 +86,6 @@ let print_mask oc m =
 
 module Parser =
 struct
-  (*$< Parser *)
-
   exception Missing_end_of_recurse of int
   exception Missing_end_of_replace of int
   exception Missing_end_of_insert of int
@@ -160,22 +158,22 @@ struct
       raise (Garbage_after i)
     else
       m
-
-  (*$= mask_of_string & ~printer:string_of_mask
-    (Recurse [| Copy ; Skip ; Copy |]) \
-      (mask_of_string "(x_x)")
-    Copy \
-      (mask_of_string "(xxx)")
-    (Recurse \
-      [| Copy ; \
-         Recurse [| Skip ; Insert (E.(E0 (Null T.(Base U8)))) ; Copy |] |]) \
-      (mask_of_string "(X(_{(null \"u8\")}X))")
-    (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
-      (mask_of_string "(X(_NX))")
-  *)
-
-  (*$>*)
 end
+
+let of_string = Parser.mask_of_string
+
+(*$= of_string & ~printer:string_of_mask
+  (Recurse [| Copy ; Skip ; Copy |]) \
+    (of_string "(x_x)")
+  Copy \
+    (of_string "(xxx)")
+  (Recurse \
+    [| Copy ; \
+       Recurse [| Skip ; Insert (E.(E0 (Null T.(Base U8)))) ; Copy |] |]) \
+    (of_string "(X(_{(null \"u8\")}X))")
+  (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
+    (of_string "(X(_NX))")
+*)
 
 exception Types_do_not_match of { mask : T.mn ; expr : T.mn }
 exception Invalid_type_for_mask of T.t
