@@ -50,43 +50,20 @@ let init_backend backend schema =
   | OCaml -> DessserBackEndOCaml.init schema
   | _ -> ()
 
+
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
-        optim () =
+let lib dbg schema backend encodings_in encodings_out converters _fieldmask
+        dest_fname optim () =
+  if encodings_in = [] && encodings_out = [] then
+    failwith "No encoding specified" ;
+  if List.exists (fun (i, o) -> i = o) converters then
+    failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
   T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
-  let module BE = (val backend : BACKEND) in
-  let module Des = (val (des_of_encoding encoding_in) : DES) in
-  let module Ser = (val (ser_of_encoding encoding_out) : SER) in
-  let module ToValue = DessserHeapValue.Materialize (Des) in
-  let module OfValue = DessserHeapValue.Serialize (Ser) in
   init_backend backend schema ;
-  let l = E.no_env in
-  let has_convert = encoding_in <> encoding_out in
-  let convert =
-    if has_convert then
-      (* convert from encoding_in to encoding_out: *)
-      E.func2 ~l T.ptr T.ptr (fun l p1 p2 ->
-        let module DS = DesSer (Des) (Ser) in
-        DS.desser schema ?transform:None l p1 p2)
-    else nop in
-  let des =
-    (* convert from encoding_in into a heapvalue: *)
-    ToValue.make schema l in
-  let sersize =
-    (* compute the serialization size of a heap value: *)
-    OfValue.sersize schema l in
-  let ser =
-    (* convert from a heapvalue into encoding_out. *)
-    OfValue.serialize schema l in
-  if !debug then (
-    if has_convert then E.type_check E.no_env convert ;
-    E.type_check E.no_env des ;
-    E.type_check E.no_env sersize ;
-    E.type_check E.no_env ser) ;
   let compunit = U.make () in
   (* Christen the schema type the global type name "t" *)
   let type_name = "t" in
@@ -111,20 +88,58 @@ let lib dbg schema backend encoding_in encoding_out _fieldmask dest_fname
       | _ ->
           compunit
     ) schema in
-  let compunit =
-    if has_convert then
-      let c, _, _ =
-        U.add_identifier_of_expression compunit ~name:"convert" convert in c
-    else compunit in
-  let compunit, _, _ =
-    let name = E.string_of_type_method (E.Des encoding_in) in
-    U.add_identifier_of_expression compunit ~name des in
-  let compunit, _, _ =
-    let name = E.string_of_type_method (E.SSize encoding_out) in
-    U.add_identifier_of_expression compunit ~name sersize in
-  let compunit, _, _ =
-    let name = E.string_of_type_method (E.Ser encoding_out) in
-    U.add_identifier_of_expression compunit ~name ser in
+  let module BE = (val backend : BACKEND) in
+  let add_decoder compunit encoding_in =
+    let l = U.environment compunit in
+    let module Des = (val (des_of_encoding encoding_in) : DES) in
+    let module ToValue = DessserHeapValue.Materialize (Des) in
+    let des =
+      (* convert from encoding_in into a heapvalue: *)
+      ToValue.make schema l in
+    if !debug then E.type_check E.no_env des ;
+    let compunit, _, _ =
+      let name = E.string_of_type_method (E.Des encoding_in) in
+      U.add_identifier_of_expression compunit ~name des in
+    compunit
+  and add_encoder compunit encoding_out =
+    let l = U.environment compunit in
+    let module Ser = (val (ser_of_encoding encoding_out) : SER) in
+    let module OfValue = DessserHeapValue.Serialize (Ser) in
+    let sersize =
+      (* compute the serialization size of a heap value: *)
+      OfValue.sersize schema l in
+    let ser =
+      (* convert from a heapvalue into encoding_out. *)
+      OfValue.serialize schema l in
+    if !debug then (
+      E.type_check E.no_env sersize ;
+      E.type_check E.no_env ser) ;
+    let compunit, _, _ =
+      let name = E.string_of_type_method (E.SSize encoding_out) in
+      U.add_identifier_of_expression compunit ~name sersize in
+    let compunit, _, _ =
+      let name = E.string_of_type_method (E.Ser encoding_out) in
+      U.add_identifier_of_expression compunit ~name ser in
+    compunit
+  and add_converter compunit (encoding_in, encoding_out) =
+    let l = U.environment compunit in
+    let module Des = (val (des_of_encoding encoding_in) : DES) in
+    let module Ser = (val (ser_of_encoding encoding_out) : SER) in
+    assert (encoding_in <> encoding_out) ;
+    let convert =
+      (* convert from encoding_in to encoding_out: *)
+      E.func2 ~l T.ptr T.ptr (fun l p1 p2 ->
+        let module DS = DesSer (Des) (Ser) in
+        DS.desser schema ?transform:None l p1 p2) in
+    if !debug then E.type_check E.no_env convert ;
+    let compunit, _, _ =
+      let name =
+        E.string_of_type_method (E.Convert (encoding_in, encoding_out)) in
+      U.add_identifier_of_expression compunit ~name convert in
+    compunit in
+  let compunit = List.fold_left add_decoder compunit encodings_in in
+  let compunit = List.fold_left add_encoder compunit encodings_out in
+  let compunit = List.fold_left add_converter compunit converters in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
   write_source ~src_fname:def_fname (fun oc ->
@@ -382,6 +397,12 @@ let encoding_in =
   let i = Arg.info ~doc ~docv [ "input-encoding" ] in
   Arg.(opt (enum known_inputs) RowBinary i)
 
+let encodings_in =
+  let doc = "encoding format for input" in
+  let docv = docv_of_enum known_inputs in
+  let i = Arg.info ~doc ~docv [ "input-encoding" ] in
+  Arg.(opt_all (enum known_inputs) [] i)
+
 let known_outputs =
   T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ] |>
   List.map (fun enc -> string_of_encoding enc, enc)
@@ -391,6 +412,36 @@ let encoding_out =
   let docv = docv_of_enum known_outputs in
   let i = Arg.info ~doc ~docv [ "output-encoding" ] in
   Arg.(opt (enum known_outputs) SExpr i)
+
+let encodings_out =
+  let doc = "encoding format for output" in
+  let docv = docv_of_enum known_outputs in
+  let i = Arg.info ~doc ~docv [ "output-encoding" ] in
+  Arg.(opt_all (enum known_outputs) [] i)
+
+let converter_in_out =
+  let parse s =
+    match String.split ~by:":" s with
+    | exception Not_found ->
+        Stdlib.Error (`Msg "Converter format must be IN:OUT")
+    | i, o ->
+        if not (List.mem_assoc i known_inputs) then
+          Stdlib.Error (`Msg ("Unknown input encoder: "^ i))
+        else if not (List.mem_assoc o known_outputs) then
+          Stdlib.Error (`Msg ("Unknown output encoder: "^ o))
+        else
+          Stdlib.Ok (List.assoc i known_inputs,
+                     List.assoc o known_outputs)
+  and print fmt (i, o) =
+    Format.fprintf fmt "%s:%s" (string_of_encoding i) (string_of_encoding o)
+  in
+  Arg.conv ~docv:"IN:OUT" (parse, print)
+
+let converters =
+  let doc = "in:out encodings to write a converter" in
+  let docv = "IN:OUT" in
+  let i = Arg.info ~doc ~docv [ "converter" ] in
+  Arg.(opt_all converter_in_out [] i)
 
 let backend =
   let languages =
@@ -519,10 +570,9 @@ let lib_cmd =
      $ Arg.value debug
      $ Arg.required val_schema
      $ Arg.required backend
-     (* FIXME: we want to be able to generate a lib with more than one pair
-      * of I/O encodings *)
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
+     $ Arg.value encodings_in
+     $ Arg.value encodings_out
+     $ Arg.value converters
      $ Arg.value comptime_fieldmask
      $ Arg.required dest_fname
      $ Arg.value optim),
