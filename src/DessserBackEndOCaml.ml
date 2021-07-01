@@ -38,7 +38,7 @@ let valid_module_name s =
  * Beware that when the exact same type is encountered several times in [t]
  * it is supposed to stay the same type after adaptation, so all instances
  * of [t] must have the same prefix! *)
-let make_get_prefix mn =
+let make_get_field_name mn =
   (* Hash from name to the list of original type and path this name is used
    * within: *)
   let renamings = Hashtbl.create 10 in
@@ -90,59 +90,79 @@ let make_get_prefix mn =
         sensus_mn path vmn
     | _ ->
         () in
-  let uniq_prefix n vt =
+  (* Gather information on all field/constructor names: *)
+  sensus_mn [] mn ;
+  (* Shorten all paths so long as all paths to any given name used for same
+   * kind of types are distinct: *)
+  (* Helper function: tells if the given path is already present for that
+   * kind of type, in a given list of (vt * path): *)
+  let same_kind vt vt' =
+    match vt, vt' with
+    | T.Sum _, T.Sum _ | Rec _, Rec _ -> true | _ -> false in
+  let is_present vt path l =
+    List.exists (fun (vt', path') -> same_kind vt vt' && path = path') l in
+  (* Shorten (from the left) every path until singleton or already present *)
+  Hashtbl.map_inplace (fun _n l ->
+    List.fold_left (fun l' (vt, path) ->
+      let rec shorten path =
+        match path with
+        | [] ->
+            (vt, path) :: l'
+        | _ :: path' ->
+            if is_present vt path' l ||
+               is_present vt path' l'
+            then (vt, path) :: l'
+            else shorten path' in
+      shorten (List.rev path)
+    ) [] l
+  ) renamings ;
+  (* Now precompute a simple hash from name and type to new unique name: *)
+  let uniq_field_name n vt =
     let l = Hashtbl.find renamings n in
     let num_vts =
       List.fold_left (fun num (vt', _) ->
-        match vt, vt' with
-        | T.Sum _, T.Sum _ | Rec _, Rec _ -> num + 1
-        | _ -> num
+        if same_kind vt vt' then num + 1 else num
       ) 0 l in
     if num_vts > 1 then
       let _vt, path = List.find (fun (vt', _) -> T.eq vt vt') l in
-      String.join "_" (List.rev path) ^"_"
+      if path = [] then n else String.join "_" path ^"_"^ n
     else
-      "" in
-  (* Gather information on all field/constructor names: *)
-  sensus_mn [] mn ;
-  (* Now for each type that requires a prefix (ie. some of their names are
-   * present in several types of the same kind), compute the prefix: *)
-  let prefixes = Hashtbl.create 10 in
+      n in
+  (* Precompute all names: *)
+  let field_names = Hashtbl.create 10 in
   Hashtbl.iter (fun n l ->
     List.iter (fun (vt, _) ->
-      let pref = uniq_prefix n vt in
-      if pref <> "" then
-        Hashtbl.modify_opt vt (function
-          | None -> Some pref
-          | Some pref' ->
+      let n' = uniq_field_name n vt in
+      if n' <> n then
+        Hashtbl.modify_opt (n, vt) (function
+          | None -> Some n'
+          | Some n'' ->
               Some (
-                if String.length pref < String.length pref' then pref
-                else pref')
-        ) prefixes
+                if String.length n' < String.length n'' then n'
+                else n'')
+        ) field_names
     ) l
   ) renamings ;
-  fun t ->
+  fun n t ->
     let t = T.develop t in
-    Hashtbl.find_default prefixes t ""
+    Hashtbl.find_default field_names (n, t) n
 
-(* When [get_prefix] is not initialized, the default is to always prefix with a
- * hash of the type: *)
-let default_get_prefix t =
+(* When [get_field_name] is not initialized, the default is to always prefix
+ * with a hash of the type: *)
+let default_get_field_name n t =
   let t = T.develop t in
-  valid_module_name T.(uniq_id t) ^"_"
+  valid_module_name T.(uniq_id t) ^"_"^ n
 
-let get_prefix = ref default_get_prefix
+let get_field_name = ref default_get_field_name
 
 let init mn =
-  get_prefix := make_get_prefix mn
+  get_field_name := make_get_field_name mn
 
 let uniq_field_name vt n =
-  let prefix = !get_prefix vt in
-  valid_identifier (prefix ^ n)
+  valid_identifier (!get_field_name n vt)
 
 let uniq_cstr_name vt n =
-  let prefix = !get_prefix vt in
-  valid_upper_identifier (prefix ^ n)
+  valid_upper_identifier (!get_field_name n vt)
 
 module Config =
 struct

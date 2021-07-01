@@ -37,6 +37,7 @@ let valid_identifier s =
       | c -> c
     ) s in
   if s = "" then "v" else
+  if s.[0] >= 'A' && s.[0] <= 'Z' then String.uncapitalize_ascii s else
   if s.[0] >= 'a' && s.[0] <= 'z' || s.[0] = '_' then s else
   "v_"^ s
 
