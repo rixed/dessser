@@ -139,7 +139,7 @@ let may_set_nullbit bit mn0 path l stk =
   | _ ->
       (* This is an item of some compound (top level or inner), which have a
        * nullbit if it is nullable: *)
-      if (Path.type_of_path mn0 path |> T.develop_mn).nullable then
+      if (Path.type_of_path mn0 path).nullable then
         set_nullbit_to bit l stk
       else
         stk
@@ -152,7 +152,7 @@ let may_skip_nullbit mn0 path l p_stk =
       assert (not mn0.T.nullable) ;
       p_stk
   | _ ->
-      if (Path.type_of_path mn0 path |> T.develop_mn).nullable then
+      if (Path.type_of_path mn0 path).nullable then
         E.with_sploded_pair ~l "may_skip_nullbit" p_stk (fun l p stk ->
           let stk = skip_nullbit l stk in
           make_pair p stk)
@@ -508,7 +508,7 @@ struct
           nullmask_bytes
     and without_nullmask () =
       size word_size in
-    match (Path.type_of_path mn0 path |> T.develop_mn).typ with
+    match (Path.type_of_path mn0 path).typ |> T.develop with
     | Lst mn ->
         (* If the items are not nullable then there is no nullmask. *)
         if mn.nullable then

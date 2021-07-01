@@ -164,8 +164,8 @@ let make_serializable =
  * then clickhouse expects to receive them in CSV as strings, so we do
  * the same) *)
 let is_fixed_string mn0 path =
-  match Path.type_of_path mn0 path with
-  | { typ = Vec (_, { typ = Base Char ; nullable = false } ) ; _ } ->
+  match Path.(type_of_path mn0 path).typ |> T.develop with
+  | Vec (_, { typ = Base Char ; nullable = false } ) ->
       true
   | _ ->
       false
