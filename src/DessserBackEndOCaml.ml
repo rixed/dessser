@@ -144,7 +144,7 @@ let make_get_field_name mn =
     ) l
   ) renamings ;
   fun n t ->
-    let t = T.develop t in
+    let t = T.develop t |> T.shrink in
     Hashtbl.find_default field_names (n, t) n
 
 (* When [get_field_name] is not initialized, the default is to always prefix

@@ -933,17 +933,19 @@ let shrink t =
   let rec do_mn mn =
     { mn with typ = do_typ mn.typ }
   and do_typ t =
-    if eq t !this then This else
-    match t with
-    | Usr { def ; _ } -> do_typ def
-    | Vec (d, mn) -> Vec (d, do_mn mn)
-    | Lst mn -> Lst (do_mn mn)
-    | Set (st, mn) -> Set (st, do_mn mn)
-    | Tup mns -> Tup (Array.map do_mn mns)
-    | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
-    | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
-    | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
-    | t -> t
+    let t' =
+      match t with
+      | Usr { def ; _ } -> do_typ def
+      | Vec (d, mn) -> Vec (d, do_mn mn)
+      | Lst mn -> Lst (do_mn mn)
+      | Set (st, mn) -> Set (st, do_mn mn)
+      | Tup mns -> Tup (Array.map do_mn mns)
+      | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+      | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+      | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
+      | t -> t in
+    if t == t' then t else
+    if eq t' !this then This else t'
   in
   (* Avoid replacing the whole type with This: *)
   if eq t !this then t else

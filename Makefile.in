@@ -74,7 +74,7 @@ all: $(INSTALLED) examples
 .PHONY: \
   clean distclean all dep doc examples \
   check unit-check quick-check slow-check examples-check cpp-check \
-  aggregator-simplest-check aggregator-sets-check \
+  aggregator-simplest-check aggregator-sets-check dessserc-check \
   install uninstall reinstall
 
 %.cmi: %.mli
@@ -433,9 +433,22 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 	 done ;\
 	 if test "$$ok" = yes; then echo SUCCESS; else echo FAILURE; exit 1; fi
 
+dessserc-check: src/dessserc $(wildcard tests/*.type)
+	@echo Testing dessserc
+	@for f in tests/*.type; do \
+	  src_file=/tmp/$$(basename $$f .type) ;\
+	  src/dessserc lib -O3 \
+	    --input-encoding row-binary --input-encoding s-expression \
+	    --output-encoding row-binary --output-encoding s-expression \
+	    --language=OCaml --schema=@$$f -o "$$src_file.ml" && \
+	  $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.mli" &&\
+	  $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.ml" ;\
+	done
+	@echo SUCCESS
+
 check: \
   unit-check examples-check cpp-check dump-load-check convert-check \
-  aggregator-simplest-check aggregator-sets-check
+  aggregator-simplest-check aggregator-sets-check dessserc-check
 
 # Installation
 
