@@ -1213,8 +1213,8 @@ let rec peval l e =
 
   "(fun 0 \"FLOAT\" (unsafe-log (add (float 0x1p+0) (abs (param 0 0)))))" \
     (test_peval 3 "(fun 0 \"float\" \
-                     (force \"\" (log (add (force \"\" (sqrt (float 1))) \
-                                           (abs (param 0 0))))))")
+                     (force (log (add (force (sqrt (float 1))) \
+                                      (abs (param 0 0))))))")
 
   "(bool true)" \
     (test_peval 3 \

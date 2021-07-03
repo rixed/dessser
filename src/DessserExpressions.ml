@@ -758,6 +758,7 @@ let string_of_e1 = function
   | Ignore -> "ignore"
   | IsNull -> "is-null"
   | NotNull -> "not-null"
+  | Force "" -> "force"
   | Force what -> "force "^ String.quote what
   | StringOfFloat -> "string-of-float"
   | StringOfChar -> "string-of-char"
@@ -1329,6 +1330,7 @@ struct
     | Lst [ Sym "is-null" ; x ] -> E1 (IsNull, e x)
     | Lst [ Sym "not-null" ; x ] -> E1 (NotNull, e x)
     | Lst [ Sym "force" ; Str w ; x ] -> E1 (Force w, e x)
+    | Lst [ Sym "force" ; x ] -> E1 (Force "", e x)
     | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
     | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
