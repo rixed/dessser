@@ -3079,6 +3079,16 @@ let is_identity p = function
   | _ ->
       false
 
+let is_recursive e =
+  try
+    iter (function
+      | E0 (Myself _) -> raise Exit
+      | _ -> ()
+    ) e ;
+    false
+  with Exit ->
+    true
+
 (*$< DessserTypes *)
 (*$= type_of & ~printer:(T.mn_to_string)
   (T.pair T.u24 T.ptr) \

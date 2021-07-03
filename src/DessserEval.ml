@@ -660,13 +660,15 @@ let rec peval l e =
       let e1 = p e1 in
       let es = List.map p es in
       (match final_expression e1, es with
-      | E1 (Function _, body), [] ->
+      | E1 (Function _, body), []
+        when not (E.is_recursive body) ->
           replace_final_expression e1 body |> p
       (* If [f] is constant we cannot proceed directly with variable
        * substitutions unless each variable is used only once. We can
        * turn the apply into a sequence of lets that will further
        * substitute what can be substituted: *)
-      | E1 (Function (fid, _), body), es ->
+      | E1 (Function (fid, _), body), es
+        when not (E.is_recursive body) ->
           List.fold_lefti (fun body i e ->
             let_ ~l e (fun _l e ->
               E.map (function
