@@ -1142,6 +1142,21 @@ let rec peval l e =
              not (E.has_side_effect e3) ->
           (* Then we ever need to execute one of the alternative: *)
           e2
+      (* Propagate knowledge about truthness of an If condition in its
+       * branches: *)
+      | If, cond, f2, f3 ->
+          let repl ~by src =
+            E.map (fun e ->
+              if E.eq e cond then by else e
+            ) src in
+          (* Replace the condition by true / false in the branches: *)
+          let f2' = repl ~by:true_ f2
+          and f3' = repl ~by:false_ f3 in
+          if E.eq f2 f2' && E.eq f3 f3' then
+            E.E3 (If, e1, e2, e3)
+          else
+            E.E3 (If, e1, replace_final_expression e2 f2',
+                          replace_final_expression e3 f3') |> p
       | Map, _, f, lst ->
           (match lst with
           | E0S (MakeVec, [ e ]) ->
@@ -1255,6 +1270,15 @@ let rec peval l e =
 
   "(null \"FLOAT\")" \
     (test_peval 3 "(float-of-string (string \"POISON\"))")
+
+  "(fun 0 \"U8\" (if (is-null (param 0 0)) (u8 49) (add (force (param 0 0)) (u8 1))))" \
+    (test_peval 3 \
+      "(fun 0 \"U8\" \
+         (if (is-null (param 0 0)) \
+             (add (if (is-null (param 0 0)) (u8 42) (force (param 0 0))) \
+                  (u8 7)) \
+             (add (force (param 0 0)) \
+                  (u8 1))))")
 *)
 (* This one is but a wish for now:
   "(fun 0 \"u32\" \
