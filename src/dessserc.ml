@@ -55,7 +55,7 @@ let init_backend backend schema =
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        _fieldmask dest_fname optim () =
+        with_fieldmask dest_fname optim () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -100,7 +100,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       ToValue.make schema l in
     if !debug then E.type_check E.no_env des ;
     let compunit, _, _ =
-      let name = E.string_of_type_method (E.Des encoding_in) in
+      let name = E.string_of_type_method (E.DesNoMask encoding_in) in
       U.add_identifier_of_expression compunit ~name des in
     compunit
   and add_encoder compunit encoding_out =
@@ -109,18 +109,24 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     let module OfValue = DessserHeapValue.Serialize (Ser) in
     let sersize =
       (* compute the serialization size of a heap value: *)
-      OfValue.sersize schema l in
+      OfValue.sersize ~with_fieldmask schema l in
     let ser =
       (* convert from a heapvalue into encoding_out. *)
-      OfValue.serialize schema l in
+      OfValue.serialize ~with_fieldmask schema l in
     if !debug then (
       E.type_check E.no_env sersize ;
       E.type_check E.no_env ser) ;
     let compunit, _, _ =
-      let name = E.string_of_type_method (E.SSize encoding_out) in
+      let name =
+        (if with_fieldmask then E.SSizeWithMask encoding_out
+                           else E.SSizeNoMask encoding_out) |>
+        E.string_of_type_method in
       U.add_identifier_of_expression compunit ~name sersize in
     let compunit, _, _ =
-      let name = E.string_of_type_method (E.Ser encoding_out) in
+      let name =
+        (if with_fieldmask then E.SerWithMask encoding_out
+                           else E.SerNoMask encoding_out) |>
+        E.string_of_type_method in
       U.add_identifier_of_expression compunit ~name ser in
     compunit
   and add_converter compunit (encoding_in, encoding_out) =
@@ -153,7 +159,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     Printf.printf "definitions in %S\n" def_fname)
 
 let converter
-      dbg quiet_ schema backend encoding_in encoding_out _fieldmask
+      dbg quiet_ schema backend encoding_in encoding_out
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
   quiet := quiet_ ;
@@ -465,23 +471,11 @@ let backend =
   let i = Arg.info ~doc ~docv [ "language" ; "backend" ] in
   Arg.(opt (some (enum languages)) None i)
 
-let fieldmask =
-  let parse s =
-    try Stdlib.Ok (M.Parser.action_of_string s)
-    with e -> Stdlib.Error (`Msg (Printexc.to_string e))
-  and print fmt ma =
-    Format.fprintf fmt "%s" (M.string_of_mask ma)
-  in
-  Arg.conv ~docv:"MASK" (parse, print)
-
-(* One day when there are compile time masks this option will be needed.
- * For now we simulate compile time masks with runtime ones, which comes
- * handy for testing. *)
-let comptime_fieldmask =
-  let doc = "Compile-time fieldmask to apply when serializing" in
-  let docv = "MASK" in
-  let i = Arg.info ~doc ~docv [ "mask" ; "field-mask" ] in
-  Arg.(opt fieldmask M.Copy i)
+let with_fieldmask =
+  let doc = "Generate code that accept a runtime fieldmask" in
+  let i = Arg.info ~doc [ "with-mask" ; "with-fieldmask" ;
+                          "with-field-mask" ] in
+  Arg.flag i
 
 let parse_expression s =
   match E.Parser.expr s with
@@ -568,7 +562,6 @@ let converter_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.value comptime_fieldmask
      $ Arg.value modifier_exprs
      $ Arg.required dest_fname
      $ Arg.value dev_mode
@@ -587,7 +580,7 @@ let lib_cmd =
      $ Arg.value encodings_in
      $ Arg.value encodings_out
      $ Arg.value converters
-     $ Arg.value comptime_fieldmask
+     $ Arg.value with_fieldmask
      $ Arg.required dest_fname
      $ Arg.value optim),
     info "lib" ~doc)

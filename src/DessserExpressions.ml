@@ -33,17 +33,24 @@ let param_print oc (f, n) =
   Printf.fprintf oc "%d:%d" f n
 
 type type_method =
-  | Ser of encoding_id  (* serialize into this encoding *)
-  | Des of encoding_id  (* deserialize from this encoding *)
-  | SSize of encoding_id  (* serialized size in this encoding *)
+  | SerWithMask of encoding_id  (* serialize into this encoding *)
+  | SerNoMask of encoding_id
+  (* TODO: DesWithMask *)
+  | DesNoMask of encoding_id  (* deserialize from this encoding *)
+  | SSizeWithMask of encoding_id  (* serialized size in this encoding *)
+  | SSizeNoMask of encoding_id
   | Convert of encoding_id * encoding_id  (* convert from a to b encodings *)
 
 let string_of_type_method = function
-  | Ser enc ->
+  | SerWithMask enc ->
+      "to-"^ string_of_encoding enc ^"-with-mask"
+  | SerNoMask enc ->
       "to-"^ string_of_encoding enc
-  | Des enc ->
+  | DesNoMask enc ->
       "of-"^ string_of_encoding enc
-  | SSize enc ->
+  | SSizeWithMask enc ->
+      "sersize-of-"^ string_of_encoding enc ^"-with-mask"
+  | SSizeNoMask enc ->
       "sersize-of-"^ string_of_encoding enc
   | Convert (from_, to_) ->
       string_of_encoding to_ ^"-of-"^ string_of_encoding from_
@@ -51,9 +58,16 @@ let string_of_type_method = function
 let type_method_of_string s =
   let to_enc n s = encoding_of_string (String.lchop ~n s) in
   let s = String.lowercase_ascii s in
-  if String.starts_with s "to-" then Ser (to_enc 3 s) else
-  if String.starts_with s "of-" then Des (to_enc 3 s) else
-  if String.starts_with s "sersize-of-" then SSize (to_enc 11 s) else
+  if String.starts_with s "to-" && String.ends_with s "-with-mask" then
+    SerWithMask (to_enc 3 s) else
+  if String.starts_with s "to-" then
+    SerNoMask (to_enc 3 s) else
+  if String.starts_with s "of-" then
+    DesNoMask (to_enc 3 s) else
+  if String.starts_with s "sersize-of-" && String.ends_with s "-with-mask" then
+    SSizeWithMask (to_enc 11 s) else
+  if String.starts_with s "sersize-of-" then
+    SSizeNoMask (to_enc 11 s) else
   match String.split ~by:"-of-" s with
   | exception Not_found ->
       invalid_arg ("type_method_of_string: "^ s)
@@ -2002,12 +2016,16 @@ and type_of l e0 =
   | E2 (Member, _, _) -> T.bool
   | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
       find_identifier l e
-  | E0 (ExtIdentifier (Method { typ ; meth = Ser _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = SerWithMask _ })) ->
       T.func3 T.mask T.(required (ext typ)) T.ptr T.ptr
-  | E0 (ExtIdentifier (Method { typ ; meth = Des _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = SerNoMask _ })) ->
+      T.func2 T.(required (ext typ)) T.ptr T.ptr
+  | E0 (ExtIdentifier (Method { typ ; meth = DesNoMask _ })) ->
       T.func1 T.ptr T.(pair (required (ext typ)) T.ptr)
-  | E0 (ExtIdentifier (Method { typ ; meth = SSize _ })) ->
+  | E0 (ExtIdentifier (Method { typ ; meth = SSizeWithMask _ })) ->
       T.func2 T.mask T.(required (ext typ)) T.size
+  | E0 (ExtIdentifier (Method { typ ; meth = SSizeNoMask _ })) ->
+      T.func1 T.(required (ext typ)) T.size
   | E0 (ExtIdentifier (Method { meth = Convert _ ; _ })) ->
       T.func2 T.ptr T.ptr T.(pair ptr ptr)
   | E0 (CopyField|SkipField|SetFieldNull) ->

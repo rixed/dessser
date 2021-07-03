@@ -8,10 +8,29 @@ open Batteries
 open Stdint
 open Dessser
 open DessserTools
-module T = DessserTypes
 module E = DessserExpressions
+module Mask = DessserMasks
 module StdLib = DessserStdLib
+module T = DessserTypes
 open E.Ops
+
+(* The generated code can use a runtime fieldmask or just encode everything.
+ * Of course, we could define a function A that calls the runtime mask version
+ * of some other function B with a constant copy-field mask, and the partial
+ * evaluation would inline B in A, removing all the code dealing with the
+ * fieldmask, as long as B is not recursive. Also, it would not inline
+ * externally defined functions that might be called by B. So it's more
+ * efficient to have two versions of B: one that accept a runtime fieldmask
+ * and one that does not. *)
+type fieldmask = CompTimeMask | RunTimeMask of E.t
+
+let fieldmask_get i = function
+  | CompTimeMask -> CompTimeMask
+  | RunTimeMask ma -> RunTimeMask (mask_get i ma)
+
+let fieldmask_copy = function
+  | CompTimeMask -> CompTimeMask
+  | RunTimeMask _ -> RunTimeMask copy_field
 
 module type MATERIALIZE =
 sig
@@ -172,7 +191,7 @@ struct
     make_pair void src
 
   and dext name _dstate _mn0 _path _l src =
-    apply (type_method name (E.Des Des.id)) [ src ]
+    apply (type_method name (E.DesNoMask Des.id)) [ src ]
 
   and dthis _dstate mn0 _path _l src =
     (* Call ourself recursively *)
@@ -246,23 +265,25 @@ end
 
 (* The other way around: given a heap value of some type and a serializer,
  * serialize that value.
- * The generated function accept a runtime fieldmask.
- * We could also have a version with a compile time fieldmask that would be
- * optimized compared to that one. TODO *)
+ * The generated function will optionally accept a runtime fieldmask. *)
 
 module type SERIALIZE =
 sig
   module Ser : SER
 
-  val serialize : ?config:Ser.config ->
-                  T.mn ->
-                  E.env ->
-                  E.t (* mask -> value -> dataptr -> dataptr *)
+  val serialize :
+    ?config:Ser.config ->
+    ?with_fieldmask:bool ->
+    T.mn ->
+    E.env ->
+    E.t (* mask (if with_fieldmask) -> value -> dataptr -> dataptr *)
 
-  val sersize : ?config:Ser.config ->
-                T.mn ->
-                E.env ->
-                E.t (* mask -> v -> size *)
+  val sersize :
+    ?config:Ser.config ->
+    ?with_fieldmask:bool ->
+    T.mn ->
+    E.env ->
+    E.t (* mask (if with_fieldmask) -> v -> size *)
 end
 
 module Serialize (Ser : SER) :
@@ -270,7 +291,7 @@ module Serialize (Ser : SER) :
 struct
   module Ser = Ser
 
-  let rec svec dim mn sstate mn0 path l v dst =
+  let rec svec dim mn ma sstate mn0 path l v dst =
     let dst = Ser.vec_opn sstate mn0 path dim mn l dst in
     let rec loop i l dst =
       let subpath = Path.(append (CompTime i) path) in
@@ -281,11 +302,14 @@ struct
                     Ser.vec_sep sstate mn0 subpath l dst in
         let_ ~name:"svec_dst" ~l dst (fun l dst ->
           let v' = nth (u32_of_int i) v in
-          ser1 sstate mn0 subpath mn l v' copy_field dst |>
+          (* From now on we copy all fields, as individual vector items cannot
+           * be filtered: (TODO: why not BTW?) *)
+          let ma = fieldmask_copy ma in
+          ser1 sstate mn0 subpath mn l v' ma dst |>
           loop (i + 1) l) in
     loop 0 l dst
 
-  and slist_or_set mn sstate mn0 path l v dst =
+  and slist_or_set mn ma sstate mn0 path l v dst =
     let len = cardinality v in
     let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
     let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
@@ -299,8 +323,11 @@ struct
               if_ (gt n (i32 0l))
                 ~then_:(Ser.list_sep sstate mn0 subpath l dst)
                 ~else_:dst in
+            (* From now on copy everything, as individual list items cannot
+             * be selected - since lists are variable in length *)
+            let ma = fieldmask_copy ma in
             seq [
-              set_ref dst_ref (ser1 sstate mn0 subpath mn l x copy_field dst) ;
+              set_ref dst_ref (ser1 sstate mn0 subpath mn l x ma dst) ;
               set_ref n_ref (add (i32 1l) n) ]) ;
           Ser.list_cls sstate mn0 path l dst ]))
 
@@ -313,7 +340,8 @@ struct
           (if i = 0 then dst else
                     Ser.tup_sep sstate mn0 subpath l dst)
           (fun l dst ->
-            ser1 sstate mn0 subpath mn l (get_item i v) (mask_get i ma) dst)
+            let ma = fieldmask_get i ma in
+            ser1 sstate mn0 subpath mn l (get_item i v) ma dst)
       ) dst mns in
     Ser.tup_cls sstate mn0 path l dst
 
@@ -326,9 +354,9 @@ struct
           (if i = 0 then dst else
                     Ser.rec_sep sstate mn0 subpath l dst)
           (fun l dst ->
+            let ma = fieldmask_get i ma in
             comment ("serialize field "^ fname)
-                    (ser1 sstate mn0 subpath mn l (get_field fname v)
-                          (mask_get i ma) dst))
+                    (ser1 sstate mn0 subpath mn l (get_field fname v) ma dst))
       ) dst mns in
     Ser.rec_cls sstate mn0 path l dst
 
@@ -362,12 +390,20 @@ struct
 
   and svoid _ _ _ _ _ dst = dst
 
-  and sext name ma _ _ _ _ v dst =
-    apply (type_method name (E.Ser Ser.id)) [ ma ; v ; dst ]
+  and sext name ma _sstate _mn0 _path _l v dst =
+    match ma with
+    | RunTimeMask ma ->
+        apply (type_method name (E.SerWithMask Ser.id)) [ ma ; v ; dst ]
+    | CompTimeMask ->
+        apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ]
 
   and sthis ma _sstate _mn0 _path _l v dst =
     (* Call ourself recursively *)
-    apply (myself T.ptr) [ ma ; v ; dst ]
+    match ma with
+    | RunTimeMask ma ->
+        apply (myself T.ptr) [ ma ; v ; dst ]
+    | CompTimeMask ->
+        apply (myself T.ptr) [ v ; dst ]
 
   and ser1 sstate mn0 path mn l v ma dst =
     let rec ser_of_vt = function
@@ -400,51 +436,62 @@ struct
       | T.Tup mns -> stup mns ma
       | T.Rec mns -> srec mns ma
       | T.Sum mns -> ssum mns ma
-      | T.Vec (dim, mn) -> svec dim mn
+      | T.Vec (dim, mn) -> svec dim mn ma
       (* Thanks to cardinality and fold being generic, lists and sets are
        * serialized the same: *)
-      | T.Lst mn -> slist_or_set mn
-      | T.Set (_, mn) -> slist_or_set mn
+      | T.Lst mn -> slist_or_set mn ma
+      | T.Set (_, mn) -> slist_or_set mn ma
       | T.Map _ -> assert false (* No value of map type *)
-      | _ -> invalid_arg "ser1"
-    in
-    if_ (eq ma skip_field)
-      ~then_:dst
-      ~else_:(
-        if_ (eq ma set_field_null)
-          ~then_:(
-            if mn.nullable then
-              Ser.snull mn.typ sstate mn0 path l dst
-            else
-              seq [ assert_ false_ ; (* Mask has been type checked *)
-                    dst ])
+      | _ -> invalid_arg "ser1" in
+    let on_copy =
+      (* Copy or Recurse are handled the same: *)
+      let vt = mn.typ in
+      if mn.nullable then
+        if_null v
+          ~then_:(Ser.snull vt sstate mn0 path l dst)
           ~else_:(
-            (* Copy or Recurse are handled the same: *)
-            let vt = mn.typ in
-            if mn.nullable then
-              if_null v
-                ~then_:(Ser.snull vt sstate mn0 path l dst)
-                ~else_:(
-                  let dst = Ser.snotnull vt sstate mn0 path l dst in
-                  let ser = ser_of_vt vt in
-                  ser sstate mn0 path l (force v) dst)
-            else
-              let ser = ser_of_vt vt in
-              ser sstate mn0 path l v dst))
+            let dst = Ser.snotnull vt sstate mn0 path l dst in
+            let ser = ser_of_vt vt in
+            ser sstate mn0 path l (force v) dst)
+      else
+        let ser = ser_of_vt vt in
+        ser sstate mn0 path l v dst
+    in
+    match ma with
+    | RunTimeMask ma ->
+        if_ (eq ma skip_field)
+          ~then_:dst
+          ~else_:(
+            if_ (eq ma set_field_null)
+              ~then_: (
+                if mn.nullable then
+                  Ser.snull mn.typ sstate mn0 path l dst
+                else (* Mask has been type checked *)
+                  seq [ assert_ false_ ; dst ])
+              ~else_:on_copy)
+    | CompTimeMask ->
+        on_copy
 
   (* [l] may contain serializers for external types *)
-  and serialize ?config mn0 l =
-    E.func3 ~l T.mask mn0 T.ptr (fun l ma v dst ->
-      let path = [] in
-      let sstate, dst = Ser.start ?config mn0 l dst in
-      let dst = ser1 sstate mn0 path mn0 l v ma dst in
-      Ser.stop sstate l dst)
+  and serialize ?config ?(with_fieldmask=true) mn0 l =
+    if with_fieldmask then
+      E.func3 ~l T.mask mn0 T.ptr (fun l ma v dst ->
+        let path = [] in
+        let sstate, dst = Ser.start ?config mn0 l dst in
+        let dst = ser1 sstate mn0 path mn0 l v (RunTimeMask ma) dst in
+        Ser.stop sstate l dst)
+    else
+      E.func2 ~l mn0 T.ptr (fun l v dst ->
+        let path = [] in
+        let sstate, dst = Ser.start ?config mn0 l dst in
+        let dst = ser1 sstate mn0 path mn0 l v CompTimeMask dst in
+        Ser.stop sstate l dst)
 
   (*
    * Compute the sersize of a expression:
    *)
 
-  let rec ssvec dim mn mn0 path l v sz =
+  let rec ssvec dim mn ma mn0 path l v sz =
     let sz =
       Ser.ssize_of_vec mn0 path l v |> add sz in
     let rec loop l sz i =
@@ -452,11 +499,12 @@ struct
       let subpath = Path.(append (CompTime i) path) in
       let v' = nth (u32_of_int i) v in
       let_ ~name:"sz" ~l sz (fun l sz ->
-        let sz = sersz1 mn mn0 subpath l v' copy_field sz in
+        let ma = fieldmask_copy ma in
+        let sz = sersz1 mn mn0 subpath l v' ma sz in
         loop l sz (i + 1)) in
     loop l sz 0
 
-  and sslist mn mn0 path l v sz =
+  and sslist mn ma mn0 path l v sz =
     let sz =
       Ser.ssize_of_list mn0 path l v |> add sz in
     let_ ~name:"sz_ref" ~l (make_ref sz) (fun l sz_ref ->
@@ -466,7 +514,8 @@ struct
         StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) (fun l n ->
           let v' = nth n v in
           let subpath = Path.(append (RunTime n) path) in
-          sersz1 mn mn0 subpath l v' copy_field sz |>
+          let ma = fieldmask_copy ma in
+          sersz1 mn mn0 subpath l v' ma sz |>
           set_ref sz_ref) ;
         sz ])
 
@@ -475,7 +524,7 @@ struct
       Ser.ssize_of_tup mn0 path l v |> add sz in
     Array.fold_lefti (fun sz i mn ->
       let v' = get_item i v in
-      let ma = mask_get i ma in
+      let ma = fieldmask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
       let_ ~name:"sz" ~l sz (fun l sz ->
         sersz1 mn mn0 subpath l v' ma sz)
@@ -486,14 +535,14 @@ struct
       Ser.ssize_of_rec mn0 path l v |> add sz in
     Array.fold_lefti (fun sz i (fname, mn) ->
       let v' = get_field fname v in
-      let ma = mask_get i ma in
+      let ma = fieldmask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
       let_ ~name:"sz" ~l sz (fun l sz ->
         comment ("sersize of field "^ fname)
                 (sersz1 mn mn0 subpath l v' ma sz))
     ) sz mns
 
-  and sssum mns mn0 path l v sz =
+  and sssum mns ma mn0 path l v sz =
     let sz =
       Ser.ssize_of_sum mn0 path l v |> add sz in
     let max_lbl = Array.length mns - 1 in
@@ -505,24 +554,35 @@ struct
           let v' = get_alt name v in
           let subpath = Path.(append (CompTime i) path) in
           assert (i <= max_lbl) ;
+          (* From now on copy everything as individual elements an not be
+           * cherry picked, since the actual type is unknown: *)
+          let ma = fieldmask_copy ma in
           if i = max_lbl then
             seq [
               assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-              sersz1 mn mn0 subpath l v' copy_field sz ]
+              sersz1 mn mn0 subpath l v' ma sz ]
           else
             if_ (eq (u16 (Uint16.of_int i)) label)
-              ~then_:(sersz1 mn mn0 subpath l v' copy_field sz)
+              ~then_:(sersz1 mn mn0 subpath l v' ma sz)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
   and ssvoid _ _ _ _ sz = sz
 
   and ssext name ma _ _ _ v =
-    apply (type_method name (E.SSize Ser.id)) [ ma ; v ]
+    match ma with
+    | RunTimeMask ma ->
+        apply (type_method name (E.SSizeWithMask Ser.id)) [ ma ; v ]
+    | CompTimeMask ->
+        apply (type_method name (E.SSizeNoMask Ser.id)) [ v ]
 
   and ssthis ma _mn0 _path _l v =
     (* Call ourself recursively *)
-    apply (myself T.size) [ ma ; v ]
+    match ma with
+    | RunTimeMask ma ->
+        apply (myself T.size) [ ma ; v ]
+    | CompTimeMask ->
+        apply (myself T.size) [ v ]
 
   and sersz1 mn mn0 path l v ma sz =
     let cumul ssizer mn0 path l v sz =
@@ -554,37 +614,46 @@ struct
       | T.Base U64 -> cumul Ser.ssize_of_u64
       | T.Base U128 -> cumul Ser.ssize_of_u128
       | T.Usr vt -> ssz_of_vt vt.def
-      | T.Vec (dim, mn) -> ssvec dim mn
+      | T.Vec (dim, mn) -> ssvec dim mn ma
       | T.Tup mns -> sstup mns ma
       | T.Rec mns -> ssrec mns ma
-      | T.Sum mns -> sssum mns
-      | T.Lst mn -> sslist mn
+      | T.Sum mns -> sssum mns ma
+      | T.Lst mn -> sslist mn ma
       (* Sets are serialized like lists: *)
-      | T.Set (_, mn) -> sslist mn
+      | T.Set (_, mn) -> sslist mn ma
       | T.Map _ -> assert false (* No value of map type *)
-      | _ -> invalid_arg "sersz1"
+      | _ -> invalid_arg "sersz1" in
+    let on_copy =
+      let vt = mn.typ in
+      if mn.nullable then
+        if_null v
+          ~then_:(add sz (Ser.ssize_of_null mn0 path))
+          ~else_:(ssz_of_vt vt mn0 path l (force v) sz)
+      else
+        ssz_of_vt vt mn0 path l v sz
     in
-    if_ (eq ma skip_field)
-      ~then_:sz
-      ~else_:(
-        if_ (eq ma set_field_null)
-          ~then_:(
-            if mn.nullable then
-              add sz (Ser.ssize_of_null mn0 path)
-            else
-              seq [ assert_ false_ ;
-                    sz ])
+    match ma with
+    | RunTimeMask ma ->
+        if_ (eq ma skip_field)
+          ~then_:sz
           ~else_:(
-            let vt = mn.typ in
-            if mn.nullable then
-              if_null v
-                ~then_:(add sz (Ser.ssize_of_null mn0 path))
-                ~else_:(ssz_of_vt vt mn0 path l (force v) sz)
-            else
-              ssz_of_vt vt mn0 path l v sz))
+            if_ (eq ma set_field_null)
+              ~then_:(
+                if mn.nullable then
+                  add sz (Ser.ssize_of_null mn0 path)
+                else
+                  seq [ assert_ false_ ; sz ])
+              ~else_:on_copy)
+    | CompTimeMask ->
+        on_copy
 
-  let sersize ?config mn l =
-    E.func2 ~l T.mask mn (fun l ma v ->
-      let sz = Ser.ssize_start ?config mn in
-      sersz1 mn mn [] l v ma sz)
+  let sersize ?config ?(with_fieldmask=true) mn l =
+    if with_fieldmask then
+      E.func2 ~l T.mask mn (fun l ma v ->
+        let sz = Ser.ssize_start ?config mn in
+        sersz1 mn mn [] l v (RunTimeMask ma) sz)
+    else
+      E.func1 ~l mn (fun l v ->
+        let sz = Ser.ssize_start ?config mn in
+        sersz1 mn mn [] l v CompTimeMask sz)
 end
