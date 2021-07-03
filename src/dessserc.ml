@@ -12,6 +12,7 @@ module M = DessserMasks
 open E.Ops
 
 let debug = ref false
+let quiet = ref false
 
 (*
  * Code generators
@@ -53,13 +54,14 @@ let init_backend backend schema =
 
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let lib dbg schema backend encodings_in encodings_out converters _fieldmask
-        dest_fname optim () =
+let lib dbg quiet_ schema backend encodings_in encodings_out converters
+        _fieldmask dest_fname optim () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
     failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
+  quiet := quiet_ ;
   T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
@@ -146,13 +148,15 @@ let lib dbg schema backend encodings_in encodings_out converters _fieldmask
     BE.print_definitions oc compunit) ;
   write_source ~src_fname:decl_fname (fun oc ->
     BE.print_declarations oc compunit) ;
-  Printf.printf "declarations in %S\n" decl_fname ;
-  Printf.printf "definitions in %S\n" def_fname
+  if not !quiet then (
+    Printf.printf "declarations in %S\n" decl_fname ;
+    Printf.printf "definitions in %S\n" def_fname)
 
 let converter
-      dbg schema backend encoding_in encoding_out _fieldmask
+      dbg quiet_ schema backend encoding_in encoding_out _fieldmask
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
+  quiet := quiet_ ;
   T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
@@ -185,7 +189,7 @@ let converter
     String.print oc (convert_main_for BE.preferred_def_extension)
   ) ;
   compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  Printf.printf "executable in %S\n" dest_fname
+  if not !quiet then Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
   | T.{ typ = Tup [| k ; v |] ; _ } ->
@@ -195,9 +199,10 @@ let destruct_pair = function
       failwith
 
 let lmdb main
-      dbg key_schema val_schema backend encoding_in encoding_out dest_fname
-      dev_mode optim () =
+      dbg quiet_ key_schema val_schema backend encoding_in encoding_out
+      dest_fname dev_mode optim () =
   debug := dbg ;
+  quiet := quiet_ ;
   (* FIXME: this in key_schema should refer to key_schema *)
   T.this := val_schema.T.typ ;
   DessserEval.inline_level := optim ;
@@ -231,7 +236,7 @@ let lmdb main
     String.print oc
   ) ;
   compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  Printf.printf "executable in %S\n" dest_fname
+  if not !quiet then Printf.printf "executable in %S\n" dest_fname
 
 let lmdb_dump =
   let main ext convert_key_id convert_val_id =
@@ -247,17 +252,18 @@ let lmdb_load =
       convert_key_id convert_val_id in
   lmdb main
 
-let lmdb_query _ _ _ _ _ _ _ () =
+let lmdb_query _ _ _ _ _ _ _ _ () =
   todo "lmdb_query"
 
 (* In dessser IL we have to explicitly describe the initial state, the update
  * function and the finalizer function. Ramen will have to keep working hard
  * to convert simple RaQL aggregation functions into DIL programs. *)
 let aggregator
-      dbg schema backend encoding_in encoding_out
+      dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
   debug := dbg ;
+  quiet := quiet_ ;
   T.this := schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
@@ -339,7 +345,7 @@ let aggregator
     String.print oc (main_for BE.preferred_def_extension)
   ) ;
   compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  Printf.printf "executable in %S\n" dest_fname
+  if not !quiet then Printf.printf "executable in %S\n" dest_fname
 
 (*
  * Command line
@@ -351,6 +357,12 @@ let debug =
   let doc = "Enable debugging output on stdout and additional checks" in
   let env = Term.env_info "DESSSER_DEBUG" in
   let i = Arg.info ~env ~doc [ "debug" ] in
+  Arg.flag i
+
+let quiet =
+  let doc = "Suppress all output but errors" in
+  let env = Term.env_info "DESSSER_QUIET" in
+  let i = Arg.info ~env ~doc [ "quiet" ] in
   Arg.flag i
 
 let maybe_nullable =
@@ -551,6 +563,7 @@ let converter_cmd =
   Term.(
     (const converter
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
      $ Arg.value encoding_in
@@ -568,6 +581,7 @@ let lib_cmd =
   Term.(
     (const lib
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
      $ Arg.value encodings_in
@@ -584,6 +598,7 @@ let lmdb_dump_cmd =
   Term.(
     (const lmdb_dump
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -600,6 +615,7 @@ let lmdb_load_cmd =
   Term.(
     (const lmdb_load
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -616,6 +632,7 @@ let lmdb_query_cmd =
   Term.(
     (const lmdb_query
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
      $ Arg.required backend
@@ -629,6 +646,7 @@ let aggregator_cmd =
   Term.(
     (const aggregator
      $ Arg.value debug
+     $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
      $ Arg.value encoding_in

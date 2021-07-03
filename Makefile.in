@@ -437,7 +437,7 @@ dessserc-check: src/dessserc $(wildcard tests/*.type)
 	@echo Testing dessserc
 	@for f in tests/*.type; do \
 	  src_file=/tmp/$$(basename $$f .type) ;\
-	  src/dessserc lib -O3 \
+	  src/dessserc lib --quiet -O3 \
 	    --input-encoding row-binary --input-encoding s-expression \
 	    --output-encoding row-binary --output-encoding s-expression \
 	    --language=OCaml --schema=@$$f -o "$$src_file.ml" && \
