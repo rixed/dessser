@@ -252,7 +252,7 @@ struct
       Array.iter (fun (field_name, mn) ->
         let field_name = uniq_field_name (T.Rec mns) field_name in
         let typ_id = type_identifier_mn p mn in
-        ppi oc "%s : %s ;" field_name typ_id
+        ppi oc "mutable %s : %s ;" field_name typ_id
       ) mns
     ) ;
     ppi oc "}\n"
