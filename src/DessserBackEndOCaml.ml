@@ -660,7 +660,13 @@ struct
         let n2 = print p l e2 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1)
+          match (E.type_of l e2 |> T.develop_mn).T.typ with
+          | T.(Vec _ | Arr _) ->
+              Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1
+          | T.Lst _ ->
+              Printf.fprintf oc "List.nth %s (%s.to_int %s)" n2 m n1
+          | _ ->
+              assert false)
     | E.E1 (NotNull, e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)
@@ -1017,6 +1023,8 @@ struct
             emit ?name p l e (fun oc -> pp oc "Uint32.of_int %d" d)
         | { typ = Arr _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
+        | { typ = Lst _ ; _ } ->
+            unary_op "Uint32.of_int @@ List.length" e1
         | { typ = Set (st, _) ; _ } ->
             let n1 = print p l e1 in
             let m = mod_of_set_type st in
@@ -1046,11 +1054,6 @@ struct
     | E.E2 (GetBit, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".getBit") e1 e2
-    | E.E2 (GetVec, e1, e2) ->
-        let n1 = print p l e1
-        and n2 = print p l e2
-        and m = mod_name (E.type_of l e1) in
-        emit ?name p l e (fun oc -> pp oc "%s.(%s.to_int %s)" n2 m n1)
     | E.E3 (SetBit, e1, e2, e3) ->
         let ptr = print p l e1
         and n2 = print p l e2
@@ -1427,8 +1430,8 @@ struct
         let n1 = valid_identifier n in
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
-        (match lst_t with
-        | { typ = (Vec _ | Arr _) ; _ } ->
+        (match lst_t.T.typ with
+        | (Vec _ | Arr _) ->
             (* Both lists and vectors are represented as arrays *)
             ppi p.P.def "for i_ = 0 to Array.length (%s) - 1 do" lst ;
             P.indent_more p (fun () ->
@@ -1437,7 +1440,15 @@ struct
               let body = print p l body in
               ppi p.P.def "%s" body) ;
             ppi p.P.def "done ;"
-        | { typ = Set (st, _) ; _ } ->
+        | Lst _ ->
+            (* Both lists and vectors are represented as arrays *)
+            ppi p.P.def "List.iter (fun %s ->" n1 ;
+            P.indent_more p (fun () ->
+              let l = E.add_local n t l in
+              let body = print p l body in
+              ppi p.P.def "%s" body) ;
+            ppi p.P.def ") %s ;" lst
+        | Set (st, _) ->
             let m = mod_of_set_type st in
             ppi p.P.def "%s.fold %s () (fun () %s ->" m lst n1 ;
             P.indent_more p (fun () ->

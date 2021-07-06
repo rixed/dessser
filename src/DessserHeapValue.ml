@@ -75,6 +75,9 @@ struct
   and dset mn dstate mn0 path l src =
     dlist set_of_lst mn dstate mn0 path l src
 
+  and dlst mn dstate mn0 path l src =
+    dlist identity mn dstate mn0 path l src
+
   and dlist of_list mn dstate mn0 path l src =
     match Des.arr_opn dstate with
     | KnownSize list_opn ->
@@ -236,6 +239,7 @@ struct
       | T.Sum mns -> dsum mns
       | T.Vec (dim, mn) -> dvec dim mn
       | T.Arr mn -> darr mn
+      | T.Lst mn -> dlst mn
       | T.Set (Simple, mn) -> dset mn
       | T.Set _ -> todo "Materialization of non simple sets"
       | T.Map _ -> assert false (* No value of map type *)
@@ -309,7 +313,9 @@ struct
           loop (i + 1) l) in
     loop 0 l dst
 
-  and sarr_or_set mn ma sstate mn0 path l v dst =
+  (* Thanks to cardinality and for_each being generic, arrs, lists and sets are
+   * serialized the same: *)
+  and slst mn ma sstate mn0 path l v dst =
     let len = cardinality v in
     let dst = Ser.arr_opn sstate mn0 path mn (Some len) l dst in
     let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
@@ -437,10 +443,9 @@ struct
       | T.Rec mns -> srec mns ma
       | T.Sum mns -> ssum mns ma
       | T.Vec (dim, mn) -> svec dim mn ma
-      (* Thanks to cardinality and fold being generic, lists and sets are
-       * serialized the same: *)
-      | T.Arr mn -> sarr_or_set mn ma
-      | T.Set (_, mn) -> sarr_or_set mn ma
+      | T.Arr mn -> slst mn ma
+      | T.Lst mn -> slst mn ma
+      | T.Set (_, mn) -> slst mn ma
       | T.Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "ser1" in
     let on_copy =
@@ -504,7 +509,9 @@ struct
         loop l sz (i + 1)) in
     loop l sz 0
 
-  and ssarr_or_set mn ma mn0 path l v sz =
+  (* thanks to cardinality and nth begin generic, arrs, lsts and sets are
+   * serialized the same: *)
+  and sslst mn ma mn0 path l v sz =
     let sz =
       Ser.ssize_of_arr mn0 path l v |> add sz in
     let_ ~name:"sz_ref" ~l (make_ref sz) (fun l sz_ref ->
@@ -618,9 +625,9 @@ struct
       | T.Tup mns -> sstup mns ma
       | T.Rec mns -> ssrec mns ma
       | T.Sum mns -> sssum mns ma
-      | T.Arr mn -> ssarr_or_set mn ma
-      (* Sets are serialized like lists: *)
-      | T.Set (_, mn) -> ssarr_or_set mn ma
+      | T.Arr mn -> sslst mn ma
+      | T.Lst mn -> sslst mn ma
+      | T.Set (_, mn) -> sslst mn ma
       | T.Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "sersz1" in
     let on_copy =

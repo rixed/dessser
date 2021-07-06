@@ -319,7 +319,7 @@ type e2 =
    * - The type is cached here for performance reason *)
   | Let of string * T.mn
   | LetPair of string * T.mn * string * T.mn
-  (* Deconstructor for vectors/lists: *)
+  (* Deconstructor for vectors/arrs/lists/sets: *)
   | Nth
   (* Comparators: *)
   | Gt
@@ -347,7 +347,6 @@ type e2 =
   | StartsWith
   | EndsWith
   | GetBit
-  | GetVec (* first the index then the vector or array (as in Getfield) *)
   | ReadBytes
   | PeekU8
   | WriteU8
@@ -394,7 +393,7 @@ type e2 =
   | ChopEnd
   (* Scale the weight of a weighted set (ie. top) *)
   | ScaleWeights
-  (* Arguments are index and string (as in GetVec): *)
+  (* Arguments are index and string (as in Nth): *)
   | CharOfString
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
@@ -404,7 +403,7 @@ type e2 =
 
 type e3 =
   | SetBit
-  (* Similarly to GetVec: first the index, then the vector or array, then
+  (* Similarly to Nth: first the index, then the vector or array, then
    * the value *)
   | SetVec
   | BlitByte
@@ -924,7 +923,6 @@ let string_of_e2 = function
   | StartsWith -> "starts-with"
   | EndsWith -> "ends-with"
   | GetBit -> "get-bit"
-  | GetVec -> "get-vec"
   | ReadBytes -> "read-bytes"
   | PeekU8 -> "peek-u8"
   | WriteU8 -> "write-u8"
@@ -1512,7 +1510,6 @@ struct
     | Lst [ Sym "starts-with" ; x1 ; x2 ] -> E2 (StartsWith, e x1, e x2)
     | Lst [ Sym "ends-with" ; x1 ; x2 ] -> E2 (EndsWith, e x1, e x2)
     | Lst [ Sym "get-bit" ; x1 ; x2 ] -> E2 (GetBit, e x1, e x2)
-    | Lst [ Sym "get-vec" ; x1 ; x2 ] -> E2 (GetVec, e x1, e x2)
     | Lst [ Sym "read-bytes" ; x1 ; x2 ] -> E2 (ReadBytes, e x1, e x2)
     | Lst [ Sym "peek-u8" ; x1 ; x2 ] -> E2 (PeekU8, e x1, e x2)
     | Lst [ Sym "write-u8" ; x1 ; x2 ] -> E2 (WriteU8, e x1, e x2)
@@ -1821,11 +1818,7 @@ and type_of l e0 =
   | E1 ((Construct (mns, _)), _) ->
       T.required (Sum mns)
   | E2 (Nth, _, e2) ->
-      (match type_of l e2 |> T.develop1 with
-      | { typ = (Vec (_, mn) | Arr mn) ; nullable = false } ->
-          mn
-      | t ->
-          raise (Type_error (e0, e2, t, "be a vector or array")))
+      get_item_type ~arr:true ~vec:true ~set:true ~lst:true e0 l e2
   | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
          UnsafeDiv | UnsafeRem | UnsafePow), e1, e2) ->
       either e1 e2
@@ -1930,7 +1923,6 @@ and type_of l e0 =
   | E3 (PtrOfPtr, _, _, _) -> T.ptr
   | E3 (FindSubstring, _, _, _) -> T.nu24
   | E2 (GetBit, _, _) -> T.bool
-  | E2 (GetVec, _, e1) -> T.(get_item_type ~arr:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
   | E1 (ReadU8, _) -> T.pair T.u8 T.ptr
   | E1 (ReadU16 _, _) -> T.pair T.u16 T.ptr
@@ -2102,21 +2094,23 @@ and type_of l e0 =
   | E2 (CharOfString, _, _) ->
       T.nchar
 
-and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) l e =
+and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false) l e =
   match type_of l e |> T.develop1 with
   | { typ = Vec (_, mn) ; nullable = false } when vec -> Ok mn
   | { typ = Arr mn ; nullable = false } when arr -> Ok mn
   | { typ = Set (_, mn) ; nullable = false } when set -> Ok mn
+  | { typ = Lst mn ; nullable = false } when lst -> Ok mn
   | t -> Error t
 
 (* Return the element type or fail: *)
-and get_item_type ?(vec=false) ?(arr=false) ?(set=false) e0 l e =
-  match get_item_type_err ~vec ~arr ~set l e with
+and get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false) e0 l e =
+  match get_item_type_err ~vec ~arr ~set ~lst l e with
   | Ok t -> t
   | Error t ->
       let acceptable = if vec then [ "vector" ] else [] in
       let acceptable = if arr then "array" :: acceptable else acceptable in
       let acceptable = if set then "set" :: acceptable else acceptable in
+      let acceptable = if lst then "list" :: acceptable else acceptable in
       raise (Type_error (e0, e, t, "be a "^ String.join " or " acceptable))
 
 and get_compared_type l cmp =
@@ -2492,10 +2486,10 @@ let rec type_check l e =
       ignore (get_item_type ~set:true e0 l e) in
     let check_arr l e =
       ignore (get_item_type ~arr:true e0 l e) in
-    let check_arr_or_vector l e =
-      ignore (get_item_type ~arr:true ~vec:true e0 l e) in
-    let check_arr_or_vector_or_set l e =
-      ignore (get_item_type ~arr:true ~vec:true ~set:true e0 l e) in
+    let check_ordered_lst l e =
+      ignore (get_item_type ~arr:true ~vec:true ~lst:true e0 l e) in
+    let check_any_lst l e =
+      ignore (get_item_type ~arr:true ~vec:true ~set:true ~lst:true e0 l e) in
     let check_lst l e =
       match type_of l e |> T.develop1 with
       | T.{ typ = Lst _ ; nullable = false } -> ()
@@ -2565,7 +2559,7 @@ let rec type_check l e =
     | E1 (IsNull, e) ->
         check_nullable true l e
     | E2 (Nth, e1, e2) ->
-        check_arr_or_vector l e2 ;
+        check_ordered_lst l e2 ;
         check_integer l e1
     | E1 (NotNull, e) ->
         check_nullable false l e
@@ -2657,7 +2651,7 @@ let rec type_check l e =
         check_eq l cond T.bool ;
         check_eq l body T.void
     | E2 (ForEach _, lst, body) ->
-        check_arr_or_vector_or_set l lst ;
+        check_any_lst l lst ;
         check_eq l body T.void
     | E1 (GetEnv, e) ->
         check_eq l e T.string
@@ -2675,13 +2669,10 @@ let rec type_check l e =
     | E1 (StringOfBytes, e) ->
         check_eq l e T.bytes
     | E1 (Cardinality, e) ->
-        check_arr_or_vector_or_set l e
+        check_any_lst l e
     | E2 (GetBit, e1, e2) ->
         check_eq l e1 T.ptr ;
         check_eq l e2 T.size
-    | E2 (GetVec, e1, e2) ->
-        check_integer l e1 ;
-        check_arr_or_vector l e2
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
@@ -3027,7 +3018,7 @@ let let_pair ?n1 ?n2 ~l value f =
 
 let for_each ?name ~l lst f =
   let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
-  match get_item_type_err ~vec:true ~arr:true ~set:true l lst with
+  match get_item_type_err ~vec:true ~arr:true ~set:true ~lst:true l lst with
   | Ok mn ->
       let l = add_local n mn l in
       E2 (ForEach (n, mn), lst, f l (E0 (Identifier n)))
@@ -3654,8 +3645,6 @@ struct
 
   let set_vec e1 e2 e3 = E3 (SetVec, e1, e2, e3)
 
-  let get_vec e1 e2 = E2 (GetVec, e1, e2)
-
   let map_ init f lst = E3 (Map, init, f, lst)
 
   let arr_of_lst e1 = E1 (ArrOfLst, e1)
@@ -3719,7 +3708,7 @@ struct
 
   let make_ref e = E0S (MakeVec, [ e ])
 
-  let get_ref e = E2 (GetVec, u8_of_int 0, e)
+  let get_ref e = nth (u8_of_int 0) e
 
   let set_ref e x = E3 (SetVec, u8_of_int 0, e, x)
 

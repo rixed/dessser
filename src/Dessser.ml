@@ -479,9 +479,9 @@ struct
     | T.Rec mns -> dsrec mns
     | T.Sum mns -> dssum mns
     | T.Vec (dim, mn) -> dsvec dim mn
-    | T.Arr mn -> dsarr mn
-    (* Sets are serialized like arrs (the last update is thus lost). *)
-    | T.Set (Simple, mn) -> dsarr mn
+    | T.Arr mn
+    (* Sets and Lsts are serialized like arrs (the last update is thus lost). *)
+    | T.Set (Simple, mn) | T.Lst mn -> dsarr mn
     | T.Set _ -> todo "des/ser for non simple sets"
     | T.Map _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"

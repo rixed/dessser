@@ -710,11 +710,11 @@ let rec peval l e =
           (* If the identifier is used only once in the body, then the optimizer will
            * also prefer to have no let. This will further allow, for instance, to
            * simplify:
-           *   (get-vec 0
+           *   (nth 0
            *     (let (arr (make-vec 0))
            *       (set-vec 0 arr 1)))
            * into:
-           *   (get-vec 0
+           *   (nth 0
            *     (set-vec 0 (make-vec 0) 1))
            * then ultimately into:
            *   1
@@ -1052,19 +1052,6 @@ let rec peval l e =
           bool (String.starts_with s1 s2) |> repl
       | EndsWith, E0 (String s1), E0 (String s2) ->
           bool (String.ends_with s1 s2) |> repl
-      | GetVec, f1, E0S ((MakeArr _ | MakeVec), es) ->
-          let def = E.E2 (GetVec, e1, e2) in
-          (match E.to_cst_int f1 with
-          | exception _ -> def
-          | idx ->
-            (try
-              List.at es idx |>
-              (* No identifiers were required to get [idx], but maybe some are
-               * used in [es]: *)
-              replace_final_expression e2 |>
-              replace_final_expression_anonymously e1 |>
-              p
-            with _ -> def))
       | Cons, E1 (Head, l1), E1 (Tail, l2)
         when E.eq l1 l2 && not (E.has_side_effect l1) ->
           repl l1
@@ -1264,7 +1251,7 @@ let rec peval l e =
 
   "(random-u8)" \
     (test_peval 3 \
-      "(get-vec (u8 1) \
+      "(nth (u8 1) \
          (let \"a\" \"U8\" (random-u8) \
            (make-vec (identifier \"a\") (identifier \"a\"))))")
 

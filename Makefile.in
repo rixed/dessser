@@ -396,8 +396,8 @@ aggregator-simplest-check: src/dessserc examples/i32s.csv
 	     --input-enc csv --output-enc csv -o "$$f" \
 	     --language=$$be --dev-mode --schema="$$schema" \
 	     --init '(make-vec (i32 0))' \
-	     --update '(fun 0 "i32[1]" "i32" (set-vec (u8 0) (param 0 0) (add (get-vec (u8 0) (param 0 0)) (param 0 1))))' \
-	     --finalize '(fun 0 "i32[1]" (get-vec (u8 0) (param 0 0)))'; \
+	     --update '(fun 0 "i32[1]" "i32" (set-vec (u8 0) (param 0 0) (add (nth (u8 0) (param 0 0)) (param 0 1))))' \
+	     --finalize '(fun 0 "i32[1]" (nth (u8 0) (param 0 0)))'; \
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='55'; \
 	   if test "$$out" = "$$exp"; then \

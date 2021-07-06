@@ -152,7 +152,7 @@ let rec conv ?(depth=0) ~to_ l d =
   (* A vector of 1 t into t and the other way around: *)
   | Vec (1, { nullable = false ; typ = vt1 }), vt2
     when T.eq vt1 vt2 ->
-      get_vec (u32_of_int 0) d
+      nth (u32_of_int 0) d
   | vt1, Vec (1, { typ = vt2 ; nullable })
     when T.eq vt1 vt2 ->
       make_vec [ if nullable then not_null d else d ]
@@ -257,7 +257,7 @@ and conv_list_to_string ?(depth=0) length_e l src =
                 ~then_:(append (string ";"))
                 ~else_:nop ;
               (* Next value: *)
-              get_vec i src |>
+              nth i src |>
               conv_mn
                 ~depth:(depth+1) ~to_:T.(required (Base String)) l |>
               append ;
@@ -277,7 +277,7 @@ and conv_charseq_to_string ?(depth=0) length_e l src =
           while_ (lt i length_e)
             (let src = get_ref src_ref in
             seq [
-              get_vec i src |>
+              nth i src |>
               conv_mn
                 ~depth:(depth+1) ~to_:T.(required (Base Char)) l |>
               string_of_char |>

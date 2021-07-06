@@ -303,7 +303,7 @@ let e2_of_int n =
     E.[| Nth ; Gt ; Ge ; Eq ; Add ; Sub ; Mul ; Div ; UnsafeDiv ; Rem ;
     UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ; And ; Or ; Min ;
     Max ; Member ; Insert ; LeftShift ; RightShift ; AppendBytes ; AppendString
-    ; StartsWith ; EndsWith ; GetBit ; GetVec ; ReadBytes ; PeekU8 ; WriteU8 ;
+    ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekU8 ; WriteU8 ;
     WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ; Max ; Member ;
     Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocArr ; PartialSort ;
     ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
