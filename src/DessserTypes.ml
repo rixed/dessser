@@ -82,10 +82,10 @@ and t =
    * defined two specific compound types: a pair and an homogeneous list
    * (sufficient in practice and better than untyped car/cdr!) *)
   (* A Data Arr is just a vector which length is unknown at compile time,
-   * whereas an SList can actually be constructed/destructed element by element.
-   * "SList" is for "singly-chained" list, and is written using "[[]]" instead
+   * whereas an Lst can actually be constructed/destructed element by element.
+   * "Lst" is for "singly-chained" list, and is written using "[[]]" instead
    * of "[]". *)
-  | SList of mn
+  | Lst of mn
   | Function of (* arguments: *) mn array * (* result: *) mn
 
 and mn =
@@ -148,7 +148,7 @@ let rec eq ?(opaque_user_type=false) t1 t2 =
       eq ut1.def t
   | t, Usr ut2 when not opaque_user_type ->
       eq t ut2.def
-  | SList mn1, SList mn2 ->
+  | Lst mn1, Lst mn2 ->
       eq_mn mn1 mn2
   | Function (pt1, rt1), Function (pt2, rt2) ->
       array_for_all2_no_exc eq_mn pt1 pt2 && eq_mn rt1 rt2
@@ -193,8 +193,8 @@ let rec develop = function
       Sum (Array.map (fun (n, mn) -> n, develop_mn mn) cs)
   | Map (mn1, mn2) ->
       Map (develop_mn mn1, develop_mn mn2)
-  | SList mn ->
-      SList (develop_mn mn)
+  | Lst mn ->
+      Lst (develop_mn mn)
   | t -> t
 
 and develop_mn mn =
@@ -216,7 +216,7 @@ let rec fold u f t =
   match t with
   | Usr { def ; _ } ->
       fold u f def
-  | Vec (_, mn) | Arr mn | Set (_, mn) | SList mn ->
+  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
       fold_mn u f mn
   | Tup mns ->
       Array.fold_left (fun u mn -> fold_mn u f mn) u mns
@@ -354,7 +354,7 @@ let rec print ?(sorted=false) oc =
   | Address -> sp "Address"
   | Bytes -> sp "Bytes"
   | Mask -> sp "Mask"
-  | SList mn ->
+  | Lst mn ->
       pp oc "%a[[]]" print_mn mn
   | Function ([||], mn) ->
       pp oc "( -> %a)" print_mn mn
@@ -446,7 +446,7 @@ struct
       String.of_list (c :: s)
 
   type key_type =
-    VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | SListDim
+    VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | LstDim
 
   let rec reduce_dims typ = function
     | [] -> typ
@@ -458,8 +458,8 @@ struct
         reduce_dims (Set (st, { nullable ; typ })) rest
     | (nullable, MapKey k) :: rest ->
         reduce_dims (Map (k, { nullable ; typ })) rest
-    | (nullable, SListDim) :: rest ->
-        reduce_dims (SList { nullable ; typ }) rest
+    | (nullable, LstDim) :: rest ->
+        reduce_dims (Lst { nullable ; typ }) rest
 
   let rec key_type m =
     let vec_dim m =
@@ -479,12 +479,12 @@ struct
         opt_question_mark +-
         char '[' +- opt_blanks +- char ']' >>: fun n -> n, ArrDim
       ) m in
-    let slist_dim m =
-      let m = "slist type" :: m in
+    let lst_dim m =
+      let m = "lst type" :: m in
       (
         opt_question_mark +-
         char '[' +- char '[' +- opt_blanks +- char ']' +- char ']' >>:
-          fun n -> n, SListDim
+          fun n -> n, LstDim
       ) m in
     let set_type m =
       let m = "set type" :: m in
@@ -514,7 +514,7 @@ struct
       ) m
     in
     (
-      vec_dim |<| arr_dim |<| set_dim |<| map_key |<| slist_dim
+      vec_dim |<| arr_dim |<| set_dim |<| map_key |<| lst_dim
     ) m
 
   and mn m =
@@ -855,7 +855,7 @@ let of_string ?(any_format=false) ?what =
 (*$= of_string & ~printer:Batteries.dump
   (Usr { name = "Ip4" ; def = Base U32 }) (of_string "Ip4")
 
-  (SList { \
+  (Lst { \
     typ = Sum [| "eugp", { typ = Usr { name = "Ip4" ; \
                                        def = Base U32 } ; \
                            nullable = false }; \
@@ -880,7 +880,7 @@ let rec depth ?(opaque_user_type=true) = function
       0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | Vec (_, mn) | Arr mn | Set (_, mn) | SList mn ->
+  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
       1 + depth ~opaque_user_type mn.typ
   | Tup mns ->
       1 + Array.fold_left (fun d mn ->
@@ -973,6 +973,8 @@ let vec dim mn =
 
 let arr mn = Arr mn
 
+let lst mn = Lst mn
+
 let set st mn = Set (st, mn)
 
 let tup mns = Tup mns
@@ -1001,8 +1003,6 @@ let size = required Size
 let ptr = required Ptr
 let bytes = required Bytes
 let mask = required Mask
-
-let slist mn = required (SList mn)
 
 let func ins out = required (Function (ins, out))
 let func1 i1 out = required (Function ([| i1 |], out))

@@ -289,8 +289,8 @@ let e1_of_int n =
          ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
          Identity ; GetEnv ; GetMin ; BitNot ; FloatOfU64 ; U64OfFloat ;
-         U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ArrOfSList ;
-         ArrOfSListRev ; SetOfSList ; ArrOfVec ; ArrOfSet ; U8OfBool ;
+         U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ArrOfLst ;
+         ArrOfLstRev ; SetOfLst ; ArrOfVec ; ArrOfSet ; U8OfBool ;
          BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
          ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
          UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ; Round ; Cos ; Sin ;

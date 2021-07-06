@@ -219,7 +219,7 @@ struct
   type config = unit
   type state = unit
 
-  let ptr _mn = T.(pair ptr (slist t_frame))
+  let ptr _mn = T.(pair ptr (required (lst t_frame)))
 
   (* Few helper functions: *)
 

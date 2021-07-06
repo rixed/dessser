@@ -52,18 +52,18 @@ let repeat ~l ~from ~to_ body =
 let random_i32 =
   to_i32 random_u32
 
-let rec random_slist mn =
+let rec random_lst mn =
   let max_list_length = i32_of_int 8 in
   let from = i32_of_int 0
   and to_ =
-    force ~what:"random_slist rem"
+    force ~what:"random_lst rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length) in
-  let_ ~name:"slst" ~l:E.no_env (make_ref (eol mn)) (fun l slst_ref ->
-    let slst = get_ref slst_ref in
+  let_ ~name:"lst" ~l:E.no_env (make_ref (eol mn)) (fun l lst_ref ->
+    let lst = get_ref lst_ref in
     seq [
       repeat ~l ~from ~to_ (fun _l _n ->
-        set_ref slst_ref (cons (random mn) slst)) ;
-      slst ])
+        set_ref lst_ref (cons (random mn) lst)) ;
+      lst ])
 
 (* [random mn] returns an expression with a (runtime) random value of
  * maybe-nullable type [mn]: *)
@@ -144,11 +144,11 @@ and random mn =
       List.init dim (fun _ -> random mn) |>
       make_vec
   | Arr mn ->
-      random_slist mn |>
-      arr_of_slist
+      random_lst mn |>
+      arr_of_lst
   | Set (Simple, mn) ->
-      random_slist mn |>
-      set_of_slist
+      random_lst mn |>
+      set_of_lst
   | Set _ ->
       todo "random for non simple sets"
   | Tup mns ->
@@ -163,7 +163,7 @@ and random mn =
       todo "random for sum types"
   | Map _ ->
       invalid_arg "random for Map type"
-  | Size | Ptr | Address | Bytes | Mask | SList _ ->
+  | Size | Ptr | Address | Bytes | Mask | Lst _ ->
       todo "random"
   | Function _ ->
       todo "randomfunctions"
@@ -262,7 +262,7 @@ let to_nullable l e =
   if (E.type_of l e).T.nullable then e
   else not_null e
 
-(* Tells if a vector/list/set/slist/ptr is empty, dealing with nullable: *)
+(* Tells if a vector/list/set/lst/ptr is empty, dealing with nullable: *)
 let is_empty l e =
   let open E.Ops in
   let prop_null nullable e f =
@@ -292,7 +292,7 @@ let is_empty l e =
           ~else_:(lt (get_field "mask" (get_alt "v6" e)) (u8_of_int 128)))
   | { typ = Ptr ; nullable } ->
       prop_null nullable e (fun e -> eq (size 0) (rem_size e))
-  | { typ = SList mn ; nullable } ->
+  | { typ = Lst mn ; nullable } ->
       prop_null nullable e (fun e -> eq e (eol mn))
   | mn ->
       BatPrintf.sprintf2 "is_empty for %a" T.print_mn mn |>

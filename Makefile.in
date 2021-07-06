@@ -52,7 +52,7 @@ INSTALLED_HEADERS = \
 	src/dessser/Pointer.h \
 	src/dessser/Arr.h \
 	src/dessser/runtime.h \
-	src/dessser/SList.h \
+	src/dessser/Lst.h \
 	src/dessser/typedefs.h \
 	src/dessser/Vec.h
 

@@ -51,7 +51,7 @@ let type_and_name_of_path t0 path =
           | Vec (dim, mn) ->
               assert (i < dim) ;
               loop (string_of_int i) mn path
-          | Arr mn | SList mn ->
+          | Arr mn | Lst mn ->
               loop (string_of_int i) mn path
           | Set (_, mn) ->
               loop (string_of_int i) mn path
@@ -79,7 +79,7 @@ let type_and_name_of_path t0 path =
               assert false (* Already handled above *)
           | Usr t ->
               type_of t.def
-          | Vec (_, mn) | Arr mn | SList mn | Set (_, mn) ->
+          | Vec (_, mn) | Arr mn | Lst mn | Set (_, mn) ->
               loop no_fieldname mn path
           | Tup _ | Rec _ | Sum _ ->
               invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"

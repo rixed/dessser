@@ -226,8 +226,8 @@ struct
         todo "C++ back-end for TOPs"
     | Map _ ->
         assert false (* No value of map type *)
-    | SList mn1 ->
-        "SList<"^ type_identifier_mn mn1 ^">"
+    | Lst mn1 ->
+        "Lst<"^ type_identifier_mn mn1 ^">"
     | Function (args, ret) ->
         (* We want all modifiable types (ir bytes, vectors, ...?) passed by
          * reference: *)
@@ -754,11 +754,11 @@ struct
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc -> pp oc "%s" n) oc)
-    | E.E1 (ArrOfSList, e1) ->
+    | E.E1 (ArrOfLst, e1) ->
         method_call e1 "toList" []
-    | E.E1 (ArrOfSListRev, e1) ->
+    | E.E1 (ArrOfLstRev, e1) ->
         method_call e1 "toListRev" []
-    | E.E1 (SetOfSList, e1) ->
+    | E.E1 (SetOfLst, e1) ->
         method_call e1 "toSet" []
     | E.E1 (ArrOfVec, e1) ->
         let n1 = print emit p l e1 in

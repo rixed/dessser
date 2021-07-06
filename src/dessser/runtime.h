@@ -19,7 +19,7 @@
 #include "dessser/Sampling.h"
 #include "dessser/HashTable.h"
 #include "dessser/Heap.h"
-#include "dessser/SList.h"
+#include "dessser/Lst.h"
 #include "dessser/Mask.h"
 
 #define _STRIZE(arg) #arg

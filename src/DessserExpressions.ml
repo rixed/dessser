@@ -238,9 +238,9 @@ type e1 =
   | U32OfSize
   | AddressOfU64
   | U64OfAddress
-  | ArrOfSList
-  | ArrOfSListRev
-  | SetOfSList
+  | ArrOfLst
+  | ArrOfLstRev
+  | SetOfLst
   | ArrOfVec
   | ArrOfSet
   (* à la C: *)
@@ -409,7 +409,7 @@ type e3 =
   | SetVec
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
-  | Map (* args are: init, (init -> item -> item'), item list/slist/vec *)
+  | Map (* args are: init, (init -> item -> item'), item list/lst/vec *)
   (* Get a slice from a pointer, starting at given offset and shortened to
    * given length: *)
   | PtrOfPtr
@@ -652,7 +652,7 @@ let rec default ?(allow_null=true) ?this t =
       E3 (Top mn, size, max_size, sigmas)
   | Map _ ->
       assert false (* no value of map type *)
-  | Bytes | Mask | SList _ | Size ->
+  | Bytes | Mask | Lst _ | Size ->
       todo "default"
   | Function _ ->
       todo "default functions"
@@ -831,9 +831,9 @@ let string_of_e1 = function
   | U32OfSize -> "u32-of-size"
   | AddressOfU64 -> "address-of-u64"
   | U64OfAddress -> "u64-of-address"
-  | ArrOfSList -> "list-of-slist"
-  | ArrOfSListRev -> "list-of-slist-rev"
-  | SetOfSList -> "set-of-slist"
+  | ArrOfLst -> "list-of-lst"
+  | ArrOfLstRev -> "list-of-lst-rev"
+  | SetOfLst -> "set-of-lst"
   | ArrOfVec -> "list-of-vec"
   | ArrOfSet -> "list-of-set"
   | U8OfBool -> "u8-of-bool"
@@ -1402,9 +1402,9 @@ struct
     | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
     | Lst [ Sym "address-of-u64" ; x ] -> E1 (AddressOfU64, e x)
     | Lst [ Sym "u64-of-address" ; x ] -> E1 (U64OfAddress, e x)
-    | Lst [ Sym "list-of-slist" ; x ] -> E1 (ArrOfSList, e x)
-    | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ArrOfSListRev, e x)
-    | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
+    | Lst [ Sym "list-of-lst" ; x ] -> E1 (ArrOfLst, e x)
+    | Lst [ Sym "list-of-lst-rev" ; x ] -> E1 (ArrOfLstRev, e x)
+    | Lst [ Sym "set-of-lst" ; x ] -> E1 (SetOfLst, e x)
     | Lst [ Sym "list-of-vec" ; x ] -> E1 (ArrOfVec, e x)
     | Lst [ Sym "list-of-set" ; x ] -> E1 (ArrOfSet, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
@@ -1714,7 +1714,7 @@ and type_of l e0 =
         | _ -> ()
       ) l.local ;
       T.(required (Function (ins, out)))
-  | E0 (EndOfList t) -> T.required (T.SList t)
+  | E0 (EndOfList t) -> T.required (T.Lst t)
   | E0 (EmptySet mn) -> T.required (T.Set (Simple, mn))
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
@@ -1895,16 +1895,16 @@ and type_of l e0 =
   | E1 (U32OfSize, _) -> T.u32
   | E1 (AddressOfU64, _) -> T.address
   | E1 (U64OfAddress, _) -> T.u64
-  | E1 ((ArrOfSList | ArrOfSListRev), e) ->
+  | E1 ((ArrOfLst | ArrOfLstRev), e) ->
       (match type_of l e |> T.develop1 with
-      | T.{ typ = SList mn ; nullable = false } ->
+      | T.{ typ = Lst mn ; nullable = false } ->
           T.required (Arr mn)
-      | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E1 (SetOfSList, e) ->
+      | t -> raise (Type_error (e0, e, t, "be a lst")))
+  | E1 (SetOfLst, e) ->
       (match type_of l e |> T.develop1 with
-      | T.{ typ = SList mn ; nullable = false } ->
+      | T.{ typ = Lst mn ; nullable = false } ->
           T.required (Set (Simple, mn))
-      | t -> raise (Type_error (e0, e, t, "be a slist")))
+      | t -> raise (Type_error (e0, e, t, "be a lst")))
   | E1 (ArrOfVec, e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = Vec (_, mn) ; nullable = false } ->
@@ -1998,14 +1998,14 @@ and type_of l e0 =
       | T.{ typ = Set (Heap, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
   | E2 (Cons, e1, _e2) ->
-      T.slist (type_of l e1)
+      T.(required (lst (type_of l e1)))
   (* Shortcut: *)
   | E1 (Head, E2 (Cons, e, _)) ->
       type_of l e
   | E1 (Head, e) ->
       (match type_of l e |> T.develop1 with
-      | T.{ typ = SList mn ; nullable = false } -> mn
-      | t -> raise (Type_error (e0, e, t, "be a slist")))
+      | T.{ typ = Lst mn ; nullable = false } -> mn
+      | t -> raise (Type_error (e0, e, t, "be a lst")))
   (* Shortcuts: *)
   | E1 (Tail, E2 (Cons, _, E0 (EndOfList mn))) ->
       mn
@@ -2056,7 +2056,7 @@ and type_of l e0 =
           | T.{ typ = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
           | T.{ typ = Arr _ ; _ } -> map_mn (fun mn -> Arr mn)
           | T.{ typ = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
-          | T.{ typ = SList _ ; _ } -> T.slist ot
+          | T.{ typ = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
       | t ->
           raise (Type_error (e0, f, t, "be a function")))
@@ -2403,7 +2403,7 @@ let can_duplicate e =
              Heap), _)
       | E3 (Top _, _, _, _)
       (* Expensive: *)
-      | E1 ((ArrOfSList | ArrOfSListRev | SetOfSList | ArrOfVec | ArrOfSet), _)
+      | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
       | E2 ((While | ForEach _), _, _)
       | E3 ((FindSubstring | Substring), _, _, _) ->
           raise Exit
@@ -2496,14 +2496,14 @@ let rec type_check l e =
       ignore (get_item_type ~arr:true ~vec:true e0 l e) in
     let check_arr_or_vector_or_set l e =
       ignore (get_item_type ~arr:true ~vec:true ~set:true e0 l e) in
-    let check_slist l e =
+    let check_lst l e =
       match type_of l e |> T.develop1 with
-      | T.{ typ = SList _ ; nullable = false } -> ()
-      | t -> raise (Type_error (e0, e, t, "be a slist")) in
-    let check_slist_same_type e1 l e =
+      | T.{ typ = Lst _ ; nullable = false } -> ()
+      | t -> raise (Type_error (e0, e, t, "be a lst")) in
+    let check_lst_same_type e1 l e =
       match type_of l e |> T.develop1 with
-      | T.{ typ = SList mn ; nullable = false } -> check_eq l e1 mn
-      | t -> raise (Type_error (e0, e, t, "be a slist")) in
+      | T.{ typ = Lst mn ; nullable = false } -> check_eq l e1 mn
+      | t -> raise (Type_error (e0, e, t, "be a lst")) in
     let check_sum l e =
       match type_of l e |> T.develop1 with
       | { typ = Sum _ ; nullable = false } -> ()
@@ -2640,8 +2640,8 @@ let rec type_check l e =
         check_eq l e T.float
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
-    | E1 ((ArrOfSList | ArrOfSListRev | SetOfSList), e) ->
-        check_slist l e
+    | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst), e) ->
+        check_lst l e
     | E1 (ArrOfVec, e) ->
         check_vector l e
     | E1 (ArrOfSet, e) ->
@@ -2763,11 +2763,11 @@ let rec type_check l e =
           ) ;
           check_eq l e (snd mns.(i))
     | E1 (Head, e) ->
-        check_slist l e
+        check_lst l e
     | E1 (Tail, e) ->
-        check_slist l e
+        check_lst l e
     | E2 (Cons, e1, e2) ->
-        check_slist_same_type e1 l e2
+        check_lst_same_type e1 l e2
     | E3 (Map, init, f, set) ->
         (match type_of l f |> T.develop1 with
         | T.{ typ = Function ([| init_t ; item_t |], _) ; nullable = false }
@@ -2785,7 +2785,7 @@ let rec type_check l e =
                 check_fun_type_with mn
             | T.{ typ = Set (_, mn) ; nullable = false } ->
                 check_fun_type_with mn
-            | T.{ typ = SList mn ; nullable = false } ->
+            | T.{ typ = Lst mn ; nullable = false } ->
                 check_fun_type_with mn
             | t ->
                 raise (Type_error (e0, set, t, "be an iterable")))
@@ -3658,11 +3658,11 @@ struct
 
   let map_ init f lst = E3 (Map, init, f, lst)
 
-  let arr_of_slist e1 = E1 (ArrOfSList, e1)
+  let arr_of_lst e1 = E1 (ArrOfLst, e1)
 
-  let arr_of_slist_rev e1 = E1 (ArrOfSListRev, e1)
+  let arr_of_lst_rev e1 = E1 (ArrOfLstRev, e1)
 
-  let set_of_slist e1 = E1 (SetOfSList, e1)
+  let set_of_lst e1 = E1 (SetOfLst, e1)
 
   let arr_of_vec e1 = E1 (ArrOfVec, e1)
 

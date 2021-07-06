@@ -336,7 +336,7 @@ struct
     | Size -> "Size.t" |> declare_if_named
     | Address -> "Uint64.t" |> declare_if_named
     | Bytes -> "Slice.t" |> declare_if_named
-    | SList mn ->
+    | Lst mn ->
         type_identifier_mn p mn ^" list" |> declare_if_named
     | Function ([||], mn) ->
         "(unit -> "^ type_identifier_mn p mn ^")" |> declare_if_named
@@ -977,11 +977,11 @@ struct
         unary_op "Uint32.of_int" e1
     | E.E1 ((AddressOfU64 | U64OfAddress), e1) ->
         print ?name p l e1
-    | E.E1 (ArrOfSList, e1) ->
+    | E.E1 (ArrOfLst, e1) ->
         unary_op "Array.of_list" e1
-    | E.E1 (ArrOfSListRev, e1) ->
+    | E.E1 (ArrOfLstRev, e1) ->
         unary_op "array_of_list_rev" e1
-    | E.E1 (SetOfSList, e1) ->
+    | E.E1 (SetOfLst, e1) ->
         unary_op "SimpleSet.of_list" e1
     | E.E1 ((ToU8 | ToI8 | ToU16 | ToI16 | ToU24 | ToI24 | ToU32 | ToI32 |
              ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
@@ -1458,7 +1458,7 @@ struct
             match lst_t with
             | T.{ typ = (Vec _ | Arr _) ; _ } -> "Array"
             | T.{ typ = Set _ ; _ } -> todo "map on sets"
-            | T.{ typ = SList _ ; _ } -> "List"
+            | T.{ typ = Lst _ ; _ } -> "List"
             | _ -> assert false (* because of E.type_check *) in
           pp oc "%s.map (fun item_ -> %s %s item_) %s" mod_name f init lst)
     | E.E1 (GetItem n, e1) ->

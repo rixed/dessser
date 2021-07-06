@@ -1,10 +1,10 @@
-#ifndef SLST_H_200208
-#define SLST_H_200208
+#ifndef LST_H_200208
+#define LST_H_200208
 #include <cassert>
 #include <functional>
 #include <memory>
 #include "dessser/typedefs.h"
-#include "dessser/Lst.h"
+#include "dessser/Arr.h"
 #include "dessser/SimpleSet.h"
 
 #include <sstream>
@@ -12,29 +12,29 @@
 namespace dessser_gen {
 
 template<class T>
-struct SList {
+struct Lst {
   struct Cell {
     T val;
-    SList<T> next;
-    Cell(T v, SList<T> n) : val(v), next(n) {}
+    Lst<T> next;
+    Cell(T v, Lst<T> n) : val(v), next(n) {}
   };
 
   std::shared_ptr<Cell> cells;
 
   // The empty list:
-  SList() {};
+  Lst() {};
 
-  // From another SList (sharing cells)
-  SList(SList<T> const &other)
+  // From another Lst (sharing cells)
+  Lst(Lst<T> const &other)
     : cells(other.cells) {}
 
   // Cons:
-  SList(T hd, SList<T> tl)
+  Lst(T hd, Lst<T> tl)
     : cells(std::make_shared<Cell>(hd, tl)) {}
 
-  // Mapped from another SList:
+  // Mapped from another Lst:
   template<class TInit, class T2>
-  SList(TInit const init, std::function<T(TInit, T2)> f, SList<T2> const that)
+  Lst(TInit const init, std::function<T(TInit, T2)> f, Lst<T2> const that)
   {
     // TODO
   }
@@ -47,7 +47,7 @@ struct SList {
     return cells->val;
   }
 
-  SList<T> tail() const
+  Lst<T> tail() const
   {
     assert(! empty());
     return cells->next;
@@ -60,34 +60,34 @@ struct SList {
     else return 1 + cells->next.length();
   }
 
-  Lst<T> toList() const
+  Arr<T> toList() const
   {
-    Lst<T> l;
-    for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
+    Arr<T> l;
+    for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
       l.push_back(sl->head());
     }
     return l;
   }
 
-  Lst<T> toListRev() const
+  Arr<T> toListRev() const
   {
-    Lst<T> l;
+    Arr<T> l;
     size_t i = length();
     l.resize(i);
-    for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
+    for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
       l[--i] = sl->head();
     }
     return l;
   }
 
   /* The only set that can be serializer, and therefore that require a
-   * convertion from an SList, is the SimpleSet: */
+   * convertion from an Lst, is the SimpleSet: */
   SimpleSet<T> *toSet() const
   {
     SimpleSet<T> *s = new SimpleSet<T>();
-    /* In this SList the deserialized values are stored from youngest to
+    /* In this Lst the deserialized values are stored from youngest to
      * oldest and so must be reversed here: */
-    for (SList<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
+    for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
       s->l.push_front(sl->head());
     }
     return s;
@@ -95,7 +95,7 @@ struct SList {
 };
 
 template<class T>
-static inline std::ostream &operator<<(std::ostream &os, SList<T> const &l)
+static inline std::ostream &operator<<(std::ostream &os, Lst<T> const &l)
 {
   if (l.is_empty()) {
     os << "{empty}";

@@ -709,8 +709,8 @@ struct
   let make () = ref []
 
   (* When serializing with fold, the oldest value is written first.
-   * When deserializing into an slist, the first value (the oldest) end up
-   * at the end of the slist. *)
+   * When deserializing into a list, the first value (the oldest) end up
+   * at the end of the list. *)
   let of_list l = ref l
 
   let cardinality t =

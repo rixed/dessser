@@ -66,39 +66,39 @@ struct
     loop [] 0 l src
 
   (* Arrs and sets are serialized the same, so here the arr is desserialized
-   * into an slist, and then the final operation converts it into an arr or a
+   * into a list, and then the final operation converts it into an arr or a
    * set: *)
 
   and darr mn dstate mn0 path l src =
-    dslist arr_of_slist_rev mn dstate mn0 path l src
+    dlist arr_of_lst_rev mn dstate mn0 path l src
 
   and dset mn dstate mn0 path l src =
-    dslist set_of_slist mn dstate mn0 path l src
+    dlist set_of_lst mn dstate mn0 path l src
 
-  and dslist of_slist mn dstate mn0 path l src =
+  and dlist of_list mn dstate mn0 path l src =
     match Des.arr_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
         let inits_src =
-          E.with_sploded_pair ~l "dslist1" dim_src (fun l dim src ->
+          E.with_sploded_pair ~l "dlist1" dim_src (fun l dim src ->
             let inits_src_ref = make_ref (make_pair (end_of_list mn) src) in
             let_ ~name:"inits_src_ref" ~l inits_src_ref (fun l inits_src_ref ->
               let inits_src = get_ref inits_src_ref in
               seq [
                 StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
-                  E.with_sploded_pair ~l "dslist2" inits_src (fun l inits src ->
+                  E.with_sploded_pair ~l "dlist2" inits_src (fun l inits src ->
                     let src =
                       if_ (eq n (i32 0l))
                         ~then_:src
                         ~else_:(Des.arr_sep dstate mn0 path l src) in
                     let subpath = Path.(append (RunTime n) path) in
                     let v_src = make1 dstate mn0 subpath mn l src in
-                    E.with_sploded_pair ~l "dslist3" v_src (fun _l v src ->
+                    E.with_sploded_pair ~l "dlist3" v_src (fun _l v src ->
                       make_pair (cons v inits) src) |>
                     set_ref inits_src_ref)) ;
                 inits_src ])) in
-        E.with_sploded_pair ~l "dslist4" inits_src (fun l inits src ->
-          let v = of_slist inits
+        E.with_sploded_pair ~l "dlist4" inits_src (fun l inits src ->
+          let v = of_list inits
           and src = Des.arr_cls dstate mn0 path l src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
@@ -123,7 +123,7 @@ struct
                       set_ref src_ref src ;
                       set_ref n_ref (add n (u32_of_int 1)) ])) ;
                 (
-                  let v = of_slist (get_ref inits_ref)
+                  let v = of_list (get_ref inits_ref)
                   and src = Des.arr_cls dstate mn0 path l (get_ref src_ref) in
                   make_pair v src
                 ) ])))
