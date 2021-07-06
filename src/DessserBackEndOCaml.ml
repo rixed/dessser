@@ -11,7 +11,7 @@ module P = DessserPrinter
 
 let debug = false
 
-let valid_identifier s =
+let valid_identifier ?(force_capitalize=true) s =
   let keywords =
     [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ;
       "do" ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ;
@@ -24,10 +24,11 @@ let valid_identifier s =
   if s = "" then "v" else
   if s.[0] = '!' then s else
   if List.mem s keywords then s ^ "_" else
-  DessserBackEndCLike.valid_identifier s
+  let s = DessserBackEndCLike.valid_identifier s in
+  if force_capitalize then String.uncapitalize_ascii s else s
 
 let valid_upper_identifier s =
-  String.uncapitalize s |> valid_identifier |> String.capitalize
+  valid_identifier ~force_capitalize:false s |> String.capitalize
 
 let valid_module_name s =
   assert (s <> "" && s.[0] <> '!') ;
