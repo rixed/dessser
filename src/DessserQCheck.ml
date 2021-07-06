@@ -109,7 +109,7 @@ let rec value_type_gen_of_depth depth =
     let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
     oneof
       [ map2 (fun dim mn -> T.Vec (dim, mn)) (int_range 1 10) mn_gen ;
-        map (fun mn -> T.Lst mn) mn_gen ;
+        map (fun mn -> T.Arr mn) mn_gen ;
         map (fun mn -> T.Set (Simple, mn)) mn_gen ;
         map (fun mns -> T.Tup mns) (tiny_array mn_gen) ;
         map (fun fs -> T.Rec fs) (tiny_array (pair field_name_gen mn_gen)) ;
@@ -146,7 +146,7 @@ let rec size_of_value_type = function
   (* Or the question has little practical interest: *)
   | T.This -> 1
   | T.Base _ | T.Usr _ -> 1
-  | T.Vec (_, mn) | T.Lst mn | T.Set (_, mn) -> 1 + size_of_mn mn
+  | T.Vec (_, mn) | T.Arr mn | T.Set (_, mn) -> 1 + size_of_mn mn
   | T.Tup mns ->
       Array.fold_left (fun s mn -> s + size_of_mn mn) 0 mns
   | T.Rec mns ->
@@ -187,9 +187,9 @@ let rec shrink_value_type =
   | T.Vec (dim, mn) ->
       let smn = shrink_maybe_nullable mn in
       (smn >|= vt_of_mn) <+> (smn >|= T.vec dim)
-  | T.Lst mn ->
+  | T.Arr mn ->
       let smn = shrink_maybe_nullable mn in
-      (smn >|= vt_of_mn) <+> (smn >|= T.lst)
+      (smn >|= vt_of_mn) <+> (smn >|= T.arr)
   | T.Set (st, mn) ->
       let smn = shrink_maybe_nullable mn in
       (smn >|= vt_of_mn) <+> (smn >|= T.set st)
@@ -289,8 +289,8 @@ let e1_of_int n =
          ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
          Identity ; GetEnv ; GetMin ; BitNot ; FloatOfU64 ; U64OfFloat ;
-         U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ListOfSList ;
-         ListOfSListRev ; SetOfSList ; ListOfVec ; ListOfSet ; U8OfBool ;
+         U8OfChar ; CharOfU8 ; SizeOfU32 ; U32OfSize ; ArrOfSList ;
+         ArrOfSListRev ; SetOfSList ; ArrOfVec ; ArrOfSet ; U8OfBool ;
          BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ; Cardinality
          ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ; UnsafeLog ; Log10 ;
          UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ; Round ; Cos ; Sin ;
@@ -305,7 +305,7 @@ let e2_of_int n =
     Max ; Member ; Insert ; LeftShift ; RightShift ; AppendBytes ; AppendString
     ; StartsWith ; EndsWith ; GetBit ; GetVec ; ReadBytes ; PeekU8 ; WriteU8 ;
     WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ; Max ; Member ;
-    Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocLst ; PartialSort ;
+    Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocArr ; PartialSort ;
     ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
   e2s.(n mod Array.length e2s)
 
@@ -375,7 +375,7 @@ and e0s_gen l depth =
   let lst = [
     1, map E.Ops.seq (tiny_list expr) ;
     1, map E.Ops.make_vec (tiny_list expr) ;
-    1, map2 E.Ops.make_lst (maybe_nullable_gen_of_depth (depth - 1))
+    1, map2 E.Ops.make_arr (maybe_nullable_gen_of_depth (depth - 1))
                            (tiny_list expr) ;
     1, map E.Ops.make_tup (tiny_list expr) ;
     1, map E.Ops.make_rec (tiny_list expr_pair) ;
@@ -561,7 +561,7 @@ let expression =
   compile_check \
     "(null \"[opfa U48 | lhlqkp I48?[2] | lqdjnf (Char?; I40; U48; U48?)? | fcioax String?[1]?]\")"
   compile_check "(make-vec ())"
-  compile_check "(make-lst \"U8\" (u8 63))"
+  compile_check "(make-arr \"U8\" (u8 63))"
   compile_check "(to-u8 (float 1))"
   compile_check "(to-float (u8 1))"
   compile_check "(to-u8 (u8 1))"
@@ -574,7 +574,7 @@ let expression =
   compile_check \
     "(map nop \
           (fun 0 \"void\" \"u8\" (mul (param 0 1) (param 0 1))) \
-          (make-lst \"u8\" (u8 1) (u8 2) (u8 3)))"
+          (make-arr \"u8\" (u8 1) (u8 2) (u8 3)))"
 *)
 
 (*
@@ -633,7 +633,7 @@ let rec sexpr_of_typ_gen typ =
   | T.Usr ut -> sexpr_of_typ_gen ut.def
   | T.Vec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
-  | T.Lst mn ->
+  | T.Arr mn ->
       tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
         (* FIXME: make list_prefix_length a parameter of this function *)
         (if DessserSExpr.default_config.list_prefix_length then
@@ -641,7 +641,7 @@ let rec sexpr_of_typ_gen typ =
         else "") ^
         to_sexpr lst)
   | T.Set (_, mn) ->
-      sexpr_of_typ_gen (Lst mn)
+      sexpr_of_typ_gen (Arr mn)
   | T.Tup mns ->
       tup_gen mns
   | T.Rec mns ->
@@ -655,7 +655,7 @@ let rec sexpr_of_typ_gen typ =
         ) int
       )
   | T.Map (k, v) ->
-      sexpr_of_typ_gen (Lst { typ = Tup [| k ; v |] ; nullable = false })
+      sexpr_of_typ_gen (Arr { typ = Tup [| k ; v |] ; nullable = false })
   | _ ->
       invalid_arg "sexpr_of_typ_gen"
 

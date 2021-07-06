@@ -64,12 +64,12 @@ struct
   let vec_opn () _ _ _ _ _ src = src
   let vec_cls () _ _ _ src = src
   let vec_sep () _ _ _ src = src
-  let list_opn () =
+  let arr_opn () =
     KnownSize (fun _ _ _ l src ->
       E.with_sploded_pair ~l "b_src" (read_u8 src) (fun _l b src ->
         make_pair (to_u32 b) src))
-  let list_cls () _ _ _ src = src
-  let list_sep () _ _ _ src = src
+  let arr_cls () _ _ _ src = src
+  let arr_sep () _ _ _ src = src
   let is_null () _ _ _ src =
     bool_of_u8 (peek_u8 src (size 0))
   let dnull _t () _ _ _ src = ptr_add src (size 1)
@@ -125,9 +125,9 @@ struct
   let vec_opn () _ _ _ _ _ dst = dst
   let vec_cls () _ _ _ dst = dst
   let vec_sep () _ _ _ dst = dst
-  let list_opn () _ _ _ _ _ dst = dst
-  let list_cls () _ _ _ dst = dst
-  let list_sep () _ _ _ dst = dst
+  let arr_opn () _ _ _ _ _ dst = dst
+  let arr_cls () _ _ _ dst = dst
+  let arr_sep () _ _ _ dst = dst
   let nullable () _ _ _ dst = dst
   let snull _t () _ _ _ dst = write_u8 dst (u8_of_int 1)
   let snotnull _t () _ _ _ dst = write_u8 dst (u8_of_int 0)
@@ -159,7 +159,7 @@ struct
   let ssize_of_rec _ _ _ _ = size 0
   let ssize_of_sum _ _ _ _ = size 0
   let ssize_of_vec _ _ _ _ = size 0
-  let ssize_of_list _ _ _ _ = size 0
+  let ssize_of_arr _ _ _ _ = size 0
   let ssize_of_null _ _ = size 1
   let ssize_start ?(config=()) _ =
     ignore config ;

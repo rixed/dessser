@@ -143,9 +143,9 @@ and random mn =
   | Vec (dim, mn) ->
       List.init dim (fun _ -> random mn) |>
       make_vec
-  | Lst mn ->
+  | Arr mn ->
       random_slist mn |>
-      list_of_slist
+      arr_of_slist
   | Set (Simple, mn) ->
       random_slist mn |>
       set_of_slist
@@ -227,7 +227,7 @@ end
 let percentiles ~l vs ps =
   let open E.Ops in
   comment "Compute the indices of those percentiles" (
-    match E.get_item_type_err ~vec:true ~lst:true l ps with
+    match E.get_item_type_err ~vec:true ~arr:true l ps with
     | Error mn ->
         BatPrintf.sprintf2
           "percentiles: coefficients must be a vector/list (not %a)"
@@ -276,7 +276,7 @@ let is_empty l e =
   | T.{ typ = (Base String) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
-  | { typ = (Vec _ | Lst _ | Set _) ; nullable } ->
+  | { typ = (Vec _ | Arr _ | Set _) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (cardinality e))
   | { typ = Usr { name = "Cidr4" ; _ } ; nullable } ->
@@ -418,7 +418,7 @@ let rec is_in ?(l=E.no_env) item lst =
                     ~else_:(bool false)
               | T. { typ = item_typ ; _ },
                 ( T.{ typ = Vec (_, { typ = lst_typ ; nullable }) ; _ }
-                | T.{ typ = Lst { typ = lst_typ ; nullable } ; _ }) ->
+                | T.{ typ = Arr { typ = lst_typ ; nullable } ; _ }) ->
                   (* If the set item type is the same as item type then perform
                    * direct comparisons with [eq], otherwise call [is_in]
                    * recursively.

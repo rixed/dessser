@@ -69,7 +69,7 @@ let make_get_field_name mn =
         sensus_vt (name :: path) def
     | Vec (_, mn) ->
         sensus_mn path mn
-    | Lst mn ->
+    | Arr mn ->
         sensus_mn path mn
     | Set (_, mn) ->
         sensus_mn path mn
@@ -312,7 +312,7 @@ struct
         type_identifier t.def |> declare_if_named
     | Ext n ->
         P.get_external_type p n OCaml |> declare_if_named
-    | (Vec (_, t) | Lst t) ->
+    | (Vec (_, t) | Arr t) ->
         type_identifier_mn p t ^" array" |> declare_if_named
     | Set (st, t) ->
         let m = mod_of_set_type st in
@@ -595,7 +595,7 @@ struct
         print ?name p l e1
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print p l e) "()" es
-    | E.E0S ((MakeVec | MakeLst _), es) ->
+    | E.E0S ((MakeVec | MakeArr _), es) ->
         let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
@@ -951,10 +951,10 @@ struct
         unary_op "DessserFloatTools.hexstring_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         unary_op "string_of_char" e1
-    | E.E1 (ListOfVec, e1) ->
+    | E.E1 (ArrOfVec, e1) ->
         (* Those are NOPs *)
         print ?name p l e1
-    | E.E1 (ListOfSet, e1) ->
+    | E.E1 (ArrOfSet, e1) ->
         let n1 = print p l e1 in
         let m = mod_of_set_type_of_expr l e1 in
         emit ?name p l e (fun oc ->
@@ -977,9 +977,9 @@ struct
         unary_op "Uint32.of_int" e1
     | E.E1 ((AddressOfU64 | U64OfAddress), e1) ->
         print ?name p l e1
-    | E.E1 (ListOfSList, e1) ->
+    | E.E1 (ArrOfSList, e1) ->
         unary_op "Array.of_list" e1
-    | E.E1 (ListOfSListRev, e1) ->
+    | E.E1 (ArrOfSListRev, e1) ->
         unary_op "array_of_list_rev" e1
     | E.E1 (SetOfSList, e1) ->
         unary_op "SimpleSet.of_list" e1
@@ -1015,7 +1015,7 @@ struct
         (match E.type_of l e1 |> T.develop_mn with
         | { typ = Vec (d, _) ; _ } ->
             emit ?name p l e (fun oc -> pp oc "Uint32.of_int %d" d)
-        | { typ = Lst _ ; _ } ->
+        | { typ = Arr _ ; _ } ->
             unary_op "Uint32.of_int @@ Array.length" e1
         | { typ = Set (st, _) ; _ } ->
             let n1 = print p l e1 in
@@ -1288,9 +1288,9 @@ struct
          * then the result is NULL unless the set is empty: "NULL in [1; 2]" is
          * NULL, but "NULL in []" is false. *)
         (match e2 with
-        | E0S ((MakeVec | MakeLst _), []) ->
+        | E0S ((MakeVec | MakeArr _), []) ->
             "false"
-        | E0S ((MakeVec | MakeLst _), es) ->
+        | E0S ((MakeVec | MakeArr _), es) ->
             let csts, non_csts = split_csts [] [] es in
             (* Given a list of constant expressions, build a function that check
              * membership in this set: *)
@@ -1428,7 +1428,7 @@ struct
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
         (match lst_t with
-        | { typ = (Vec _ | Lst _) ; _ } ->
+        | { typ = (Vec _ | Arr _) ; _ } ->
             (* Both lists and vectors are represented as arrays *)
             ppi p.P.def "for i_ = 0 to Array.length (%s) - 1 do" lst ;
             P.indent_more p (fun () ->
@@ -1456,7 +1456,7 @@ struct
         emit ?name p l e (fun oc ->
           let mod_name =
             match lst_t with
-            | T.{ typ = (Vec _ | Lst _) ; _ } -> "Array"
+            | T.{ typ = (Vec _ | Arr _) ; _ } -> "Array"
             | T.{ typ = Set _ ; _ } -> todo "map on sets"
             | T.{ typ = SList _ ; _ } -> "List"
             | _ -> assert false (* because of E.type_check *) in
@@ -1601,7 +1601,7 @@ struct
         emit ?name p l e (fun oc ->
           (* TODO: faster impl with a single string alloc: *)
           pp oc "String.concat %s (Array.to_list %s)" n1 n2)
-    | E.E2 (AllocLst, e1, e2) ->
+    | E.E2 (AllocArr, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
@@ -1612,7 +1612,7 @@ struct
         and n2 = print p l e2 in
         let item2_t =
           match E.type_of l e2 |> T.develop_mn with
-          | { typ = (Vec (_, t) | Lst t) ; _ } -> t
+          | { typ = (Vec (_, t) | Arr t) ; _ } -> t
           | _ -> assert false (* because of type_check *) in
         let m = mod_name item2_t in
         ppi p.P.def "BatArray.enum %s |>" n2 ;

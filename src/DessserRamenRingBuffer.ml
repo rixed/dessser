@@ -187,7 +187,7 @@ struct
   let rec of_type = function
     | T.Vec (dim, mn) ->
         vec_bits dim mn
-    | Lst _ ->
+    | Arr _ ->
         invalid_arg "NullMaskWidth.of_type for lists"
     | Tup mns ->
         tup_bits mns
@@ -462,7 +462,7 @@ struct
   let vec_sep () _ _ _ p_stk = p_stk
 
   (* [n] is an u32 *)
-  let list_opn () mn0 path mn n l p_stk =
+  let arr_opn () mn0 path mn n l p_stk =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
@@ -474,10 +474,10 @@ struct
     (* Nullmask must still be present for an empty list of nullable items: *)
     enter_frame_dyn ~has_nullmask nullmask_bits mn0 path l p_stk
 
-  let list_cls () _ _ l p_stk =
+  let arr_cls () _ _ l p_stk =
     leave_frame l p_stk
 
-  let list_sep () _ _ _ p_stk = p_stk
+  let arr_sep () _ _ _ p_stk = p_stk
 
   let nullable () _ _ _ p_stk = p_stk
 
@@ -497,7 +497,7 @@ struct
     add headsz (round_up_dyn_bytes sz)
 
   (* SerSize of the list header: *)
-  let ssize_of_list mn0 path _l id =
+  let ssize_of_arr mn0 path _l id =
     let with_nullmask () =
       let nullmask_bits_dyn = cardinality id in
       (* Add the nullmask length prefix: *)
@@ -509,7 +509,7 @@ struct
     and without_nullmask () =
       size word_size in
     match (Path.type_of_path mn0 path).typ |> T.develop with
-    | Lst mn ->
+    | Arr mn ->
         (* If the items are not nullable then there is no nullmask. *)
         if mn.nullable then
           with_nullmask ()
@@ -832,7 +832,7 @@ struct
   let sum_cls () _ _ l p_stk =
     leave_frame l p_stk
 
-  let list_opn () = KnownSize
+  let arr_opn () = KnownSize
     (fun mn0 path mn l p_stk ->
       E.with_sploded_pair ~l "list_opn1" p_stk (fun l p stk ->
         E.with_sploded_pair ~l "list_opn2" (read_u32 LittleEndian p) (fun l n p ->
@@ -840,10 +840,10 @@ struct
           let p_stk = enter_frame ~has_nullmask mn0 path l p stk in
           make_pair n p_stk)))
 
-  let list_cls () _ _ l p_stk =
+  let arr_cls () _ _ l p_stk =
     leave_frame l p_stk
 
-  let list_sep () _ _ _ p_stk = p_stk
+  let arr_sep () _ _ _ p_stk = p_stk
 
   (* Called only on nullable value, so there necessarily is a nullbit: *)
   let is_null () _ path l p_stk =

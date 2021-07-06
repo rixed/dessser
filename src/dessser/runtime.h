@@ -11,7 +11,7 @@
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"
-#include "dessser/Lst.h"
+#include "dessser/Arr.h"
 #include "dessser/Set.h"
 #include "dessser/SimpleSet.h"
 #include "dessser/SlidingWindow.h"
@@ -159,9 +159,9 @@ inline std::size_t u128_from_chars(char const *start, char const *stop, uint128_
   return count;
 }
 
-inline Lst<std::string> string_split(std::string sep, std::string str)
+inline Arr<std::string> string_split(std::string sep, std::string str)
 {
-  Lst<std::string> res;
+  Arr<std::string> res;
   std::size_t const sep_len { sep.length() };
   if (0 == sep_len) return res;  /* TODO: rather a list of single chars? */
   std::size_t last { 0 };
@@ -172,7 +172,7 @@ inline Lst<std::string> string_split(std::string sep, std::string str)
   return res;
 }
 
-inline std::string string_join(std::string sep, Lst<std::string> strs)
+inline std::string string_join(std::string sep, Arr<std::string> strs)
 {
   std::string res;
   for (std::string const &s : strs) {

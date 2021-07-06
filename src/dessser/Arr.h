@@ -1,5 +1,5 @@
-#ifndef LIST_H_191223
-#define LIST_H_191223
+#ifndef ARR_H_191223
+#define ARR_H_191223
 /* Like Vec, but for when the size is unknown statically */
 #include <functional>
 #include <initializer_list>
@@ -10,24 +10,24 @@
 
 namespace dessser_gen {
 template<class T>
-struct Lst : public std::vector<T> {
-  Lst()
+struct Arr : public std::vector<T> {
+  Arr()
   {
     this->reserve(10);
   }
 
-  Lst(std::initializer_list<T> lst)
+  Arr(std::initializer_list<T> lst)
   {
     this->reserve(10);
     this->insert(this->begin(), lst);
   }
 
   template<unsigned DIM>
-  Lst(Vec<DIM, T> vec) : std::vector<T>(vec)
+  Arr(Vec<DIM, T> vec) : std::vector<T>(vec)
   {
   }
 
-  Lst(Set<T> *set)
+  Arr(Set<T> *set)
   {
     this->reserve(set->size());
     set->iter([this](T &x) {
@@ -35,9 +35,9 @@ struct Lst : public std::vector<T> {
     });
   }
 
-  // Mapped from another Lst:
+  // Mapped from another Arr:
   template<class TInit, class T2>
-  Lst(TInit const init, std::function<T(TInit, T2)> f, Lst<T2> const that)
+  Arr(TInit const init, std::function<T(TInit, T2)> f, Arr<T2> const that)
   {
     // TODO
   }
@@ -48,21 +48,21 @@ struct Lst : public std::vector<T> {
     return std::vector<T>::size();
   }
 
-  Lst<T> chopBegin(size_t n)
+  Arr<T> chopBegin(size_t n)
   {
-    if (n >= size()) return Lst<T>();
-    return Lst(this->cbegin() + n, this->cend());
+    if (n >= size()) return Arr<T>();
+    return Arr(this->cbegin() + n, this->cend());
   }
 
-  Lst<T> chopEnd(size_t n)
+  Arr<T> chopEnd(size_t n)
   {
-    if (n >= size()) return Lst<T>();
-    return Lst(this->cbegin(), this->cend() - n);
+    if (n >= size()) return Arr<T>();
+    return Arr(this->cbegin(), this->cend() - n);
   }
 };
 
 template<class T>
-std::ostream &operator<<(std::ostream &os, Lst<T> const &v)
+std::ostream &operator<<(std::ostream &os, Arr<T> const &v)
 {
   os << '[';
   bool sep = false;

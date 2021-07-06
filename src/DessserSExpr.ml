@@ -114,7 +114,7 @@ struct
   let vec_sep _conf _ _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
-  let list_opn conf mn0 path _ n l p =
+  let arr_opn conf mn0 path _ n l p =
     let p =
       if conf.list_prefix_length then
         match n with
@@ -127,10 +127,10 @@ struct
         p in
     write_u8 p (u8_of_const_char '(')
 
-  let list_cls _conf _ _ _ p =
+  let arr_cls _conf _ _ _ p =
     write_u8 p (u8_of_const_char ')')
 
-  let list_sep _conf _ _ _ p =
+  let arr_sep _conf _ _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
   let nullable _conf _ _ _ p = p
@@ -218,7 +218,7 @@ struct
       | _ -> assert false in
     size (2 + dim - 1)
 
-  let ssize_of_list _ _ _ v =
+  let ssize_of_arr _ _ _ v =
     size_of_u32 (add (cardinality v) (u32_of_int 2))
 
   let ssize_of_null _ _ = size 4
@@ -351,7 +351,7 @@ struct
 
   let vec_sep _conf _ _ _ p = skip1 p
 
-  let list_opn conf =
+  let arr_opn conf =
     if conf.list_prefix_length then
       KnownSize (fun mn0 path _ l p ->
         E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
@@ -362,9 +362,9 @@ struct
         (fun _ _ _ p ->
           eq (peek_u8 p (size 0)) (u8_of_const_char ')')))
 
-  let list_cls _conf _ _ _ p = skip1 p
+  let arr_cls _conf _ _ _ p = skip1 p
 
-  let list_sep _conf _ _ _ p = skip1 p
+  let arr_sep _conf _ _ _ p = skip1 p
 
   let is_null _conf _ _ l p =
     (* null *)

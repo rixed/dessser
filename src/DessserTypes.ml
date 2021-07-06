@@ -41,7 +41,7 @@ and t =
   | Ext of string
   (* Compound types: *)
   | Vec of int * mn
-  | Lst of mn
+  | Arr of mn
   (* Special compound type amenable to incremental computation over sets.
    * There are different implementations with slightly different APIs,
    * depending on the use case (ie. the operator it is an operand of), for
@@ -81,7 +81,7 @@ and t =
    * use the value-types, as we cannot embed a pointer in there. So here are
    * defined two specific compound types: a pair and an homogeneous list
    * (sufficient in practice and better than untyped car/cdr!) *)
-  (* A Data Lst is just a vector which length is unknown at compile time,
+  (* A Data Arr is just a vector which length is unknown at compile time,
    * whereas an SList can actually be constructed/destructed element by element.
    * "SList" is for "singly-chained" list, and is written using "[[]]" instead
    * of "[]". *)
@@ -126,7 +126,7 @@ let rec eq ?(opaque_user_type=false) t1 t2 =
       n1 = n2
   | Vec (d1, mn1), Vec (d2, mn2) ->
       d1 = d2 && eq_mn mn1 mn2
-  | Lst mn1, Lst mn2 ->
+  | Arr mn1, Arr mn2 ->
       eq_mn mn1 mn2
   | Set (st1, mn1), Set (st2, mn2) ->
       st1 = st2 &&
@@ -181,8 +181,8 @@ let rec develop = function
       develop def
   | Vec (d, mn) ->
       Vec (d, develop_mn mn)
-  | Lst mn ->
-      Lst (develop_mn mn)
+  | Arr mn ->
+      Arr (develop_mn mn)
   | Set (st, mn) ->
       Set (st, develop_mn mn)
   | Tup mns ->
@@ -216,7 +216,7 @@ let rec fold u f t =
   match t with
   | Usr { def ; _ } ->
       fold u f def
-  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn ->
+  | Vec (_, mn) | Arr mn | Set (_, mn) | SList mn ->
       fold_mn u f mn
   | Tup mns ->
       Array.fold_left (fun u mn -> fold_mn u f mn) u mns
@@ -319,7 +319,7 @@ let rec print ?(sorted=false) oc =
           def.print oc)
   | Vec (dim, mn) ->
       pp oc "%a[%d]" print_mn mn dim
-  | Lst mn ->
+  | Arr mn ->
       pp oc "%a[]" print_mn mn
   | Set (st, mn) ->
       pp oc "%a{%s}" print_mn mn (string_of_set_type st)
@@ -446,14 +446,14 @@ struct
       String.of_list (c :: s)
 
   type key_type =
-    VecDim of int | ListDim | SetDim of set_type | MapKey of mn | SListDim
+    VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | SListDim
 
   let rec reduce_dims typ = function
     | [] -> typ
     | (nullable, VecDim d) :: rest ->
         reduce_dims (Vec (d, { nullable ; typ })) rest
-    | (nullable, ListDim) :: rest ->
-        reduce_dims (Lst { nullable ; typ }) rest
+    | (nullable, ArrDim) :: rest ->
+        reduce_dims (Arr { nullable ; typ }) rest
     | (nullable, SetDim st) :: rest ->
         reduce_dims (Set (st, { nullable ; typ })) rest
     | (nullable, MapKey k) :: rest ->
@@ -473,11 +473,11 @@ struct
             raise (Reject "Vector must have strictly positive dimension") ;
           n, VecDim d
       ) m in
-    let list_dim m =
-      let m = "list type" :: m in
+    let arr_dim m =
+      let m = "arr type" :: m in
       (
         opt_question_mark +-
-        char '[' +- opt_blanks +- char ']' >>: fun n -> n, ListDim
+        char '[' +- opt_blanks +- char ']' >>: fun n -> n, ArrDim
       ) m in
     let slist_dim m =
       let m = "slist type" :: m in
@@ -514,7 +514,7 @@ struct
       ) m
     in
     (
-      vec_dim |<| list_dim |<| set_dim |<| map_key |<| slist_dim
+      vec_dim |<| arr_dim |<| set_dim |<| map_key |<| slist_dim
     ) m
 
   and mn m =
@@ -710,13 +710,13 @@ struct
        (test_p pmn "u8?[3]")
     (Ok ((optional (Vec (3, (required (Base U8))))), (6,[]))) \
        (test_p pmn "u8[3]?")
-    (Ok ((required (Vec (3, (optional (Lst (required (Base U8))))))), (8,[]))) \
+    (Ok ((required (Vec (3, (optional (Arr (required (Base U8))))))), (8,[]))) \
        (test_p pmn "u8[]?[3]")
-    (Ok ((optional (Lst (required (Vec (3, (optional (Base U8))))))), (9,[]))) \
+    (Ok ((optional (Arr (required (Vec (3, (optional (Base U8))))))), (9,[]))) \
        (test_p pmn "u8?[3][]?")
     (Ok ((optional (Map ((required (Base String)), (required (Base U8))))), (11,[]))) \
        (test_p pmn "u8[string]?")
-    (Ok ((required (Map ((required (Map ((optional (Base U8)), (optional (Base String))))), (optional (Lst ((required (Tup [| (required (Base U8)) ; (required (Map ((required (Base String)), (required (Base Bool))))) |])))))))), (35,[]))) \
+    (Ok ((required (Map ((required (Map ((optional (Base U8)), (optional (Base String))))), (optional (Arr ((required (Tup [| (required (Base U8)) ; (required (Map ((required (Base String)), (required (Base Bool))))) |])))))))), (35,[]))) \
        (test_p pmn "(u8; bool[string])[]?[string?[u8?]]")
     (Ok ((required (Rec [| "f1", required (Base Bool) ; "f2", optional (Base U8) |])), (19,[]))) \
       (test_p pmn "{f1: Bool; f2: U8?}")
@@ -809,7 +809,7 @@ struct
         (with_typ_param "Nullable" >>:
           fun mn -> { mn with nullable = true }) |<|
         (with_typ_param "Array" >>:
-          fun mn -> { nullable = false ; typ = Lst mn }) |<|
+          fun mn -> { nullable = false ; typ = Arr mn }) |<|
         (* Just ignore those ones (for now): *)
         (with_typ_param "LowCardinality")
         (* Etc... *)
@@ -831,7 +831,7 @@ struct
     (Ok (Rec [| "thing", required (Base U16) |], (14,[]))) \
        (test_p clickhouse_names_and_types "`thing` UInt16")
 
-    (Ok (Rec [| "thing", required (Lst (required (Base U16))) |], (21,[]))) \
+    (Ok (Rec [| "thing", required (Arr (required (Base U16))) |], (21,[]))) \
        (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
   *)
 
@@ -880,7 +880,7 @@ let rec depth ?(opaque_user_type=true) = function
       0
   | Usr { def ; _ } ->
       if opaque_user_type then 0 else depth ~opaque_user_type def
-  | Vec (_, mn) | Lst mn | Set (_, mn) | SList mn ->
+  | Vec (_, mn) | Arr mn | Set (_, mn) | SList mn ->
       1 + depth ~opaque_user_type mn.typ
   | Tup mns ->
       1 + Array.fold_left (fun d mn ->
@@ -897,9 +897,9 @@ let rec depth ?(opaque_user_type=true) = function
 
 (*$= depth & ~printer:string_of_int
   0 (depth (Base U8))
-  2 (depth (Tup [| required (Base U8) ; required (Lst (required (Base U8))) |]))
+  2 (depth (Tup [| required (Base U8) ; required (Arr (required (Base U8))) |]))
   7 (depth (\
-    Lst (required (\
+    Arr (required (\
       Vec (4, (required (\
         Rec [| \
           "mgfhm", required (\
@@ -916,7 +916,7 @@ let rec depth ?(opaque_user_type=true) = function
                   "cdwcv", required (Base U64) ; \
                   "jcdivs", required (\
                     Rec [| \
-                      "hgtixf", required (Lst (optional (Base I128))) ; \
+                      "hgtixf", required (Arr (optional (Base I128))) ; \
                       "yuetd", required (Base Char) ; \
                       "bsbff", required (Base U16) |]) |]) |]) ; \
           "pudia", required (get_user_type "Cidr4") ; \
@@ -937,7 +937,7 @@ let shrink t =
       match t with
       | Usr { def ; _ } -> do_typ def
       | Vec (d, mn) -> Vec (d, do_mn mn)
-      | Lst mn -> Lst (do_mn mn)
+      | Arr mn -> Arr (do_mn mn)
       | Set (st, mn) -> Set (st, do_mn mn)
       | Tup mns -> Tup (Array.map do_mn mns)
       | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
@@ -971,7 +971,7 @@ let ext x = Ext x
 let vec dim mn =
   if dim <= 0 then invalid_arg "vector" else Vec (dim, mn)
 
-let lst mn = Lst mn
+let arr mn = Arr mn
 
 let set st mn = Set (st, mn)
 

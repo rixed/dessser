@@ -62,7 +62,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with typ = def }
-  | Vec (_, mn') | Lst mn' | Set (_, mn') ->
+  | Vec (_, mn') | Arr mn' | Set (_, mn') ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
   | Tup mns ->
       are_serializable (Array.enum mns)
@@ -88,7 +88,7 @@ let rec nullable_at_first mn =
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with typ = def }
-  | Vec (_, mn') | Lst mn' | Set (_, mn') ->
+  | Vec (_, mn') | Arr mn' | Set (_, mn') ->
       nullable_at_first mn'
   | Tup mns ->
       nullable_at_first mns.(0)
@@ -124,14 +124,14 @@ let rec make_serializable mn =
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
         typ = Vec (d, mn') }
-  | Lst mn' ->
+  | Arr mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        typ = Lst mn' }
+        typ = Arr mn' }
   | Set (_, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        typ = Lst mn' }
+        typ = Arr mn' }
   | Tup mns ->
       let mns = Array.map make_serializable mns in
       { nullable = if nullable_at_first mns.(0) then false else mn.nullable ;
@@ -323,7 +323,7 @@ struct
     write_u8 p (u8_of_const_char ',')
 
   (* Lists are prefixed with a column or their length: *)
-  let list_opn conf mn0 path t n l p =
+  let arr_opn conf mn0 path t n l p =
     if not conf.clickhouse_syntax then
       match n with
       | Some n ->
@@ -334,11 +334,11 @@ struct
     else
       vec_opn conf mn0 path 0 t l p
 
-  let list_cls conf mn0 path l p =
+  let arr_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
     vec_cls conf mn0 path l p
 
-  let list_sep conf mn0 path l p =
+  let arr_sep conf mn0 path l p =
     if not conf.clickhouse_syntax then sep conf l p else
     vec_sep conf mn0 path l p
 
@@ -377,7 +377,7 @@ struct
   let ssize_of_rec _ _ _ _ = todo_ssize ()
   let ssize_of_sum _ _ _ _ = todo_ssize ()
   let ssize_of_vec _ _ _ _ = todo_ssize ()
-  let ssize_of_list _ _ _ _ = todo_ssize ()
+  let ssize_of_arr _ _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
   let ssize_start ?(config=default_config) _ =
     ignore config ;
@@ -601,7 +601,7 @@ struct
     if not conf.clickhouse_syntax then skip_sep conf p else
     skip_char ',' p
 
-  let list_opn conf =
+  let arr_opn conf =
     if not conf.clickhouse_syntax then
       KnownSize (fun mn0 path _ l p ->
         E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
@@ -613,11 +613,11 @@ struct
           (* Won't work for nested compound types: *)
           (eq (peek_u8 p (size 0)) (u8_of_const_char ']'))))
 
-  let list_cls conf mn0 path l p =
+  let arr_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
     vec_cls conf mn0 path l p
 
-  let list_sep conf mn0 path l p =
+  let arr_sep conf mn0 path l p =
     if not conf.clickhouse_syntax then skip_sep conf p else
     vec_sep conf mn0 path l p
 

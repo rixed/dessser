@@ -156,16 +156,16 @@ let rec conv ?(depth=0) ~to_ l d =
   | vt1, Vec (1, { typ = vt2 ; nullable })
     when T.eq vt1 vt2 ->
       make_vec [ if nullable then not_null d else d ]
-  | vt1, Lst ({ typ = vt2 ; nullable } as mn2)
+  | vt1, Arr ({ typ = vt2 ; nullable } as mn2)
     when T.eq vt1 vt2 ->
-      make_lst mn2 [ if nullable then not_null d else d ]
-  (* Specialized version for lst/vec of chars that return the
+      make_arr mn2 [ if nullable then not_null d else d ]
+  (* Specialized version for arr/vec of chars that return the
    * string composed of those chars rather than an enumeration: *)
   | Vec (_, { typ = Base Char ; _ }), Base String
-  | Lst { typ = Base Char ; _ }, Base String ->
+  | Arr { typ = Base Char ; _ }, Base String ->
       conv_charseq_to_string ~depth:(depth+1) (cardinality d) l d
   | Vec _, Base String
-  | Lst _, Base String ->
+  | Arr _, Base String ->
       conv_list_to_string ~depth:(depth+1) (cardinality d) l d
   | Tup mns, Base String ->
       let to_ = T.(required (Base String)) in
@@ -195,16 +195,16 @@ let rec conv ?(depth=0) ~to_ l d =
       make_usr "Cidr" [ d ]
   | Vec (d1, mn1), Vec (d2, mn2) when d1 = d2 ->
       map_items d mn1 mn2
-  | Lst mn1, Lst mn2 ->
+  | Arr mn1, Arr mn2 ->
       map_items d mn1 mn2
   (* TODO: Also when d2 < d1, and d2 > d1 extending with null as long as mn2 is
    * nullable *)
-  | Vec (_, mn1), Lst mn2 ->
-      let d = list_of_vec d in
+  | Vec (_, mn1), Arr mn2 ->
+      let d = arr_of_vec d in
       map_items d mn1 mn2
   (* Groups are typed as lists: *)
-  | Set (_, mn1), Lst mn2 ->
-      let d = list_of_set d in
+  | Set (_, mn1), Arr mn2 ->
+      let d = arr_of_set d in
       map_items d mn1 mn2
   | Tup mns1, Tup mns2 when Array.length mns1 = Array.length mns2 ->
       (* TODO: actually we could project away fields from t_from when t_to
@@ -216,8 +216,8 @@ let rec conv ?(depth=0) ~to_ l d =
       make_vec (
         List.init (Array.length mns1) (fun i ->
           conv_mn ~to_:mn2 l (get_item i d)))
-  | Tup mns1, Lst mn2 ->
-      make_lst mn2 (
+  | Tup mns1, Arr mn2 ->
+      make_arr mn2 (
         List.init (Array.length mns1) (fun i ->
           conv_mn ~to_:mn2 l (get_item i d)))
   | Rec mns1, Rec mns2 when fields_of_rec mns1 = fields_of_rec mns2 ->

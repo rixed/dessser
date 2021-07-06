@@ -134,7 +134,7 @@ type e0s =
   | Seq
   (* Data constructors: *)
   | MakeVec
-  | MakeLst of T.mn
+  | MakeArr of T.mn
   | MakeTup
   (* For convenience, MakeRec is handled like an E0S but it is constrained to
    * have an even number of arguments, the field names being forced to be
@@ -238,11 +238,11 @@ type e1 =
   | U32OfSize
   | AddressOfU64
   | U64OfAddress
-  | ListOfSList
-  | ListOfSListRev
+  | ArrOfSList
+  | ArrOfSListRev
   | SetOfSList
-  | ListOfVec
-  | ListOfSet
+  | ArrOfVec
+  | ArrOfSet
   (* à la C: *)
   | U8OfBool
   | BoolOfU8
@@ -347,7 +347,7 @@ type e2 =
   | StartsWith
   | EndsWith
   | GetBit
-  | GetVec (* first the index then the vector or list (as in Getfield) *)
+  | GetVec (* first the index then the vector or array (as in Getfield) *)
   | ReadBytes
   | PeekU8
   | WriteU8
@@ -381,8 +381,8 @@ type e2 =
   (* Parameters are separator and list/vector: *)
   | Join
   (* Parameters are size and item initial value *)
-  | AllocLst
-  (* Sort (inplace) the 1st parameter (vector or list) until the indices given
+  | AllocArr
+  (* Sort (inplace) the 1st parameter (vector or array) until the indices given
    * in the 2sn parameter have reached their final location. Other part of the
    * array might not be sorted. *)
   | PartialSort
@@ -404,7 +404,7 @@ type e2 =
 
 type e3 =
   | SetBit
-  (* Similarly to GetVec: first the index, then the vector or list, then
+  (* Similarly to GetVec: first the index, then the vector or array, then
    * the value *)
   | SetVec
   | BlitByte
@@ -629,8 +629,8 @@ let rec default ?(allow_null=true) ?this t =
       E0S (
         MakeVec,
         List.init dim (fun _ -> default_mn mn))
-  | Lst mn ->
-      E0S (MakeLst mn, [])
+  | Arr mn ->
+      E0S (MakeArr mn, [])
   | Set (Simple, mn) ->
       E0 (EmptySet mn)
   | Set (Sliding, mn) ->
@@ -726,7 +726,7 @@ let string_of_e0 = function
 let string_of_e0s = function
   | Seq -> "seq"
   | MakeVec -> "make-vec"
-  | MakeLst mn -> "make-lst "^ String.quote (T.mn_to_string mn)
+  | MakeArr mn -> "make-arr "^ String.quote (T.mn_to_string mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
   | MakeUsr n -> "make-usr "^ String.quote n
@@ -831,11 +831,11 @@ let string_of_e1 = function
   | U32OfSize -> "u32-of-size"
   | AddressOfU64 -> "address-of-u64"
   | U64OfAddress -> "u64-of-address"
-  | ListOfSList -> "list-of-slist"
-  | ListOfSListRev -> "list-of-slist-rev"
+  | ArrOfSList -> "list-of-slist"
+  | ArrOfSListRev -> "list-of-slist-rev"
   | SetOfSList -> "set-of-slist"
-  | ListOfVec -> "list-of-vec"
-  | ListOfSet -> "list-of-set"
+  | ArrOfVec -> "list-of-vec"
+  | ArrOfSet -> "list-of-set"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -951,7 +951,7 @@ let string_of_e2 = function
   | SplitBy -> "split-on"
   | SplitAt -> "split-at"
   | Join -> "join"
-  | AllocLst -> "alloc-lst"
+  | AllocArr -> "alloc-arr"
   | PartialSort -> "partial-sort"
   | ChopBegin -> "chop-begin"
   | ChopEnd -> "chop-end"
@@ -1274,8 +1274,8 @@ struct
     | Lst [] -> E0S (Seq, [])
     | Sym "nop" -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
-    | Lst (Sym "make-lst" :: Str mn :: xs) ->
-        E0S (MakeLst (T.mn_of_string mn), List.map e xs)
+    | Lst (Sym "make-arr" :: Str mn :: xs) ->
+        E0S (MakeArr (T.mn_of_string mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
@@ -1402,11 +1402,11 @@ struct
     | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
     | Lst [ Sym "address-of-u64" ; x ] -> E1 (AddressOfU64, e x)
     | Lst [ Sym "u64-of-address" ; x ] -> E1 (U64OfAddress, e x)
-    | Lst [ Sym "list-of-slist" ; x ] -> E1 (ListOfSList, e x)
-    | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ListOfSListRev, e x)
+    | Lst [ Sym "list-of-slist" ; x ] -> E1 (ArrOfSList, e x)
+    | Lst [ Sym "list-of-slist-rev" ; x ] -> E1 (ArrOfSListRev, e x)
     | Lst [ Sym "set-of-slist" ; x ] -> E1 (SetOfSList, e x)
-    | Lst [ Sym "list-of-vec" ; x ] -> E1 (ListOfVec, e x)
-    | Lst [ Sym "list-of-set" ; x ] -> E1 (ListOfSet, e x)
+    | Lst [ Sym "list-of-vec" ; x ] -> E1 (ArrOfVec, e x)
+    | Lst [ Sym "list-of-set" ; x ] -> E1 (ArrOfSet, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
@@ -1552,8 +1552,8 @@ struct
         E2 (SplitAt, e x1, e x2)
     | Lst [ Sym "join" ; x1 ; x2 ] ->
         E2 (Join, e x1, e x2)
-    | Lst [ Sym "alloc-lst" ; x1 ; x2 ] ->
-        E2 (AllocLst, e x1, e x2)
+    | Lst [ Sym "alloc-arr" ; x1 ; x2 ] ->
+        E2 (AllocArr, e x1, e x2)
     | Lst [ Sym "partial-sort" ; x1 ; x2 ] ->
         E2 (PartialSort, e x1, e x2)
     | Lst [ Sym "chop-begin" ; x1 ; x2 ] ->
@@ -1756,8 +1756,8 @@ and type_of l e0 =
       raise (Struct_error (e0, "vector dimension must be > 1"))
   | E0S (MakeVec, (e0::_ as es)) ->
       T.required (Vec (List.length es, type_of l e0))
-  | E0S (MakeLst mn, _) ->
-      T.required (Lst mn)
+  | E0S (MakeArr mn, _) ->
+      T.required (Arr mn)
   | E0S (MakeTup, es) ->
       T.required (Tup (List.enum es /@ type_of l |> Array.of_enum))
   | E0S (MakeRec, es) ->
@@ -1822,10 +1822,10 @@ and type_of l e0 =
       T.required (Sum mns)
   | E2 (Nth, _, e2) ->
       (match type_of l e2 |> T.develop1 with
-      | { typ = (Vec (_, mn) | Lst mn) ; nullable = false } ->
+      | { typ = (Vec (_, mn) | Arr mn) ; nullable = false } ->
           mn
       | t ->
-          raise (Type_error (e0, e2, t, "be a vector or list")))
+          raise (Type_error (e0, e2, t, "be a vector or array")))
   | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
          UnsafeDiv | UnsafeRem | UnsafePow), e1, e2) ->
       either e1 e2
@@ -1895,26 +1895,26 @@ and type_of l e0 =
   | E1 (U32OfSize, _) -> T.u32
   | E1 (AddressOfU64, _) -> T.address
   | E1 (U64OfAddress, _) -> T.u64
-  | E1 ((ListOfSList | ListOfSListRev), e) ->
+  | E1 ((ArrOfSList | ArrOfSListRev), e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = SList mn ; nullable = false } ->
-          T.required (Lst mn)
+          T.required (Arr mn)
       | t -> raise (Type_error (e0, e, t, "be a slist")))
   | E1 (SetOfSList, e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = SList mn ; nullable = false } ->
           T.required (Set (Simple, mn))
       | t -> raise (Type_error (e0, e, t, "be a slist")))
-  | E1 (ListOfVec, e) ->
+  | E1 (ArrOfVec, e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = Vec (_, mn) ; nullable = false } ->
-          T.required (Lst mn)
+          T.required (Arr mn)
       | t ->
           raise (Type_error (e0, e, t, "be a vec")))
-  | E1 (ListOfSet, e) ->
+  | E1 (ArrOfSet, e) ->
       (match type_of l e |> T.develop1 with
       | T.{ typ = Set (_, mn) ; nullable = false } ->
-          T.required (Lst mn)
+          T.required (Arr mn)
       | t ->
           raise (Type_error (e0, e, t, "be a set")))
   | E1 (U8OfBool, _) -> T.u8
@@ -1930,7 +1930,7 @@ and type_of l e0 =
   | E3 (PtrOfPtr, _, _, _) -> T.ptr
   | E3 (FindSubstring, _, _, _) -> T.nu24
   | E2 (GetBit, _, _) -> T.bool
-  | E2 (GetVec, _, e1) -> T.(get_item_type ~lst:true ~vec:true e0 l e1)
+  | E2 (GetVec, _, e1) -> T.(get_item_type ~arr:true ~vec:true e0 l e1)
   | E3 ((SetBit | SetVec), _, _, _) -> T.void
   | E1 (ReadU8, _) -> T.pair T.u8 T.ptr
   | E1 (ReadU16 _, _) -> T.pair T.u16 T.ptr
@@ -2054,7 +2054,7 @@ and type_of l e0 =
           let map_mn g = T.required (g ot) in
           (match type_of l set |> T.develop1 with
           | T.{ typ = Vec (n, _) ; _ } -> map_mn (fun mn -> Vec (n, mn))
-          | T.{ typ = Lst _ ; _ } -> map_mn (fun mn -> Lst mn)
+          | T.{ typ = Arr _ ; _ } -> map_mn (fun mn -> Arr mn)
           | T.{ typ = Set (st, _) ; _ } -> map_mn (fun mn -> Set (st, mn))
           | T.{ typ = SList _ ; _ } -> T.slist ot
           | t -> raise (Type_error (e0, set, t, "be an iterable")))
@@ -2078,18 +2078,18 @@ and type_of l e0 =
   | E2 ((Insert | DelMin), _, _) ->
       T.void
   | E2 (SplitBy, _, _) ->
-      T.(required (lst string))
+      T.(required (arr string))
   | E2 (SplitAt, _, _) ->
       T.(required (tup [| string ; string |]))
   | E2 (Join, _, _) ->
       T.string
-  | E2 (AllocLst, _, e2) ->
+  | E2 (AllocArr, _, e2) ->
       let item_mn = type_of l e2 in
-      T.(required (lst item_mn))
+      T.(required (arr item_mn))
   | E2 (PartialSort, _, _) ->
       T.void
-  | E2 ((ChopBegin | ChopEnd), lst, _) ->
-      type_of l lst
+  | E2 ((ChopBegin | ChopEnd), arr, _) ->
+      type_of l arr
   | E2 (ScaleWeights, _, _) ->
       T.void
   | E3 (Top mn, _, _, _) ->
@@ -2102,20 +2102,20 @@ and type_of l e0 =
   | E2 (CharOfString, _, _) ->
       T.nchar
 
-and get_item_type_err ?(vec=false) ?(lst=false) ?(set=false) l e =
+and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) l e =
   match type_of l e |> T.develop1 with
   | { typ = Vec (_, mn) ; nullable = false } when vec -> Ok mn
-  | { typ = Lst mn ; nullable = false } when lst -> Ok mn
+  | { typ = Arr mn ; nullable = false } when arr -> Ok mn
   | { typ = Set (_, mn) ; nullable = false } when set -> Ok mn
   | t -> Error t
 
 (* Return the element type or fail: *)
-and get_item_type ?(vec=false) ?(lst=false) ?(set=false) e0 l e =
-  match get_item_type_err ~vec ~lst ~set l e with
+and get_item_type ?(vec=false) ?(arr=false) ?(set=false) e0 l e =
+  match get_item_type_err ~vec ~arr ~set l e with
   | Ok t -> t
   | Error t ->
       let acceptable = if vec then [ "vector" ] else [] in
-      let acceptable = if lst then "list" :: acceptable else acceptable in
+      let acceptable = if arr then "array" :: acceptable else acceptable in
       let acceptable = if set then "set" :: acceptable else acceptable in
       raise (Type_error (e0, e, t, "be a "^ String.join " or " acceptable))
 
@@ -2378,7 +2378,7 @@ let has_side_effect e =
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
              WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
-             Insert | DelMin | AllocLst | PartialSort), _, _)
+             Insert | DelMin | AllocArr | PartialSort), _, _)
       | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
           raise Exit
       | _ -> ()
@@ -2403,7 +2403,7 @@ let can_duplicate e =
              Heap), _)
       | E3 (Top _, _, _, _)
       (* Expensive: *)
-      | E1 ((ListOfSList | ListOfSListRev | SetOfSList | ListOfVec | ListOfSet), _)
+      | E1 ((ArrOfSList | ArrOfSListRev | SetOfSList | ArrOfVec | ArrOfSet), _)
       | E2 ((While | ForEach _), _, _)
       | E3 ((FindSubstring | Substring), _, _, _) ->
           raise Exit
@@ -2490,12 +2490,12 @@ let rec type_check l e =
       ignore (get_item_type ~vec:true e0 l e) in
     let check_set l e =
       ignore (get_item_type ~set:true e0 l e) in
-    let check_list l e =
-      ignore (get_item_type ~lst:true e0 l e) in
-    let check_list_or_vector l e =
-      ignore (get_item_type ~lst:true ~vec:true e0 l e) in
-    let check_list_or_vector_or_set l e =
-      ignore (get_item_type ~lst:true ~vec:true ~set:true e0 l e) in
+    let check_arr l e =
+      ignore (get_item_type ~arr:true e0 l e) in
+    let check_arr_or_vector l e =
+      ignore (get_item_type ~arr:true ~vec:true e0 l e) in
+    let check_arr_or_vector_or_set l e =
+      ignore (get_item_type ~arr:true ~vec:true ~set:true e0 l e) in
     let check_slist l e =
       match type_of l e |> T.develop1 with
       | T.{ typ = SList _ ; nullable = false } -> ()
@@ -2543,7 +2543,7 @@ let rec type_check l e =
         raise (Struct_error (e0, "vector dimension must be > 0"))
     | E0S (MakeVec, e1 :: e2s) ->
         check_all_same_types l e1 e2s
-    | E0S (MakeLst mn, e1s) ->
+    | E0S (MakeArr mn, e1s) ->
         List.iter (fun e1 -> check_eq l e1 mn) e1s
     | E0S (MakeTup, es) ->
         if List.compare_length_with es 2 < 0 then
@@ -2565,7 +2565,7 @@ let rec type_check l e =
     | E1 (IsNull, e) ->
         check_nullable true l e
     | E2 (Nth, e1, e2) ->
-        check_list_or_vector l e2 ;
+        check_arr_or_vector l e2 ;
         check_integer l e1
     | E1 (NotNull, e) ->
         check_nullable false l e
@@ -2583,10 +2583,10 @@ let rec type_check l e =
         check_same_types l e1 e2
     | E2 (Member, e1, e2) ->
         (match type_of l e2 |> T.develop1 with
-        | { typ = (Vec (_, t) | Lst t | Set (_, t)) ; nullable = false } ->
+        | { typ = (Vec (_, t) | Arr t | Set (_, t)) ; nullable = false } ->
             check_eq l e1 t
         | t ->
-            raise (Type_error (e0, e, t, "be a vector or list")))
+            raise (Type_error (e0, e, t, "be a vector, array or set")))
     | E2 ((BitAnd | BitOr | BitXor), e1, e2) ->
         check_integer l e1 ;
         check_same_types l e1 e2
@@ -2640,11 +2640,11 @@ let rec type_check l e =
         check_eq l e T.float
     | E1 ((Lower | Upper), e) ->
         check_eq l e T.string
-    | E1 ((ListOfSList | ListOfSListRev | SetOfSList), e) ->
+    | E1 ((ArrOfSList | ArrOfSListRev | SetOfSList), e) ->
         check_slist l e
-    | E1 (ListOfVec, e) ->
+    | E1 (ArrOfVec, e) ->
         check_vector l e
-    | E1 (ListOfSet, e) ->
+    | E1 (ArrOfSet, e) ->
         check_set l e
     | E1 (PtrOfString, e) ->
         check_eq l e T.string
@@ -2657,7 +2657,7 @@ let rec type_check l e =
         check_eq l cond T.bool ;
         check_eq l body T.void
     | E2 (ForEach _, lst, body) ->
-        check_list_or_vector_or_set l lst ;
+        check_arr_or_vector_or_set l lst ;
         check_eq l body T.void
     | E1 (GetEnv, e) ->
         check_eq l e T.string
@@ -2675,13 +2675,13 @@ let rec type_check l e =
     | E1 (StringOfBytes, e) ->
         check_eq l e T.bytes
     | E1 (Cardinality, e) ->
-        check_list_or_vector_or_set l e
+        check_arr_or_vector_or_set l e
     | E2 (GetBit, e1, e2) ->
         check_eq l e1 T.ptr ;
         check_eq l e2 T.size
     | E2 (GetVec, e1, e2) ->
         check_integer l e1 ;
-        check_list_or_vector l e2
+        check_arr_or_vector l e2
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
@@ -2698,7 +2698,7 @@ let rec type_check l e =
     | E3 (SetVec, e1, e2, e3) ->
         check_integer l e1 ;
         (match type_of l e2 |> T.develop1 with
-        | { typ = (T.Vec (_, mn) | T.Lst mn) ; nullable = false } ->
+        | { typ = (T.Vec (_, mn) | T.Arr mn) ; nullable = false } ->
             check_eq l e3 mn
         | t ->
             raise (Type_error (e0, e1, t, "be a vector")))
@@ -2781,7 +2781,7 @@ let rec type_check l e =
             (match type_of l set |> T.develop1 with
             | T.{ typ = Vec (_, mn) ; nullable = false } ->
                 check_fun_type_with mn
-            | T.{ typ = Lst mn ; nullable = false } ->
+            | T.{ typ = Arr mn ; nullable = false } ->
                 check_fun_type_with mn
             | T.{ typ = Set (_, mn) ; nullable = false } ->
                 check_fun_type_with mn
@@ -2830,23 +2830,23 @@ let rec type_check l e =
         check_eq l e2 T.string
     | E2 (Join, e1, e2) ->
         check_eq l e1 T.string ;
-        let item_t = get_item_type ~lst:true ~vec:true e0 l e2 in
+        let item_t = get_item_type ~arr:true ~vec:true e0 l e2 in
         if item_t <> T.(required (Base String)) then
           let msg = "be a list or vector of strings" in
           raise (Type_error (e0, e, item_t, msg))
-    | E2 (AllocLst, e1, _) ->
+    | E2 (AllocArr, e1, _) ->
         check_unsigned l e1
     | E2 (PartialSort, e1, e2) ->
-        let item_t1 = get_item_type ~lst:true ~vec:true e0 l e1 in
+        let item_t1 = get_item_type ~arr:true ~vec:true e0 l e1 in
         if not (is_comparable item_t1) then
           raise (Type_error (e0, e1, item_t1,
                              "be a list or vector of comparable items")) ;
-        let item_t2 = get_item_type ~lst:true ~vec:true e0 l e2 in
+        let item_t2 = get_item_type ~arr:true ~vec:true e0 l e2 in
         if not (is_unsigned item_t2) then
           raise (Type_error (e0, e2, item_t2,
                              "be a list or vector of unsigned integers"))
-    | E2 ((ChopBegin | ChopEnd), lst, len) ->
-        check_list l lst ;
+    | E2 ((ChopBegin | ChopEnd), arr, len) ->
+        check_arr l arr ;
         check_unsigned l len
     | E3 (Top _, size, max_size, sigmas) ->
         check_unsigned l size ;
@@ -3027,7 +3027,7 @@ let let_pair ?n1 ?n2 ~l value f =
 
 let for_each ?name ~l lst f =
   let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
-  match get_item_type_err ~vec:true ~lst:true ~set:true l lst with
+  match get_item_type_err ~vec:true ~arr:true ~set:true l lst with
   | Ok mn ->
       let l = add_local n mn l in
       E2 (ForEach (n, mn), lst, f l (E0 (Identifier n)))
@@ -3644,9 +3644,9 @@ struct
 
   let make_vec es = E0S (MakeVec, es)
 
-  let make_lst mn es = E0S (MakeLst mn, es)
+  let make_arr mn es = E0S (MakeArr mn, es)
 
-  let alloc_lst ~len ~init = E2 (AllocLst, len, init)
+  let alloc_arr ~len ~init = E2 (AllocArr, len, init)
 
   let partial_sort vs ks = E2 (PartialSort, vs, ks)
 
@@ -3658,15 +3658,15 @@ struct
 
   let map_ init f lst = E3 (Map, init, f, lst)
 
-  let list_of_slist e1 = E1 (ListOfSList, e1)
+  let arr_of_slist e1 = E1 (ArrOfSList, e1)
 
-  let list_of_slist_rev e1 = E1 (ListOfSListRev, e1)
+  let arr_of_slist_rev e1 = E1 (ArrOfSListRev, e1)
 
   let set_of_slist e1 = E1 (SetOfSList, e1)
 
-  let list_of_vec e1 = E1 (ListOfVec, e1)
+  let arr_of_vec e1 = E1 (ArrOfVec, e1)
 
-  let list_of_set e1 = E1 (ListOfSet, e1)
+  let arr_of_set e1 = E1 (ArrOfSet, e1)
 
   let split_by e1 e2 = E2 (SplitBy, e1, e2)
 
@@ -3723,9 +3723,9 @@ struct
 
   let set_ref e x = E3 (SetVec, u8_of_int 0, e, x)
 
-  let chop_begin lst n = E2 (ChopBegin, lst, n)
+  let chop_begin arr n = E2 (ChopBegin, arr, n)
 
-  let chop_end lst n = E2 (ChopEnd, lst, n)
+  let chop_end arr n = E2 (ChopEnd, arr, n)
 end
 
 (* User constructors for the example user types: *)

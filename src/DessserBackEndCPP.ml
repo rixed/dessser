@@ -208,8 +208,8 @@ struct
         valid_identifier
     | Vec (dim, mn) ->
         Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn)
-    | Lst mn ->
-        Printf.sprintf "Lst<%s>" (type_identifier_mn mn)
+    | Arr mn ->
+        Printf.sprintf "Arr<%s>" (type_identifier_mn mn)
     | Set (Simple, mn) ->
         Printf.sprintf "Set<%s> *" (type_identifier_mn mn)
     | Set (Sliding, mn) ->
@@ -388,7 +388,7 @@ struct
         "VOID"
     | E.E0S (Seq, es) ->
         List.fold_left (fun _ e -> print emit p l e) "VOID" es
-    | E.E0S ((MakeVec | MakeLst _ | MakeTup), es) ->
+    | E.E0S ((MakeVec | MakeArr _ | MakeTup), es) ->
         let inits = List.map (print emit p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
@@ -754,16 +754,16 @@ struct
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc -> pp oc "%s" n) oc)
-    | E.E1 (ListOfSList, e1) ->
+    | E.E1 (ArrOfSList, e1) ->
         method_call e1 "toList" []
-    | E.E1 (ListOfSListRev, e1) ->
+    | E.E1 (ArrOfSListRev, e1) ->
         method_call e1 "toListRev" []
     | E.E1 (SetOfSList, e1) ->
         method_call e1 "toSet" []
-    | E.E1 (ListOfVec, e1) ->
+    | E.E1 (ArrOfVec, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
-    | E.E1 (ListOfSet, e1) ->
+    | E.E1 (ArrOfSet, e1) ->
         let n1 = print emit p l e1 in
         emit ?name p l e (fun oc -> pp oc "&%s" n1)
     | E.E2 (AppendByte, e1, e2) ->
@@ -1244,7 +1244,7 @@ struct
         and n2 = print emit p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_join(%s, %s)" n1 n2)
-    | E.E2 (AllocLst, e1, e2) ->
+    | E.E2 (AllocArr, e1, e2) ->
         let n1 = print emit p l e1
         and n2 = print emit p l e2 in
         (* Use the constructor inherited from std::vector: *)

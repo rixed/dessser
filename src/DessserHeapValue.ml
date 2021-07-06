@@ -65,18 +65,18 @@ struct
           loop (v :: ids) (i + 1) l src) in
     loop [] 0 l src
 
-  (* Lists and sets are serialized the same, so here the list is desserialized
-   * into an slist, and then the final operation converts it into a list or a
+  (* Arrs and sets are serialized the same, so here the arr is desserialized
+   * into an slist, and then the final operation converts it into an arr or a
    * set: *)
 
-  and dlist mn dstate mn0 path l src =
-    dslist list_of_slist_rev mn dstate mn0 path l src
+  and darr mn dstate mn0 path l src =
+    dslist arr_of_slist_rev mn dstate mn0 path l src
 
   and dset mn dstate mn0 path l src =
     dslist set_of_slist mn dstate mn0 path l src
 
   and dslist of_slist mn dstate mn0 path l src =
-    match Des.list_opn dstate with
+    match Des.arr_opn dstate with
     | KnownSize list_opn ->
         let dim_src = list_opn mn0 path mn l src in
         let inits_src =
@@ -90,7 +90,7 @@ struct
                     let src =
                       if_ (eq n (i32 0l))
                         ~then_:src
-                        ~else_:(Des.list_sep dstate mn0 path l src) in
+                        ~else_:(Des.arr_sep dstate mn0 path l src) in
                     let subpath = Path.(append (RunTime n) path) in
                     let v_src = make1 dstate mn0 subpath mn l src in
                     E.with_sploded_pair ~l "dslist3" v_src (fun _l v src ->
@@ -99,7 +99,7 @@ struct
                 inits_src ])) in
         E.with_sploded_pair ~l "dslist4" inits_src (fun l inits src ->
           let v = of_slist inits
-          and src = Des.list_cls dstate mn0 path l src in
+          and src = Des.arr_cls dstate mn0 path l src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let src = list_opn mn0 path mn l src in
@@ -115,7 +115,7 @@ struct
                   let src =
                     if_ (eq n (u32_of_int 0))
                       ~then_:src
-                      ~else_:(Des.list_sep dstate mn0 subpath l src) in
+                      ~else_:(Des.arr_sep dstate mn0 subpath l src) in
                   let v_src = make1 dstate mn0 subpath mn l src in
                   E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
                     seq [
@@ -124,7 +124,7 @@ struct
                       set_ref n_ref (add n (u32_of_int 1)) ])) ;
                 (
                   let v = of_slist (get_ref inits_ref)
-                  and src = Des.list_cls dstate mn0 path l (get_ref src_ref) in
+                  and src = Des.arr_cls dstate mn0 path l (get_ref src_ref) in
                   make_pair v src
                 ) ])))
 
@@ -235,7 +235,7 @@ struct
       | T.Rec mns -> drec mns
       | T.Sum mns -> dsum mns
       | T.Vec (dim, mn) -> dvec dim mn
-      | T.Lst mn -> dlist mn
+      | T.Arr mn -> darr mn
       | T.Set (Simple, mn) -> dset mn
       | T.Set _ -> todo "Materialization of non simple sets"
       | T.Map _ -> assert false (* No value of map type *)
@@ -309,9 +309,9 @@ struct
           loop (i + 1) l) in
     loop 0 l dst
 
-  and slist_or_set mn ma sstate mn0 path l v dst =
+  and sarr_or_set mn ma sstate mn0 path l v dst =
     let len = cardinality v in
-    let dst = Ser.list_opn sstate mn0 path mn (Some len) l dst in
+    let dst = Ser.arr_opn sstate mn0 path mn (Some len) l dst in
     let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
       let dst = get_ref dst_ref in
       let_ ~name:"n_ref" ~l (make_ref (i32 0l)) (fun l n_ref ->
@@ -321,7 +321,7 @@ struct
             let subpath = Path.(append (RunTime n) path) in
             let dst =
               if_ (gt n (i32 0l))
-                ~then_:(Ser.list_sep sstate mn0 subpath l dst)
+                ~then_:(Ser.arr_sep sstate mn0 subpath l dst)
                 ~else_:dst in
             (* From now on copy everything, as individual list items cannot
              * be selected - since lists are variable in length *)
@@ -329,7 +329,7 @@ struct
             seq [
               set_ref dst_ref (ser1 sstate mn0 subpath mn l x ma dst) ;
               set_ref n_ref (add (i32 1l) n) ]) ;
-          Ser.list_cls sstate mn0 path l dst ]))
+          Ser.arr_cls sstate mn0 path l dst ]))
 
   and stup mns ma sstate mn0 path l v dst =
     let dst = Ser.tup_opn sstate mn0 path mns l dst in
@@ -439,8 +439,8 @@ struct
       | T.Vec (dim, mn) -> svec dim mn ma
       (* Thanks to cardinality and fold being generic, lists and sets are
        * serialized the same: *)
-      | T.Lst mn -> slist_or_set mn ma
-      | T.Set (_, mn) -> slist_or_set mn ma
+      | T.Arr mn -> sarr_or_set mn ma
+      | T.Set (_, mn) -> sarr_or_set mn ma
       | T.Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "ser1" in
     let on_copy =
@@ -504,9 +504,9 @@ struct
         loop l sz (i + 1)) in
     loop l sz 0
 
-  and sslist mn ma mn0 path l v sz =
+  and ssarr_or_set mn ma mn0 path l v sz =
     let sz =
-      Ser.ssize_of_list mn0 path l v |> add sz in
+      Ser.ssize_of_arr mn0 path l v |> add sz in
     let_ ~name:"sz_ref" ~l (make_ref sz) (fun l sz_ref ->
       let sz = get_ref sz_ref in
       let len = cardinality v in
@@ -618,9 +618,9 @@ struct
       | T.Tup mns -> sstup mns ma
       | T.Rec mns -> ssrec mns ma
       | T.Sum mns -> sssum mns ma
-      | T.Lst mn -> sslist mn ma
+      | T.Arr mn -> ssarr_or_set mn ma
       (* Sets are serialized like lists: *)
-      | T.Set (_, mn) -> sslist mn ma
+      | T.Set (_, mn) -> ssarr_or_set mn ma
       | T.Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "sersz1" in
     let on_copy =

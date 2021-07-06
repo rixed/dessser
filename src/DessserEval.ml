@@ -644,7 +644,7 @@ let rec peval l e =
       | StringLength, E0 (String s) -> u32_of_int (String.length s) |> repl
       | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
           u32_of_int 1 |> repl
-      | Cardinality, E0S ((MakeVec | MakeLst _), es) ->
+      | Cardinality, E0S ((MakeVec | MakeArr _), es) ->
           u32_of_int (List.length es) |> repl
       | Cardinality, E0 (EndOfList _ | EmptySet _)
       | Cardinality, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
@@ -829,7 +829,7 @@ let rec peval l e =
         repl (replace_final_expression_anonymously e1 %
               replace_final_expression_anonymously e2) in
       (match op, final_expression e1, final_expression e2 with
-      | Nth, f1, E0S ((MakeVec | MakeLst _), es) ->
+      | Nth, f1, E0S ((MakeVec | MakeArr _), es) ->
           let def = E.E2 (Nth, e1, e2) in
           (match E.to_cst_int f1 with
           | exception _ ->
@@ -1016,21 +1016,21 @@ let rec peval l e =
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) ->
           bool false |> repl
-      | AllocLst, f1, f2 ->
-          let def = E.E2 (AllocLst, e1, e2) in
+      | AllocArr, f1, f2 ->
+          let def = E.E2 (AllocArr, e1, e2) in
           let mn = E.type_of l f2 in
           (match E.to_cst_int f1 with
           | exception _ -> def
-          | 0 -> make_lst mn [] |> repl
+          | 0 -> make_arr mn [] |> repl
           | _ -> def)
-      | PartialSort, _, E0S ((MakeVec | MakeLst _), []) ->
+      | PartialSort, _, E0S ((MakeVec | MakeArr _), []) ->
           keep1 () (* result is the original, already "sorted" array *)
-      | PartialSort, E0S ((MakeVec | MakeLst _), []), _ ->
+      | PartialSort, E0S ((MakeVec | MakeArr _), []), _ ->
           keep1 () (* result is the original empty array *)
       | SplitBy, E0 (String s1), E0 (String s2) ->
           String.split_on_string s1 s2 |>
           List.map string |>
-          make_lst T.(required (Base String)) |>
+          make_arr T.(required (Base String)) |>
           repl
       | SplitAt, f1, E0 (String s) ->
           (match E.to_cst_int f1 with
@@ -1052,7 +1052,7 @@ let rec peval l e =
           bool (String.starts_with s1 s2) |> repl
       | EndsWith, E0 (String s1), E0 (String s2) ->
           bool (String.ends_with s1 s2) |> repl
-      | GetVec, f1, E0S ((MakeLst _ | MakeVec), es) ->
+      | GetVec, f1, E0S ((MakeArr _ | MakeVec), es) ->
           let def = E.E2 (GetVec, e1, e2) in
           (match E.to_cst_int f1 with
           | exception _ -> def
@@ -1069,13 +1069,13 @@ let rec peval l e =
         when E.eq l1 l2 && not (E.has_side_effect l1) ->
           repl l1
       (* Cannot be truncated further: *)
-      | ChopBegin, E0S (MakeLst _, []), _ -> keep1 ()
-      | ChopBegin, E0S (MakeLst mn, items), n ->
+      | ChopBegin, E0S (MakeArr _, []), _ -> keep1 ()
+      | ChopBegin, E0S (MakeArr mn, items), n ->
           (match E.to_cst_int n with
           | exception _ ->
               E.E2 (ChopBegin, e1, e2)
           | n ->
-              E.E0S (MakeLst mn, List.drop n items) |>
+              E.E0S (MakeArr mn, List.drop n items) |>
               replace_final_expression e1 |>
               replace_final_expression_anonymously e2)
       | ChopBegin, _, n ->
@@ -1085,18 +1085,18 @@ let rec peval l e =
           | 0 -> keep1 ()
           | _ -> def)
       (* Cannot be truncated further: *)
-      | ChopEnd, E0S (MakeLst _, []), _ ->
+      | ChopEnd, E0S (MakeArr _, []), _ ->
           keep1 ()
-      | ChopEnd, E0S (MakeLst mn, items), n ->
+      | ChopEnd, E0S (MakeArr mn, items), n ->
           let def = E.E2 (ChopEnd, e1, e2) in
           (match E.to_cst_int n with
           | exception _ -> def
           | n ->
               let l = List.length items in
               (if n >= l then
-                E.E0S (MakeLst mn, []) |> repl
+                E.E0S (MakeArr mn, []) |> repl
               else
-                E.E0S (MakeLst mn, List.take (l - n) items)) |>
+                E.E0S (MakeArr mn, List.take (l - n) items)) |>
                 replace_final_expression e1 |>
                 replace_final_expression_anonymously e2)
       | ChopEnd, _, n ->
@@ -1108,12 +1108,12 @@ let rec peval l e =
       | While, E0 (Bool false), _ ->
           replace_final_expression_anonymously e2 nop |>
           replace_final_expression_anonymously e1
-      | ForEach _, (E0S ((MakeVec | MakeLst _), []) |
+      | ForEach _, (E0S ((MakeVec | MakeArr _), []) |
                     E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
                          HashTable _ | Heap), _) |
                     E3 (Top _, _, _, _)), _ ->
           replace_final_expression_anonymously e1 nop
-      | ForEach (n, t), E0S ((MakeVec | MakeLst _), [ item ]), body ->
+      | ForEach (n, t), E0S ((MakeVec | MakeArr _), [ item ]), body ->
           E2 (Let (n, t), replace_final_expression e1 item,
                           replace_final_expression e2 body)
       | op, _, _ -> E.E2 (op, e1, e2))

@@ -122,14 +122,14 @@ struct
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
 
-  let list_opn () _ _ _ n l p =
+  let arr_opn () _ _ _ n l p =
     let n = match n with
       | Some n -> n
       | None -> failwith "RowBinary.Ser needs list size upfront" in
     write_leb128 l p n
 
-  let list_cls () _ _ _ p = p
-  let list_sep () _ _ _ p = p
+  let arr_cls () _ _ _ p = p
+  let arr_sep () _ _ _ p = p
 
   let nullable () _ _ _ p = p
 
@@ -182,7 +182,7 @@ struct
 
   (* SerSize of a list is the size of the LEB128 prefix, same as for
    * ssize_of_string below) *)
-  let ssize_of_list _ _ l lst =
+  let ssize_of_arr _ _ l lst =
     ssize_of_leb128 l (cardinality lst)
 
   let ssize_of_null _ _ = size 1
@@ -354,13 +354,13 @@ struct
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
 
-  let list_opn () = KnownSize
+  let arr_opn () = KnownSize
     (fun _ _ _ l p ->
       E.with_sploded_pair ~l "list_opn" (read_leb128 l p) (fun _l dim p ->
         make_pair (u32_of_size dim) p))
 
-  let list_cls () _ _ _ p = p
-  let list_sep () _ _ _ p = p
+  let arr_cls () _ _ _ p = p
+  let arr_sep () _ _ _ p = p
 
   (* "For NULL support, an additional byte containing 1 or 0 is added before
    * each nullable value. If 1, then the value is NULL and this byte is

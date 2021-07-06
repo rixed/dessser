@@ -9,15 +9,15 @@ module Printer = DessserPrinter
 module Path = DessserPath
 module StdLib = DessserStdLib
 
-(* Used by deserializers to "open" lists: *)
-type list_opener =
-  (* When a list size is known from the beginning, implement this that
-   * returns both the list size and the new src pointer: *)
+(* Used by deserializers to "open" arrs: *)
+type arr_opener =
+  (* When a arr size is known from the beginning, implement this that
+   * returns both the arr size and the new src pointer: *)
   | KnownSize of (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
-  (* Whereas when the list size is not known beforehand, rather implement
-   * this pair of functions, one to parse the list header and return the new
+  (* Whereas when the arr size is not known beforehand, rather implement
+   * this pair of functions, one to parse the arr header and return the new
    * src pointer and one that will be called before any new token and must
-   * return true if the list is finished: *)
+   * return true if the arr is finished: *)
   | UnknownSize of
       (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
       (T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
@@ -94,9 +94,9 @@ sig
   val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_opn : state -> list_opener
-  val list_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_opn : state -> arr_opener
+  val arr_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_null : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
   val dnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
@@ -162,9 +162,9 @@ sig
   val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_opn : state -> T.mn -> Path.t -> T.mn -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val list_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_opn : state -> T.mn -> Path.t -> T.mn -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val nullable : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val snull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
@@ -200,7 +200,7 @@ sig
   val ssize_of_rec : ssizer
   val ssize_of_sum : ssizer
   val ssize_of_vec : ssizer
-  val ssize_of_list : ssizer
+  val ssize_of_arr : ssizer
   val ssize_of_null : T.mn -> Path.t -> E.t (*size*)
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
@@ -373,53 +373,53 @@ struct
         (Des.vec_cls dstate mn0 path l src)
         (Ser.vec_cls sstate mn0 path l dst))
 
-  and dslist mn transform sstate dstate mn0 path l src_dst =
+  and dsarr mn transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     comment "Convert a List"
-      (E.with_sploded_pair ~l "dslist1" src_dst (fun l src dst ->
+      (E.with_sploded_pair ~l "dsarr1" src_dst (fun l src dst ->
         (* FIXME: for some deserializers (such as SExpr) it's not easy to
-         * know the list length in advance. For those, it would be better
-         * to call a distinct 'end-of-list' function returning a bool and
+         * know the arr length in advance. For those, it would be better
+         * to call a distinct 'is-end-of-arr' function returning a bool and
          * read until this returns true. We could simply have both, and
-         * here we would repeat_while ~cond:(n<count && not end_of_list),
+         * here we would repeat_while ~cond:(n<count && not is_end_of_arr),
          * then SEpxr would merely return a very large number of entries
-         * (better than to return a single condition in list_opn for non
+         * (better than to return a single condition in arr_opn for non
          * functional backends such as, eventually, C?) *)
-        match Des.list_opn dstate with
-        | KnownSize list_opn ->
+        match Des.arr_opn dstate with
+        | KnownSize arr_opn ->
             let src_dst =
-              let dim_src = list_opn mn0 path mn l src in
-              E.with_sploded_pair ~l "dslist2" dim_src (fun l dim src ->
-                let dst = Ser.list_opn sstate mn0 path mn (Some dim) l dst in
+              let dim_src = arr_opn mn0 path mn l src in
+              E.with_sploded_pair ~l "dsarr2" dim_src (fun l dim src ->
+                let dst = Ser.arr_opn sstate mn0 path mn (Some dim) l dst in
                 let src_dst_ref = make_ref (make_pair src dst) in
                 let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
                   let src_dst = get_ref src_dst_ref in
                   seq [
                     StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
-                      (comment "Convert a list item"
+                      (comment "Convert a arr item"
                         (let subpath = Path.(append (RunTime (to_u32 n)) path) in
                         let src_dst =
                           if_ (eq n (i32 0l))
                             ~then_:src_dst
                             ~else_:(
-                              E.with_sploded_pair ~l "dslist3" src_dst
+                              E.with_sploded_pair ~l "dsarr3" src_dst
                                 (fun l psrc pdst ->
                                 make_pair
-                                  (Des.list_sep dstate mn0 subpath l psrc)
-                                  (Ser.list_sep sstate mn0 subpath l pdst))
+                                  (Des.arr_sep dstate mn0 subpath l psrc)
+                                  (Ser.arr_sep sstate mn0 subpath l pdst))
                             ) in
                         desser_ transform sstate dstate mn0 subpath l src_dst |>
                         set_ref src_dst_ref))) ;
                     src_dst ])) in
             let_pair ~n1:"src" ~n2:"dst" ~l src_dst (fun l src dst ->
               make_pair
-                (Des.list_cls dstate mn0 path l src)
-                (Ser.list_cls sstate mn0 path l dst))
-          | UnknownSize (list_opn, end_of_list) ->
-              let src = list_opn mn0 path mn l src in
-              let dst = Ser.list_opn sstate mn0 path mn None l dst in
+                (Des.arr_cls dstate mn0 path l src)
+                (Ser.arr_cls sstate mn0 path l dst))
+          | UnknownSize (arr_opn, end_of_arr) ->
+              let src = arr_opn mn0 path mn l src in
+              let dst = Ser.arr_opn sstate mn0 path mn None l dst in
               let src_dst_ref = make_ref (make_pair src dst) in
               let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
                 let src = first (get_ref src_dst_ref) in
@@ -428,9 +428,9 @@ struct
                   let n = get_ref n_ref in
                   seq [
                     while_
-                      (comment "Test end of list"
-                        (not_ (end_of_list mn0 path l src)))
-                      (comment "Convert a list item"
+                      (comment "Test end of arr"
+                        (not_ (end_of_arr mn0 path l src)))
+                      (comment "Convert a arr item"
                         (let subpath = Path.(append (RunTime n) path) in
                         seq [
                           if_ (eq n (u32_of_int 0))
@@ -438,15 +438,15 @@ struct
                             ~else_:(
                               set_ref src_dst_ref
                                 (make_pair
-                                  (Des.list_sep dstate mn0 subpath l src)
-                                  (Ser.list_sep sstate mn0 subpath l dst))) ;
+                                  (Des.arr_sep dstate mn0 subpath l src)
+                                  (Ser.arr_sep sstate mn0 subpath l dst))) ;
                           set_ref n_ref (add n (u32_of_int 1)) ;
                           set_ref src_dst_ref
                             (desser_ transform sstate dstate mn0 subpath l
                                      (get_ref src_dst_ref)) ])) ;
                     make_pair
-                      (Des.list_cls dstate mn0 path l src)
-                      (Ser.list_cls sstate mn0 path l dst) ]))))
+                      (Des.arr_cls dstate mn0 path l src)
+                      (Ser.arr_cls sstate mn0 path l dst) ]))))
 
   and desser_value = function
     | T.This -> assert false (* Because of Path.type_of_path *)
@@ -479,9 +479,9 @@ struct
     | T.Rec mns -> dsrec mns
     | T.Sum mns -> dssum mns
     | T.Vec (dim, mn) -> dsvec dim mn
-    | T.Lst mn -> dslist mn
-    (* Sets are serialized like lists (the last update is thus lost). *)
-    | T.Set (Simple, mn) -> dslist mn
+    | T.Arr mn -> dsarr mn
+    (* Sets are serialized like arrs (the last update is thus lost). *)
+    | T.Set (Simple, mn) -> dsarr mn
     | T.Set _ -> todo "des/ser for non simple sets"
     | T.Map _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"

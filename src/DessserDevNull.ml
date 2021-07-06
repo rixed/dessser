@@ -51,9 +51,9 @@ struct
   let vec_opn () _ _ _ _ _ p = p
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
-  let list_opn () _ _ _ _ _ p = p
-  let list_cls () _ _ _ p = p
-  let list_sep () _ _ _ p = p
+  let arr_opn () _ _ _ _ _ p = p
+  let arr_cls () _ _ _ p = p
+  let arr_sep () _ _ _ p = p
   let nullable () _ _ _ p = p
   let snull _t () _ _ _ p = p
   let snotnull _t () _ _ _ p = p
@@ -85,7 +85,7 @@ struct
   let ssize_of_rec _ _ _ _ = size 0
   let ssize_of_sum _ _ _ _ = size 0
   let ssize_of_vec _ _ _ _ = size 0
-  let ssize_of_list _ _ _ _ = size 0
+  let ssize_of_arr _ _ _ _ = size 0
   let ssize_of_null _ _ = size 0
   let ssize_start ?(config=()) _ =
     ignore config ;
