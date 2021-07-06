@@ -417,36 +417,36 @@ struct
               make_pair
                 (Des.arr_cls dstate mn0 path l src)
                 (Ser.arr_cls sstate mn0 path l dst))
-          | UnknownSize (arr_opn, end_of_arr) ->
-              let src = arr_opn mn0 path mn l src in
-              let dst = Ser.arr_opn sstate mn0 path mn None l dst in
-              let src_dst_ref = make_ref (make_pair src dst) in
-              let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
-                let src = first (get_ref src_dst_ref) in
-                let dst = secnd (get_ref src_dst_ref) in
-                let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
-                  let n = get_ref n_ref in
-                  seq [
-                    while_
-                      (comment "Test end of arr"
-                        (not_ (end_of_arr mn0 path l src)))
-                      (comment "Convert a arr item"
-                        (let subpath = Path.(append (RunTime n) path) in
-                        seq [
-                          if_ (eq n (u32_of_int 0))
-                            ~then_:nop
-                            ~else_:(
-                              set_ref src_dst_ref
-                                (make_pair
-                                  (Des.arr_sep dstate mn0 subpath l src)
-                                  (Ser.arr_sep sstate mn0 subpath l dst))) ;
-                          set_ref n_ref (add n (u32_of_int 1)) ;
-                          set_ref src_dst_ref
-                            (desser_ transform sstate dstate mn0 subpath l
-                                     (get_ref src_dst_ref)) ])) ;
-                    make_pair
-                      (Des.arr_cls dstate mn0 path l src)
-                      (Ser.arr_cls sstate mn0 path l dst) ]))))
+        | UnknownSize (arr_opn, end_of_arr) ->
+            let src = arr_opn mn0 path mn l src in
+            let dst = Ser.arr_opn sstate mn0 path mn None l dst in
+            let src_dst_ref = make_ref (make_pair src dst) in
+            let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
+              let src = first (get_ref src_dst_ref) in
+              let dst = secnd (get_ref src_dst_ref) in
+              let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
+                let n = get_ref n_ref in
+                seq [
+                  while_
+                    (comment "Test end of arr"
+                      (not_ (end_of_arr mn0 path l src)))
+                    (comment "Convert a arr item"
+                      (let subpath = Path.(append (RunTime n) path) in
+                      seq [
+                        if_ (eq n (u32_of_int 0))
+                          ~then_:nop
+                          ~else_:(
+                            set_ref src_dst_ref
+                              (make_pair
+                                (Des.arr_sep dstate mn0 subpath l src)
+                                (Ser.arr_sep sstate mn0 subpath l dst))) ;
+                        set_ref n_ref (add n (u32_of_int 1)) ;
+                        set_ref src_dst_ref
+                          (desser_ transform sstate dstate mn0 subpath l
+                                   (get_ref src_dst_ref)) ])) ;
+                  make_pair
+                    (Des.arr_cls dstate mn0 path l src)
+                    (Ser.arr_cls sstate mn0 path l dst) ]))))
 
   and desser_value = function
     | T.This -> assert false (* Because of Path.type_of_path *)
