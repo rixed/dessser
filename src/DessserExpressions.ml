@@ -830,11 +830,11 @@ let string_of_e1 = function
   | U32OfSize -> "u32-of-size"
   | AddressOfU64 -> "address-of-u64"
   | U64OfAddress -> "u64-of-address"
-  | ArrOfLst -> "list-of-lst"
-  | ArrOfLstRev -> "list-of-lst-rev"
+  | ArrOfLst -> "arr-of-lst"
+  | ArrOfLstRev -> "arr-of-lst-rev"
   | SetOfLst -> "set-of-lst"
-  | ArrOfVec -> "list-of-vec"
-  | ArrOfSet -> "list-of-set"
+  | ArrOfVec -> "arr-of-vec"
+  | ArrOfSet -> "arr-of-set"
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
@@ -1400,11 +1400,11 @@ struct
     | Lst [ Sym "u32-of-size" ; x ] -> E1 (U32OfSize, e x)
     | Lst [ Sym "address-of-u64" ; x ] -> E1 (AddressOfU64, e x)
     | Lst [ Sym "u64-of-address" ; x ] -> E1 (U64OfAddress, e x)
-    | Lst [ Sym "list-of-lst" ; x ] -> E1 (ArrOfLst, e x)
-    | Lst [ Sym "list-of-lst-rev" ; x ] -> E1 (ArrOfLstRev, e x)
+    | Lst [ Sym "arr-of-lst" ; x ] -> E1 (ArrOfLst, e x)
+    | Lst [ Sym "arr-of-lst-rev" ; x ] -> E1 (ArrOfLstRev, e x)
     | Lst [ Sym "set-of-lst" ; x ] -> E1 (SetOfLst, e x)
-    | Lst [ Sym "list-of-vec" ; x ] -> E1 (ArrOfVec, e x)
-    | Lst [ Sym "list-of-set" ; x ] -> E1 (ArrOfSet, e x)
+    | Lst [ Sym "arr-of-vec" ; x ] -> E1 (ArrOfVec, e x)
+    | Lst [ Sym "arr-of-set" ; x ] -> E1 (ArrOfSet, e x)
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
