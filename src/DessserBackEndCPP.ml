@@ -57,7 +57,7 @@ struct
    * to use inheritance) *)
   let is_pointy t =
     match T.develop_mn t with
-    | T.{ typ = (This | Set _) ; _ } ->
+    | T.{ typ = (This _ | Set _) ; _ } ->
         true
     | _ ->
         false
@@ -162,12 +162,15 @@ struct
       type_identifier p mn.typ
 
   and type_identifier p t =
-    let type_identifier_mn = type_identifier_mn p in
+    let type_identifier = type_identifier p
+    and type_identifier_mn = type_identifier_mn p in
     match t with
     | Unknown -> invalid_arg "type_identifier"
-    | This ->
-        assert (!T.this <> T.Unknown) ;
-        type_identifier p !T.this ^"*"
+    | Named (_, t) ->
+        type_identifier t
+    | This n ->
+        let t = T.find_this n in
+        type_identifier t ^"*"
     | Void -> "Void"
     | Base Float -> "double"
     | Base String -> "std::string"
@@ -191,7 +194,7 @@ struct
     | Base U64 -> "uint64_t"
     | Base I128 -> "int128_t"
     | Base U128 -> "uint128_t"
-    | Usr mn -> type_identifier p mn.def
+    | Usr mn -> type_identifier mn.def
     | Ext n ->
         P.get_external_type p n Cpp
     | Tup mns ->

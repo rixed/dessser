@@ -44,10 +44,9 @@ let compile_and_load ?optim ?extra_search_paths backend compunit =
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
  * into stdout and stops (for tests). *)
-let make_converter ?dev_mode ?optim ?exe_fname ?mn backend convert =
+let make_converter ?dev_mode ?optim ?exe_fname ?mn compunit backend convert =
   let module BE = (val backend : BACKEND) in
   E.type_check E.no_env convert ;
-  let compunit = U.make () in
   let compunit, _, entry_point =
     U.add_identifier_of_expression compunit convert in
   let exe_fname = match exe_fname with

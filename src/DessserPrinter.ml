@@ -49,7 +49,7 @@ let indent_more p f =
 
 let type_id p t =
   let t = T.shrink t in
-  try List.assoc t p.type_names
+  try list_assoc_eq ~eq:T.eq t p.type_names
   with Not_found -> T.uniq_id t
 
 let declared_type p t f =

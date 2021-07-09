@@ -280,13 +280,20 @@ struct
       type_identifier p mn.typ
 
   and type_identifier p t =
-    let type_identifier = type_identifier p in
+    let type_identifier = type_identifier p
+    and type_identifier_mn = type_identifier_mn p in
     let declare_if_named s =
       P.declare_if_named p t s (fun oc type_id ->
           pp oc "and %s = %s\n" type_id s) in
     match t with
     | Unknown -> invalid_arg "type_identifier"
-    | This -> "t"
+    | Named (_, t) ->
+        type_identifier t
+    | This "" ->
+        "t" (* FIXME: Useful ? *)
+    | This n ->
+        let t = T.find_this n in
+        type_identifier t
     | Base Char -> "char" |> declare_if_named
     | Base String -> "string" |> declare_if_named
     | Base Bool -> "bool" |> declare_if_named
@@ -314,10 +321,10 @@ struct
     | Ext n ->
         P.get_external_type p n OCaml |> declare_if_named
     | (Vec (_, t) | Arr t) ->
-        type_identifier_mn p t ^" array" |> declare_if_named
+        type_identifier_mn t ^" array" |> declare_if_named
     | Set (st, t) ->
         let m = mod_of_set_type st in
-        type_identifier_mn p t ^" "^ m ^".t" |> declare_if_named
+        type_identifier_mn t ^" "^ m ^".t" |> declare_if_named
     | Tup mns as t ->
         P.declared_type p t (fun oc type_id ->
           print_tuple p oc type_id mns) |>
@@ -338,14 +345,14 @@ struct
     | Address -> "Uint64.t" |> declare_if_named
     | Bytes -> "Slice.t" |> declare_if_named
     | Lst mn ->
-        type_identifier_mn p mn ^" list" |> declare_if_named
+        type_identifier_mn mn ^" list" |> declare_if_named
     | Function ([||], mn) ->
-        "(unit -> "^ type_identifier_mn p mn ^")" |> declare_if_named
+        "(unit -> "^ type_identifier_mn mn ^")" |> declare_if_named
     | Function (args, ret) ->
         "("^ IO.to_string (
           Array.print ~first:"" ~last:"" ~sep:" -> " (fun oc mn ->
-            String.print oc (type_identifier_mn p mn))
-        ) args ^" -> "^ type_identifier_mn p ret ^")" |> declare_if_named
+            String.print oc (type_identifier_mn mn))
+        ) args ^" -> "^ type_identifier_mn ret ^")" |> declare_if_named
     | Mask -> "DessserMasks.t" |> declare_if_named
 
   let rec mod_name = function

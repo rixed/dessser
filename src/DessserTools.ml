@@ -86,6 +86,10 @@ let list_drop n l =
     loop (n - 1) (List.tl l) in
   loop n l
 
+let rec list_assoc_eq ~eq k = function
+  | [] -> raise Not_found
+  | (k', v) :: rest -> if eq k k' then v else list_assoc_eq ~eq k rest
+
 let rec list_last = function
   | [] -> invalid_arg "list_last"
   | x :: [] -> x

@@ -2,7 +2,11 @@
  * Head of the list is the index of the considered type child, then
  * the index of the grandchild, and so on.
  * Lists and vectors are entered but need only one index: 0, as all
- * indices share the same subtype. *)
+ * indices share the same subtype.
+ * The index of any component can be known either at compile time or
+ * only run time but in both cases they are integers.
+ * It is to be expected that all component of any given path will either be
+ * known at compile time or run time. *)
 open Batteries
 
 open DessserTools
@@ -32,59 +36,53 @@ let of_string s =
 
 let to_string = IO.to_string print
 
-(* Return both the type and field name: *)
+(* Return both the type (never "this") and field name: *)
 let type_and_name_of_path t0 path =
-  let rec loop field_name t path =
-    if t.T.typ = T.This then loop field_name t0 path else
-    match path with
-    | [] -> t, field_name
-    | CompTime i :: path ->
-        let rec type_of = function
-          | T.(Unknown | Base _ | Ext _ | Map _ |
-               Size |
-               Void | Ptr | Address | Bytes | Mask | Function _) ->
-              assert false
-          | This ->
-              assert false (* Already handled above *)
-          | Usr t ->
-              type_of t.def
-          | Vec (dim, mn) ->
-              assert (i < dim) ;
-              loop (string_of_int i) mn path
-          | Arr mn | Lst mn ->
-              loop (string_of_int i) mn path
-          | Set (_, mn) ->
-              loop (string_of_int i) mn path
-          | Tup mns ->
-              assert (i < Array.length mns) ;
-              loop ("field_"^ string_of_int i) mns.(i) path
-          | Rec mns ->
-              assert (i < Array.length mns) ;
-              loop (fst mns.(i)) (snd mns.(i)) path
-          | Sum cs ->
-              assert (i < Array.length cs) ;
-              loop (fst cs.(i)) (snd cs.(i)) path in
-        type_of t.typ
-    | RunTime _ :: path ->
-        (* For some of those types we can compute the subtype but not the
-         * associated field name, which therefore must not be used.
-         * Here it's given a caracteristic name for debugging purposes only: *)
-        let no_fieldname = "__no_fieldname_at_runtime__" in
-        let rec type_of = function
-          | T.(Unknown | Base _ | Ext _ | Map _ |
-               Size |
-               Void | Ptr | Address | Bytes | Mask | Function _) ->
-              assert false
-          | This ->
-              assert false (* Already handled above *)
-          | Usr t ->
-              type_of t.def
-          | Vec (_, mn) | Arr mn | Lst mn | Set (_, mn) ->
-              loop no_fieldname mn path
-          | Tup _ | Rec _ | Sum _ ->
-              invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"
-        in
-        type_of t.typ in
+  (* Since we are going to loop we might met the same Named definition several
+   * times, do not redefine names!
+   * It is also assumed that this function is called only on top-level types,
+   * with no previous environment: *)
+  let no_fieldname = "__no_fieldname_at_runtime__" in
+  let rec loop field_name mn path =
+    match mn.T.typ, path with
+    | Named (_, t), _ ->
+        loop field_name { mn with typ = t } path
+    (* Handle This before the end of path so we do not end on a "this": *)
+    | This n, _ ->
+        let t = T.find_this n in
+        loop field_name { mn with typ = t } path
+    | _, [] ->
+        mn, field_name
+    | T.(Unknown | Base _ | Ext _ | Map _ |
+         Size |
+         Void | Ptr | Address | Bytes | Mask | Function _), _ ->
+        assert false
+    | Usr { def ; _ }, _ ->
+        loop field_name { mn with typ = def } path
+    (* CompTime *)
+    | Vec (dim, mn), CompTime i :: path  ->
+        assert (i < dim) ;
+        loop (string_of_int i) mn path
+    | (Arr mn | Lst mn | Set (_, mn)), CompTime i :: path  ->
+        loop (string_of_int i) mn path
+    | Tup mns, CompTime i :: path  ->
+        assert (i < Array.length mns) ;
+        loop ("field_"^ string_of_int i) mns.(i) path
+    | Rec mns, CompTime i :: path  ->
+        assert (i < Array.length mns) ;
+        loop (fst mns.(i)) (snd mns.(i)) path
+    | Sum cs, CompTime i :: path  ->
+        assert (i < Array.length cs) ;
+        loop (fst cs.(i)) (snd cs.(i)) path
+    (* RunTime *)
+    (* For some of those types we can compute the subtype but not the
+     * associated field name, which therefore must not be used.
+     * Here it's given a caracteristic name for debugging purposes only: *)
+    | (Vec (_, mn) | Arr mn | Lst mn | Set (_, mn)), RunTime _ :: path ->
+        loop no_fieldname mn path
+    | (Tup _ | Rec _ | Sum _), RunTime _ :: _ ->
+        invalid_arg "type_and_name_of_path on tup/rec/sum + runtime path"
+  in
   loop "" t0 path
 
 let type_of_path mn path =

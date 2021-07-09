@@ -449,7 +449,7 @@ struct
                     (Ser.arr_cls sstate mn0 path l dst) ]))))
 
   and desser_value = function
-    | T.This -> assert false (* Because of Path.type_of_path *)
+    | T.This _ -> assert false (* Because of Path.type_of_path *)
     | T.Void ->
         fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
     | T.Base Float -> dsfloat
@@ -489,7 +489,7 @@ struct
   and desser_ transform sstate dstate mn0 path l src_dst =
     let open E.Ops in
     let mn = Path.type_of_path mn0 path in
-    if mn.nullable then (
+    if mn.T.nullable then (
       E.with_sploded_pair ~l "desser_" src_dst (fun l src dst ->
         (* Des can use [is_null] to prepare for a nullable, but Ser might also
          * have some work to do: *)

@@ -144,7 +144,7 @@ let maybe_nullable_gen =
 
 let rec size_of_value_type = function
   (* Or the question has little practical interest: *)
-  | T.This -> 1
+  | T.This _ -> 1
   | T.Base _ | T.Usr _ -> 1
   | T.Vec (_, mn) | T.Arr mn | T.Set (_, mn) -> 1 + size_of_mn mn
   | T.Tup mns ->
@@ -599,8 +599,11 @@ let to_sexpr lst = "("^ String.join " " lst ^")"
 let rec sexpr_of_typ_gen typ =
   let open Gen in
   match typ with
-  | T.This ->
-      sexpr_of_typ_gen !T.this
+  | T.Named (_, t) ->
+      sexpr_of_typ_gen t
+  | T.This n ->
+      let t = T.find_this n in
+      sexpr_of_typ_gen t
   | T.Void ->
       return "()"
   | T.Base Float ->
@@ -691,7 +694,8 @@ let sexpr mn =
     let e =
       E.func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
         (fun l src dst -> S2S.desser mn l src dst) in
-    make_converter ~dev_mode:true be ~mn e
+    let compunit = U.make () in
+    make_converter ~dev_mode:true ~mn compunit be e
 
   let test_desser alloc_dst be mn des ser =
     let module Des = (val des : DES) in
@@ -708,7 +712,8 @@ let sexpr mn =
               make_pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    make_converter ~dev_mode:true be ~mn e
+    let compunit = U.make () in
+    make_converter ~dev_mode:true ~mn compunit be e
 
   let test_data_desser = test_desser (ptr_of_buffer (size 50_000))
 
@@ -757,12 +762,13 @@ let sexpr mn =
   module ToValue = DessserHeapValue.Materialize (DessserSExpr.Des)
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
-  let heap_convert_expr mn =
+  let heap_convert_expr compunit mn =
     let l = E.no_env in
-    let ser_func = OfValue.serialize mn l in
+    let compunit, ser_func = OfValue.serialize mn compunit in
+    let compunit, des = ToValue.make mn compunit in
+    compunit,
     E.func2 ~l (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
       (fun l src dst ->
-        let des = ToValue.make mn l in
         let v_src = apply des [ src ] in
         E.with_sploded_pair ~l "v_src" v_src (fun _l v src ->
           let dst = apply ser_func [ copy_field ; v ; dst ] in
@@ -770,10 +776,11 @@ let sexpr mn =
 *)
 (*$R
   let test_heap be mn =
-    let e = heap_convert_expr mn in
+    let compunit = U.make () in
+    let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter ~dev_mode:true be ~mn e in
+    let exe = make_converter ~dev_mode:true ~mn compunit be e in
     test_exe "heap-value" mn exe in
 
   Gen.generate ~n:5 maybe_nullable_gen |>
@@ -839,10 +846,11 @@ let sexpr mn =
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
     let mn = T.mn_of_string ts in
-    let e = heap_convert_expr mn in
+    let compunit = U.make () in
+    let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter ~dev_mode:true be ~mn e in
+    let exe = make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
 
@@ -912,7 +920,8 @@ let sexpr mn =
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter ~dev_mode:true be ~mn e in
+      let compunit = U.make () in
+      make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 
@@ -926,7 +935,8 @@ let sexpr mn =
           DS.desser mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter ~dev_mode:true be ~mn e in
+      let compunit = U.make () in
+      make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 *)
@@ -962,7 +972,8 @@ let sexpr mn =
           DS.desser ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter ~dev_mode:true be ~mn e in
+      let compunit = U.make () in
+      make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let check_ser_csv ?config be ts vs =
@@ -974,7 +985,8 @@ let sexpr mn =
           DS.desser ?ser_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      make_converter ~dev_mode:true be ~mn e in
+      let compunit = U.make () in
+      make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let csv_config_0 =

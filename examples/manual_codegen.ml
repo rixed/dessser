@@ -62,10 +62,12 @@ let () =
   let module BE = (val backend : BACKEND) in
   let sexpr_config = { DessserSExpr.default_config with newline = Some '\n' } in
   let convert_only = false in
-  let convert =
+  let compunit = U.make () in
+  let compunit, convert =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
+      compunit,
       E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser ~ser_config:sexpr_config typ l src dst))
@@ -82,25 +84,30 @@ let () =
         DessserHeapValue.Serialize (DessserSExpr.Ser) in
 
       let ma = copy_field in
+      let compunit, des =
+        ToValue.make typ compunit in
+      let compunit, ser_func =
+        OfValue2.serialize ~config:sexpr_config typ compunit in
+      let compunit, sersize =
+        OfValue1.sersize typ compunit in
+      compunit,
       E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
         comment "Convert from RowBinary into a heap value:" (
-          let des = ToValue.make typ l in
           let v_src = apply des [ src ] in
           E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
             comment "Compute the serialized size of this tuple:" (
-              let sersize = OfValue1.sersize typ l in
               let sz = apply sersize [ ma ; v ] in
-              E.let_ ~name:"sz" ~l sz (fun l sz ->
+              E.let_ ~name:"sz" ~l sz (fun _l sz ->
                 seq [
                   dump (string "Size: ") ;
                   dump sz ;
                   dump (string "\n") ;
                   comment "Now convert the heap value into an SExpr:" (
-                    let ser_func = OfValue2.serialize ~config:sexpr_config typ l in
                     let dst' = apply ser_func [ ma ; v ; dst ] in
                     make_pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
   let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in
-  let exe_fname = make_converter ~dev_mode:true ~exe_fname backend convert in
+  let exe_fname =
+    make_converter ~dev_mode:true ~exe_fname compunit backend convert in
   Printf.printf "executable in %s\n" exe_fname

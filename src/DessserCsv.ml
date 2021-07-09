@@ -54,7 +54,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
         is_serializable ~to_first_concrete:to_first_concrete' fst &&
         Enum.for_all (is_serializable ~to_first_concrete:false) mns in
   match mn.T.typ with
-  | This ->
+  | This _ ->
       (* If everything else is serializable then This is also serializable.
        * Or let any non-serializable field fails. *)
       true
@@ -113,7 +113,7 @@ let rec nullable_at_first mn =
  * types non nullable: *)
 let rec make_serializable mn =
   match mn.T.typ with
-  | This ->
+  | This _ ->
       todo "make_serializable for This"
   | Base _ ->
       mn

@@ -16,11 +16,14 @@ type base_type =
   | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
   | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
 
-(* User types are specialized types that can be build from basic types and
- * given their own name, pretty-printer and parser.
+(* User types are specialized types that can be build from basic or external
+ * types and given their own name, pretty-printer and parser.
  * User expressions can restrict types to user types. Other than that,
  * every operation that applies to the implementation of a user type also
- * applies to the user type, and the other way around. *)
+ * applies to the user type, and the other way around.
+ * Unlike named types, user_types can be created only programmatically.
+ * Unlike external types their implementation need not be supplied
+ * externally though. *)
 
 and user_type =
   { name : string ;
@@ -31,8 +34,13 @@ and user_type =
 
 and t =
   | Unknown
-  (* Refers to the top-level type that's currently being defined. *)
-  | This
+  (* To christen the following type. Notice that name is valid both during the
+   * definition of that child type but also after. Once a name is met it sticks
+   * with the type until the environment is "reset", ie at the end of the parse
+   * usually. *)
+  | Named of string * t
+  (* Refers to a type named during its definition. *)
+  | This of string
   | Base of base_type
   (* Aliases with custom representations: *)
   | Usr of user_type
@@ -88,153 +96,9 @@ and t =
   | Lst of mn
   | Function of (* arguments: *) mn array * (* result: *) mn
 
+(* "mn" for "maybe nullable": *)
 and mn =
   { typ : t ; nullable : bool }
-
-(* dessserc will set this to the global schema: *)
-let this = ref Unknown
-
-(*
- * Comparators
- *)
-
-(* In many occasions we want the items of a record to be deterministically
- * ordered so they can be compared etc: *)
-let sorted_rec fields =
-  let cmp_nv (n1, _) (n2, _) =
-    String.compare n1 n2 in
-  let fields = Array.copy fields in
-  Array.sort cmp_nv fields ;
-  fields
-
-let base_type_eq mt1 mt2 = mt1 = mt2
-
-let rec eq ?(opaque_user_type=false) t1 t2 =
-  match t1, t2 with
-  | Unknown, _ | _, Unknown ->
-      invalid_arg "eq: Unknown type"
-  | This, This ->
-      true
-  | This, t
-  | t, This ->
-      eq t !this
-  | Base b1, Base b2 ->
-      base_type_eq b1 b2
-  | Usr ut1, Usr ut2 when opaque_user_type ->
-      ut1.name = ut2.name
-  | Ext n1, Ext n2 ->
-      n1 = n2
-  | Vec (d1, mn1), Vec (d2, mn2) ->
-      d1 = d2 && eq_mn mn1 mn2
-  | Arr mn1, Arr mn2 ->
-      eq_mn mn1 mn2
-  | Set (st1, mn1), Set (st2, mn2) ->
-      st1 = st2 &&
-      eq_mn mn1 mn2
-  | Tup mn1s, Tup mn2s ->
-      Array.length mn1s = Array.length mn2s &&
-      array_for_all2_no_exc eq_mn mn1s mn2s
-  | (Rec mn1s, Rec mn2s)
-  | (Sum mn1s, Sum mn2s) ->
-      Array.length mn1s = Array.length mn2s &&
-      array_for_all2_no_exc (fun (n1, mn1) (n2, mn2) ->
-        n1 = n2 && eq_mn mn1 mn2
-      ) (sorted_rec mn1s) (sorted_rec mn2s)
-  | Map (k1, v1), Map (k2, v2) ->
-      eq_mn k1 k2 &&
-      eq_mn v1 v2
-  (* User types are lost in des/ser so we have to accept this: *)
-  | Usr ut1, t when not opaque_user_type ->
-      eq ut1.def t
-  | t, Usr ut2 when not opaque_user_type ->
-      eq t ut2.def
-  | Lst mn1, Lst mn2 ->
-      eq_mn mn1 mn2
-  | Function (pt1, rt1), Function (pt2, rt2) ->
-      array_for_all2_no_exc eq_mn pt1 pt2 && eq_mn rt1 rt2
-  | t1, t2 ->
-      t1 = t2
-
-(*$T eq
-  eq Void Void
-  eq (get_user_type "Eth") (get_user_type "Eth")
-  eq (Function ([| required (get_user_type "Eth") ; size |], void)) \
-     (Function ([| required (get_user_type "Eth") ; size |], void))
-*)
-
-and eq_mn mn1 mn2 =
-  mn1.nullable = mn2.nullable && eq mn1.typ mn2.typ
-
-(*$T eq_mn
-  eq_mn (required (get_user_type "Eth")) \
-        (required (get_user_type "Eth")) ;
-*)
-
-(*
- * Iterators
- *)
-
-let rec develop = function
-  | (Unknown | This | Base _ | Ext _) as t ->
-      t
-  | Usr { def ; _ } ->
-      develop def
-  | Vec (d, mn) ->
-      Vec (d, develop_mn mn)
-  | Arr mn ->
-      Arr (develop_mn mn)
-  | Set (st, mn) ->
-      Set (st, develop_mn mn)
-  | Tup mns ->
-      Tup (Array.map develop_mn mns)
-  | Rec mns ->
-      Rec (Array.map (fun (n, mn) -> n, develop_mn mn) mns)
-  | Sum cs ->
-      Sum (Array.map (fun (n, mn) -> n, develop_mn mn) cs)
-  | Map (mn1, mn2) ->
-      Map (develop_mn mn1, develop_mn mn2)
-  | Lst mn ->
-      Lst (develop_mn mn)
-  | t -> t
-
-and develop_mn mn =
-  { mn with typ = develop mn.typ }
-
-(* This develop user types at first level (ie. excluding sub-branches but
- * including when a user type is implemented with another): *)
-let rec develop1 = function
-  | { typ = Usr { def ; _ } ; nullable } ->
-      develop1 ({ typ = def ; nullable })
-  | t ->
-      t
-
-(* Top-down folding of a type: *)
-(* FIXME: either consider Usr types as opaque and stop the recursion, or as
- * transparent and do not call [f] on Usr: *)
-let rec fold u f t =
-  let u = f u t in
-  match t with
-  | Usr { def ; _ } ->
-      fold u f def
-  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
-      fold_mn u f mn
-  | Tup mns ->
-      Array.fold_left (fun u mn -> fold_mn u f mn) u mns
-  | Rec mns | Sum mns ->
-      Array.fold_left (fun u (_, mn) -> fold_mn u f mn) u mns
-  | Map (mn1, mn2) ->
-      fold_mn (fold_mn u f mn1) f mn2
-  | _ ->
-      u
-
-and fold_mn u f mn =
-  fold u f mn.typ
-
-let iter f t =
-  fold () (fun () t -> f t) t
-
-let iter_mn f mn =
-  fold_mn () (fun () mn -> f mn) mn
 
 (*
  * User-defined types
@@ -260,6 +124,15 @@ let get_user_type n =
 (*
  * Printers
  *)
+
+(* In many occasions we want the items of a record to be deterministically
+ * ordered so they can be compared etc: *)
+let sorted_rec fields =
+  let cmp_nv (n1, _) (n2, _) =
+    String.compare n1 n2 in
+  let fields = Array.copy fields in
+  Array.sort cmp_nv fields ;
+  fields
 
 let string_of_set_type = function
   | Simple -> ""
@@ -302,8 +175,13 @@ let rec print ?(sorted=false) oc =
   function
   | Unknown ->
       sp "UNKNOWN"
-  | This ->
+  | Named (n, t) ->
+      pp oc "%s AS " n ;
+      print ~sorted oc t
+  | This "" ->
       sp "THIS"
+  | This n ->
+      sp n
   | Base t ->
       print_base_type oc t
   (* To having having to accept any valid identifiers as an external type when
@@ -376,6 +254,232 @@ let print_mn oc = print_mn ~sorted:false oc
 let mn_to_string = IO.to_string print_mn
 let to_string = IO.to_string print
 
+(*
+ * Iterators
+ *)
+
+(* Need no environment since does not use This: *)
+let rec develop = function
+  | (Unknown | This _ | Base _ | Ext _) as t ->
+      t
+  | Usr { def ; _ } ->
+      develop def
+  | Vec (d, mn) ->
+      Vec (d, develop_mn mn)
+  | Arr mn ->
+      Arr (develop_mn mn)
+  | Set (st, mn) ->
+      Set (st, develop_mn mn)
+  | Tup mns ->
+      Tup (Array.map develop_mn mns)
+  | Rec mns ->
+      Rec (Array.map (fun (n, mn) -> n, develop_mn mn) mns)
+  | Sum cs ->
+      Sum (Array.map (fun (n, mn) -> n, develop_mn mn) cs)
+  | Map (mn1, mn2) ->
+      Map (develop_mn mn1, develop_mn mn2)
+  | Lst mn ->
+      Lst (develop_mn mn)
+  | t -> t
+
+and develop_mn mn =
+  { mn with typ = develop mn.typ }
+
+(* This develop user types at first level (ie. excluding sub-branches but
+ * including when a user type is implemented with another): *)
+let rec develop1 = function
+  | { typ = Usr { def ; _ } ; nullable } ->
+      develop1 ({ typ = def ; nullable })
+  | t ->
+      t
+
+(* Top-down folding of a type: *)
+(* FIXME: either consider Usr types as opaque and stop the recursion, or as
+ * transparent and do not call [f] on Usr: *)
+let rec fold u f t =
+  let u = f u t in
+  match t with
+  | Named (_, t) ->
+      fold u f t
+  | Usr { def ; _ } ->
+      fold u f def
+  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
+      fold_mn u f mn
+  | Tup mns ->
+      Array.fold_left (fun u mn -> fold_mn u f mn) u mns
+  | Rec mns | Sum mns ->
+      Array.fold_left (fun u (_, mn) -> fold_mn u f mn) u mns
+  | Map (mn1, mn2) ->
+      fold_mn (fold_mn u f mn1) f mn2
+  | _ ->
+      u
+
+and fold_mn u f mn =
+  fold u f mn.typ
+
+let iter f t =
+  fold () (fun () t -> f t) t
+
+let iter_mn f mn =
+  fold_mn () (fun () mn -> f mn) mn
+
+(* While a type is being parsed, local type names can be assigned to
+ * part of the constructed type. Those names will be favored by back-ends
+ * when generating the code, and it is also possible to refer back to another
+ * type by its name, possibly recursively.
+ * We rely on a global index of type names to definitions (shrinked as much as
+ * possible, possibly more than in the source definition).
+ * The special empty name "" refers back to the global definition (when there
+ * is only one). *)
+
+exception Unbound_type of string
+exception Redefined_type of string
+
+let these = ref []
+
+let find_this n =
+  try
+    List.assoc n !these
+  with Not_found ->
+    raise (Unbound_type n)
+
+let () =
+  Printexc.register_printer (function
+    | Unbound_type n ->
+        Some (
+          Printf.sprintf2 "Unknown type %S. Only known types are: %a"
+            n
+            (pretty_list_print (fun oc (n, _) -> String.print oc n)) !these)
+    | Redefined_type n ->
+        Some (
+          Printf.sprintf "Type %S can be defined only once" n)
+    | _ ->
+        None)
+
+(* We need types featuring `this`, that can come with various degrees of
+ * unfolding, to all look equal.
+ * We cannot "expand" This, because that would just make more This appear.
+ * But there exist a form where the type is folded as much as possible: *)
+let rec shrink t =
+  let find_def t =
+    List.find (fun (_, def) -> eq t def) !these in
+  let rec do_mn mn =
+    { mn with typ = do_typ mn.typ }
+  and do_typ t =
+    let t' =
+      match t with
+      | Named (_, t) -> do_typ t
+      | Usr { def ; _ } -> do_typ def
+      | Vec (d, mn) -> Vec (d, do_mn mn)
+      | Arr mn -> Arr (do_mn mn)
+      | Set (st, mn) -> Set (st, do_mn mn)
+      | Tup mns -> Tup (Array.map do_mn mns)
+      | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+      | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
+      | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
+      | t -> t in
+    if t == t' then t else
+    match find_def t' with
+    | exception Not_found -> t'
+    | n, _ -> This n
+  in
+  (* Avoid replacing the whole type with This: *)
+  match find_def t with
+  | exception Not_found -> do_typ t
+  | _ -> t
+
+(* Will also add declared subtypes: *)
+and add_type_as n t =
+  (* As fold is top down, the result lst is bottom-up: *)
+  let lst =
+    fold [ n, t ] (fun lst -> function
+      | Named (n, t) -> (n, t) :: lst
+      | _ -> lst
+    ) t in
+  (* Shrink and add them, depth first: *)
+  List.iter (fun (n, t) ->
+    if List.mem_assoc n !these then raise (Redefined_type n) ;
+    let t = shrink t in
+    these := (n, t) :: !these
+  ) lst
+
+(*
+ * Comparators
+ *)
+
+and base_type_eq mt1 mt2 = mt1 = mt2
+
+and eq ?(opaque_user_type=false) t1 t2 =
+  let eq = eq ~opaque_user_type
+  and eq_mn = eq_mn ~opaque_user_type in
+  match t1, t2 with
+  | Unknown, _ | _, Unknown ->
+      invalid_arg "eq: Unknown type"
+  | Named (_, t1), t2
+  | t2, Named (_, t1) ->
+      eq t1 t2
+  | This r1, This r2 ->
+      r1 = r2
+  | This r, t
+  | t, This r ->
+      let t' = find_this r in
+      eq t t'
+  | Base b1, Base b2 ->
+      base_type_eq b1 b2
+  | Usr ut1, Usr ut2 when opaque_user_type ->
+      ut1.name = ut2.name
+  | Ext n1, Ext n2 ->
+      n1 = n2
+  | Vec (d1, mn1), Vec (d2, mn2) ->
+      d1 = d2 && eq_mn mn1 mn2
+  | Arr mn1, Arr mn2 ->
+      eq_mn mn1 mn2
+  | Set (st1, mn1), Set (st2, mn2) ->
+      st1 = st2 &&
+      eq_mn mn1 mn2
+  | Tup mn1s, Tup mn2s ->
+      Array.length mn1s = Array.length mn2s &&
+      array_for_all2_no_exc eq_mn mn1s mn2s
+  | (Rec mn1s, Rec mn2s)
+  | (Sum mn1s, Sum mn2s) ->
+      Array.length mn1s = Array.length mn2s &&
+      array_for_all2_no_exc (fun (n1, mn1) (n2, mn2) ->
+        n1 = n2 && eq_mn mn1 mn2
+      ) (sorted_rec mn1s) (sorted_rec mn2s)
+  | Map (k1, v1), Map (k2, v2) ->
+      eq_mn k1 k2 &&
+      eq_mn v1 v2
+  (* User types are lost in des/ser so we have to accept this: *)
+  | Usr ut1, t when not opaque_user_type ->
+      eq ut1.def t
+  | t, Usr ut2 when not opaque_user_type ->
+      eq t ut2.def
+  | Lst mn1, Lst mn2 ->
+      eq_mn mn1 mn2
+  | Function (pt1, rt1), Function (pt2, rt2) ->
+      array_for_all2_no_exc eq_mn pt1 pt2 && eq_mn rt1 rt2
+  | t1, t2 ->
+      t1 = t2
+
+(*$T eq
+  eq Void Void
+  eq (get_user_type "Eth") (get_user_type "Eth")
+  eq (Function ([| required (get_user_type "Eth") ; size |], void)) \
+     (Function ([| required (get_user_type "Eth") ; size |], void))
+*)
+
+and eq_mn ?opaque_user_type mn1 mn2 =
+  mn1.nullable = mn2.nullable && eq ?opaque_user_type mn1.typ mn2.typ
+
+(*$T eq_mn
+  eq_mn (required (get_user_type "Eth")) \
+        (required (get_user_type "Eth")) ;
+*)
+
+(*
+ * Parsers
+ *)
+
 module Parser =
 struct
   module ParseUsual = ParsersUsual.Make (P)
@@ -436,14 +540,57 @@ struct
 
   let user_type = ref fail
 
-  let external_type : unit t ref = ref fail
+  let scalar_typ m =
+    let m = "scalar type" :: m in
+    let st n mtyp =
+      strinG n >>: fun () -> Base mtyp
+    in
+    (
+      (st "float" Float) |<|
+      (st "string" String) |<|
+      (st "bool" Bool) |<|
+      (st "boolean" Bool) |<|
+      (st "char" Char) |<|
+      (st "u8" U8) |<|
+      (st "u16" U16) |<|
+      (st "u24" U24) |<|
+      (st "u32" U32) |<|
+      (st "u40" U40) |<|
+      (st "u48" U48) |<|
+      (st "u56" U56) |<|
+      (st "u64" U64) |<|
+      (st "u128" U128) |<|
+      (st "i8" I8) |<|
+      (st "i16" I16) |<|
+      (st "i24" I24) |<|
+      (st "i32" I32) |<|
+      (st "i40" I40) |<|
+      (st "i48" I48) |<|
+      (st "i56" I56) |<|
+      (st "i64" I64) |<|
+      (st "i128" I128)
+    ) m
 
   let identifier =
     let what = "identifier" in
     let first_char = letter ||| underscore ||| char '-' in
     let any_char = first_char ||| decimal_digit in
     first_char ++ repeat_greedy ~sep:none ~what any_char >>: fun (c, s) ->
+      (* TODO: exclude keywords *)
       String.of_list (c :: s)
+
+  let ext_typ m =
+    let m = "external type" :: m in
+    (
+      char '$' -+ identifier >>: fun n -> Ext n
+    ) m
+
+  let this m =
+    let m = "this" :: m in
+    (
+      strinG "this" -+
+      optional ~def:"" (!blanks -+ identifier) >>: fun s -> This s
+    ) m
 
   type key_type =
     VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | LstDim
@@ -526,7 +673,7 @@ struct
 
   and typ m =
     let m = "type" :: m in
-    (
+    let anonymous =
       (
         scalar_typ |<|
         tuple_typ |<|
@@ -534,7 +681,7 @@ struct
         sum_typ |<|
         ext_typ |<|
         !user_type |<|
-        (strinG "this" >>: fun () -> This) |<|
+        this |<|
         (strinG "void" >>: fun () -> Void) |<|
         (strinG "ptr" >>: fun () -> Ptr) |<|
         (strinG "size" >>: fun () -> Size) |<|
@@ -552,38 +699,11 @@ struct
         )
       ) ++
       repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
-        reduce_dims t dims
-    ) m
-
-  and scalar_typ m =
-    let m = "scalar type" :: m in
-    let st n mtyp =
-      strinG n >>: fun () -> Base mtyp
-    in
+        reduce_dims t dims in
     (
-      (st "float" Float) |<|
-      (st "string" String) |<|
-      (st "bool" Bool) |<|
-      (st "boolean" Bool) |<|
-      (st "char" Char) |<|
-      (st "u8" U8) |<|
-      (st "u16" U16) |<|
-      (st "u24" U24) |<|
-      (st "u32" U32) |<|
-      (st "u40" U40) |<|
-      (st "u48" U48) |<|
-      (st "u56" U56) |<|
-      (st "u64" U64) |<|
-      (st "u128" U128) |<|
-      (st "i8" I8) |<|
-      (st "i16" I16) |<|
-      (st "i24" I24) |<|
-      (st "i32" I32) |<|
-      (st "i40" I40) |<|
-      (st "i48" I48) |<|
-      (st "i56" I56) |<|
-      (st "i64" I64) |<|
-      (st "i128" I128)
+      (identifier +- opt_blanks +- string "as" +- opt_blanks ++ anonymous >>:
+        fun (n, t) -> Named (n, t)) |<|
+      anonymous
     ) m
 
   and tuple_typ m =
@@ -624,12 +744,6 @@ struct
       opt_blanks +- char ']' >>: fun ts ->
           (* TODO: check that all constructors are case insensitively distinct *)
           Sum (Array.of_list ts)
-    ) m
-
-  and ext_typ m =
-    let m = "external type" :: m in
-    (
-      char '$' -+ identifier >>: fun n -> Ext n
     ) m
 
   let string_parser ?what ~print p =
@@ -872,27 +986,28 @@ let of_string ?(any_format=false) ?what =
 
 (* Consider user types opaque by default, so that it matches DessserQCheck
  * generators. *)
-let rec depth ?(opaque_user_type=true) = function
+let rec depth ?(opaque_user_type=true) t =
+  let depth = depth ~opaque_user_type in
+  match t with
   | Unknown -> invalid_arg "depth"
-  | This ->
+  | This _ ->
       (* For this purpose assume This is not going to be recursed into,
        * and behave like a scalar: *)
       0
   | Usr { def ; _ } ->
-      if opaque_user_type then 0 else depth ~opaque_user_type def
+      if opaque_user_type then 0 else depth def
   | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
-      1 + depth ~opaque_user_type mn.typ
+      1 + depth mn.typ
   | Tup mns ->
       1 + Array.fold_left (fun d mn ->
-        max d (depth ~opaque_user_type mn.typ)
+        max d (depth mn.typ)
       ) 0 mns
   | Rec mns | Sum mns ->
       1 + Array.fold_left (fun d (_, mn) ->
-        max d (depth ~opaque_user_type mn.typ)
+        max d (depth mn.typ)
       ) 0 mns
   | Map (mn1, mn2) ->
-      1 + max (depth ~opaque_user_type mn1.typ)
-              (depth ~opaque_user_type mn2.typ)
+      1 + max (depth mn1.typ) (depth mn2.typ)
   | _ -> 0
 
 (*$= depth & ~printer:string_of_int
@@ -923,33 +1038,6 @@ let rec depth ?(opaque_user_type=true) = function
           "qngl", required (Base Bool) ; \
           "iajv", optional (Base I128) |])))))))
 *)
-
-(* We need types featuring `this`, that can come with various degree of
- * unfolding, to all look equal.
- * We cannot "expand" This, because that would just make more This appear.
- * But there exist a form where the type is folded as much as possible: *)
-let shrink t =
-  if !this = Unknown || !this = This then t else
-  let rec do_mn mn =
-    { mn with typ = do_typ mn.typ }
-  and do_typ t =
-    let t' =
-      match t with
-      | Usr { def ; _ } -> do_typ def
-      | Vec (d, mn) -> Vec (d, do_mn mn)
-      | Arr mn -> Arr (do_mn mn)
-      | Set (st, mn) -> Set (st, do_mn mn)
-      | Tup mns -> Tup (Array.map do_mn mns)
-      | Rec mns -> Rec (Array.map (fun (n, mn) -> n, do_mn mn) mns)
-      | Sum mns -> Sum (Array.map (fun (n, mn) -> n, do_mn mn) mns)
-      | Map (mn1, mn2) -> Map (do_mn mn1, do_mn mn2)
-      | t -> t in
-    if t == t' then t else
-    if eq t' !this then This else t'
-  in
-  (* Avoid replacing the whole type with This: *)
-  if eq t !this then t else
-  do_typ t
 
 let uniq_id t =
   shrink t |>
@@ -1010,7 +1098,7 @@ let func2 i1 i2 out = required (Function ([| i1 ; i2 |], out))
 let func3 i1 i2 i3 out = required (Function ([| i1 ; i2 ; i3 |], out))
 let func4 i1 i2 i3 i4 out = required (Function ([| i1 ; i2 ; i3 ; i4 |], out))
 
-let ref mn = required (Vec (1, mn))
+let ref_ mn = required (Vec (1, mn))
 
 (* Some short cuts for often used types: *)
 let void = required Void
@@ -1081,16 +1169,31 @@ let is_defined t =
   with Exit ->
     false
 
-let rec is_integer = function
-  | Unknown -> invalid_arg "is_integer"
+let rec is_num ~accept_float t =
+  let is_num = is_num ~accept_float in
+  match t with
+  | Unknown ->
+      invalid_arg "is_num"
+  | Named (_, t) ->
+      is_num t
+  | This n ->
+      let t = find_this n in
+      is_num t
   | Base (U8|U16|U24|U32|U40|U48|U56|U64|U128|
-          I8|I16|I24|I32|I40|I48|I56|I64|I128) -> true
+          I8|I16|I24|I32|I40|I48|I56|I64|I128) ->
+      true
+  | Base Float ->
+      accept_float
   | Usr { def ; _ } ->
-      is_integer def
-  | _ -> false
+      is_num def
+  | _ ->
+      false
+
+let is_integer t =
+  is_num ~accept_float:false t
 
 let is_numeric t =
-  is_integer t || t = Base Float
+  is_num ~accept_float:true t
 
 (*
  * Registering User Types.

@@ -51,7 +51,6 @@ let init_backend backend schema =
   | OCaml -> DessserBackEndOCaml.init schema
   | _ -> ()
 
-
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
@@ -62,7 +61,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
   quiet := quiet_ ;
-  T.this := schema.T.typ ;
+  (* Make "this" refers to top-level type: *)
+  T.add_type_as "" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   init_backend backend schema ;
@@ -75,16 +75,12 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let compunit =
     T.fold_mn compunit (fun compunit -> function
       | T.Ext name ->
-          let is_myself = name = "this" in
           U.register_external_type compunit name (fun _p -> function
             | DIL ->
                 Printf.sprintf "%S" ("$" ^ name)
             | OCaml ->
-                if is_myself then
-                  type_name
-                else
-                  let m = DessserBackEndOCaml.valid_module_name name in
-                  m ^".DessserGen.t"
+                let m = DessserBackEndOCaml.valid_module_name name in
+                m ^".DessserGen.t"
             | Cpp ->
                 "*"^ DessserBackEndCPP.valid_identifier name)
       | _ ->
@@ -92,27 +88,24 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     ) schema in
   let module BE = (val backend : BACKEND) in
   let add_decoder compunit encoding_in =
-    let l = U.environment compunit in
     let module Des = (val (des_of_encoding encoding_in) : DES) in
     let module ToValue = DessserHeapValue.Materialize (Des) in
-    let des =
-      (* convert from encoding_in into a heapvalue: *)
-      ToValue.make schema l in
+    (* convert from encoding_in into a heapvalue: *)
+    let compunit, des = ToValue.make schema compunit in
     if !debug then E.type_check E.no_env des ;
     let compunit, _, _ =
       let name = E.string_of_type_method (E.DesNoMask encoding_in) in
       U.add_identifier_of_expression compunit ~name des in
     compunit
   and add_encoder compunit encoding_out =
-    let l = U.environment compunit in
     let module Ser = (val (ser_of_encoding encoding_out) : SER) in
     let module OfValue = DessserHeapValue.Serialize (Ser) in
-    let sersize =
+    let compunit, sersize =
       (* compute the serialization size of a heap value: *)
-      OfValue.sersize ~with_fieldmask schema l in
-    let ser =
+      OfValue.sersize ~with_fieldmask schema compunit in
+    let compunit, ser =
       (* convert from a heapvalue into encoding_out. *)
-      OfValue.serialize ~with_fieldmask schema l in
+      OfValue.serialize ~with_fieldmask schema compunit in
     if !debug then (
       E.type_check E.no_env sersize ;
       E.type_check E.no_env ser) ;
@@ -163,7 +156,8 @@ let converter
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
   quiet := quiet_ ;
-  T.this := schema.T.typ ;
+  (* Make "this" refers to top-level type: *)
+  T.add_type_as "" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -209,8 +203,8 @@ let lmdb main
       dest_fname dev_mode optim () =
   debug := dbg ;
   quiet := quiet_ ;
-  (* FIXME: this in key_schema should refer to key_schema *)
-  T.this := val_schema.T.typ ;
+  T.add_type_as "val" val_schema.T.typ ;
+  T.add_type_as "key" key_schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -270,17 +264,18 @@ let aggregator
       dest_fname dev_mode optim () =
   debug := dbg ;
   quiet := quiet_ ;
-  T.this := schema.T.typ ;
+  (* Make "this" refers to top-level type: *)
+  T.add_type_as "" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module ToValue = DessserHeapValue.Materialize (Des) in
   init_backend backend schema ;
-  let l = E.no_env in
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
-  let des = ToValue.make schema l in
+  let compunit = U.make () in
+  let compunit, des = ToValue.make schema compunit in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
   E.type_check E.no_env init_expr ;
@@ -313,13 +308,12 @@ let aggregator
    * in the given encoding: *)
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
-  let ser = OfValue.serialize output_t l in
+  let compunit, ser = OfValue.serialize output_t compunit in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source
    *   pointer;
    * - output_expr, that finalize the value and serialize it. *)
-  let compunit = U.make () in
   let compunit, state_id, state_name =
     U.add_identifier_of_expression compunit ~name:"init" init_expr in
   let input_expr =

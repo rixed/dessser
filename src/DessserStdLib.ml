@@ -75,8 +75,11 @@ and random mn =
   else match mn.typ with
   | T.Unknown ->
       invalid_arg "random for unknown type"
-  | This ->
-      random T.(required !this)
+  | Named (_, t) ->
+      random T.(required t)
+  | This n ->
+      let t = T.find_this n in
+      random T.(required t)
   | Void ->
       void
   | Base Float ->

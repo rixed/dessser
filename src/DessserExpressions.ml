@@ -554,12 +554,17 @@ let is_const_null = function
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-let rec default ?(allow_null=true) ?this t =
-  let this = this |? t in
-  let default_mn = default_mn ~allow_null ~this in
+let rec default ?(allow_null=true) t =
+  let default = default ~allow_null
+  and default_mn = default_mn ~allow_null in
   match t with
-  | T.Unknown | This | Ext _ | Ptr | Address ->
+  | T.Unknown | Ext _ | Ptr | Address ->
       invalid_arg "default"
+  | Named (_, t) ->
+      default t
+  | This n ->
+      let t = T.find_this n in
+      default t
   | Void ->
       E0S (Seq, [])
   | Base Float ->
@@ -658,12 +663,12 @@ let rec default ?(allow_null=true) ?this t =
 
 (* Given a type, returns the simplest expression of that type - suitable
  * whenever a default value is required. *)
-and default_mn ?(allow_null=true) ?this mn =
+and default_mn ?(allow_null=true) mn =
   (* In some places we want the whole tree of values to be populated. *)
   match mn.nullable, allow_null with
   | true, true -> E0 (Null mn.typ)
-  | true, false -> E1 (NotNull, default ~allow_null ?this mn.typ)
-  | false, _ -> default ~allow_null ?this mn.typ
+  | true, false -> E1 (NotNull, default ~allow_null mn.typ)
+  | false, _ -> default ~allow_null mn.typ
 
 let string_of_backend = function
   | DIL -> "DIL"
@@ -1629,6 +1634,8 @@ let of_string s =
 type env =
   { global : (t * T.mn) list ;
     local : (t * T.mn) list ;
+    (* Name of the current function, so backends can implement "Myself" to emit
+     * a recursive call: *)
     name : string option }
 
 let no_env = { global = [] ; local = [] ; name = None }
