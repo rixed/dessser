@@ -1138,6 +1138,15 @@ struct
         else
           ppi p.P.def "}" ;
         "VOID"
+    | E.E2 (Index, chr, str) ->
+        let chr = print p l chr in
+        let str = print p l str in
+        let pos = gen_sym ?name "pos_" in
+        ppi p.P.def "std::size %s { %s.find(%s) };"
+          pos str chr ;
+        emit ?name p l e (fun oc ->
+          pp oc "%s != std::string::npos ? \
+                  std::make_optional(%s) : std::nullopt" pos pos)
     | E.E3 (Map, init, f, lst) ->
         let init = print p l init
         and f = print p l f

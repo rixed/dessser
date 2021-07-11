@@ -306,7 +306,7 @@ let e2_of_int n =
     ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekU8 ; WriteU8 ;
     WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ; Max ; Member ;
     Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocArr ; PartialSort ;
-    ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While |] in
+    ChopBegin ; ChopEnd ; CharOfString ; Strftime ; While ; Index |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =

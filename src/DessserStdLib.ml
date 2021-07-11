@@ -396,6 +396,8 @@ let rec is_in ?(l=E.no_env) item lst =
               | _ when T.eq_mn item_t lst_t ->
                   eq item lst
               (* Otherwise [lst] must be some kind of set: *)
+              | Base Char, Base String ->
+                  not_ (is_null (index item lst))
               | Usr { name = "Ip4" ; _ }, Usr { name = "Cidr4" ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
                        (le item (last_ip_of_cidr4 lst))

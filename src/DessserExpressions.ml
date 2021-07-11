@@ -400,6 +400,7 @@ type e2 =
   | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
   | ForEach of (string * T.mn) (* list/vector/set * body *)
+  | Index (* of a char in a string, or null *)
 
 type e3 =
   | SetBit
@@ -965,6 +966,7 @@ let string_of_e2 = function
   | While -> "while"
   | ForEach (n, mn) ->
       "for-each "^ String.quote n ^" "^ String.quote (T.mn_to_string mn)
+  | Index -> "index"
 
 let string_of_e3 = function
   | SetBit -> "set-bit"
@@ -1575,6 +1577,8 @@ struct
     | Lst [ Sym "for-each" ; Str n ; Str mn ; x1 ; x2 ] ->
         let mn = T.mn_of_string mn in
         E2 (ForEach (n, mn), e x1, e x2)
+    | Lst [ Sym "index" ; x1 ; x2 ] ->
+        E2 (Index, e x1, e x2)
     (* e3 *)
     | Lst [ Sym "set-bit" ; x1 ; x2 ; x3 ] -> E3 (SetBit, e x1, e x2, e x3)
     | Lst [ Sym "set-vec" ; x1 ; x2 ; x3 ] -> E3 (SetVec, e x1, e x2, e x3)
@@ -1991,6 +1995,7 @@ and type_of l e0 =
   | E2 (PtrOfAddress, _, _) -> T.ptr
   | E2 (While, _, _) -> T.void
   | E2 (ForEach _, _, _) -> T.void
+  | E2 (Index, _, _) -> T.optional (Base U32)
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop1 with
@@ -2660,6 +2665,9 @@ let rec type_check l e =
     | E2 (ForEach _, lst, body) ->
         check_any_lst l lst ;
         check_eq l body T.void
+    | E2 (Index, chr, str) ->
+        check_eq l chr T.char ;
+        check_eq l str T.string
     | E1 (GetEnv, e) ->
         check_eq l e T.string
     | E1 (GetMin, e) ->
@@ -3722,6 +3730,8 @@ struct
   let chop_begin arr n = E2 (ChopBegin, arr, n)
 
   let chop_end arr n = E2 (ChopEnd, arr, n)
+
+  let index c s = E2 (Index, c, s)
 end
 
 (* User constructors for the example user types: *)

@@ -1103,6 +1103,11 @@ let rec peval l e =
       | ForEach (n, t), E0S ((MakeVec | MakeArr _), [ item ]), body ->
           E2 (Let (n, t), replace_final_expression e1 item,
                           replace_final_expression e2 body)
+      | Index, E0 (Char c), E0 (String s) ->
+          (try not_null (u32_of_int (String.index s c))
+          with Not_found -> null (Base U32)) |>
+          replace_final_expression_anonymously e2 |>
+          replace_final_expression_anonymously e1
       | op, _, _ -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
       let e1 = p e1

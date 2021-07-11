@@ -1467,6 +1467,13 @@ struct
         | _ ->
             assert false (* Because type checking *)) ;
         "()"
+    | E.E2 (Index, chr, str) ->
+        let chr = print p l chr in
+        let str = print p l str in
+        emit ?name p l e (fun oc ->
+          Printf.fprintf oc
+            "try Some (Uint32.of_int (String.index %s %s)) \
+            with Not_found -> None" str chr)
     | E.E3 (Map, init, f, lst) ->
         let lst_t = E.type_of l lst in
         let init = print p l init
