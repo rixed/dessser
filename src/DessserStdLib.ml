@@ -387,26 +387,22 @@ let rec is_in ?(l=E.no_env) item lst =
                 invalid_arg in
               (* Now that neither lst nor item are nullable, let's deal with
                * the actual question: *)
-              match item_t, lst_t with
+              match item_t.T.typ, lst_t.T.typ with
               (* Substring search: *)
-              | T. { typ = Base String ; _ },
-                T. { typ = Base String ; _ } ->
+              | Base String, Base String ->
                   not_ (is_null (find_substring (bool true) item lst))
               (* In all other cases where [item] and [lst] are of the same type
                * then [in_in item lst] is just a comparison: *)
-              | mn1, mn2 when T.eq_mn mn1 mn2 ->
+              | _ when T.eq_mn item_t lst_t ->
                   eq item lst
-              (* Otherwise [lst] must be some kind of sub-set: *)
-              | T. { typ = Usr { name = "Ip4" ; _ } ; _ },
-                T. { typ = Usr { name = "Cidr4" ; _ } ; _ } ->
+              (* Otherwise [lst] must be some kind of set: *)
+              | Usr { name = "Ip4" ; _ }, Usr { name = "Cidr4" ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
                        (le item (last_ip_of_cidr4 lst))
-              | T. { typ = Usr { name = "Ip6" ; _ } ; _ },
-                T. { typ = Usr { name = "Cidr6" ; _ } ; _ } ->
+              | Usr { name = "Ip6" ; _ }, Usr { name = "Cidr6" ; _ } ->
                   and_ (ge item (first_ip_of_cidr6 lst))
                        (le item (last_ip_of_cidr6 lst))
-              | T. { typ = Usr { name = "Ip" ; _ } ; _ },
-                T. { typ = Usr { name = "Cidr" ; _ } ; _ } ->
+              | Usr { name = "Ip" ; _ }, Usr { name = "Cidr" ; _ } ->
                   if_ (eq (label_of item) (label_of lst))
                     ~then_:(
                       if_ (eq (label_of item) (u16_of_int 0))
@@ -419,9 +415,8 @@ let rec is_in ?(l=E.no_env) item lst =
                             let_ ~l ~name:"cidr" (get_alt "v6" lst) (fun l cidr ->
                               is_in ~l ip cidr))))
                     ~else_:(bool false)
-              | T. { typ = item_typ ; _ },
-                ( T.{ typ = Vec (_, { typ = lst_typ ; nullable }) ; _ }
-                | T.{ typ = Arr { typ = lst_typ ; nullable } ; _ }) ->
+              | item_typ, (Vec (_, { typ = lst_typ ; nullable }) |
+                           Arr { typ = lst_typ ; nullable }) ->
                   (* If the set item type is the same as item type then perform
                    * direct comparisons with [eq], otherwise call [is_in]
                    * recursively.
@@ -438,10 +433,10 @@ let rec is_in ?(l=E.no_env) item lst =
                         ~else_:(op l item (force ~what:"is_in(2)" i))
                     else
                       op l item i)
-              | _, lst_mn ->
+              | _ ->
                   (* If we can convert item into lst (which at this point is
                    * known not to be a list) then we can try equality: *)
-                  (match C.conv_mn ~to_:lst_mn l item with
+                  (match C.conv_mn ~to_:lst_t l item with
                   | exception _ ->
                       err ()
                   | item' ->

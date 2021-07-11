@@ -307,33 +307,34 @@ struct
     pp p.P.def "%sreturn %s;\n" p.P.indent n
 
   let rec print emit ?name p l e =
+    let print = print emit in
     let gen_sym ?name pref =
       match name with
       | Some n -> n
       | None -> U.gen_sym pref |> valid_identifier in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let unary_op op e1 =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s %s" op n1) in
     let unary_func f e1 =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       emit ?name p l e (fun oc -> pp oc "%s(%s)" f n1) in
     let binary_infix_op e1 op e2 =
-      let n1 = print emit p l e1
-      and n2 = print emit p l e2 in
+      let n1 = print p l e1
+      and n2 = print p l e2 in
       let t = E.type_of l e in
       emit ?name p l e (fun oc ->
         (* Prevent integer promotion by casting to type_of e: *)
         print_cast p t (fun oc -> pp oc "%s %s %s" n1 op n2) oc) in
     let binary_op op e1 e2 =
-      let n1 = print emit p l e1
-      and n2 = print emit p l e2 in
+      let n1 = print p l e1
+      and n2 = print p l e2 in
       let t = E.type_of l e in
       emit ?name p l e (fun oc ->
         (* Prevent integer promotion by casting to type_of e: *)
         print_cast p t (fun oc -> pp oc "%s(%s, %s)" op n1 n2) oc) in
     let shortcutting_binary_infix_op e1 e2 short_cond_on_e1 =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       let res = gen_sym ?name "shortcut_res_" in
       let t1 = E.type_of l e1 in
       ppi p.P.def "%s %s;" (type_identifier_mn p t1) res ;
@@ -342,7 +343,7 @@ struct
         ppi p.P.def "%s = %s;" res n1) ;
       ppi p.P.def "} else {" ;
       P.indent_more p (fun () ->
-        let n2 = print emit p l e2 in
+        let n2 = print p l e2 in
         ppi p.P.def "%s = %s;" res n2) ;
       ppi p.P.def "}" ;
       res in
@@ -350,8 +351,8 @@ struct
       let deref_with =
         if is_pointy (E.type_of l e1 |> T.develop_mn) then "->"
                                                       else "." in
-      let n1 = print emit p l e1
-      and ns = List.map (print emit p l) args in
+      let n1 = print p l e1
+      and ns = List.map (print p l) args in
       emit ?name p l e (fun oc ->
         pp oc "%s%s%s%a" n1 deref_with m
           (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns) in
@@ -360,7 +361,7 @@ struct
       res in
     (* Convert from string to nullable number: *)
     let of_string e1 prefix cpp_op =
-      let n1 = print emit p l e1 in
+      let n1 = print p l e1 in
       let res = gen_sym ?name (prefix ^"_res_")
       and pos = gen_sym (prefix ^"_pos_") in
       let t = E.type_of l e in
@@ -376,9 +377,9 @@ struct
     in
     match e with
     | E.E1S (Apply, f, es) ->
-        let nf = print emit p l f in
+        let nf = print p l f in
         let ns =
-          List.fold_left (fun ns e -> print emit p l e :: ns) [] es |>
+          List.fold_left (fun ns e -> print p l e :: ns) [] es |>
           List.rev in
         emit ?name p l e (fun oc ->
           pp oc "%s%a"
@@ -386,13 +387,13 @@ struct
             (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns)
     | E.E1 (Comment c, e1) ->
         ppi p.P.def "/* %s */" c ;
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E0S (Seq, []) ->
         "VOID"
     | E.E0S (Seq, es) ->
-        List.fold_left (fun _ e -> print emit p l e) "VOID" es
+        List.fold_left (fun _ e -> print p l e) "VOID" es
     | E.E0S ((MakeVec | MakeArr _ | MakeTup), es) ->
-        let inits = List.map (print emit p l) es in
+        let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
     | E.E0S (MakeRec, es) ->
@@ -402,7 +403,7 @@ struct
             | None ->
                 Some (E.field_name_of_expr e), inits
             | Some name ->
-                let n = print emit p l e in
+                let n = print p l e in
                 None, (valid_identifier name, n) :: inits
           ) (None, []) es in
         let inits = List.rev inits in
@@ -412,19 +413,19 @@ struct
               Printf.fprintf oc ".%s = %s" name n) oc inits)
     | E.E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
-        print ?name emit p l e
+        print ?name p l e
     | E.E0S (Verbatim (temps, _), ins) ->
-        let args = List.map (print emit p l) ins in
+        let args = List.map (print p l) ins in
         emit ?name p l e (fun oc ->
           String.print oc (E.expand_verbatim id temps args))
     | E.E1 (Identity, e1) ->
-        print ?name emit p l e1
+        print ?name p l e1
     | E.E1 (Ignore, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         ppi p.P.def "((void)%s, VOID);" n ;
         "VOID"
     | E.E1 (Dump, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         ppi p.P.def "std::cout << %s;" n ;
         "VOID"
     | E.E1 (IsNull, e1) ->
@@ -432,11 +433,11 @@ struct
           (* Cannot call has_value on nullopt: *)
           emit ?name p l e (fun oc -> pp oc "true")
         else
-          let n = print emit p l e1 in
+          let n = print p l e1 in
           emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
     | E.E2 (Nth, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match (E.type_of l e2 |> T.develop_mn).T.typ with
           | T.(Vec _ | Arr _ | Lst _) ->
@@ -444,10 +445,10 @@ struct
           | _ ->
               assert false)
     | E.E1 (NotNull, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (Force what, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         if what <> "" then ppi p.P.def "/* Force: %s */" what ;
         emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
     | E.E0 (Null _) ->
@@ -525,8 +526,8 @@ struct
     | E.E2 (Mul, e1, e2) ->
         binary_infix_op e1 "*" e2
     | E.E2 ((Div | Rem as op), e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         (match E.type_of l e1 |> T.develop_mn with
         | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                        |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
@@ -543,8 +544,8 @@ struct
         | _ ->
             assert false)
     | E.E2 ((UnsafeDiv | UnsafeRem as op), e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         (match E.type_of l e1 |> T.develop_mn with
         | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
                        |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
@@ -559,8 +560,8 @@ struct
         | _ ->
             assert false)
     | E.E2 ((Pow | UnsafePow) as op, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc ->
@@ -579,7 +580,7 @@ struct
     | E.E2 (RightShift, e1, e2) ->
         binary_infix_op e1 ">>" e2
     | E.E1 (StringOfInt, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (match E.type_of l e1 |> T.develop_mn with
         | { typ = Base U128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
@@ -588,7 +589,7 @@ struct
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
     | E.E1 (StringOfIp, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let str = gen_sym ?name "str_" in
         let ip = gen_sym ?name "ip_" in
         ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
@@ -660,10 +661,10 @@ struct
     | E.E1 ((I128OfString | U128OfString), e1) ->
         unary_func "i128_of_string" e1
     | E.E1 (CharOfPtr, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "char(%s.peekU8(0))" n)
     | E.E1 (FloatOfPtr, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
         let val_ = gen_sym "val_" in
@@ -697,7 +698,7 @@ struct
              U48OfPtr | U56OfPtr | U64OfPtr |
              I8OfPtr | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
@@ -713,7 +714,7 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "%s, %s.skip(%s.ptr - %s)" val_ n res start)
     | E.E1 (U128OfPtr, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
@@ -727,7 +728,7 @@ struct
           start stop val_ ;
         emit ?name p l e (fun oc -> pp oc "%s, %s.skip(count_)" val_ n)
     | E.E1 (I128OfPtr, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
@@ -747,7 +748,7 @@ struct
     | E.E1 (StringOfFloat, e1) ->
         unary_func "hex_string_of_float" e1
     | E.E1 (StringOfChar, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         (* This will use the list-initializer. Beware that "1, %s" would _also_ use
          * the list initializer, not the (count, char) constructor! *)
         emit ?name p l e (fun oc -> pp oc "%s" n)
@@ -758,7 +759,7 @@ struct
              ToU40 | ToI40 | ToU48 | ToI48 | ToU56 | ToI56 | ToU64 | ToI64 |
              ToU128 | ToI128 | ToFloat), e1)
     | E.E1 (U8OfBool, e1) | E.E1 (BoolOfU8, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc -> pp oc "%s" n) oc)
@@ -769,18 +770,18 @@ struct
     | E.E1 (SetOfLst, e1) ->
         method_call e1 "toSet" []
     | E.E1 (ArrOfVec, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (ArrOfSet, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "&%s" n1)
     | E.E2 (AppendByte, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 (AppendBytes, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 (AppendString, e1, e2) ->
         binary_infix_op e1 "+" e2
@@ -794,37 +795,37 @@ struct
     | E.E1 (StringOfBytes, e1) ->
         method_call e1 "toString" []
     | E.E1 (BytesOfString, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (PtrOfString, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (PtrOfBuffer, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E2 (PtrOfAddress, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E1 (GetEnv, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let res = gen_sym "getenv_res_" in
         ppi p.P.def "char *%s { std::getenv(%s.c_str()) };" res n1 ;
         emit ?name p l e (fun oc ->
           pp oc "%s == nullptr ? std::nullopt : std::make_optional(%s)" res res)
     | E.E3 (PtrOfPtr, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         emit ?name p l e (fun oc -> pp oc "%s, %s, %s" n1 n2 n3)
     | E.E2 (GetBit, e1, e2) ->
         method_call e1 "getBit" [ e2 ]
     | E.E3 (SetBit, e1, e2, e3) ->
         method_call e1 "setBit" [ e2 ; e3 ]
     | E.E3 (SetVec, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         emit ?name p l e (fun oc -> pp oc "%s[%s] = %s" n2 n1 n3)
     | E.E1 (ReadU8, e1) ->
         method_call e1 "readU8" []
@@ -946,7 +947,7 @@ struct
         unary_func "std::tanh" e1
     | E.E1 ((Lower | Upper as op), e1) ->
         (* FIXME: proper UTF-8 + use a lib for proper lower/upper casing *)
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Beware that n1 is used twice below so we must "un-inlining" it: *)
         let tmp1 = gen_sym ?name "str_" in
         ppi p.P.def "std::string const &%s { %s };" tmp1 n1 ;
@@ -957,7 +958,7 @@ struct
           tmp1 tmp1 res op ;
         res
     | E.E1 (Hash, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let t = E.type_of l e1 in
         let tn = type_identifier_mn p t in
         emit ?name p l e (fun oc -> pp oc "uint64_t(std::hash<%s>{}(%s))" tn n1)
@@ -989,23 +990,23 @@ struct
           pp oc "_random_u64_(_random_engine_) |\
                  ((uint128_t)_random_u64_(_random_engine_) << 64)")
     | E.E2 (Cons, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E1 (Head, e1) ->
         method_call e1 "head" []
     | E.E1 (Tail, e1) ->
         method_call e1 "tail" []
     | E.E2 ((Min | Max as op), e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
+        let n1 = print p l e1
+        and n2 = print p l e2
         and op = match op with Min -> "min" | _ -> "max" in
         let t = E.type_of l e in
         let tn = type_identifier_mn p t in
         emit ?name p l e (fun oc -> pp oc "std::%s<%s>(%s, %s)" op tn n1 n2)
     | E.E2 (Member, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         (* un-inline n2, used several times below: *)
         let tmp2 = gen_sym ?name "set_" in
         ppi p.P.def "auto const &%s { %s };" tmp2 n2 ;
@@ -1032,7 +1033,7 @@ struct
             (valid_identifier typ)
             (E.string_of_type_method meth |> valid_identifier))
     | E.E2 (Let (n, t), e1, e2) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let tn = type_identifier_mn p t in
         let l = E.add_local n t l in
         let t2 = E.type_of l e2 in
@@ -1042,12 +1043,12 @@ struct
         ppi p.P.def "{" ;
         P.indent_more p (fun () ->
           ppi p.P.def "%s %s(%s);" tn (valid_identifier n) n1 ;
-          let tmp = print emit p l e2 in
+          let tmp = print p l e2 in
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
     | E.E2 (LetPair (name1, t1, name2, t2), e1, e2) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         let l = E.add_local name1 t1 l |>
                 E.add_local name2 t2 in
         let t2 = E.type_of l e2 in
@@ -1060,7 +1061,7 @@ struct
             (valid_identifier name1) n1 ;
           ppi p.P.def "auto %s { std::get<1>(%s) };"
             (valid_identifier name2) n1 ;
-          let tmp = print emit p l e2 in
+          let tmp = print p l e2 in
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
@@ -1077,7 +1078,7 @@ struct
             oc ts ;
           let l = E.enter_function ~name fid ts l in
           P.indent_more p (fun () ->
-            let n = print emit p l e1 in
+            let n = print p l e1 in
             print_return n p) ;
           pp oc "%s}\n" p.P.indent ;
           pp oc "%s" p.P.indent)
@@ -1088,18 +1089,18 @@ struct
         | None -> invalid_arg "print Myself while function name is unknown"
         | Some n -> n)
     | E.E3 (If, e1, e2, e3) ->
-        let cond = print emit p l e1 in
+        let cond = print p l e1 in
         let t2 = E.type_of l e2 in
         let has_res = not (T.eq_mn t2 T.void) in
         let res = if has_res then gen_sym ?name "choose_res_" else "VOID" in
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "if (%s) {" cond ;
         P.indent_more p (fun () ->
-          let n = print emit p l e2 in
+          let n = print p l e2 in
           if has_res then ppi p.P.def "%s = %s;" res n) ;
         ppi p.P.def "} else {" ;
         P.indent_more p (fun () ->
-          let n = print emit p l e3 in
+          let n = print p l e3 in
           if has_res then ppi p.P.def "%s = %s;" res n) ;
         ppi p.P.def "}" ;
         res
@@ -1108,18 +1109,18 @@ struct
         ppi p.P.def "bool %s { true };" flag ;
         ppi p.P.def "do {" ;
         P.indent_more p (fun () ->
-          let cond = print emit p l cond in
+          let cond = print p l cond in
           ppi p.P.def "%s = %s;" flag cond ;
           ppi p.P.def "if (%s) {" flag ;
           P.indent_more p (fun () ->
-            print emit p l body |> ignore) ;
+            print p l body |> ignore) ;
           ppi p.P.def "}") ;
         ppi p.P.def "} while (%s);" flag ;
         "VOID"
     | E.E2 (ForEach (n, t), lst, body) ->
         let n1 = valid_identifier n in
         let lst_t = E.type_of l lst |> T.develop_mn in
-        let lst = print emit p l lst in
+        let lst = print p l lst in
         let item_tn = type_identifier_mn p t in
         let is_set =
           match lst_t with
@@ -1131,46 +1132,46 @@ struct
           ppi p.P.def "for (%s %s : %s) {" item_tn n1 lst ;
         P.indent_more p (fun () ->
           let l = E.add_local n t l in
-          print emit p l body |> ignore) ;
+          print p l body |> ignore) ;
         if is_set then
           ppi p.P.def "});"
         else
           ppi p.P.def "}" ;
         "VOID"
     | E.E3 (Map, init, f, lst) ->
-        let init = print emit p l init
-        and f = print emit p l f
-        and lst = print emit p l lst in
+        let init = print p l init
+        and f = print p l f
+        and lst = print p l lst in
         emit ?name p l e (fun oc -> pp oc "%s, %s, %s" init f lst)
     | E.E1 (GetItem n, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "std::get<%d>(%s)" n n1)
     | E.E1 (GetField s, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 (valid_identifier s))
     | E.E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_mn with
         | T.{ typ = Sum mns ; nullable = false } ->
-            let n1 = print emit p l e1 in
+            let n1 = print p l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
               Printf.fprintf oc "std::get<%d>(%s)" lbl n1)
         | _ ->
             assert false)
     | E.E1 (Construct (_, i), e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "std::in_place_index<%d>, %s" i n1)
     | E.E1 (Assert, e1) ->
-        let n = print emit p l e1 in
+        let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
     | E.E1 (MaskGet i, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "%s.get(%d)" n1 i)
     | E.E1 (LabelOf, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())" n1)
     | E.E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask::COPY")
@@ -1179,7 +1180,7 @@ struct
     | E.E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "Mask::SET_NULL")
     | E.E1 (SlidingWindow mn, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier_mn p mn in
         let res = gen_sym ?name "sliding_win_" in
@@ -1187,7 +1188,7 @@ struct
           tn res tn n1 ;
         res
     | E.E1 (TumblingWindow mn, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier_mn p mn in
         let res = gen_sym ?name "tumbling_win_" in
@@ -1195,7 +1196,7 @@ struct
           tn res tn n1 ;
         res
     | E.E1 (Sampling mn, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier_mn p mn in
         let res = gen_sym ?name "sampling_" in
@@ -1203,7 +1204,7 @@ struct
           tn res tn n1 ;
         res
     | E.E1 (HashTable mn, e1) ->
-        let n1 = print emit p l e1 in
+        let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
         let tn = type_identifier_mn p mn in
         let res = gen_sym ?name "hash_table_" in
@@ -1211,7 +1212,7 @@ struct
           tn res tn n1 ;
         res
     | E.E1 (Heap, cmp) ->
-        let n1 = print emit p l cmp in
+        let n1 = print p l cmp in
         (* Cannot use emit since we want to select a specific type of set: *)
         let item_t = E.get_compared_type l cmp in
         let tn = type_identifier_mn p item_t in
@@ -1220,55 +1221,55 @@ struct
           tn res tn n1 ;
         res
     | E.E1 (GetMin, set) ->
-        let set = print emit p l set in
+        let set = print p l set in
         emit ?name p l e (fun oc -> pp oc "%s->getMin();" set)
     | E.E2 (Insert, set, x) ->
-        let set = print emit p l set in
-        let x = print emit p l x in
+        let set = print p l set in
+        let x = print p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insert(%s);" set x ;
         "VOID"
     | E.E2 (DelMin, set, n) ->
-        let set = print emit p l set in
-        let n = print emit p l n in
+        let set = print p l set in
+        let n = print p l n in
         ppi p.P.def "%s->delMin(%s);" set n ;
         "VOID"
     | E.E2 (SplitBy, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_split(%s, %s)" n1 n2)
     | E.E2 (SplitAt, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "%s.substr(0, %s), %s.substr(%s)" n2 n1 n2 n1)
     | E.E2 (Join, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           pp oc "string_join(%s, %s)" n1 n2)
     | E.E2 (AllocArr, e1, e2) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print p l e1
+        and n2 = print p l e2 in
         (* Use the constructor inherited from std::vector: *)
         emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
     | E.E2 (PartialSort, e1, e2) ->
-        let n1 = print ?name emit p l e1
-        and n2 = print emit p l e2 in
+        let n1 = print ?name p l e1
+        and n2 = print p l e2 in
         ppi p.P.def "%s.partial_sort(%s);" n1 n2 ;
         n1
     | E.E2 ((ChopBegin | ChopEnd as op), lst, len) ->
         let op = match op with ChopBegin -> "chopBegin" | _ -> "chopEnd" in
         method_call lst op [ len ]
     | E.E2 (ScaleWeights, set, d) ->
-        let set = print emit p l set in
-        let d = print emit p l d in
+        let set = print p l set in
+        let d = print p l d in
         ppi p.P.def "%s->scale(%s);" set d ;
         "VOID"
     | E.E2 (CharOfString, idx, str) ->
-        let idx = print emit p l idx
-        and str = print emit p l str in
+        let idx = print p l idx
+        and str = print p l str in
         (* un-inline them: *)
         let idx_ = gen_sym ?name "idx_"
         and str_ = gen_sym ?name "str_" in
@@ -1279,8 +1280,8 @@ struct
                   std::make_optional(%s[%s]) : std::nullopt"
             idx_ str_ str_ idx_)
     | E.E2 (Strftime, fmt, time) ->
-        let fmt = print emit p l fmt
-        and time = print emit p l time
+        let fmt = print p l fmt
+        and time = print p l time
         and buf = gen_sym ?name "buf" in
         (* 256 bytes should be enough for every dates *)
         ppi p.P.def "char %s[256];" buf ;
@@ -1289,9 +1290,9 @@ struct
             \"date too long\" : %s"
           buf buf fmt time buf)
     | E.E3 (FindSubstring, e1, e2, e3) ->
-        let n1 = print emit p l e1
-        and n2 = print emit p l e2
-        and n3 = print emit p l e3 in
+        let n1 = print p l e1
+        and n2 = print p l e2
+        and n3 = print p l e3 in
         let pos = gen_sym ?name "pos_" in
         ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) };"
           pos n1 n3 n2 n3 n2 ;
@@ -1301,16 +1302,16 @@ struct
     | E.E3 (Top _, _, _, _) ->
         todo "C++ back-end for TOPs"
     | E.E3 (InsertWeighted, set, w, x) ->
-        let set = print emit p l set
-        and w = print emit p l w
-        and x = print emit p l x in
+        let set = print p l set
+        and w = print p l w
+        and x = print p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insertWeighted(%s, %s);" set w x ;
         "VOID"
     | E.E3 (Substring, str, start, stop) ->
-        let str = print emit p l str
-        and start = print emit p l start
-        and stop = print emit p l stop in
+        let str = print p l str
+        and start = print p l start
+        and stop = print p l stop in
         let len = gen_sym "len_" in
         ppi p.P.def "std::size_t const %s { %s.size() };" len str ;
         let clamp_start = gen_sym "start_" in
