@@ -1193,20 +1193,10 @@ let rec peval l e =
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
             null T.(Base U24) |> repl)
-      | SetVec, f1, f2, _ ->
-          let def = E.E3 (SetVec, e1, e2, e3) in
-          (match E.to_cst_int f1 with
-          | exception _ ->
-              def
-          | i ->
-              (match f2 with
-              | E0S (MakeVec, es) ->
-                  List.mapi (fun j e -> if i = j then e3 else e) es |>
-                  make_vec |>
-                  replace_final_expression_anonymously e2 |>
-                  replace_final_expression_anonymously e1 |> p
-              | _ ->
-                  def))
+      | SetVec, _, E.E0S (MakeVec, _), _ ->
+          Format.eprintf "Warning: vector is lost after modification in:@.%a@."
+            (E.pretty_print ~max_depth:4) e ;
+          E.E3 (SetVec, e1, e2, e3)
       | op, _, _, _ -> E3 (op, e1, e2, e3))
 
 (*$inject
