@@ -882,6 +882,21 @@ let rec peval l e =
       | Mul, _, f2 when known_one f2 -> keep1 ()
       | Mul, f1, _ when known_zero f1 -> keep1 ()
       | Mul, _, f2 when known_zero f2 -> keep2 ()
+      | Add, f1, E2 (op, e2_1, e2_2) ->
+          let def = E.E2 (Add, e1, e2) in
+          (match op, final_expression e2_1, final_expression e2_2 with
+          | Add, f2_0, f2_1 ->
+              (try E.E2 (Add, arith2 f1 f2_0 (+.) Int128.add Uint128.add, e2_2) |>
+                   replace_final_expression_anonymously e2_1 |>
+                   repl
+              with Invalid_argument _ ->
+                (try E.E2 (Add, e2_1, arith2 f1 f2_1 (+.) Int128.add Uint128.add) |>
+                     replace_final_expression_anonymously e2_2 |>
+                     repl
+                with Invalid_argument _ ->
+                  def))
+            | _ -> (* TODO: other operators that we can combine with Add *)
+                def)
       | Add, f1, f2 ->
           (try arith2 f1 f2 (+.) Int128.add Uint128.add |> repl
           with Invalid_argument _ -> E.E2 (Add, e1, e2))
@@ -955,6 +970,10 @@ let rec peval l e =
               let to_ = T.(E.type_of l f1).typ in
               (try C.conv ~to_ l (float (a ** b)) |> repl
               with _ -> def))
+      | PtrAdd, E2 (PtrAdd, e1_1, e1_2), _ ->
+          E.E2 (PtrAdd, e1_1, E.E2 (Add, e1_2, e2)) |>
+          replace_final_expression_anonymously e1 |>
+          repl
       | BitAnd, f1, f2 ->
           (try arith2 f1 f2 no_floats Int128.logand Uint128.logand |> repl
           with Invalid_argument _ -> E.E2 (BitAnd, e1, e2))
