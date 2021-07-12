@@ -1218,14 +1218,14 @@ struct
     [ Sym "glop" ] (sexpr_of_string "glop ; comment")
   *)
 
-  let int_of_symbol x d =
+  let int_of_symbol s d =
     try int_of_string d
-    with _ -> raise (Must_be_integer (x, d))
+    with _ -> raise (Must_be_integer (s, d))
 
   let rec e = function
     (* e0 *)
-    | Lst [ Sym "param" ; Sym fid ; Sym n ] ->
-        E0 (Param (int_of_string fid, int_of_string n))
+    | Lst [ Sym "param" ; Sym fid ; Sym n ] as s ->
+        E0 (Param (int_of_symbol s fid, int_of_symbol s n))
     | Lst [ Sym "myself" ; Str mn ] ->
         E0 (Myself (T.mn_of_string mn))
     | Lst [ Sym "null" ; Str t ] ->
@@ -1262,7 +1262,7 @@ struct
     | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int56.of_string n))
     | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
     | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
-    | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_string n))
+    | Lst [ Sym "size" ; Sym n ] as s -> E0 (Size (int_of_symbol s n))
     | Lst [ Sym "address" ; Sym n ] -> E0 (Address (Uint64.of_string n))
     | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
     | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
@@ -1293,7 +1293,7 @@ struct
         let temps = List.map temp_of_strings temps in
         E0S (Verbatim (temps, T.mn_of_string mn), List.map e xs)
     (* e1 *)
-    | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) ->
+    | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) as s ->
         (* Syntax for functions is:
          *    (fun id "type arg 1" "type arg 2" ... body)
          * where:
@@ -1308,17 +1308,17 @@ struct
                 Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
                 failwith
           ) in
-        E1 (Function (int_of_string fid, typs), e x)
+        E1 (Function (int_of_symbol s fid, typs), e x)
     | Lst [ Sym "comment" ; Str s ; x ] ->
         E1 (Comment s, e x)
-    | Lst [ Sym "get-item" ; Sym n ; x ] ->
-        E1 (GetItem (int_of_string n), e x)
+    | Lst [ Sym "get-item" ; Sym n ; x ] as s ->
+        E1 (GetItem (int_of_symbol s n), e x)
     | Lst [ Sym "get-field" ; Str s ; x ] ->
         E1 (GetField s, e x)
     | Lst [ Sym "get-alt" ; Str s ; x ] ->
         E1 (GetAlt s, e x)
-    | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] ->
-        let i = int_of_string i in
+    | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] as s ->
+        let i = int_of_symbol s i in
         (match T.mn_of_string mn with
         | { typ = Sum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
@@ -1459,8 +1459,8 @@ struct
     | Lst [ Sym "read-u128" ; Sym en ; x ] ->
         E1 (ReadU128 (endianness_of_string en), e x)
     | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
-    | Lst [ Sym "mask-get" ; Sym d ; x1 ] as x ->
-        E1 (MaskGet (int_of_symbol x d), e x1)
+    | Lst [ Sym "mask-get" ; Sym d ; x1 ] as s ->
+        E1 (MaskGet (int_of_symbol s d), e x1)
     | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
     | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
         E1 (SlidingWindow (T.mn_of_string mn), e x)
