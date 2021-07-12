@@ -1,8 +1,8 @@
 #ifndef BYTES_H_191025
 #define BYTES_H_191025
+#include <cstring>
 #include <memory>
 #include <string>
-#include <cstring>
 #include "dessser/typedefs.h"
 
 namespace dessser_gen {
@@ -103,6 +103,19 @@ struct Bytes {
     return std::string((char const *)(buffer.get() + offset), size);
   }
 };
+
+inline bool operator==(Bytes const &lhs, Bytes const &rhs)
+{
+  if (lhs.size != rhs.size) return false;
+  if (lhs.buffer == rhs.buffer && lhs.offset == rhs.offset) return true;
+  // Slow path
+  return 0 == std::memcmp(lhs.buffer.get(), rhs.buffer.get(), lhs.size);
+}
+
+inline bool operator!=(Bytes const &lhs, Bytes const &rhs)
+{
+  return !(lhs == rhs);
+}
 
 };
 

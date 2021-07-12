@@ -2442,7 +2442,7 @@ let rec type_check l e =
     let rec is_comparable = function
       | T.{
           typ =
-            (Size | Address | Mask
+            (Size | Address | Mask | Bytes
             | Base (
                 Float | String | Bool | Char |
                 U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |

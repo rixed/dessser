@@ -244,6 +244,13 @@ struct
 
   let of_string s =
     make (Bytes.unsafe_of_string s) 0 (String.length s)
+
+  let eq s1 s2 =
+    s1.length = s2.length && (
+      (s1.bytes == s2.bytes && s1.offset = s2.offset) ||
+      (* Slow path *)
+      (to_string s1 = to_string s2)
+    )
 end
 
 (* Pointers

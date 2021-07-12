@@ -741,7 +741,14 @@ struct
     | E.E2 (Ge, e1, e2) ->
         binary_infix_op e1 ">=" e2
     | E.E2 (Eq, e1, e2) ->
-        binary_infix_op e1 "=" e2
+        (match (E.type_of l e1 |> T.develop_mn).T.typ with
+        | Bytes ->
+            (* Bytes have a dedicated equality operator *)
+            binary_op "Slice.eq" e1 e2
+        (* FIXME: Shouldn't IPs also have a dedicated eq operator for comparing
+         * generic with specific IPs/CIDRs *)
+        | _ ->
+            binary_infix_op e1 "=" e2)
     | E.E2 (Add, e1, e2) ->
         binary_mod_op "add" e1 e2
     | E.E2 (Sub, e1, e2) ->
