@@ -352,7 +352,7 @@ let last_ip_of_cidr6 cidr =
  * Also handles the case where [lst] and/or [e] is null (note than null is known
  * not to be in a (non-null) empty set).
  * Return value is nullable whenever [item] or [lst] is. *)
-let rec is_in ?(l=E.no_env) item lst =
+let rec is_in ~l item lst =
   let open E.Ops in
   let_ ~l ~name:"lst" lst (fun l lst ->
     let_ ~l ~name:"item" item (fun l item ->

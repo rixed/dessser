@@ -3553,7 +3553,7 @@ struct
 
   let apply f es = E1S (Apply, f, es)
 
-  let while_ cond body = E2 (While, cond, body)
+  let while_ cond ~do_ = E2 (While, cond, do_)
 
   let string_of_bytes e = E1 (StringOfBytes, e)
 
@@ -3652,7 +3652,7 @@ struct
 
   let make_arr mn es = E0S (MakeArr mn, es)
 
-  let alloc_arr ~len ~init = E2 (AllocArr, len, init)
+  let alloc_arr len init = E2 (AllocArr, len, init)
 
   let partial_sort vs ks = E2 (PartialSort, vs, ks)
 
