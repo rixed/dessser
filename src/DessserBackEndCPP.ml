@@ -1232,6 +1232,10 @@ struct
     | E.E1 (GetMin, set) ->
         let set = print p l set in
         emit ?name p l e (fun oc -> pp oc "%s->getMin();" set)
+    | E.E1 (AllocVec d, init) ->
+        let init = print p l init in
+        emit ?name p l e (fun oc ->
+          pp oc "(std::size_t)%d, %s" d init)
     | E.E2 (Insert, set, x) ->
         let set = print p l set in
         let x = print p l x in

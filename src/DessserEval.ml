@@ -646,6 +646,8 @@ let rec peval l e =
           u32_of_int 1 |> repl
       | Cardinality, E0S ((MakeVec | MakeArr _), es) ->
           u32_of_int (List.length es) |> repl
+      | Cardinality, E1 (AllocVec d, _) ->
+          u32_of_int d
       | Cardinality, E0 (EndOfList _ | EmptySet _)
       | Cardinality, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
                           HashTable _ | Heap), _)
@@ -655,6 +657,8 @@ let rec peval l e =
       | BitNot, f1 ->
           (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl
           with Invalid_argument _ -> E.E1 (BitNot, e1))
+      | AllocVec 1, _ ->
+          make_vec [ e1 ] |> p
       | op, _ -> E.E1 (op, e1))
   | E1S (Apply, e1, es) ->
       let e1 = p e1 in
@@ -842,6 +846,13 @@ let rec peval l e =
               p
           | _ ->
               def)
+      | Nth, _, E1 (AllocVec d, init) ->
+          let def = E.E2 (Nth, e1, e2) in
+          if_ (lt (to_u32 e1) (u32_of_int d))
+            (* Avoid building the array unless e1is bogus: *)
+            ~then_:(replace_final_expression e2 init)
+            ~else_:def (* Will crash *) |>
+          p (* Will simplify further if e1 is known *)
       (* Peel away some common wrappers: *)
       | Eq, E1 (NotNull, f1), E1 (NotNull, f2)
       | Eq, E1 (Force _, f1), E1 (Force _, f2) ->
@@ -1115,13 +1126,16 @@ let rec peval l e =
           replace_final_expression_anonymously e2 nop |>
           replace_final_expression_anonymously e1
       | ForEach _, (E0S ((MakeVec | MakeArr _), []) |
+                    E1 (AllocVec 0, _) |
                     E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
                          HashTable _ | Heap), _) |
                     E3 (Top _, _, _, _)), _ ->
           replace_final_expression_anonymously e1 nop
-      | ForEach (n, t), E0S ((MakeVec | MakeArr _), [ item ]), body ->
+      | ForEach (n, t), (E0S ((MakeVec | MakeArr _), [ item ]) |
+                         E1 (AllocVec 1, item)), body ->
           E2 (Let (n, t), replace_final_expression e1 item,
                           replace_final_expression e2 body)
+      (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *)
       | Index, E0 (Char c), E0 (String s) ->
           (try not_null (u32_of_int (String.index s c))
           with Not_found -> null (Base U32)) |>
@@ -1174,6 +1188,8 @@ let rec peval l e =
               (* Unearthing the MakeVec might makes further optimisations
                * possible: *)
               make_vec [ apply e2 [ e1 ; repl3 e ] ] |> p
+          | E1 (AllocVec d, init) ->
+              alloc_vec d (apply e2 [ repl3 init ])
           | _ ->
               if E.is_identity 0 f then
                 replace_final_expression_anonymously e2 e3 |>
@@ -1193,7 +1209,7 @@ let rec peval l e =
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
             null T.(Base U24) |> repl)
-      | SetVec, _, E.E0S (MakeVec, _), _ ->
+      | SetVec, _, (E.E0S (MakeVec, _) | E.E1 (AllocVec _, _)), _ ->
           Format.eprintf "Warning: vector is lost after modification in:@.%a@."
             (E.pretty_print ~max_depth:4) e ;
           E.E3 (SetVec, e1, e2, e3)

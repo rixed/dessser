@@ -307,6 +307,7 @@ type e1 =
   | GetEnv
   (* Get the minimal value of a set (heap): *)
   | GetMin
+  | AllocVec of int (* parameter is the initial value *)
 
 type e1s =
   | Apply
@@ -898,6 +899,7 @@ let string_of_e1 = function
   | PtrOfBuffer -> "ptr-of-buffer"
   | GetEnv -> "getenv"
   | GetMin -> "get-min"
+  | AllocVec d -> "alloc-vec "^ string_of_int d
 
 let string_of_e2 = function
   | Let (n, t) ->
@@ -1480,6 +1482,8 @@ struct
         E1 (GetEnv, e x)
     | Lst [ Sym "get-min" ; x ] ->
         E1 (GetMin, e x)
+    | Lst [ Sym "alloc-vec" ; Sym d ; x ] as s ->
+        E1 (AllocVec (int_of_symbol s d), e x)
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
@@ -2001,6 +2005,9 @@ and type_of l e0 =
       (match type_of l e |> T.develop1 with
       | T.{ typ = Set (Heap, mn) ; nullable = false } -> mn
       | t -> raise (Type_error (e0, e, t, "be a heap")))
+  | E1 (AllocVec d, init) ->
+      let item_mn = type_of l init in
+      T.(required (vec d item_mn))
   | E2 (Cons, e1, _e2) ->
       T.(required (lst (type_of l e1)))
   (* Shortcut: *)
@@ -2380,7 +2387,8 @@ let has_side_effect e =
              U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
              U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
              I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
-             I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr), _)
+             I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr |
+             AllocVec _), _)
       | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
       | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
              WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
@@ -2536,7 +2544,8 @@ let rec type_check l e =
          | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
-    | E1 ((Comment _ | Dump | Identity | Ignore | Function _ | Hash), _)
+    | E1 ((Comment _ | Dump | Identity | Ignore | Function _ | Hash |
+           AllocVec _), _)
     | E2 ((Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
         ()
@@ -3649,6 +3658,10 @@ struct
   let member e1 e2 = E2 (Member, e1, e2)
 
   let make_vec es = E0S (MakeVec, es)
+
+  let alloc_vec d init =
+    assert (d >= 0) ;
+    E1 (AllocVec d, init)
 
   let make_arr mn es = E0S (MakeArr mn, es)
 

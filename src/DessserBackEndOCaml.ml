@@ -1606,6 +1606,10 @@ struct
         and m = mod_of_set_type_of_expr l set in
         emit ?name p l e (fun oc ->
           pp oc "%s.get_min %s" m set)
+    | E.E1 (AllocVec d, init) ->
+        let init = print p l init in
+        emit ?name p l e (fun oc ->
+          pp oc "Array.make %d %s" d init)
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
