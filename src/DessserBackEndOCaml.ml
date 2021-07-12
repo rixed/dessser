@@ -668,13 +668,37 @@ struct
         let n2 = print p l e2 in
         let m = mod_name (E.type_of l e1) in
         emit ?name p l e (fun oc ->
-          match (E.type_of l e2 |> T.develop_mn).T.typ with
+          Printf.fprintf oc "try Some (" ;
+          (match (E.type_of l e2 |> T.develop_mn).T.typ with
           | T.(Vec _ | Arr _) ->
               Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1
           | T.Lst _ ->
               Printf.fprintf oc "List.nth %s (%s.to_int %s)" n2 m n1
+          | T.Base String ->
+              Printf.fprintf oc "%s.[%s.to_int %s]" n2 m n1
+          | T.Bytes ->
+              Printf.fprintf oc "Uint8.of_int (Char.code \
+                                 (Slice.get %s (%s.to_int %s)))" n2 m n1
           | _ ->
-              assert false)
+              assert false) ;
+          Printf.fprintf oc ") with _ -> None")
+    | E.E2 (UnsafeNth, e1, e2) ->
+        let n1 = print p l e1 in
+        let n2 = print p l e2 in
+        let m = mod_name (E.type_of l e1) in
+        emit ?name p l e (fun oc ->
+          (match (E.type_of l e2 |> T.develop_mn).T.typ with
+          | T.(Vec _ | Arr _) ->
+              Printf.fprintf oc "Array.unsafe_get %s (%s.to_int %s)" n2 m n1
+          | T.Lst _ ->
+              Printf.fprintf oc "List.nth %s (%s.to_int %s)" n2 m n1
+          | T.Base String ->
+              Printf.fprintf oc "String.unsafe_get %s (%s.to_int %s)" n2 m n1
+          | T.Bytes ->
+              Printf.fprintf oc "Uint8.of_int (Char.code \
+                                 (Slice.unsafe_get %s (%s.to_int %s)))" n2 m n1
+          | _ ->
+              assert false)) ;
     | E.E1 (NotNull, e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "Some %s" n1)
@@ -1675,14 +1699,6 @@ struct
         and m = mod_of_set_type_of_expr l set in
         ppi p.P.def "%s.scale %s %s ;" m set d ;
         "()"
-    | E.E2 (CharOfString, idx, str) ->
-        let m_idx = mod_name (E.type_of l idx) in
-        let idx = print p l idx (* guaranteed to be unsigned *)
-        and str = print p l str in
-        emit ?name p l e (fun oc ->
-          pp oc "(let n_ = %s.to_int %s and s_ = %s in \
-                  if n_ < String.length s_ then Some s_.[n_] \
-                  else None)" m_idx idx str)
     | E.E2 (Strftime, fmt, time) ->
         let fmt = print p l fmt
         and time = to_float p l time in

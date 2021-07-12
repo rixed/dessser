@@ -255,7 +255,7 @@ let percentiles ~l vs ps =
               (* Sort vs: *)
               partial_sort vs ks ;
               map_ vs (E.func2 ~l vs_t T.u32 (fun _l vs k ->
-                nth k vs)
+                unsafe_nth k vs)
               ) ks ])))
 
 (* If [e] is not nullable, [to_nullable l e] is [not_null e].

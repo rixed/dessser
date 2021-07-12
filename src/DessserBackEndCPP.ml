@@ -440,7 +440,26 @@ struct
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match (E.type_of l e2 |> T.develop_mn).T.typ with
-          | T.(Vec _ | Arr _ | Lst _) ->
+          | T.(Vec _ | Arr _) ->
+              pp oc "%s < %s.size() ? \
+                     std::make_optional(%s[%s]) : std::nullopt" n1 n2 n2 n1
+          | T.Lst _
+          | T.Base String
+          | T.Bytes ->
+              pp oc "%s < %s.length() ? \
+                     std::make_optional(%s[%s]) : std::nullopt" n1 n2 n2 n1
+          | _ ->
+              assert false)
+    | E.E2 (UnsafeNth, e1, e2) ->
+        let n1 = print p l e1
+        and n2 = print p l e2 in
+        emit ?name p l e (fun oc ->
+          match (E.type_of l e2 |> T.develop_mn).T.typ with
+          | T.Vec _
+          | T.Arr _
+          | T.Lst _
+          | T.Base String
+          | T.Bytes ->
               pp oc "%s[%s]" n2 n1
           | _ ->
               assert false)
@@ -1280,18 +1299,6 @@ struct
         let d = print p l d in
         ppi p.P.def "%s->scale(%s);" set d ;
         "VOID"
-    | E.E2 (CharOfString, idx, str) ->
-        let idx = print p l idx
-        and str = print p l str in
-        (* un-inline them: *)
-        let idx_ = gen_sym ?name "idx_"
-        and str_ = gen_sym ?name "str_" in
-        ppi p.P.def "auto const &%s { %s };" str_ str ;
-        ppi p.P.def "auto const %s { %s };" idx_ idx ;
-        emit ?name p l e (fun oc ->
-          pp oc "%s < %s.size() ? \
-                  std::make_optional(%s[%s]) : std::nullopt"
-            idx_ str_ str_ idx_)
     | E.E2 (Strftime, fmt, time) ->
         let fmt = print p l fmt
         and time = print p l time

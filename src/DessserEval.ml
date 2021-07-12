@@ -843,6 +843,7 @@ let rec peval l e =
               (* Identifiers may be needed in [es], ie [e2] *)
               replace_final_expression e2 |>
               replace_final_expression_anonymously e1 |>
+              to_not_null ~l |>
               p
           | _ ->
               def)
@@ -850,9 +851,24 @@ let rec peval l e =
           let def = E.E2 (Nth, e1, e2) in
           if_ (lt (to_u32 e1) (u32_of_int d))
             (* Avoid building the array unless e1is bogus: *)
-            ~then_:(replace_final_expression e2 init)
+            ~then_:(replace_final_expression e2 init |> to_not_null ~l)
             ~else_:def (* Will crash *) |>
           p (* Will simplify further if e1 is known *)
+      | Nth, idx, E0 (String s) ->
+          let def = E.E2 (Nth, e1, e2) in
+          if String.length s = 0 then null (Base Char) |> repl
+          else (match E.to_cst_int idx with
+          | exception _ -> def
+          | idx when idx < String.length s -> not_null (char s.[idx]) |> repl
+          | _ -> def)
+      | Nth, idx, E0 (Bytes s) ->
+          let def = E.E2 (Nth, e1, e2) in
+          if Bytes.length s = 0 then null (Base U8) |> repl
+          else (match E.to_cst_int idx with
+          | exception _ -> def
+          | idx when idx < Bytes.length s ->
+              not_null (u8_of_const_char (Bytes.get s idx)) |> repl
+          | _ -> def)
       (* Peel away some common wrappers: *)
       | Eq, E1 (NotNull, f1), E1 (NotNull, f2)
       | Eq, E1 (Force _, f1), E1 (Force _, f2) ->
@@ -1025,13 +1041,6 @@ let rec peval l e =
             string |> repl
           with Exit ->
             E2 (Join, e1, e2))
-      | CharOfString, idx, E0 (String s) ->
-          let def = E.E2 (CharOfString, e1, e2) in
-          if String.length s = 0 then null (Base Char) |> repl
-          else (match E.to_cst_int idx with
-          | exception _ -> def
-          | idx when idx < String.length s -> not_null (char s.[idx]) |> repl
-          | _ -> def)
       | And, E0 (Bool true), _ -> keep2 ()
       | And, _, E0 (Bool true) -> keep1 ()
       | And, E0 (Bool false), _ -> bool false |> repl1 (* [e2] not evaluated *)
@@ -1281,9 +1290,9 @@ let rec peval l e =
 
   "(random-u8)" \
     (test_peval 3 \
-      "(nth (u8 1) \
+      "(force (nth (u8 1) \
          (let \"a\" \"U8\" (random-u8) \
-           (make-vec (identifier \"a\") (identifier \"a\"))))")
+           (make-vec (identifier \"a\") (identifier \"a\")))))")
 
   "(null \"FLOAT\")" \
     (test_peval 3 "(float-of-string (string \"POISON\"))")

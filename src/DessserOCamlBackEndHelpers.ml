@@ -208,6 +208,13 @@ struct
   let make bytes offset length =
     { bytes ; offset ; length }
 
+  (* Returns an optional value: *)
+  let get s i =
+    Bytes.get s.bytes (s.offset + i)
+
+  let unsafe_get s i =
+    Bytes.unsafe_get s.bytes (s.offset + i)
+
   let append s1 s2 =
     if s1.bytes == s2.bytes &&
        s1.offset + s1.length = s2.offset

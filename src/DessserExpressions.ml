@@ -320,8 +320,9 @@ type e2 =
    * - The type is cached here for performance reason *)
   | Let of string * T.mn
   | LetPair of string * T.mn * string * T.mn
-  (* Deconstructor for vectors/arrs/lists/sets: *)
+  (* Deconstructor for vectors/arrs/lists/sets/strings/bytes: *)
   | Nth
+  | UnsafeNth
   (* Comparators: *)
   | Gt
   | Ge
@@ -394,8 +395,6 @@ type e2 =
   | ChopEnd
   (* Scale the weight of a weighted set (ie. top) *)
   | ScaleWeights
-  (* Arguments are index and string (as in Nth): *)
-  | CharOfString
   (* Arguments are format string and time (in seconds from UNIX epoch): *)
   | Strftime
   | PtrOfAddress (* Points to a given address in memory *)
@@ -908,6 +907,7 @@ let string_of_e2 = function
       "let-pair "^ String.quote n1 ^" "^ String.quote (T.mn_to_string mnt1)
              ^" "^ String.quote n2 ^" "^ String.quote (T.mn_to_string mnt2)
   | Nth -> "nth"
+  | UnsafeNth -> "unsafe-nth"
   | Gt -> "gt"
   | Ge -> "ge"
   | Eq -> "eq"
@@ -962,7 +962,6 @@ let string_of_e2 = function
   | ChopBegin -> "chop-begin"
   | ChopEnd -> "chop-end"
   | ScaleWeights -> "scale-weights"
-  | CharOfString -> "char-of-string"
   | Strftime -> "strftime"
   | PtrOfAddress -> "ptr-of-address"
   | While -> "while"
@@ -1495,6 +1494,7 @@ struct
         and mnt2 = T.mn_of_string mnt2 in
         E2 (LetPair (n1, mnt1, n2, mnt2), e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
+    | Lst [ Sym "unsafe-nth" ; x1 ; x2 ] -> E2 (UnsafeNth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
     | Lst [ Sym "lt" ; x1 ; x2 ] -> E2 (Gt, e x2, e x1)
     | Lst [ Sym "ge" ; x1 ; x2 ] -> E2 (Ge, e x1, e x2)
@@ -1570,8 +1570,6 @@ struct
         E2 (ChopEnd, e x1, e x2)
     | Lst [ Sym "scale-weights" ; set ; d ] ->
         E2 (ScaleWeights, e set, e d)
-    | Lst [ Sym "char-of-string" ; idx ; str ] ->
-        E2 (CharOfString, e idx, e str)
     | Lst [ Sym "strftime" ; fmt ; time ] ->
         E2 (Strftime, e fmt, e time)
     | Lst [ Sym "ptr-of-address" ; x1 ; x2 ] ->
@@ -1833,7 +1831,12 @@ and type_of l e0 =
   | E1 ((Construct (mns, _)), _) ->
       T.required (Sum mns)
   | E2 (Nth, _, e2) ->
-      get_item_type ~arr:true ~vec:true ~set:true ~lst:true e0 l e2
+      get_item_type ~arr:true ~vec:true ~set:true ~lst:true ~bytes:true
+                    ~str:true e0 l e2 |>
+      T.to_nullable
+  | E2 (UnsafeNth, _, e2) ->
+      get_item_type ~arr:true ~vec:true ~set:true ~lst:true ~bytes:true
+                    ~str:true e0 l e2
   | E2 ((Add | Sub | Mul | BitAnd | BitOr | BitXor |
          UnsafeDiv | UnsafeRem | UnsafePow), e1, e2) ->
       either e1 e2
@@ -2110,26 +2113,30 @@ and type_of l e0 =
   | E3 (Substring, _, _, _)
   | E2 (Strftime, _, _) ->
       T.string
-  | E2 (CharOfString, _, _) ->
-      T.nchar
 
-and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false) l e =
+and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
+                      ?(str=false) ?(bytes=false) l e =
   match type_of l e |> T.develop1 with
   | { typ = Vec (_, mn) ; nullable = false } when vec -> Ok mn
   | { typ = Arr mn ; nullable = false } when arr -> Ok mn
   | { typ = Set (_, mn) ; nullable = false } when set -> Ok mn
   | { typ = Lst mn ; nullable = false } when lst -> Ok mn
+  | { typ = Base String ; nullable = false } when str -> Ok T.char
+  | { typ = Bytes ; nullable = false } when bytes -> Ok T.u8
   | t -> Error t
 
 (* Return the element type or fail: *)
-and get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false) e0 l e =
-  match get_item_type_err ~vec ~arr ~set ~lst l e with
+and get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
+                  ?(str=false) ?(bytes=false) e0 l e =
+  match get_item_type_err ~vec ~arr ~set ~lst ~str ~bytes l e with
   | Ok t -> t
   | Error t ->
       let acceptable = if vec then [ "vector" ] else [] in
       let acceptable = if arr then "array" :: acceptable else acceptable in
       let acceptable = if set then "set" :: acceptable else acceptable in
       let acceptable = if lst then "list" :: acceptable else acceptable in
+      let acceptable = if str then "string" :: acceptable else acceptable in
+      let acceptable = if bytes then "bytes" :: acceptable else acceptable in
       raise (Type_error (e0, e, t, "be a "^ String.join " or " acceptable))
 
 and get_compared_type l cmp =
@@ -2507,7 +2514,8 @@ let rec type_check l e =
     let check_arr l e =
       ignore (get_item_type ~arr:true e0 l e) in
     let check_ordered_lst l e =
-      ignore (get_item_type ~arr:true ~vec:true ~lst:true e0 l e) in
+      ignore (get_item_type ~arr:true ~vec:true ~lst:true ~str:true ~bytes:true
+                            e0 l e) in
     let check_any_lst l e =
       ignore (get_item_type ~arr:true ~vec:true ~set:true ~lst:true e0 l e) in
     let check_lst l e =
@@ -2579,9 +2587,9 @@ let rec type_check l e =
         check_fun_sign l f es
     | E1 (IsNull, e) ->
         check_nullable true l e
-    | E2 (Nth, e1, e2) ->
-        check_ordered_lst l e2 ;
-        check_integer l e1
+    | E2 ((Nth | UnsafeNth), e1, e2) ->
+        check_integer l e1 ;
+        check_ordered_lst l e2
     | E1 (NotNull, e) ->
         check_nullable false l e
     | E1 (Force _, e) ->
@@ -2700,9 +2708,6 @@ let rec type_check l e =
     | E2 (ScaleWeights, set, d) ->
         check_set l set ;
         check_numeric l d
-    | E2 (CharOfString, idx, str) ->
-        check_unsigned l idx ;
-        check_eq l str T.string
     | E2 (Strftime, fmt, time) ->
         check_eq l fmt T.string ;
         check_numeric l time
@@ -3253,6 +3258,8 @@ struct
 
   let nth e1 e2 = E2 (Nth, e1, e2)
 
+  let unsafe_nth e1 e2 = E2 (UnsafeNth, e1, e2)
+
   let read_u8 e1 = E1 (ReadU8, e1)
 
   let read_u16 en e1 = E1 (ReadU16 en, e1)
@@ -3311,13 +3318,14 @@ struct
 
   let null vt = E0 (Null vt)
 
-  let char_of_string idx str = E2 (CharOfString, idx, str)
-
   let strftime fmt time = E2 (Strftime, fmt, time)
 
   let string_of_char e = E1 (StringOfChar, e)
 
   let not_null e = E1 (NotNull, e)
+
+  let to_not_null ~l e =
+    if (type_of l e).T.nullable then e else not_null e
 
   let or_null_ vt op conv s =
     try not_null (op (conv s)) with _ -> null vt
@@ -3736,7 +3744,7 @@ struct
 
   let make_ref e = E0S (MakeVec, [ e ])
 
-  let get_ref e = nth (u8_of_int 0) e
+  let get_ref e = unsafe_nth (u8_of_int 0) e
 
   let set_ref e x = E3 (SetVec, u8_of_int 0, e, x)
 

@@ -351,7 +351,7 @@ struct
         let dst = if i = 0 then dst else
                     Ser.vec_sep sstate mn0 subpath l dst in
         let_ ~name:"svec_dst" ~l dst (fun l dst ->
-          let v' = nth (u32_of_int i) v in
+          let v' = unsafe_nth (u32_of_int i) v in
           (* From now on we copy all fields, as individual vector items cannot
            * be filtered: (TODO: why not BTW?) *)
           let ma = fieldmask_copy ma in
@@ -593,7 +593,7 @@ struct
     let rec loop l sz i =
       if i >= dim then sz else
       let subpath = Path.(append (CompTime i) path) in
-      let v' = nth (u32_of_int i) v in
+      let v' = unsafe_nth (u32_of_int i) v in
       let_ ~name:"sz" ~l sz (fun l sz ->
         let ma = fieldmask_copy ma in
         let sz = sersz1 mn mn0 subpath l v' ma sz in
@@ -610,7 +610,7 @@ struct
       let len = cardinality v in
       seq [
         StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) (fun l n ->
-          let v' = nth n v in
+          let v' = unsafe_nth n v in
           let subpath = Path.(append (RunTime n) path) in
           let ma = fieldmask_copy ma in
           sersz1 mn mn0 subpath l v' ma sz |>

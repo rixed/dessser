@@ -529,7 +529,7 @@ struct
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
         conf (fun e ->
-          force (char_of_string (u8_of_int 0) (string_of_bytes e))
+          char_of_u8 (unsafe_nth (u8_of_int 0) e)
         ) l p
 
   let di8 _conf _ _ _ p = i8_of_ptr p

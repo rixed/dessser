@@ -102,6 +102,16 @@ struct Bytes {
   {
     return std::string((char const *)(buffer.get() + offset), size);
   }
+
+  size_t length() const
+  {
+    return size;
+  }
+
+  uint8_t operator[](std::size_t i) const
+  {
+    return buffer.get()[offset + i];
+  }
 };
 
 inline bool operator==(Bytes const &lhs, Bytes const &rhs)
