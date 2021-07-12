@@ -1079,6 +1079,12 @@ let required = maybe_nullable ~nullable:false
 
 let optional = maybe_nullable ~nullable:true
 
+let named n t =
+  add_type_as n t ;
+  Named (n, t)
+
+let this n = This n
+
 (* Can come handy: *)
 let tuple = function
   | [||] -> invalid_arg "tuple"
