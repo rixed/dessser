@@ -7,11 +7,11 @@ open DessserFloatTools
 module T = DessserTypes
 
 (*$inject
-   open Batteries
-   module E = DessserExpressions
-   module T = DessserTypes
-   module U = DessserCompilationUnit
-   let dbg = false *)
+  open Batteries
+  module E = DessserExpressions
+  module T = DessserTypes
+  module U = DessserCompilationUnit
+  let dbg = false *)
 
 (*
  * Some misc generators
