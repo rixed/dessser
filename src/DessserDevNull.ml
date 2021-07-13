@@ -13,7 +13,9 @@ struct
   type state = unit
   let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _vtyp _l p = config, p
+  let start ?(config=()) _vtyp _l p =
+    config, p
+
   let stop () _l p = p
 
   type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
@@ -40,18 +42,18 @@ struct
   let si128 () _ _ _l _v p = p
   let su128 () _ _ _l _v p = p
   let schar () _ _ _l _v p = p
-  let tup_opn () _ _ _ _ p = p
+  let tup_opn _ () _ _ _ p = p
   let tup_cls () _ _ _ p = p
   let tup_sep () _ _ _ p = p
-  let rec_opn () _ _ _ _ p = p
+  let rec_opn _ () _ _ _ p = p
   let rec_cls () _ _ _ p = p
   let rec_sep () _ _ _ p = p
-  let sum_opn () _ _ _ _ _ p = p
+  let sum_opn _ _ () _ _ _ p = p
   let sum_cls () _ _ _ p = p
-  let vec_opn () _ _ _ _ _ p = p
+  let vec_opn _ _ () _ _ _ p = p
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
-  let arr_opn () _ _ _ _ _ p = p
+  let arr_opn _ _ () _ _ _ p = p
   let arr_cls () _ _ _ p = p
   let arr_sep () _ _ _ p = p
   let nullable () _ _ _ p = p

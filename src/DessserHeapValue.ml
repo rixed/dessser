@@ -54,7 +54,7 @@ struct
     n ^"-"^ E.string_of_type_method (DesNoMask Des.id)
 
   let rec dvec dim mn dstate mn0 path l src =
-    let src = Des.vec_opn dstate mn0 path dim mn l src in
+    let src = Des.vec_opn dim mn dstate mn0 path l src in
     let rec loop ids i l src =
       if i >= dim then
         make_pair
@@ -136,7 +136,7 @@ struct
                 ) ])))
 
   and dtup mns dstate mn0 path l src =
-    let src = Des.tup_opn dstate mn0 path mns l src in
+    let src = Des.tup_opn mns dstate mn0 path l src in
     let rec loop ids i l src =
       if i >= Array.length mns then
         make_pair
@@ -152,7 +152,7 @@ struct
     loop [] 0 l src
 
   and drec mns dstate mn0 path l src =
-    let src = Des.rec_opn dstate mn0 path mns l src in
+    let src = Des.rec_opn mns dstate mn0 path l src in
     let len = Array.length mns in
     let rec loop ids i l src =
       if i >= len then
@@ -170,7 +170,7 @@ struct
     loop [] 0 l src
 
   and dsum mns dstate mn0 path l src =
-    let cstr_src = Des.sum_opn dstate mn0 path mns l src in
+    let cstr_src = Des.sum_opn mns dstate mn0 path l src in
     let max_lbl = Array.length mns - 1 in
     E.with_sploded_pair ~l "dsum1" cstr_src (fun l cstr src ->
       let rec choose_cstr i =
@@ -342,7 +342,7 @@ struct
       (if with_fieldmask then SerWithMask Ser.id else SerNoMask Ser.id)
 
   let rec svec dim mn ma sstate mn0 path l v dst =
-    let dst = Ser.vec_opn sstate mn0 path dim mn l dst in
+    let dst = Ser.vec_opn dim mn sstate mn0 path l dst in
     let rec loop i l dst =
       let subpath = Path.(append (CompTime i) path) in
       if i >= dim then
@@ -363,7 +363,7 @@ struct
    * serialized the same: *)
   and slst mn ma sstate mn0 path l v dst =
     let len = cardinality v in
-    let dst = Ser.arr_opn sstate mn0 path mn (Some len) l dst in
+    let dst = Ser.arr_opn mn (Some len) sstate mn0 path l dst in
     let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
       let dst = get_ref dst_ref in
       let_ ~name:"n_ref" ~l (make_ref (i32 0l)) (fun l n_ref ->
@@ -384,7 +384,7 @@ struct
           Ser.arr_cls sstate mn0 path l dst ]))
 
   and stup mns ma sstate mn0 path l v dst =
-    let dst = Ser.tup_opn sstate mn0 path mns l dst in
+    let dst = Ser.tup_opn mns sstate mn0 path l dst in
     let dst =
       Array.fold_lefti (fun dst i mn ->
         let subpath = Path.(append (CompTime i) path) in
@@ -398,7 +398,7 @@ struct
     Ser.tup_cls sstate mn0 path l dst
 
   and srec mns ma sstate mn0 path l v dst =
-    let dst = Ser.rec_opn sstate mn0 path mns l dst in
+    let dst = Ser.rec_opn mns sstate mn0 path l dst in
     let dst =
       Array.fold_lefti (fun dst i (fname, mn) ->
         let subpath = Path.(append (CompTime i) path) in
@@ -422,7 +422,7 @@ struct
         (label_of v)
         (fun l label ->
           let_ ~name:"ssum_dst" ~l
-            (Ser.sum_opn sstate mn0 path mns l label dst)
+            (Ser.sum_opn mns label sstate mn0 path l dst)
             (fun l dst ->
               let rec choose_cstr i =
                 let subpath = Path.(append (CompTime i) path) in

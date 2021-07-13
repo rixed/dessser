@@ -273,7 +273,8 @@ struct
       make_pair p stk)
 
   let start ?(config=()) _mn _l p =
-    config, make_pair p (end_of_list t_frame)
+    config,
+    make_pair p (end_of_list t_frame)
 
   let stop () _l p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -402,24 +403,24 @@ struct
    * Remember, the children are feed a subset of the output of the parent,
    * selected with a fieldmask, not some arbitrary value construction. This is
    * different for vectors/lists. *)
-  let tup_rec_opn mn0 path mns l p_stk =
+  let tup_rec_opn mns mn0 path l p_stk =
     (* Allocate one bit per nullable item. At most, the deserializer will look
      * for as many bits as there are nullable items, if all items are selected
      * by the field mask. *)
     let has_nullmask, nullmask_bits = NullMaskWidth.tup_bits mns in
     enter_frame_const ~has_nullmask nullmask_bits mn0 path l p_stk
 
-  let tup_opn () mn0 path mns l p_stk =
-    tup_rec_opn mn0 path mns l p_stk
+  let tup_opn mns () mn0 path l p_stk =
+    tup_rec_opn mns mn0 path l p_stk
 
   let tup_cls () _ _ l p_stk =
     leave_frame l p_stk
 
   let tup_sep () _ _ _ p_stk = p_stk
 
-  let rec_opn () mn0 path mns l p_stk =
+  let rec_opn mns () mn0 path l p_stk =
     let mns = tuple_typs_of_record mns in
-    tup_rec_opn mn0 path mns l p_stk
+    tup_rec_opn mns mn0 path l p_stk
 
   let rec_cls () _ _ l p_stk =
     leave_frame l p_stk
@@ -432,7 +433,7 @@ struct
    *   we could reduce the amount of generated code by skipping the frame when
    *   that label is not nullable, though (TODO));
    * - the u16 of the label. *)
-  let sum_opn () mn0 path _mns l lbl p_stk =
+  let sum_opn _mns lbl () mn0 path l p_stk =
     E.with_sploded_pair ~l "sum_opn1" p_stk (fun l p stk ->
       (* Set my own nulbit if needed: *)
       let stk = may_set_nullbit true mn0 path l stk in
@@ -452,7 +453,7 @@ struct
   (* For vectors/lists, children know that if the item is not nullable then
    * there can possibly be no nullmask, so in that case, unlike that of
    * tuple/record, [nullmask_bits = 0] means no nullmask. *)
-  let vec_opn () mn0 path dim mn l p_stk =
+  let vec_opn dim mn () mn0 path l p_stk =
     let has_nullmask, nullmask_bits = NullMaskWidth.vec_bits dim mn in
     enter_frame_const ~has_nullmask nullmask_bits mn0 path l p_stk
 
@@ -462,7 +463,7 @@ struct
   let vec_sep () _ _ _ p_stk = p_stk
 
   (* [n] is an u32 *)
-  let arr_opn () mn0 path mn n l p_stk =
+  let arr_opn mn n () mn0 path l p_stk =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
@@ -645,7 +646,8 @@ struct
           make_pair p stk ]
 
   let start ?(config=()) _mn _l p =
-    config, make_pair p (end_of_list t_frame)
+    config,
+    make_pair p (end_of_list t_frame)
 
   let stop () _l p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -780,28 +782,28 @@ struct
       E.with_sploded_pair ~l "di128" (read_u128 LittleEndian p) (fun l w p ->
         make_pair (to_i128 w) (align_const l p 8)))
 
-  let tup_rec_opn mn0 path _mns l p_stk =
+  let tup_rec_opn _mns mn0 path l p_stk =
     E.with_sploded_pair ~l
       "tup_rec_opn" p_stk (enter_frame ~has_nullmask:true mn0 path)
 
-  let tup_opn () mn0 path mns l p_stk =
-    tup_rec_opn mn0 path mns l p_stk
+  let tup_opn mns () mn0 path l p_stk =
+    tup_rec_opn mns mn0 path l p_stk
 
   let tup_cls () _ _ l p_stk =
     leave_frame l p_stk
 
   let tup_sep () _ _ _ p_stk = p_stk
 
-  let rec_opn () mn0 path mns l p_stk =
+  let rec_opn mns () mn0 path l p_stk =
     let mns = tuple_typs_of_record mns in
-    tup_rec_opn mn0 path mns l p_stk
+    tup_rec_opn mns mn0 path l p_stk
 
   let rec_cls () _ _ l p_stk =
     leave_frame l p_stk
 
   let rec_sep () _ _ _ p_stk = p_stk
 
-  let vec_opn () mn0 path _dim mn l p_stk =
+  let vec_opn _dim mn () mn0 path l p_stk =
     let has_nullmask = mn.T.nullable in
     E.with_sploded_pair ~l
       "vec_opn" p_stk (enter_frame ~has_nullmask mn0 path)
@@ -813,7 +815,7 @@ struct
 
   (* Sums are encoded with a leading word for the nullmask followed by
    * the label as a u16: *)
-  let sum_opn () mn0 path _mns l p_stk =
+  let sum_opn _mns () mn0 path l p_stk =
     E.with_sploded_pair ~l "sum_opn2" p_stk (fun l p stk ->
       (* Skip my own nullbit if needed: *)
       let stk = may_set_nullbit false mn0 path l stk in

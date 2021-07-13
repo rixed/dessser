@@ -8,6 +8,7 @@ module E = DessserExpressions
 module Printer = DessserPrinter
 module Path = DessserPath
 module StdLib = DessserStdLib
+module U = DessserCompilationUnit
 
 (* Used by deserializers to "open" arrs: *)
 type arr_opener =
@@ -40,7 +41,8 @@ sig
   (* Wraps a DataPtr into whatever the DES needs *)
   val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t ->
+              state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
@@ -82,16 +84,20 @@ sig
   (* Get rid of the _seps (in SExpr, use a state to add a separator before any
    * value instead). That would make the code generated for dessser significantly
    * simpler, and even more so when runtime fieldmasks enter the stage! *)
-  val tup_opn : state -> T.mn -> Path.t -> T.mn array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : T.mn array ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : (string * T.mn) array ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Returns the label as an u16 and the new pointer: *)
-  val sum_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
+  val sum_opn : (string * T.mn) array ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
   val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : (*dim*) int -> T.mn ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_opn : state -> arr_opener
@@ -99,8 +105,10 @@ sig
   val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_null : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
-  val dnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val dnotnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnull : T.t ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val dnotnull : T.t ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
 module type SER =
@@ -115,7 +123,8 @@ sig
   (* Wraps a DataPtr into whatever the SER needs *)
   val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t -> state * (*ptr*) E.t
+  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t ->
+              state * (*ptr*) E.t
   val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
@@ -150,25 +159,32 @@ sig
    * fieldmask. RingBuff SER still does need it to compute the width of the
    * bitmask though. So the SER will need to be given the full representation
    * of the current fieldmask (as in CodeGen_OCaml). *)
-  val tup_opn : state -> T.mn -> Path.t -> T.mn array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_opn : T.mn array ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_opn : (string * T.mn) array ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   (* Takes the label as an u16: *)
-  val sum_opn : state -> T.mn -> Path.t -> (string * T.mn) array -> E.env -> (*u16*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_opn : (string * T.mn) array -> (*u16*) E.t ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_opn : state -> T.mn -> Path.t -> (*dim*) int -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_opn : (*dim*) int -> T.mn ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_opn : state -> T.mn -> Path.t -> T.mn -> (*u32*) E.t option -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_opn : T.mn -> (*u32*) E.t option ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   val nullable : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val snotnull : T.t -> state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snull : T.t ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val snotnull : T.t ->
+                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
@@ -269,8 +285,8 @@ struct
     let src_dst = comment "Convert a Tuple"
       (E.with_sploded_pair ~l "dstup1" src_dst (fun l src dst ->
         make_pair
-          (Des.tup_opn dstate mn0 path mns l src)
-          (Ser.tup_opn sstate mn0 path mns l dst))) in
+          (Des.tup_opn mns dstate mn0 path l src)
+          (Ser.tup_opn mns sstate mn0 path l dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Stdlib.string_of_int i)
@@ -295,8 +311,8 @@ struct
     let src_dst =
       E.with_sploded_pair ~l "dsrec1" src_dst (fun l src dst ->
         make_pair
-          (Des.rec_opn dstate mn0 path mns l src)
-          (Ser.rec_opn sstate mn0 path mns l dst)) in
+          (Des.rec_opn mns dstate mn0 path l src)
+          (Ser.rec_opn mns sstate mn0 path l dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
@@ -321,10 +337,10 @@ struct
     let open E.Ops in
     let max_lbl = Array.length mns - 1 in
     E.with_sploded_pair ~l "dssum1" src_dst (fun l src dst ->
-      let cstr_src = Des.sum_opn dstate mn0 path mns l src in
+      let cstr_src = Des.sum_opn mns dstate mn0 path l src in
       let src_dst =
         E.with_sploded_pair ~l "dssum2" cstr_src (fun l cstr src ->
-          let dst = Ser.sum_opn sstate mn0 path mns l cstr dst in
+          let dst = Ser.sum_opn mns cstr sstate mn0 path l dst in
           let src_dst = make_pair src dst in
           let rec choose_cstr i =
             let subpath = Path.(append (CompTime i) path) in
@@ -347,8 +363,8 @@ struct
     let src_dst =
       E.with_sploded_pair ~l "dsvec1" src_dst (fun l src dst ->
         make_pair
-          (Des.vec_opn dstate mn0 path dim mn l src)
-          (Ser.vec_opn sstate mn0 path dim mn l dst)) in
+          (Des.vec_opn dim mn dstate mn0 path l src)
+          (Ser.vec_opn dim mn sstate mn0 path l dst)) in
     let src_dst =
       let_ ~name:"src_dst_ref" ~l (make_ref src_dst) (fun l src_dst_ref ->
         let src_dst = get_ref src_dst_ref in
@@ -392,7 +408,7 @@ struct
             let src_dst =
               let dim_src = arr_opn mn0 path mn l src in
               E.with_sploded_pair ~l "dsarr2" dim_src (fun l dim src ->
-                let dst = Ser.arr_opn sstate mn0 path mn (Some dim) l dst in
+                let dst = Ser.arr_opn mn (Some dim) sstate mn0 path l dst in
                 let src_dst_ref = make_ref (make_pair src dst) in
                 let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
                   let src_dst = get_ref src_dst_ref in
@@ -419,7 +435,7 @@ struct
                 (Ser.arr_cls sstate mn0 path l dst))
         | UnknownSize (arr_opn, end_of_arr) ->
             let src = arr_opn mn0 path mn l src in
-            let dst = Ser.arr_opn sstate mn0 path mn None l dst in
+            let dst = Ser.arr_opn mn None sstate mn0 path l dst in
             let src_dst_ref = make_ref (make_pair src dst) in
             let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
               let src = first (get_ref src_dst_ref) in
@@ -430,7 +446,7 @@ struct
                   while_
                     (comment "Test end of arr"
                       (not_ (end_of_arr mn0 path l src)))
-                    (comment "Convert a arr item"
+                    (comment "Convert an array item"
                       (let subpath = Path.(append (RunTime n) path) in
                       seq [
                         if_ (eq n (u32_of_int 0))
@@ -523,8 +539,6 @@ end
  * Compilation units are sets of definitions and declarations of external
  * values.
  *)
-
-module U = DessserCompilationUnit
 
 (*
  * Now let's move on to code generators.

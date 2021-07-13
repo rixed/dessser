@@ -29,7 +29,8 @@ struct
 
   let ptr _vtyp = T.ptr
 
-  let start ?(config=default_config) _l _v p = config, p
+  let start ?(config=default_config) _ _l p =
+    config, p
 
   let stop conf _l p =
     match conf.newline with
@@ -79,7 +80,7 @@ struct
   let su128 = si
 
   (* Could also write the field names with the value in a pair... *)
-  let tup_opn _conf _ _ _ _ p =
+  let tup_opn _ _conf _ _ _ p =
     write_u8 p (u8_of_const_char '(')
 
   let tup_cls _conf _ _ _ p =
@@ -88,7 +89,7 @@ struct
   let tup_sep _conf _ _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
-  let rec_opn _conf _ _ _ _ p =
+  let rec_opn _ _conf _ _ _ p =
     write_u8 p (u8_of_const_char '(')
 
   let rec_cls _conf _ _ _ p =
@@ -97,15 +98,15 @@ struct
   let rec_sep _conf _ _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
-  let sum_opn st mn0 path mos lbl l p =
-    let p = tup_opn st mn0 path mos l p in
-    let p = su16 st mn0 path lbl l p in
+  let sum_opn mns lbl st mn0 path l p =
+    let p = tup_opn mns st mn0 path l p in
+    let p = su16 st mn0 path l lbl p in
     tup_sep st mn0 path l p
 
   let sum_cls st mn0 path l p =
     tup_cls st mn0 path l p
 
-  let vec_opn _conf _ _ _ _ _ p =
+  let vec_opn _ _ _conf _ _ _ p =
     write_u8 p (u8_of_const_char '(')
 
   let vec_cls _conf _ _ _ p =
@@ -114,7 +115,7 @@ struct
   let vec_sep _conf _ _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
-  let arr_opn conf mn0 path _ n l p =
+  let arr_opn _ n conf mn0 path l p =
     let p =
       if conf.list_prefix_length then
         match n with
@@ -122,7 +123,7 @@ struct
             let p = su32 conf mn0 path l n p in
             write_u8 p (u8_of_const_char ' ')
         | None ->
-            failwith "SExpr.Ser needs list length upfront"
+            failwith "SExpr.Ser needs array's length upfront"
       else
         p in
     write_u8 p (u8_of_const_char '(')
@@ -234,7 +235,8 @@ struct
 
   let ptr _vtyp = T.ptr
 
-  let start ?(config=default_config) _mn _ p = config, p
+  let start ?(config=default_config) _mn _l p =
+    config, p
 
   let skip n p = ptr_add p (size n)
 
@@ -355,7 +357,7 @@ struct
     if conf.list_prefix_length then
       KnownSize (fun mn0 path _ l p ->
         E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
-          make_pair v (skip 2 p)))
+          make_pair v (skip 2 p))) (* skip separator and opening '(' *)
     else
       UnknownSize (
         (fun _ _ _ _ p -> skip1 p),

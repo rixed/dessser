@@ -204,7 +204,8 @@ struct
     if not (is_serializable mn) then invalid_arg "not serializable" ;
     T.ptr
 
-  let start ?(config=default_config) _l _v p = config, p
+  let start ?(config=default_config) _ _l p =
+    config, p
 
   let stop conf _l p =
     match conf.newline with
@@ -288,13 +289,13 @@ struct
   let rec_sep conf _ _ l p = sep conf l p
 
   (* Sum label comes as a separate column: *)
-  let sum_opn conf mn0 path _ l lbl p =
+  let sum_opn _ lbl conf mn0 path l p =
     let p = su16 conf mn0 path l lbl p in
     sep conf l p
 
   let sum_cls _conf _ _ _ p = p
 
-  let vec_opn conf mn0 path _dim _t _l p =
+  let vec_opn _dim _t conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -323,7 +324,7 @@ struct
     write_u8 p (u8_of_const_char ',')
 
   (* Lists are prefixed with a column or their length: *)
-  let arr_opn conf mn0 path t n l p =
+  let arr_opn t n conf mn0 path l p =
     if not conf.clickhouse_syntax then
       match n with
       | Some n ->
@@ -332,7 +333,7 @@ struct
       | None ->
           failwith "Csv.Ser needs list length upfront"
     else
-      vec_opn conf mn0 path 0 t l p
+      vec_opn 0 t conf mn0 path l p
 
   let arr_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
@@ -396,7 +397,8 @@ struct
     if not (is_serializable mn) then invalid_arg "not serializable" ;
     T.ptr
 
-  let start ?(config=default_config) _mn _l p = config, p
+  let start ?(config=default_config) _mn _l p =
+    config, p
 
   type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
@@ -565,14 +567,14 @@ struct
   let rec_sep conf _ _ _ p =
       skip_sep conf p
 
-  let sum_opn conf mn0 path _ l p =
+  let sum_opn _ conf mn0 path l p =
     let c_p = du16 conf mn0 path l p in
     E.with_sploded_pair ~l "sum_opn" c_p (fun _l c p ->
       make_pair c (skip_sep conf p))
 
   let sum_cls _conf _ _ _ p = p
 
-  let vec_opn conf mn0 path _dim _t _l p =
+  let vec_opn _dim _t conf mn0 path _l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -611,7 +613,7 @@ struct
         (fun _ _ _ _ p -> p),
         (fun _mn0 _path _l p ->
           (* Won't work for nested compound types: *)
-          (eq (peek_u8 p (size 0)) (u8_of_const_char ']'))))
+          eq (peek_u8 p (size 0)) (u8_of_const_char ']')))
 
   let arr_cls conf mn0 path l p =
     if not conf.clickhouse_syntax then p else
@@ -638,8 +640,8 @@ struct
     in
     (* Note: avoids a warning when comparing size >= len if len is 0: *)
     if len > 0 then
-      (and_ (ge (rem_size p) (size len))
-            (loop 0))
+      and_ (ge (rem_size p) (size len))
+           (loop 0)
     else
       (loop 0)
 

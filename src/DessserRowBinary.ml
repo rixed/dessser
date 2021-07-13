@@ -15,7 +15,9 @@ struct
   type state = unit
   let ptr _mn = T.ptr
 
-  let start ?(config=()) _mn _l p = config, p
+  let start ?(config=()) _mn _l p =
+    config, p
+
   let stop () _l p = p
   type ser = state -> T.mn -> Path.t -> E.env -> E.t -> E.t -> E.t
 
@@ -102,27 +104,27 @@ struct
   let su128 () _ _ _ v p =
     write_u128 LittleEndian p v
 
-  let tup_opn () _ _ _ _ p = p
+  let tup_opn _ () _ _ _ p = p
   let tup_cls () _ _ _ p = p
   let tup_sep () _ _ _ p = p
 
-  let rec_opn () _ _ _ _ p = p
+  let rec_opn _ () _ _ _ p = p
   let rec_cls () _ _ _ p = p
   let rec_sep () _ _ _ p = p
 
-  let sum_opn st mn0 path mns l lbl p =
-    let p = tup_opn st mn0 path mns l p in
+  let sum_opn mns lbl st mn0 path l p =
+    let p = tup_opn mns st mn0 path l p in
     let p = su16 st mn0 path l lbl p in
     tup_sep st mn0 path l p
 
   let sum_cls st mn0 path l p =
     tup_cls st mn0 path l p
 
-  let vec_opn () _ _ _ _  _ p = p
+  let vec_opn _ _ () _ _  _ p = p
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
 
-  let arr_opn () _ _ _ n l p =
+  let arr_opn _ n () _ _ l p =
     let n = match n with
       | Some n -> n
       | None -> failwith "RowBinary.Ser needs list size upfront" in
@@ -205,7 +207,9 @@ struct
   type state = unit
   let ptr _mn = T.ptr
 
-  let start ?(config=()) _mn _l p = config, p
+  let start ?(config=()) _mn _l p =
+    config, p
+
   let stop () _l p = p
   type des = state -> T.mn -> Path.t -> E.env -> E.t -> E.t
 
@@ -326,17 +330,17 @@ struct
       make_pair w p)
 
   (* Items of a tuples are just concatenated together: *)
-  let tup_opn () _ _ _ _ p = p
+  let tup_opn _ () _ _ _ p = p
   let tup_cls () _ _ _ p = p
   let tup_sep () _ _ _ p = p
 
-  let rec_opn () _ _ _ _ p = p
+  let rec_opn _ () _ _ _ p = p
   let rec_cls () _ _ _ p = p
   let rec_sep () _ _ _ p = p
 
   (* RowBinary has no sum types, so we encode the value as a pair: *)
-  let sum_opn st mn0 path mns l p =
-    let p = tup_opn st mn0 path mns l p in
+  let sum_opn mns st mn0 path l p =
+    let p = tup_opn mns st mn0 path l p in
     let c_p = du16 st mn0 path l p in
     E.with_sploded_pair ~l "sum_opn" c_p (fun l c p ->
       let p = tup_sep st mn0 path l p in
@@ -350,7 +354,7 @@ struct
    * are close to our vectors, and that come without any length on the wire.
    * So we assume vectors are not prefixed by any length, and our lists are
    * what ClickHouse refers to as arrays. *)
-  let vec_opn () _ _ _ _ _ p = p
+  let vec_opn _ _ () _ _ _ p = p
   let vec_cls () _ _ _ p = p
   let vec_sep () _ _ _ p = p
 

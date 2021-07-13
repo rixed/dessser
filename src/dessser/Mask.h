@@ -22,7 +22,7 @@ struct Mask {
   }
 };
 
-inline bool operator==(const Mask& lhs, const Mask& rhs)
+inline bool operator==(Mask const &lhs, Mask const &rhs)
 {
   if (lhs.op != rhs.op) return false;
   if (lhs.op == Mask::RECURSE) {
@@ -32,7 +32,7 @@ inline bool operator==(const Mask& lhs, const Mask& rhs)
   }
 }
 
-inline bool operator!=(const Mask& lhs, const Mask& rhs)
+inline bool operator!=(Mask const &lhs, Mask const &rhs)
 {
   return !(lhs == rhs);
 }
