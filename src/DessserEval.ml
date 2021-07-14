@@ -1079,9 +1079,14 @@ let rec peval l e =
           let def = E.E2 (AllocArr, e1, e2) in
           let mn = E.type_of l f2 in
           (match E.to_cst_int f1 with
-          | exception _ -> def
-          | 0 -> make_arr mn [] |> repl
-          | _ -> def)
+          | exception _ ->
+              def
+          | 0 ->
+              make_arr mn [] |> repl
+(*          | 1 ->
+              make_arr mn [ e2 ] |> replace_final_expression_anonymously e1 |> p*)
+          | _ ->
+              def)
       | PartialSort, _, E0S ((MakeVec | MakeArr _), []) ->
           keep1 () (* result is the original, already "sorted" array *)
       | PartialSort, E0S ((MakeVec | MakeArr _), []), _ ->
@@ -1238,9 +1243,22 @@ let rec peval l e =
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
             null T.(Base U24) |> repl)
-      | SetVec, _, (E.E0S (MakeVec, _) | E.E1 (AllocVec _, _)), _ ->
-          Format.eprintf "Warning: vector is lost after modification in:@.%a@."
-            (E.pretty_print ~max_depth:4) e ;
+      | SetVec, f1, (E.E0S ((MakeVec | MakeArr _) as op, [ _ ])), _ ->
+          let def = E.E3 (SetVec, e1, e2, e3) in
+          (match E.to_cst_int f1 with
+          | exception _ ->
+              def
+          | 0 ->
+              E.E0S (op, [ e3 ]) |>
+              replace_final_expression_anonymously e2 |>
+              p
+          | _ ->
+              def)
+      | SetVec, _, (E.E0S ((MakeVec | MakeArr _), _) |
+                    E.E1 (AllocVec _, _) |
+                    E.E2 (AllocArr, _, _)), _ ->
+          Printf.eprintf "Warning: vector is lost after modification in:%s"
+            (E.to_pretty_string ~max_depth:4 e) ;
           E.E3 (SetVec, e1, e2, e3)
       | op, _, _, _ -> E3 (op, e1, e2, e3))
 
