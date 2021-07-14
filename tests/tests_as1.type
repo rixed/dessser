@@ -1,0 +1,4 @@
+{
+  foo: foo_t as { boo: u8; bar: string? }?;
+  baz: [ Nope | Stuff this foo_t ];
+}

@@ -1,0 +1,28 @@
+{
+  units: u8?;
+  text:
+    [ Tuple this[]
+    | Record (string; this)[]
+    | Vector this[]
+    | Stateful {
+      skip_nulls: bool;
+      operation:
+        [ Top {
+          output: [ Membership | Rank | List ];
+          size: this;
+          max_size: this?;
+          what: this;
+          by: this;
+          time: this;
+          duration: this;
+          sigmas: this;
+        }
+        | Past {
+          what: this;
+          time: this;
+          max_age: this;
+          tumbling: bool;
+          sample_size: this?;
+        } ];
+    } ]
+}
