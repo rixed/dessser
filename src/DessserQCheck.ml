@@ -968,10 +968,12 @@ let sexpr mn =
   let check_des_csv ?config be ts vs =
     let mn = T.mn_of_string ts in
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
+    let ser_config =
+      DessserSExpr.{ default_config with list_prefix_length = false } in
     let exe =
       let e =
         E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser ?des_config:config mn l src dst) in
+          DS.desser ~ser_config ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       make_converter ~dev_mode:true be ~mn e in
@@ -1034,7 +1036,13 @@ let sexpr mn =
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")
   "((1 2 3) F null)" \
     (check_des_csv ~config:csv_config_CH ocaml_be \
-                   "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1\t2\t3]\",0,\\N\n")
+                   "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1,2,3]\",0,\\N\n")
+  "((1 2 3) F null)" \
+    (check_des_csv ~config:csv_config_CH ocaml_be \
+                   "{u:U8[]; b:BOOL; name:STRING?}" "\"[1,2,3]\",0,\\N\n")
+  "(() F null)" \
+    (check_des_csv ~config:csv_config_CH ocaml_be \
+                   "{u:U8[]; b:BOOL; name:STRING?}" "\"[]\",0,\\N\n")
 *)
 (* Test FixedStrings: *)
 (*$= check_des_csv & ~printer:BatPervasives.identity
