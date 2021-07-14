@@ -53,68 +53,68 @@ struct
   let local_des_for n =
     n ^"-"^ E.string_of_type_method (DesNoMask Des.id)
 
-  let rec dvec dim mn dstate mn0 path l src =
-    let src = Des.vec_opn dim mn dstate mn0 path l src in
-    let rec loop ids i l src =
+  let rec dvec dim mn dstate mn0 path src =
+    let src = Des.vec_opn dim mn dstate mn0 path src in
+    let rec loop ids i src =
       if i >= dim then
         make_pair
           (make_vec (List.rev ids))
-          (Des.vec_cls dstate mn0 path l src)
+          (Des.vec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.vec_sep dstate mn0 path l src in
+                    Des.vec_sep dstate mn0 path src in
         let subpath = Path.(append (CompTime i) path) in
-        let v_src = make1 dstate mn0 subpath mn l src in
-        E.with_sploded_pair ~l "dvec" v_src (fun l v src ->
-          loop (v :: ids) (i + 1) l src) in
-    loop [] 0 l src
+        let v_src = make1 dstate mn0 subpath mn src in
+        E.with_sploded_pair "dvec" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
 
   (* Arrs and sets are serialized the same, so here the arr is desserialized
    * into a list, and then the final operation converts it into an arr or a
    * set: *)
 
-  and darr mn dstate mn0 path l src =
-    dlist arr_of_lst_rev mn dstate mn0 path l src
+  and darr mn dstate mn0 path src =
+    dlist arr_of_lst_rev mn dstate mn0 path src
 
-  and dset mn dstate mn0 path l src =
-    dlist set_of_lst mn dstate mn0 path l src
+  and dset mn dstate mn0 path src =
+    dlist set_of_lst mn dstate mn0 path src
 
-  and dlst mn dstate mn0 path l src =
-    dlist identity mn dstate mn0 path l src
+  and dlst mn dstate mn0 path src =
+    dlist identity mn dstate mn0 path src
 
-  and dlist of_list mn dstate mn0 path l src =
+  and dlist of_list mn dstate mn0 path src =
     match Des.arr_opn dstate with
     | KnownSize list_opn ->
-        let dim_src = list_opn mn mn0 path l src in
+        let dim_src = list_opn mn mn0 path src in
         let inits_src =
-          E.with_sploded_pair ~l "dlist1" dim_src (fun l dim src ->
+          E.with_sploded_pair "dlist1" dim_src (fun dim src ->
             let inits_src_ref = make_ref (make_pair (end_of_list mn) src) in
-            let_ ~name:"inits_src_ref" ~l inits_src_ref (fun l inits_src_ref ->
+            let_ ~name:"inits_src_ref" inits_src_ref (fun inits_src_ref ->
               let inits_src = get_ref inits_src_ref in
               seq [
-                StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
-                  E.with_sploded_pair ~l "dlist2" inits_src (fun l inits src ->
+                StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
+                  E.with_sploded_pair "dlist2" inits_src (fun inits src ->
                     let src =
                       if_ (eq n (i32 0l))
                         ~then_:src
-                        ~else_:(Des.arr_sep dstate mn0 path l src) in
+                        ~else_:(Des.arr_sep dstate mn0 path src) in
                     let subpath = Path.(append (RunTime n) path) in
-                    let v_src = make1 dstate mn0 subpath mn l src in
-                    E.with_sploded_pair ~l "dlist3" v_src (fun _l v src ->
+                    let v_src = make1 dstate mn0 subpath mn src in
+                    E.with_sploded_pair "dlist3" v_src (fun v src ->
                       make_pair (cons v inits) src) |>
                     set_ref inits_src_ref)) ;
                 inits_src ])) in
-        E.with_sploded_pair ~l "dlist4" inits_src (fun l inits src ->
+        E.with_sploded_pair "dlist4" inits_src (fun inits src ->
           let v = of_list inits
-          and src = Des.arr_cls dstate mn0 path l src in
+          and src = Des.arr_cls dstate mn0 path src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
-        let src = list_opn mn mn0 path l src in
-        let_ ~name:"inits_ref" ~l (make_ref (end_of_list mn)) (fun l inits_ref ->
-          let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
-            let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
+        let src = list_opn mn mn0 path src in
+        let_ ~name:"inits_ref" (make_ref (end_of_list mn)) (fun inits_ref ->
+          let_ ~name:"src_ref" (make_ref src) (fun src_ref ->
+            let_ ~name:"n_ref" (make_ref (u32_of_int 0)) (fun n_ref ->
               seq [
-                while_ (not_ (is_end_of_list mn0 path l (get_ref src_ref))) (
+                while_ (not_ (is_end_of_list mn0 path (get_ref src_ref))) (
                   let src = get_ref src_ref
                   and n = get_ref n_ref
                   and inits = get_ref inits_ref in
@@ -122,67 +122,67 @@ struct
                   let src =
                     if_ (eq n (u32_of_int 0))
                       ~then_:src
-                      ~else_:(Des.arr_sep dstate mn0 subpath l src) in
-                  let v_src = make1 dstate mn0 subpath mn l src in
-                  E.with_sploded_pair ~l "dlist7" v_src (fun _l v src ->
+                      ~else_:(Des.arr_sep dstate mn0 subpath src) in
+                  let v_src = make1 dstate mn0 subpath mn src in
+                  E.with_sploded_pair "dlist7" v_src (fun v src ->
                     seq [
                       set_ref inits_ref (cons v inits) ;
                       set_ref src_ref src ;
                       set_ref n_ref (add n (u32_of_int 1)) ])) ;
                 (
                   let v = of_list (get_ref inits_ref)
-                  and src = Des.arr_cls dstate mn0 path l (get_ref src_ref) in
+                  and src = Des.arr_cls dstate mn0 path (get_ref src_ref) in
                   make_pair v src
                 ) ])))
 
-  and dtup mns dstate mn0 path l src =
-    let src = Des.tup_opn mns dstate mn0 path l src in
-    let rec loop ids i l src =
+  and dtup mns dstate mn0 path src =
+    let src = Des.tup_opn mns dstate mn0 path src in
+    let rec loop ids i src =
       if i >= Array.length mns then
         make_pair
           (make_tup (List.rev ids))
-          (Des.tup_cls dstate mn0 path l src)
+          (Des.tup_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.tup_sep dstate mn0 path l src in
+                    Des.tup_sep dstate mn0 path src in
         let subpath = Path.(append (CompTime i) path) in
-        let v_src = make1 dstate mn0 subpath mns.(i) l src in
-        E.with_sploded_pair ~l "dtup" v_src (fun l v src ->
-          loop (v :: ids) (i + 1) l src) in
-    loop [] 0 l src
+        let v_src = make1 dstate mn0 subpath mns.(i) src in
+        E.with_sploded_pair "dtup" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
 
-  and drec mns dstate mn0 path l src =
-    let src = Des.rec_opn mns dstate mn0 path l src in
+  and drec mns dstate mn0 path src =
+    let src = Des.rec_opn mns dstate mn0 path src in
     let len = Array.length mns in
-    let rec loop ids i l src =
+    let rec loop ids i src =
       if i >= len then
         make_pair
           (make_rec (List.mapi (fun i id ->
              fst mns.(len - i - 1), id) ids))
-          (Des.rec_cls dstate mn0 path l src)
+          (Des.rec_cls dstate mn0 path src)
       else
         let src = if i = 0 then src else
-                    Des.rec_sep dstate mn0 path l src in
+                    Des.rec_sep dstate mn0 path src in
         let subpath = Path.(append (CompTime i) path) in
-        let v_src = make1 dstate mn0 subpath (snd mns.(i)) l src in
-        E.with_sploded_pair ~l "drec" v_src (fun l v src ->
-          loop (v :: ids) (i + 1) l src) in
-    loop [] 0 l src
+        let v_src = make1 dstate mn0 subpath (snd mns.(i)) src in
+        E.with_sploded_pair "drec" v_src (fun v src ->
+          loop (v :: ids) (i + 1) src) in
+    loop [] 0 src
 
-  and dsum mns dstate mn0 path l src =
-    let cstr_src = Des.sum_opn mns dstate mn0 path l src in
+  and dsum mns dstate mn0 path src =
+    let cstr_src = Des.sum_opn mns dstate mn0 path src in
     let max_lbl = Array.length mns - 1 in
-    E.with_sploded_pair ~l "dsum1" cstr_src (fun l cstr src ->
+    E.with_sploded_pair "dsum1" cstr_src (fun cstr src ->
       let rec choose_cstr i =
         assert (i <= max_lbl) ;
         let res () =
           let subpath = Path.(append (CompTime i) path) in
           let _, subtyp = mns.(i) in
-          let v_src = make1 dstate mn0 subpath subtyp l src in
-          E.with_sploded_pair ~l "dsum2" v_src (fun l v src ->
+          let v_src = make1 dstate mn0 subpath subtyp src in
+          E.with_sploded_pair "dsum2" v_src (fun v src ->
             make_pair
               (construct mns i v)
-              (Des.sum_cls dstate mn0 path l src))
+              (Des.sum_cls dstate mn0 path src))
         in
         if i = max_lbl then
           seq [
@@ -194,20 +194,20 @@ struct
             ~else_:(choose_cstr (i + 1)) in
       choose_cstr 0)
 
-  and dvoid _ _ _ _ src =
+  and dvoid _ _ _ src =
     make_pair void src
 
-  and dext name _dstate _mn0 _path _l src =
+  and dext name _dstate _mn0 _path src =
     apply (type_method name (E.DesNoMask Des.id)) [ src ]
 
   (* Call the decoder for type name [n]: *)
-  and dthis n _dstate mn0 _path _l src =
+  and dthis n _dstate mn0 _path src =
     let f =
       if n = "" then myself T.(pair mn0 ptr)
       else identifier (local_des_for n) in
     apply f [ src ]
 
-  and make1 dstate mn0 path mn l src =
+  and make1 dstate mn0 path mn src =
     let rec des_of_vt = function
       | T.Named (n, _) ->
           (* assume this had been defined already with [make_des_for_subtypes]: *)
@@ -240,9 +240,9 @@ struct
       | T.Usr vt ->
           (* Deserialize according to vt.def, then make a new user value to
            * keep the user type: *)
-          fun state mn0 path l ptr ->
-            let v_src = des_of_vt vt.def state mn0 path l ptr in
-            E.with_sploded_pair ~l "des_usr_type" v_src (fun _l v src ->
+          fun state mn0 path ptr ->
+            let v_src = des_of_vt vt.def state mn0 path ptr in
+            E.with_sploded_pair "des_usr_type" v_src (fun v src ->
               make_pair (make_usr vt.name [ v ]) src)
       | T.Tup mns -> dtup mns
       | T.Rec mns -> drec mns
@@ -257,29 +257,28 @@ struct
     in
     let vt = mn.typ in
     if mn.nullable then (
-      if_ (Des.is_null dstate mn0 path l src)
-        ~then_:(make_pair (null vt) (Des.dnull vt dstate mn0 path l src))
+      if_ (Des.is_null dstate mn0 path src)
+        ~then_:(make_pair (null vt) (Des.dnull vt dstate mn0 path src))
         ~else_:(
-          let src = Des.dnotnull vt dstate mn0 path l src in
+          let src = Des.dnotnull vt dstate mn0 path src in
           let des = des_of_vt vt in
-          let v_src = des dstate mn0 path l src in
-          E.with_sploded_pair ~l "make1_1" v_src (fun _l v src ->
+          let v_src = des dstate mn0 path src in
+          E.with_sploded_pair "make1_1" v_src (fun v src ->
             make_pair (not_null v) src))
     ) else (
       let des = des_of_vt vt in
-      des dstate mn0 path l src
+      des dstate mn0 path src
     )
 
   let rec make ?config mn0 compunit =
     (* Start by defining all required deserializers for subtypes: *)
     let compunit = make_des_for_subtypes ?config compunit mn0.T.typ in
-    let l = U.environment compunit in
     compunit,
-    E.func1 ~l T.ptr (fun l src ->
-      let dstate, src = Des.start ?config mn0 l src in
-      let v_src = make1 dstate mn0 [] mn0 l src in
-      E.with_sploded_pair ~l "make" v_src (fun l v src ->
-        make_pair v (Des.stop dstate l src)))
+    E.func1 T.ptr (fun src ->
+      let dstate, src = Des.start ?config mn0 src in
+      let v_src = make1 dstate mn0 [] mn0 src in
+      E.with_sploded_pair "make" v_src (fun v src ->
+        make_pair v (Des.stop dstate src)))
 
   and make_des_for_subtypes ?config compunit = function
     | T.Named (n, t) ->
@@ -341,89 +340,89 @@ struct
     n ^"-"^ E.string_of_type_method
       (if with_fieldmask then SerWithMask Ser.id else SerNoMask Ser.id)
 
-  let rec svec dim mn ma sstate mn0 path l v dst =
-    let dst = Ser.vec_opn dim mn sstate mn0 path l dst in
-    let rec loop i l dst =
+  let rec svec dim mn ma sstate mn0 path v dst =
+    let dst = Ser.vec_opn dim mn sstate mn0 path dst in
+    let rec loop i dst =
       let subpath = Path.(append (CompTime i) path) in
       if i >= dim then
-        Ser.vec_cls sstate mn0 path l dst
+        Ser.vec_cls sstate mn0 path dst
       else
         let dst = if i = 0 then dst else
-                    Ser.vec_sep sstate mn0 subpath l dst in
-        let_ ~name:"svec_dst" ~l dst (fun l dst ->
+                    Ser.vec_sep sstate mn0 subpath dst in
+        let_ ~name:"svec_dst" dst (fun dst ->
           let v' = unsafe_nth (u32_of_int i) v in
           (* From now on we copy all fields, as individual vector items cannot
            * be filtered: (TODO: why not BTW?) *)
           let ma = fieldmask_copy ma in
-          ser1 sstate mn0 subpath mn l v' ma dst |>
-          loop (i + 1) l) in
-    loop 0 l dst
+          ser1 sstate mn0 subpath mn v' ma dst |>
+          loop (i + 1)) in
+    loop 0 dst
 
   (* Thanks to cardinality and for_each being generic, arrs, lists and sets are
    * serialized the same: *)
-  and slst mn ma sstate mn0 path l v dst =
+  and slst mn ma sstate mn0 path v dst =
     let len = cardinality v in
-    let dst = Ser.arr_opn mn (Some len) sstate mn0 path l dst in
-    let_ ~name:"dst_ref" ~l (make_ref dst) (fun l dst_ref ->
+    let dst = Ser.arr_opn mn (Some len) sstate mn0 path dst in
+    let_ ~name:"dst_ref" (make_ref dst) (fun dst_ref ->
       let dst = get_ref dst_ref in
-      let_ ~name:"n_ref" ~l (make_ref (i32 0l)) (fun l n_ref ->
+      let_ ~name:"n_ref" (make_ref (i32 0l)) (fun n_ref ->
         let n = get_ref n_ref in
         seq [
-          for_each  ~name:"x" ~l v (fun l x ->
+          for_each  ~name:"x" v (fun x ->
             let subpath = Path.(append (RunTime n) path) in
             let dst =
               if_ (gt n (i32 0l))
-                ~then_:(Ser.arr_sep sstate mn0 subpath l dst)
+                ~then_:(Ser.arr_sep sstate mn0 subpath dst)
                 ~else_:dst in
             (* From now on copy everything, as individual list items cannot
              * be selected - since lists are variable in length *)
             let ma = fieldmask_copy ma in
             seq [
-              set_ref dst_ref (ser1 sstate mn0 subpath mn l x ma dst) ;
+              set_ref dst_ref (ser1 sstate mn0 subpath mn x ma dst) ;
               set_ref n_ref (add (i32 1l) n) ]) ;
-          Ser.arr_cls sstate mn0 path l dst ]))
+          Ser.arr_cls sstate mn0 path dst ]))
 
-  and stup mns ma sstate mn0 path l v dst =
-    let dst = Ser.tup_opn mns sstate mn0 path l dst in
+  and stup mns ma sstate mn0 path v dst =
+    let dst = Ser.tup_opn mns sstate mn0 path dst in
     let dst =
       Array.fold_lefti (fun dst i mn ->
         let subpath = Path.(append (CompTime i) path) in
-        let_ ~name:"stup_dst" ~l
+        let_ ~name:"stup_dst"
           (if i = 0 then dst else
-                    Ser.tup_sep sstate mn0 subpath l dst)
-          (fun l dst ->
+                    Ser.tup_sep sstate mn0 subpath dst)
+          (fun dst ->
             let ma = fieldmask_get i ma in
-            ser1 sstate mn0 subpath mn l (get_item i v) ma dst)
+            ser1 sstate mn0 subpath mn (get_item i v) ma dst)
       ) dst mns in
-    Ser.tup_cls sstate mn0 path l dst
+    Ser.tup_cls sstate mn0 path dst
 
-  and srec mns ma sstate mn0 path l v dst =
-    let dst = Ser.rec_opn mns sstate mn0 path l dst in
+  and srec mns ma sstate mn0 path v dst =
+    let dst = Ser.rec_opn mns sstate mn0 path dst in
     let dst =
       Array.fold_lefti (fun dst i (fname, mn) ->
         let subpath = Path.(append (CompTime i) path) in
-        let_ ~name:"srec_dst" ~l
+        let_ ~name:"srec_dst"
           (if i = 0 then dst else
-                    Ser.rec_sep sstate mn0 subpath l dst)
-          (fun l dst ->
+                    Ser.rec_sep sstate mn0 subpath dst)
+          (fun dst ->
             let ma = fieldmask_get i ma in
             comment ("serialize field "^ fname)
-                    (ser1 sstate mn0 subpath mn l (get_field fname v) ma dst))
+                    (ser1 sstate mn0 subpath mn (get_field fname v) ma dst))
       ) dst mns in
-    Ser.rec_cls sstate mn0 path l dst
+    Ser.rec_cls sstate mn0 path dst
 
   (* Regarding masks, sum types are like scalars: all or nothing.
    * Indeed, the mask would have to be aware of the constructor to be
    * meaningful. *)
-  and ssum mns ma sstate mn0 path l v dst =
+  and ssum mns ma sstate mn0 path v dst =
     let max_lbl = Array.length mns - 1 in
     let dst =
-      let_ ~name:"label1" ~l
+      let_ ~name:"label1"
         (label_of v)
-        (fun l label ->
-          let_ ~name:"ssum_dst" ~l
-            (Ser.sum_opn mns label sstate mn0 path l dst)
-            (fun l dst ->
+        (fun label ->
+          let_ ~name:"ssum_dst"
+            (Ser.sum_opn mns label sstate mn0 path dst)
+            (fun dst ->
               let rec choose_cstr i =
                 let subpath = Path.(append (CompTime i) path) in
                 assert (i <= max_lbl) ;
@@ -432,24 +431,24 @@ struct
                 if i = max_lbl then
                   seq [
                     assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-                    ser1 sstate mn0 subpath mn l v' ma dst ]
+                    ser1 sstate mn0 subpath mn v' ma dst ]
                 else
                   if_ (eq (u16 (Uint16.of_int i)) label)
-                    ~then_:(ser1 sstate mn0 subpath mn l v' ma dst)
+                    ~then_:(ser1 sstate mn0 subpath mn v' ma dst)
                     ~else_:(choose_cstr (i + 1)) in
               choose_cstr 0)) in
-    Ser.sum_cls sstate mn0 path l dst
+    Ser.sum_cls sstate mn0 path dst
 
-  and svoid _ _ _ _ _ dst = dst
+  and svoid _ _ _ _ dst = dst
 
-  and sext name ma _sstate _mn0 _path _l v dst =
+  and sext name ma _sstate _mn0 _path v dst =
     match ma with
     | RunTimeMask ma ->
         apply (type_method name (E.SerWithMask Ser.id)) [ ma ; v ; dst ]
     | CompTimeMask ->
         apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ]
 
-  and sthis n ma _sstate _mn0 _path _l v dst =
+  and sthis n ma _sstate _mn0 _path v dst =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
       if n = "" then myself T.ptr
@@ -460,7 +459,7 @@ struct
       | RunTimeMask ma -> [ ma ; v ; dst ]
       | CompTimeMask -> [ v ; dst ])
 
-  and ser1 sstate mn0 path mn l v ma dst =
+  and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
       | T.Named (n, _) ->
           (* assume this had been defined already with [make_ser_for_subtypes]: *)
@@ -505,14 +504,14 @@ struct
       let vt = mn.typ in
       if mn.nullable then
         if_null v
-          ~then_:(Ser.snull vt sstate mn0 path l dst)
+          ~then_:(Ser.snull vt sstate mn0 path dst)
           ~else_:(
-            let dst = Ser.snotnull vt sstate mn0 path l dst in
+            let dst = Ser.snotnull vt sstate mn0 path dst in
             let ser = ser_of_vt vt in
-            ser sstate mn0 path l (force v) dst)
+            ser sstate mn0 path (force v) dst)
       else
         let ser = ser_of_vt vt in
-        ser sstate mn0 path l v dst
+        ser sstate mn0 path v dst
     in
     match ma with
     | RunTimeMask ma ->
@@ -522,32 +521,30 @@ struct
             if_ (eq ma set_field_null)
               ~then_: (
                 if mn.nullable then
-                  Ser.snull mn.typ sstate mn0 path l dst
+                  Ser.snull mn.typ sstate mn0 path dst
                 else (* Mask has been type checked *)
                   seq [ assert_ false_ ; dst ])
               ~else_:on_copy)
     | CompTimeMask ->
         on_copy
 
-  (* [l] may contain serializers for external types *)
   let rec serialize ?config ?(with_fieldmask=true) mn0 compunit =
     (* Similarly to Serialize.make, construct all required serializers: *)
     let compunit =
       make_ser_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
-    let l = U.environment compunit in
     compunit,
     if with_fieldmask then
-      E.func3 ~l T.mask mn0 T.ptr (fun l ma v dst ->
+      E.func3 T.mask mn0 T.ptr (fun ma v dst ->
         let path = [] in
-        let sstate, dst = Ser.start ?config mn0 l dst in
-        let dst = ser1 sstate mn0 path mn0 l v (RunTimeMask ma) dst in
-        Ser.stop sstate l dst)
+        let sstate, dst = Ser.start ?config mn0 dst in
+        let dst = ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst in
+        Ser.stop sstate dst)
     else
-      E.func2 ~l mn0 T.ptr (fun l v dst ->
+      E.func2 mn0 T.ptr (fun v dst ->
         let path = [] in
-        let sstate, dst = Ser.start ?config mn0 l dst in
-        let dst = ser1 sstate mn0 path mn0 l v CompTimeMask dst in
-        Ser.stop sstate l dst)
+        let sstate, dst = Ser.start ?config mn0 dst in
+        let dst = ser1 sstate mn0 path mn0 v CompTimeMask dst in
+        Ser.stop sstate dst)
 
   and make_ser_for_subtypes ?config ~with_fieldmask compunit =
     let make_ser_for_subtypes = make_ser_for_subtypes ?config ~with_fieldmask
@@ -587,66 +584,66 @@ struct
     n ^"-"^ E.string_of_type_method
       (if with_fieldmask then SSizeWithMask Ser.id else SSizeNoMask Ser.id)
 
-  let rec ssvec dim mn ma mn0 path l v sz =
+  let rec ssvec dim mn ma mn0 path v sz =
     let sz =
-      Ser.ssize_of_vec mn0 path l v |> add sz in
-    let rec loop l sz i =
+      Ser.ssize_of_vec mn0 path v |> add sz in
+    let rec loop sz i =
       if i >= dim then sz else
       let subpath = Path.(append (CompTime i) path) in
       let v' = unsafe_nth (u32_of_int i) v in
-      let_ ~name:"sz" ~l sz (fun l sz ->
+      let_ ~name:"sz" sz (fun sz ->
         let ma = fieldmask_copy ma in
-        let sz = sersz1 mn mn0 subpath l v' ma sz in
-        loop l sz (i + 1)) in
-    loop l sz 0
+        let sz = sersz1 mn mn0 subpath v' ma sz in
+        loop sz (i + 1)) in
+    loop sz 0
 
   (* thanks to cardinality and nth begin generic, arrs, lsts and sets are
    * serialized the same: *)
-  and sslst mn ma mn0 path l v sz =
+  and sslst mn ma mn0 path v sz =
     let sz =
-      Ser.ssize_of_arr mn0 path l v |> add sz in
-    let_ ~name:"sz_ref" ~l (make_ref sz) (fun l sz_ref ->
+      Ser.ssize_of_arr mn0 path v |> add sz in
+    let_ ~name:"sz_ref" (make_ref sz) (fun sz_ref ->
       let sz = get_ref sz_ref in
       let len = cardinality v in
       seq [
-        StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 len) (fun l n ->
+        StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 len) (fun n ->
           let v' = unsafe_nth n v in
           let subpath = Path.(append (RunTime n) path) in
           let ma = fieldmask_copy ma in
-          sersz1 mn mn0 subpath l v' ma sz |>
+          sersz1 mn mn0 subpath v' ma sz |>
           set_ref sz_ref) ;
         sz ])
 
-  and sstup mns ma mn0 path l v sz =
+  and sstup mns ma mn0 path v sz =
     let sz =
-      Ser.ssize_of_tup mn0 path l v |> add sz in
+      Ser.ssize_of_tup mn0 path v |> add sz in
     Array.fold_lefti (fun sz i mn ->
       let v' = get_item i v in
       let ma = fieldmask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
-      let_ ~name:"sz" ~l sz (fun l sz ->
-        sersz1 mn mn0 subpath l v' ma sz)
+      let_ ~name:"sz" sz (fun sz ->
+        sersz1 mn mn0 subpath v' ma sz)
     ) sz mns
 
-  and ssrec mns ma mn0 path l v sz =
+  and ssrec mns ma mn0 path v sz =
     let sz =
-      Ser.ssize_of_rec mn0 path l v |> add sz in
+      Ser.ssize_of_rec mn0 path v |> add sz in
     Array.fold_lefti (fun sz i (fname, mn) ->
       let v' = get_field fname v in
       let ma = fieldmask_get i ma in
       let subpath = Path.(append (CompTime i) path) in
-      let_ ~name:"sz" ~l sz (fun l sz ->
+      let_ ~name:"sz" sz (fun sz ->
         comment ("sersize of field "^ fname)
-                (sersz1 mn mn0 subpath l v' ma sz))
+                (sersz1 mn mn0 subpath v' ma sz))
     ) sz mns
 
-  and sssum mns ma mn0 path l v sz =
+  and sssum mns ma mn0 path v sz =
     let sz =
-      Ser.ssize_of_sum mn0 path l v |> add sz in
+      Ser.ssize_of_sum mn0 path v |> add sz in
     let max_lbl = Array.length mns - 1 in
-    let_ ~name:"label2" ~l
+    let_ ~name:"label2"
       (label_of v)
-      (fun l label ->
+      (fun label ->
         let rec choose_cstr i =
           let name, mn = mns.(i) in
           let v' = get_alt name v in
@@ -658,23 +655,23 @@ struct
           if i = max_lbl then
             seq [
               assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-              sersz1 mn mn0 subpath l v' ma sz ]
+              sersz1 mn mn0 subpath v' ma sz ]
           else
             if_ (eq (u16 (Uint16.of_int i)) label)
-              ~then_:(sersz1 mn mn0 subpath l v' ma sz)
+              ~then_:(sersz1 mn mn0 subpath v' ma sz)
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
-  and ssvoid _ _ _ _ sz = sz
+  and ssvoid _ _ _ sz = sz
 
-  and ssext name ma _ _ _ v =
+  and ssext name ma _ _ v =
     match ma with
     | RunTimeMask ma ->
         apply (type_method name (E.SSizeWithMask Ser.id)) [ ma ; v ]
     | CompTimeMask ->
         apply (type_method name (E.SSizeNoMask Ser.id)) [ v ]
 
-  and ssthis n ma _mn0 _path _l v =
+  and ssthis n ma _mn0 _path v =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
       if n = "" then myself T.size
@@ -684,9 +681,9 @@ struct
       | RunTimeMask ma -> [ ma ; v ]
       | CompTimeMask -> [ v ])
 
-  and sersz1 mn mn0 path l v ma sz =
-    let cumul ssizer mn0 path l v sz =
-      add sz (ssizer mn0 path l v) in
+  and sersz1 mn mn0 path v ma sz =
+    let cumul ssizer mn0 path v sz =
+      add sz (ssizer mn0 path v) in
     let rec ssz_of_vt = function
       | T.Named (n, _)
       | T.This n -> cumul (ssthis n ma)
@@ -729,9 +726,9 @@ struct
       if mn.nullable then
         if_null v
           ~then_:(add sz (Ser.ssize_of_null mn0 path))
-          ~else_:(ssz_of_vt vt mn0 path l (force v) sz)
+          ~else_:(ssz_of_vt vt mn0 path (force v) sz)
       else
-        ssz_of_vt vt mn0 path l v sz
+        ssz_of_vt vt mn0 path v sz
     in
     match ma with
     | RunTimeMask ma ->
@@ -752,16 +749,15 @@ struct
     (* Start by defining all required deserializers for subtypes: *)
     let compunit =
       make_ssize_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
-    let l = U.environment compunit in
     compunit,
     if with_fieldmask then
-      E.func2 ~l T.mask mn0 (fun l ma v ->
+      E.func2 T.mask mn0 (fun ma v ->
         let sz = Ser.ssize_start ?config mn0 in
-        sersz1 mn0 mn0 [] l v (RunTimeMask ma) sz)
+        sersz1 mn0 mn0 [] v (RunTimeMask ma) sz)
     else
-      E.func1 ~l mn0 (fun l v ->
+      E.func1 mn0 (fun v ->
         let sz = Ser.ssize_start ?config mn0 in
-        sersz1 mn0 mn0 [] l v CompTimeMask sz)
+        sersz1 mn0 mn0 [] v CompTimeMask sz)
 
   and make_ssize_for_subtypes ?config ~with_fieldmask compunit =
     let make_ssize_for_subtypes = make_ssize_for_subtypes ?config ~with_fieldmask

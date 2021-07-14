@@ -700,8 +700,11 @@ struct
           | _ ->
               assert false)) ;
     | E.E1 (NotNull, e1) ->
-        let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "Some %s" n1)
+        if (E.type_of l e1).T.nullable then
+          print ?name p l e1
+        else
+          let n1 = print p l e1 in
+          emit ?name p l e (fun oc -> pp oc "Some %s" n1)
     | E.E1 (Force what, e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
@@ -1399,17 +1402,20 @@ struct
           pp oc "%s.DessserGen.%s"
             (valid_module_name typ)
             (E.string_of_type_method meth |> valid_identifier))
-    | E.E2 (Let (n, t), e1, e2) ->
+    | E.E2 (Let (n, r), e1, e2) ->
         (* Most of definitions we can actually choose the name (with ?name),
          * so we save a let. But for a few [e1] we will have no such choice,
          * so then another let is required: *)
         let n1 = print ~name:n p l e1 in
         if n1 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1)) ;
+        let t = E.get_memo_mn r l e1 in
         let l = E.add_local n t l in
         print ?name p l e2
-    | E.E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
+    | E.E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
         let n = "("^ valid_identifier n1 ^", "^ valid_identifier n2 ^")" in
+        let t1 = E.get_memo_mn r1 l (E.Ops.first e1)
+        and t2 = E.get_memo_mn r2 l (E.Ops.secnd e1) in
         let n1_n2 = print ~name:n p l e1 in
         if n1_n2 <> n then
           ignore (emit ?name:(Some n) p l e1 (fun oc -> String.print oc n1_n2)) ;
@@ -1465,8 +1471,9 @@ struct
           ppi p.P.def "%s" body) ;
         ppi p.P.def "done ;" ;
         "()"
-    | E.E2 (ForEach (n, t), lst, body) ->
+    | E.E2 (ForEach (n, r), lst, body) ->
         let n1 = valid_identifier n in
+        let t = E.get_memo_item_mn r l lst in
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
         (match lst_t.T.typ with

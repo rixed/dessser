@@ -14,14 +14,14 @@ module U = DessserCompilationUnit
 type arr_opener =
   (* When a arr size is known from the beginning, implement this that
    * returns both the arr size and the new src pointer: *)
-  | KnownSize of (T.mn -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
+  | KnownSize of (T.mn -> T.mn -> Path.t -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the arr size is not known beforehand, rather implement
    * this pair of functions, one to parse the arr header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the arr is finished: *)
   | UnknownSize of
-      (T.mn -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
-      (T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
+      (T.mn -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t) *
+      (T.mn -> Path.t -> (*ptr*) E.t -> (*bool*) E.t)
 
 (* Given the above we can built interesting expressions.
  * A DES(serializer) is a module that implements a particular serialization
@@ -41,9 +41,9 @@ sig
   (* Wraps a DataPtr into whatever the DES needs *)
   val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t ->
+  val start : ?config:config -> T.mn -> (*dataptr*) E.t ->
               state * (*ptr*) E.t
-  val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
    * yielding a pointer (either a CodePtr pointing at a byte stream or a
@@ -53,7 +53,7 @@ sig
    * The [maybe_nullable] and [path] values are in the fully fledged global
    * type and therefore must be used cautiously! *)
   (* FIXME: make this type "private": *)
-  type des = state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*v*ptr*) E.t
+  type des = state -> T.mn -> Path.t -> (*ptr*) E.t -> (*v*ptr*) E.t
 
   val dfloat : des
   val dstring : des
@@ -85,30 +85,30 @@ sig
    * value instead). That would make the code generated for dessser significantly
    * simpler, and even more so when runtime fieldmasks enter the stage! *)
   val tup_opn : T.mn array ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_opn : (string * T.mn) array ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   (* Returns the label as an u16 and the new pointer: *)
   val sum_opn : (string * T.mn) array ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (* u16*ptr *) E.t
-  val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (* u16*ptr *) E.t
+  val sum_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_opn : state -> arr_opener
-  val arr_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val is_null : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t
+  val is_null : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*bool*) E.t
   val dnull : T.t ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val dnotnull : T.t ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
 module type SER =
@@ -123,12 +123,12 @@ sig
   (* Wraps a DataPtr into whatever the SER needs *)
   val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> E.env -> (*dataptr*) E.t ->
+  val start : ?config:config -> T.mn -> (*dataptr*) E.t ->
               state * (*ptr*) E.t
-  val stop : state -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
-  type ser = state -> T.mn -> Path.t -> E.env -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+  type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val sfloat : ser
   val sstring : ser
@@ -160,35 +160,35 @@ sig
    * bitmask though. So the SER will need to be given the full representation
    * of the current fieldmask (as in CodeGen_OCaml). *)
   val tup_opn : T.mn array ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val tup_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val tup_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val rec_opn : (string * T.mn) array ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val rec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val rec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   (* Takes the label as an u16: *)
   val sum_opn : (string * T.mn) array -> (*u16*) E.t ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val sum_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_opn : T.mn -> (*u32*) E.t option ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_cls : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_sep : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
-  val nullable : state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+  val nullable : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val snull : T.t ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val snotnull : T.t ->
-                state -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
    * going to be. Value must have been deserialized into a heap value. *)
-  type ssizer = T.mn -> Path.t -> E.env -> (*value*) E.t -> E.t (*size*)
+  type ssizer = T.mn -> Path.t -> (*value*) E.t -> E.t (*size*)
   val ssize_of_float : ssizer
   val ssize_of_string : ssizer
   val ssize_of_bool : ssizer
@@ -231,17 +231,17 @@ struct
    * point to the next value to read/write.
    * [mn] denotes the maybe_nullable of the current subfields, whereas
    * [mn0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des what transform sstate dstate mn0 path l src_dst =
-    E.with_sploded_pair ~l "ds1" src_dst (fun l src dst ->
-      let v_src = des dstate mn0 path l src in
-      E.with_sploded_pair ~l "ds2" v_src (fun l v src ->
-        let v = transform mn0 path l v in
+  let ds ser des what transform sstate dstate mn0 path src_dst =
+    E.with_sploded_pair "ds1" src_dst (fun src dst ->
+      let v_src = des dstate mn0 path src in
+      E.with_sploded_pair "ds2" v_src (fun v src ->
+        let v = transform mn0 path v in
         let open E.Ops in
         (* dessser handle nulls itself, so that DES/SER implementations
          * do not have to care for nullability. *)
         make_pair
           (comment ("Desserialize a "^ what) src)
-          (comment ("Serialize a "^ what) (ser sstate mn0 path l v dst))))
+          (comment ("Serialize a "^ what) (ser sstate mn0 path v dst))))
 
   let dsfloat = ds Ser.sfloat Des.dfloat "float"
   let dsstring = ds Ser.sstring Des.dstring "string"
@@ -266,135 +266,135 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 "u64"
   let dsu128 = ds Ser.su128 Des.du128 "u128"
 
-  let dsnull t sstate dstate mn0 path l src dst =
+  let dsnull t sstate dstate mn0 path src dst =
     let open E.Ops in
     make_pair
-      (comment "Desserialize NULL" (Des.dnull t dstate mn0 path l src))
-      (comment "Serialize NULL" (Ser.snull t sstate mn0 path l dst))
+      (comment "Desserialize NULL" (Des.dnull t dstate mn0 path src))
+      (comment "Serialize NULL" (Ser.snull t sstate mn0 path dst))
 
-  let dsnotnull t sstate dstate mn0 path l src dst =
+  let dsnotnull t sstate dstate mn0 path src dst =
     let open E.Ops in
     make_pair
-      (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path l src))
-      (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path l dst))
+      (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path src))
+      (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path dst))
 
   (* transform is applied to leaf values only, as compound values are not
    * reified during a dessser operation *)
-  let rec dstup mns transform sstate dstate mn0 path l src_dst =
+  let rec dstup mns transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst = comment "Convert a Tuple"
-      (E.with_sploded_pair ~l "dstup1" src_dst (fun l src dst ->
+      (E.with_sploded_pair "dstup1" src_dst (fun src dst ->
         make_pair
-          (Des.tup_opn mns dstate mn0 path l src)
-          (Ser.tup_opn mns sstate mn0 path l dst))) in
+          (Des.tup_opn mns dstate mn0 path src)
+          (Ser.tup_opn mns sstate mn0 path dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Stdlib.string_of_int i)
           (let subpath = Path.(append (CompTime i) path) in
           if i = 0 then
-            desser_ transform sstate dstate mn0 subpath l src_dst
+            desser_ transform sstate dstate mn0 subpath src_dst
           else
             let src_dst =
-              E.with_sploded_pair ~l "dstup2" src_dst (fun l src dst ->
+              E.with_sploded_pair "dstup2" src_dst (fun src dst ->
                 make_pair
-                  (Des.tup_sep dstate mn0 path l src)
-                  (Ser.tup_sep sstate mn0 path l dst)) in
-            desser_ transform sstate dstate mn0 subpath l src_dst)
+                  (Des.tup_sep dstate mn0 path src)
+                  (Ser.tup_sep sstate mn0 path dst)) in
+            desser_ transform sstate dstate mn0 subpath src_dst)
       ) src_dst mns in
-    E.with_sploded_pair ~l "dstup3" src_dst (fun l src dst ->
+    E.with_sploded_pair "dstup3" src_dst (fun src dst ->
       make_pair
-        (Des.tup_cls dstate mn0 path l src)
-        (Ser.tup_cls sstate mn0 path l dst))
+        (Des.tup_cls dstate mn0 path src)
+        (Ser.tup_cls sstate mn0 path dst))
 
-  and dsrec mns transform sstate dstate mn0 path l src_dst =
+  and dsrec mns transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst =
-      E.with_sploded_pair ~l "dsrec1" src_dst (fun l src dst ->
+      E.with_sploded_pair "dsrec1" src_dst (fun src dst ->
         make_pair
-          (Des.rec_opn mns dstate mn0 path l src)
-          (Ser.rec_opn mns sstate mn0 path l dst)) in
+          (Des.rec_opn mns dstate mn0 path src)
+          (Ser.rec_opn mns sstate mn0 path dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
             (let subpath = Path.(append (CompTime i) path) in
             if i = 0 then
-              desser_ transform sstate dstate mn0 subpath l src_dst
+              desser_ transform sstate dstate mn0 subpath src_dst
             else
               let src_dst =
-                E.with_sploded_pair ~l "dsrec2" src_dst (fun l src dst ->
+                E.with_sploded_pair "dsrec2" src_dst (fun src dst ->
                   make_pair
-                    (Des.rec_sep dstate mn0 path l src)
-                    (Ser.rec_sep sstate mn0 path l dst)) in
-              desser_ transform sstate dstate mn0 subpath l src_dst)
+                    (Des.rec_sep dstate mn0 path src)
+                    (Ser.rec_sep sstate mn0 path dst)) in
+              desser_ transform sstate dstate mn0 subpath src_dst)
       ) src_dst mns in
     let src_dst = comment "Convert a Record" src_dst in
-    E.with_sploded_pair ~l "dsrec3" src_dst (fun l src dst ->
+    E.with_sploded_pair "dsrec3" src_dst (fun src dst ->
       make_pair
-        (Des.rec_cls dstate mn0 path l src)
-        (Ser.rec_cls sstate mn0 path l dst))
+        (Des.rec_cls dstate mn0 path src)
+        (Ser.rec_cls sstate mn0 path dst))
 
-  and dssum mns transform sstate dstate mn0 path l src_dst =
+  and dssum mns transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let max_lbl = Array.length mns - 1 in
-    E.with_sploded_pair ~l "dssum1" src_dst (fun l src dst ->
-      let cstr_src = Des.sum_opn mns dstate mn0 path l src in
+    E.with_sploded_pair "dssum1" src_dst (fun src dst ->
+      let cstr_src = Des.sum_opn mns dstate mn0 path src in
       let src_dst =
-        E.with_sploded_pair ~l "dssum2" cstr_src (fun l cstr src ->
-          let dst = Ser.sum_opn mns cstr sstate mn0 path l dst in
+        E.with_sploded_pair "dssum2" cstr_src (fun cstr src ->
+          let dst = Ser.sum_opn mns cstr sstate mn0 path dst in
           let src_dst = make_pair src dst in
           let rec choose_cstr i =
             let subpath = Path.(append (CompTime i) path) in
             if i >= max_lbl then
               seq [
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
-                desser_ transform sstate dstate mn0 subpath l src_dst ]
+                desser_ transform sstate dstate mn0 subpath src_dst ]
             else
               if_ (eq (u16 (Uint16.of_int i)) cstr)
-                ~then_:(desser_ transform sstate dstate mn0 subpath l src_dst)
+                ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0) in
-      E.with_sploded_pair ~l "dssum3" src_dst (fun l src dst ->
+      E.with_sploded_pair "dssum3" src_dst (fun src dst ->
         make_pair
-          (Des.sum_cls dstate mn0 path l src)
-          (Ser.sum_cls sstate mn0 path l dst)))
+          (Des.sum_cls dstate mn0 path src)
+          (Ser.sum_cls sstate mn0 path dst)))
 
-  and dsvec dim mn transform sstate dstate mn0 path l src_dst =
+  and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst =
-      E.with_sploded_pair ~l "dsvec1" src_dst (fun l src dst ->
+      E.with_sploded_pair "dsvec1" src_dst (fun src dst ->
         make_pair
-          (Des.vec_opn dim mn dstate mn0 path l src)
-          (Ser.vec_opn dim mn sstate mn0 path l dst)) in
+          (Des.vec_opn dim mn dstate mn0 path src)
+          (Ser.vec_opn dim mn sstate mn0 path dst)) in
     let src_dst =
-      let_ ~name:"src_dst_ref" ~l (make_ref src_dst) (fun l src_dst_ref ->
+      let_ ~name:"src_dst_ref" (make_ref src_dst) (fun src_dst_ref ->
         let src_dst = get_ref src_dst_ref in
         seq [
-          StdLib.repeat ~l ~from:(i32 0l) ~to_:(i32_of_int dim) (fun l n ->
+          StdLib.repeat ~from:(i32 0l) ~to_:(i32_of_int dim) (fun n ->
             (comment "Convert vector item"
               (let subpath = Path.(append (RunTime (to_u32 n)) path) in
               let src_dst =
                 if_ (eq n (i32 0l))
                   ~then_:src_dst
                   ~else_:(
-                    E.with_sploded_pair ~l "dsvec2" src_dst (fun l src dst ->
+                    E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
                       make_pair
-                        (Des.vec_sep dstate mn0 subpath l src)
-                        (Ser.vec_sep sstate mn0 subpath l dst))) in
-              desser_ transform sstate dstate mn0 subpath l src_dst |>
+                        (Des.vec_sep dstate mn0 subpath src)
+                        (Ser.vec_sep sstate mn0 subpath dst))) in
+              desser_ transform sstate dstate mn0 subpath src_dst |>
               set_ref src_dst_ref))) ;
           src_dst ])
     in
-    E.with_sploded_pair ~l "dsvec3" src_dst (fun l src dst ->
+    E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
       make_pair
-        (Des.vec_cls dstate mn0 path l src)
-        (Ser.vec_cls sstate mn0 path l dst))
+        (Des.vec_cls dstate mn0 path src)
+        (Ser.vec_cls sstate mn0 path dst))
 
-  and dsarr mn transform sstate dstate mn0 path l src_dst =
+  and dsarr mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
     comment "Convert a List"
-      (E.with_sploded_pair ~l "dsarr1" src_dst (fun l src dst ->
+      (E.with_sploded_pair "dsarr1" src_dst (fun src dst ->
         (* FIXME: for some deserializers (such as SExpr) it's not easy to
          * know the arr length in advance. For those, it would be better
          * to call a distinct 'is-end-of-arr' function returning a bool and
@@ -406,46 +406,46 @@ struct
         match Des.arr_opn dstate with
         | KnownSize arr_opn ->
             let src_dst =
-              let dim_src = arr_opn mn mn0 path l src in
-              E.with_sploded_pair ~l "dsarr2" dim_src (fun l dim src ->
-                let dst = Ser.arr_opn mn (Some dim) sstate mn0 path l dst in
+              let dim_src = arr_opn mn mn0 path src in
+              E.with_sploded_pair "dsarr2" dim_src (fun dim src ->
+                let dst = Ser.arr_opn mn (Some dim) sstate mn0 path dst in
                 let src_dst_ref = make_ref (make_pair src dst) in
-                let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
+                let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
                   let src_dst = get_ref src_dst_ref in
                   seq [
-                    StdLib.repeat ~l ~from:(i32 0l) ~to_:(to_i32 dim) (fun l n ->
+                    StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
                       (comment "Convert a arr item"
                         (let subpath = Path.(append (RunTime (to_u32 n)) path) in
                         let src_dst =
                           if_ (eq n (i32 0l))
                             ~then_:src_dst
                             ~else_:(
-                              E.with_sploded_pair ~l "dsarr3" src_dst
-                                (fun l psrc pdst ->
+                              E.with_sploded_pair "dsarr3" src_dst
+                                (fun psrc pdst ->
                                 make_pair
-                                  (Des.arr_sep dstate mn0 subpath l psrc)
-                                  (Ser.arr_sep sstate mn0 subpath l pdst))
+                                  (Des.arr_sep dstate mn0 subpath psrc)
+                                  (Ser.arr_sep sstate mn0 subpath pdst))
                             ) in
-                        desser_ transform sstate dstate mn0 subpath l src_dst |>
+                        desser_ transform sstate dstate mn0 subpath src_dst |>
                         set_ref src_dst_ref))) ;
                     src_dst ])) in
-            let_pair ~n1:"src" ~n2:"dst" ~l src_dst (fun l src dst ->
+            let_pair ~n1:"src" ~n2:"dst" src_dst (fun src dst ->
               make_pair
-                (Des.arr_cls dstate mn0 path l src)
-                (Ser.arr_cls sstate mn0 path l dst))
+                (Des.arr_cls dstate mn0 path src)
+                (Ser.arr_cls sstate mn0 path dst))
         | UnknownSize (arr_opn, end_of_arr) ->
-            let src = arr_opn mn mn0 path l src in
-            let dst = Ser.arr_opn mn None sstate mn0 path l dst in
+            let src = arr_opn mn mn0 path src in
+            let dst = Ser.arr_opn mn None sstate mn0 path dst in
             let src_dst_ref = make_ref (make_pair src dst) in
-            let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->
+            let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
               let src = first (get_ref src_dst_ref) in
               let dst = secnd (get_ref src_dst_ref) in
-              let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->
+              let_ ~name:"n_ref" (make_ref (u32_of_int 0)) (fun n_ref ->
                 let n = get_ref n_ref in
                 seq [
                   while_
                     (comment "Test end of arr"
-                      (not_ (end_of_arr mn0 path l src)))
+                      (not_ (end_of_arr mn0 path src)))
                     (comment "Convert an array item"
                       (let subpath = Path.(append (RunTime n) path) in
                       seq [
@@ -454,20 +454,20 @@ struct
                           ~else_:(
                             set_ref src_dst_ref
                               (make_pair
-                                (Des.arr_sep dstate mn0 subpath l src)
-                                (Ser.arr_sep sstate mn0 subpath l dst))) ;
+                                (Des.arr_sep dstate mn0 subpath src)
+                                (Ser.arr_sep sstate mn0 subpath dst))) ;
                         set_ref n_ref (add n (u32_of_int 1)) ;
                         set_ref src_dst_ref
-                          (desser_ transform sstate dstate mn0 subpath l
+                          (desser_ transform sstate dstate mn0 subpath
                                    (get_ref src_dst_ref)) ])) ;
                   make_pair
-                    (Des.arr_cls dstate mn0 path l src)
-                    (Ser.arr_cls sstate mn0 path l dst) ]))))
+                    (Des.arr_cls dstate mn0 path src)
+                    (Ser.arr_cls sstate mn0 path dst) ]))))
 
   and desser_value = function
     | T.This _ -> assert false (* Because of Path.type_of_path *)
     | T.Void ->
-        fun _transform _sstate _dstate _mn0 _path _l src_dst -> src_dst
+        fun _transform _sstate _dstate _mn0 _path src_dst -> src_dst
     | T.Base Float -> dsfloat
     | T.Base String -> dsstring
     | T.Base Bool -> dsbool
@@ -502,37 +502,37 @@ struct
     | T.Map _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"
 
-  and desser_ transform sstate dstate mn0 path l src_dst =
+  and desser_ transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let mn = Path.type_of_path mn0 path in
     if mn.T.nullable then (
-      E.with_sploded_pair ~l "desser_" src_dst (fun l src dst ->
+      E.with_sploded_pair "desser_" src_dst (fun src dst ->
         (* Des can use [is_null] to prepare for a nullable, but Ser might also
          * have some work to do: *)
-        let dst = Ser.nullable sstate mn0 path l dst in
+        let dst = Ser.nullable sstate mn0 path dst in
         (* XXX WARNING XXX
          * if any of dnull/snull/snotnull/etc update the state, they will
          * do so in both branches of this alternative. *)
-        if_ (Des.is_null dstate mn0 path l src)
-          ~then_:(dsnull mn.typ sstate dstate mn0 path l src dst)
-          ~else_:(dsnotnull mn.typ sstate dstate mn0 path l src dst |>
-                  desser_value mn.typ transform sstate dstate mn0 path l))
+        if_ (Des.is_null dstate mn0 path src)
+          ~then_:(dsnull mn.typ sstate dstate mn0 path src dst)
+          ~else_:(dsnotnull mn.typ sstate dstate mn0 path src dst |>
+                  desser_value mn.typ transform sstate dstate mn0 path))
     ) else (
-      desser_value mn.typ transform sstate dstate mn0 path l src_dst
+      desser_value mn.typ transform sstate dstate mn0 path src_dst
     )
 
-  let desser ?ser_config ?des_config mn0 ?transform l src dst =
-    let no_transform _mn0 _path _l v = v in
+  let desser ?ser_config ?des_config mn0 ?transform src dst =
+    let no_transform _mn0 _path v = v in
     let transform = transform |? no_transform in
     let open E.Ops in
-    let sstate, dst = Ser.start mn0 ?config:ser_config l dst
-    and dstate, src = Des.start mn0 ?config:des_config l src in
+    let sstate, dst = Ser.start mn0 ?config:ser_config dst
+    and dstate, src = Des.start mn0 ?config:des_config src in
     let src_dst = make_pair src dst in
-    let src_dst = desser_ transform sstate dstate mn0 [] l src_dst in
-    E.with_sploded_pair ~l "desser" src_dst (fun l src dst ->
+    let src_dst = desser_ transform sstate dstate mn0 [] src_dst in
+    E.with_sploded_pair "desser" src_dst (fun src dst ->
       make_pair
-        (Des.stop dstate l src)
-        (Ser.stop sstate l dst))
+        (Des.stop dstate src)
+        (Ser.stop sstate dst))
 end
 
 (*

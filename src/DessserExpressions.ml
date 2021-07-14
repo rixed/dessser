@@ -158,7 +158,7 @@ type e1 =
   | Identity  (* Useful as a default function *)
   | Ignore
   | IsNull
-  (* Turn e into a nullable: *)
+  (* Turn e into a nullable, if it's not already: *)
   | NotNull
   (* Turn e into a not-nullable (or fail with the given message): *)
   | Force of string
@@ -312,14 +312,16 @@ type e1 =
 type e1s =
   | Apply
 
+type memo_mn = T.mn option ref
+
 type e2 =
   (* Notes:
    * - It is forbidden to shadow a previously defined identifier, to make
    *   optimisation simpler (ie. it can be assumed that all instance of
    *   `(idetifier name)` in the let body refers to that definition.
    * - The type is cached here for performance reason *)
-  | Let of string * T.mn
-  | LetPair of string * T.mn * string * T.mn
+  | Let of string * memo_mn
+  | LetPair of string * memo_mn * string * memo_mn
   (* Deconstructor for vectors/arrs/lists/sets/strings/bytes: *)
   | Nth
   | UnsafeNth
@@ -399,7 +401,7 @@ type e2 =
   | Strftime
   | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
-  | ForEach of (string * T.mn) (* list/vector/set * body *)
+  | ForEach of (string * memo_mn) (* list/vector/set * body *)
   | Index (* of a char in a string, or null *)
 
 type e3 =
@@ -901,11 +903,10 @@ let string_of_e1 = function
   | AllocVec d -> "alloc-vec "^ string_of_int d
 
 let string_of_e2 = function
-  | Let (n, t) ->
-      "let "^ String.quote n ^" "^ String.quote (T.mn_to_string t)
-  | LetPair (n1, mnt1, n2, mnt2) ->
-      "let-pair "^ String.quote n1 ^" "^ String.quote (T.mn_to_string mnt1)
-             ^" "^ String.quote n2 ^" "^ String.quote (T.mn_to_string mnt2)
+  | Let (n, _) ->
+      "let "^ String.quote n
+  | LetPair (n1, _, n2, _) ->
+      "let-pair "^ String.quote n1 ^" "^ String.quote n2
   | Nth -> "nth"
   | UnsafeNth -> "unsafe-nth"
   | Gt -> "gt"
@@ -965,8 +966,7 @@ let string_of_e2 = function
   | Strftime -> "strftime"
   | PtrOfAddress -> "ptr-of-address"
   | While -> "while"
-  | ForEach (n, mn) ->
-      "for-each "^ String.quote n ^" "^ String.quote (T.mn_to_string mn)
+  | ForEach (n, _) -> "for-each "^ String.quote n
   | Index -> "index"
 
 let string_of_e3 = function
@@ -1486,13 +1486,10 @@ struct
     (* e1s *)
     | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
     (* e2 *)
-    | Lst [ Sym "let" ; Str n ; Str mn ; x1 ; x2 ] ->
-        let mn = T.mn_of_string mn in
-        E2 (Let (n, mn), e x1, e x2)
-    | Lst [ Sym "let-pair" ; Str n1 ; Str mnt1 ; Str n2 ; Str mnt2 ; x1 ; x2 ] ->
-        let mnt1 = T.mn_of_string mnt1
-        and mnt2 = T.mn_of_string mnt2 in
-        E2 (LetPair (n1, mnt1, n2, mnt2), e x1, e x2)
+    | Lst [ Sym "let" ; Str n ; x1 ; x2 ] ->
+        E2 (Let (n, ref None), e x1, e x2)
+    | Lst [ Sym "let-pair" ; Str n1 ; Str n2 ; x1 ; x2 ] ->
+        E2 (LetPair (n1, ref None, n2, ref None), e x1, e x2)
     | Lst [ Sym "nth" ; x1 ; x2 ] -> E2 (Nth, e x1, e x2)
     | Lst [ Sym "unsafe-nth" ; x1 ; x2 ] -> E2 (UnsafeNth, e x1, e x2)
     | Lst [ Sym "gt" ; x1 ; x2 ] -> E2 (Gt, e x1, e x2)
@@ -1576,9 +1573,8 @@ struct
         E2 (PtrOfAddress, e x1, e x2)
     | Lst [ Sym "while" ; x1 ; x2 ] ->
         E2 (While, e x1, e x2)
-    | Lst [ Sym "for-each" ; Str n ; Str mn ; x1 ; x2 ] ->
-        let mn = T.mn_of_string mn in
-        E2 (ForEach (n, mn), e x1, e x2)
+    | Lst [ Sym "for-each" ; Str n ; x1 ; x2 ] ->
+        E2 (ForEach (n, ref None), e x1, e x2)
     | Lst [ Sym "index" ; x1 ; x2 ] ->
         E2 (Index, e x1, e x2)
     (* e3 *)
@@ -2046,10 +2042,13 @@ and type_of l e0 =
       T.func2 T.ptr T.ptr T.(pair ptr ptr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.mask
-  | E2 (Let (n, t), _, e2) ->
+  | E2 (Let (n, r), e1, e2) ->
+      let t = get_memo_mn r l e1 in
       let l = add_local n t l in
       type_of l e2
-  | E2 (LetPair (n1, t1, n2, t2), _, e2) ->
+  | E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
+      let t1 = get_memo_mn r1 l (E1 (GetItem 0, e1))
+      and t2 = get_memo_mn r2 l (E1 (GetItem 1, e1)) in
       let l = add_local n1 t1 l |>
               add_local n2 t2 in
       type_of l e2
@@ -2211,6 +2210,28 @@ and check_fun_sign e0 l f ps =
   | t ->
       raise (Type_error (e0, f, t, "be a function"))
 
+and memoize_type r f =
+  match !r with
+  | Some mn ->
+      mn
+  | None ->
+      let mn = f () in
+      r := Some mn ;
+      mn
+
+and get_memo_mn r l e =
+  memoize_type r (fun () -> type_of l e)
+
+and get_memo_item_mn r l e =
+  memoize_type r (fun () ->
+    match get_item_type_err ~vec:true ~arr:true ~set:true ~lst:true l e with
+    | Ok mn ->
+        mn
+    | Error mn ->
+        Printf.sprintf2 "argument must be a vector/array/list/set, not %a"
+          T.print_mn mn |>
+        invalid_arg)
+
 let apply_constructor e0 l name ins =
   match Hashtbl.find user_constructors name with
   | exception Not_found ->
@@ -2281,14 +2302,18 @@ let rec fold_env u l f e =
   | E1S (_, e1, es) ->
       let u = fold_env u l f e1 in
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
-  | E2 (Let (n, t), e1, e2) ->
+  | E2 (Let (n, r), e1, e2) ->
+      let t = get_memo_mn r l e1 in
       let l' = add_local n t l in
       fold_env (fold_env u l f e1) l' f e2
-  | E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
+  | E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
+      let t1 = get_memo_mn r1 l (E1 (GetItem 0, e1))
+      and t2 = get_memo_mn r2 l (E1 (GetItem 1, e1)) in
       let l' = add_local n1 t1 l |>
                add_local n2 t2 in
       fold_env (fold_env u l f e1) l' f e2
-  | E2 (ForEach (n, mn), e1, e2) ->
+  | E2 (ForEach (n, r), e1, e2) ->
+      let mn = get_memo_item_mn r l e1 in
       let l' = add_local n mn l in
       fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
@@ -2357,22 +2382,26 @@ let rec map_env l f e =
       let e1 = map_env l f e1
       and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
-  | E2 (Let (n, t), e1, e2) ->
+  | E2 (Let (n, r), e1, e2) ->
+      let t = get_memo_mn r l e1 in
       let e1 = map_env l f e1 in
       let l = add_local n t l in
       let e2 = map_env l f e2 in
-      f l (E2 (Let (n, t), e1, e2))
-  | E2 (LetPair (n1, t1, n2, t2), e1, e2) ->
+      f l (E2 (Let (n, r), e1, e2))
+  | E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
+      let t1 = get_memo_mn r1 l (E1 (GetItem 0, e1))
+      and t2 = get_memo_mn r2 l (E1 (GetItem 1, e1)) in
       let e1 = map_env l f e1 in
       let l = add_local n1 t1 l |>
               add_local n2 t2 in
       let e2 = map_env l f e2 in
-      f l (E2 (LetPair (n1, t1, n2, t2), e1, e2))
-  | E2 (ForEach (n, t), e1, e2) ->
+      f l (E2 (LetPair (n1, r1, n2, r2), e1, e2))
+  | E2 (ForEach (n, r), e1, e2) ->
+      let t = get_memo_item_mn r l e1 in
       let e1 = map_env l f e1 in
       let l = add_local n t l in
       let e2 = map_env l f e2 in
-      f l (E2 (ForEach (n, t), e1, e2))
+      f l (E2 (ForEach (n, r), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
@@ -2552,7 +2581,7 @@ let rec type_check l e =
          | Bytes _ | Identifier _ | ExtIdentifier _
          | Param _ | CopyField | SkipField | SetFieldNull)
     | E0S (Verbatim _, _)
-    | E1 ((Comment _ | Dump | Identity | Ignore | Function _ | Hash |
+    | E1 ((Comment _ | NotNull | Dump | Identity | Ignore | Function _ | Hash |
            AllocVec _), _)
     | E2 ((Let _ | LetPair _), _, _) ->
         (* Subexpressions will be type checked recursively already *)
@@ -2590,8 +2619,6 @@ let rec type_check l e =
     | E2 ((Nth | UnsafeNth), e1, e2) ->
         check_integer l e1 ;
         check_ordered_lst l e2
-    | E1 (NotNull, e) ->
-        check_nullable false l e
     | E1 (Force _, e) ->
         check_nullable true l e
     | E2 ((Gt | Ge | Eq | Min | Max), e1, e2) ->
@@ -2907,14 +2934,14 @@ let rec type_check l e =
    not (pass_type_check "(apply (string \"blabla\") (bool false))")
 *)
 
-(*ST type_check
+(*$T type_check
   tot_time (fun () -> \
     let z = Ops.u8_of_int 0 in \
-    let rec loop l n e = \
+    let rec loop n e = \
       if n <= 0 then e else \
-      let_ ~l (loop l (n-1) z) (fun l v -> \
-        Ops.add v (loop l (n-1) e)) in \
-    let e = loop no_env 25 z in \
+      let_ (loop (n-1) z) (fun v -> \
+        Ops.add v (loop (n-1) e)) in \
+    let e = loop 10 z in \
     type_check no_env e) < 10.
 *)
 
@@ -3015,7 +3042,7 @@ let gen_id =
     incr seq ;
     prefix ^"_"^ string_of_int !seq
 
-let let_ ?name ~l value f =
+let let_ ?name value f =
   match value with
   (* If [value] is already an identifier (or a param) there is no need for a
    * new one: *)
@@ -3028,89 +3055,75 @@ let let_ ?name ~l value f =
        | Size _ | Address _
        | CopyField | SkipField | SetFieldNull)
   | E0S (Seq, []) ->
-      f l value
+      f value
   | _ ->
       let n = match name with Some n -> gen_id n | None -> gen_id "gen" in
-      let t = type_of l value in
-      let l = add_local n t l in
-      E2 (Let (n, t), value, f l (E0 (Identifier n)))
+      E2 (Let (n, ref None), value, f (E0 (Identifier n)))
 
-let let_pair ?n1 ?n2 ~l value f =
+let let_pair ?n1 ?n2 value f =
   let name = function Some n -> gen_id n | None -> gen_id "gen" in
   let n1 = name n1 and n2 = name n2 in
-  let t1 = type_of l (E1 (GetItem 0, value))
-  and t2 = type_of l (E1 (GetItem 1, value)) in
-  let l = add_local n1 t1 l |>
-          add_local n2 t2 in
   let id n = E0 (Identifier n) in
-  E2 (LetPair (n1, t1, n2, t2), value, f l (id n1) (id n2))
+  E2 (LetPair (n1, ref None, n2, ref None), value, f (id n1) (id n2))
 
-let for_each ?name ~l lst f =
+let for_each ?name lst f =
   let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
-  match get_item_type_err ~vec:true ~arr:true ~set:true ~lst:true l lst with
-  | Ok mn ->
-      let l = add_local n mn l in
-      E2 (ForEach (n, mn), lst, f l (E0 (Identifier n)))
-  | Error mn ->
-      Printf.sprintf2 "for_each: argument must be a vector/list/set, not %a"
-        T.print_mn mn |>
-      invalid_arg
+  E2 (ForEach (n, ref None), lst, f (E0 (Identifier n)))
 
 (* Do not use a function to avoid leaking function parameters *)
-let with_sploded_pair ~l what e f =
+let with_sploded_pair what e f =
   let n1 = what ^"_fst"
   and n2 = what ^"_snd" in
-  let_ ~l ~name:what e (fun l p ->
-    let_pair ~n1 ~n2 ~l p f)
+  let_ ~name:what e (fun p ->
+    let_pair ~n1 ~n2 p f)
 
 (* Create a function expression: *)
 let func =
   let next_id = ref 0 in
-  fun ~l ts f ->
+  fun ts f ->
     let fid = !next_id in
     incr next_id ;
-    let l = enter_function fid ts l in
-    E1 (Function (fid, ts), f l fid)
+    E1 (Function (fid, ts), f fid)
 
 (* Specialized to a given arity: *)
 
-let func0 ~l f =
-  func ~l [||] (fun l _fid -> f l)
+let func0 f =
+  func [||] (fun _fid -> f ())
 
-let func1 ~l t1 f =
-  func ~l [| t1 |] (fun l fid ->
+let func1 t1 f =
+  func [| t1 |] (fun fid ->
     let p1 = E0 (Param (fid, 0)) in
-    f l p1)
+    f p1)
 
-let func2 ~l t1 t2 f =
-  func ~l [| t1 ; t2 |] (fun l fid ->
+let func2 t1 t2 f =
+  func [| t1 ; t2 |] (fun fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1)) in
-    f l p1 p2)
+    f p1 p2)
 
-let func3 ~l t1 t2 t3 f =
-  func ~l [| t1 ; t2 ; t3 |] (fun l fid ->
+let func3 t1 t2 t3 f =
+  func [| t1 ; t2 ; t3 |] (fun fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2)) in
-    f l p1 p2 p3)
+    f p1 p2 p3)
 
-let func4 ~l t1 t2 t3 t4 f =
-  func ~l [| t1 ; t2 ; t3 ; t4 |] (fun l fid ->
+let func4 t1 t2 t3 t4 f =
+  func [| t1 ; t2 ; t3 ; t4 |] (fun fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2))
     and p4 = E0 (Param (fid, 3)) in
-    f l p1 p2 p3 p4)
+    f p1 p2 p3 p4)
 
-let func5 ~l t1 t2 t3 t4 t5 f =
-  func ~l [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun l fid ->
+let func5 t1 t2 t3 t4 t5 f =
+  func [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun fid ->
     let p1 = E0 (Param (fid, 0))
     and p2 = E0 (Param (fid, 1))
     and p3 = E0 (Param (fid, 2))
     and p4 = E0 (Param (fid, 3))
     and p5 = E0 (Param (fid, 4)) in
-    f l p1 p2 p3 p4 p5)
+    f p1 p2 p3 p4 p5)
 
 (* Tells is a function just return its [p]th argument: *)
 let is_identity p = function
@@ -3323,9 +3336,6 @@ struct
   let string_of_char e = E1 (StringOfChar, e)
 
   let not_null e = E1 (NotNull, e)
-
-  let to_not_null ~l e =
-    if (type_of l e).T.nullable then e else not_null e
 
   let or_null_ vt op conv s =
     try not_null (op (conv s)) with _ -> null vt
@@ -3767,19 +3777,19 @@ let () =
   and ip6_t = T.required (T.get_user_type "Ip6") in
   let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
   register_user_constructor "Ip" (Sum ip_mns)
-    [ func1 ~l:no_env ip4_t (fun _l x -> construct ip_mns 0 x) ;
-      func1 ~l:no_env ip6_t (fun _l x -> construct ip_mns 1 x) ] ;
+    [ func1 ip4_t (fun x -> construct ip_mns 0 x) ;
+      func1 ip6_t (fun x -> construct ip_mns 1 x) ] ;
   register_user_constructor "Cidr4"
     (Rec [| "ip", ip4_t ; "mask", T.required (Base U8) |])
-    [ func2 ~l:no_env ip4_t T.u8 (fun _l ip mask ->
+    [ func2 ip4_t T.u8 (fun ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   register_user_constructor "Cidr6"
     (Rec [| "ip", ip6_t ; "mask", T.required (Base U8) |])
-    [ func2 ~l:no_env ip6_t T.u8 (fun _l ip mask ->
+    [ func2 ip6_t T.u8 (fun ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   let cidr4_t = T.required (T.get_user_type "Cidr4")
   and cidr6_t = T.required (T.get_user_type "Cidr6") in
   let cidr_mns = [| "v4", cidr4_t ; "v6", cidr6_t |] in
   register_user_constructor "Cidr" (Sum cidr_mns)
-    [ func1 ~l:no_env cidr4_t (fun _l x -> construct cidr_mns 0 x) ;
-      func1 ~l:no_env cidr6_t (fun _l x -> construct cidr_mns 1 x) ]
+    [ func1 cidr4_t (fun x -> construct cidr_mns 0 x) ;
+      func1 cidr6_t (fun x -> construct cidr_mns 1 x) ]

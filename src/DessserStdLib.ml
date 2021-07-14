@@ -9,44 +9,43 @@ open BatOption.Infix
 open E.Ops
 
 (* [coalesce es] build an expression that selects the first non null
- * expression in [rs].
- * All items of [rs] must have the same value-type.
+ * expression in [es].
+ * All items of [es] are pairs of E.t and nullability flag, and all of these
+ * expressions must have the same value-type.
  * If the last alternative is nullable then the result of the coalesce is still
  * nullable.
  * The first non-nullable alternative will be the last checked item obviously. *)
-let coalesce l es =
+let coalesce es =
   if es = [] then
     invalid_arg "coalesce with no alternatives" ;
-  let last_e = BatList.last es in
-  let ret_nullable = (E.type_of l last_e).T.nullable in
-  let rec loop i l = function
+  let _, ret_nullable = BatList.last es in
+  let rec loop i = function
     | [] ->
         assert false (* because of the pre-condition *)
-    | [ e ] ->
+    | [ e, _ ] ->
         e
-    | e :: es ->
-        (match E.type_of l e with
-        | T.{ nullable = true ; _ } ->
-            let name = "coalesced_"^ string_of_int i in
-            let_ ~name ~l e (fun l d ->
-              if_null d
-                ~then_:(loop (i + 1) l es)
-                ~else_:(
-                  if ret_nullable then d
-                  else force ~what:"coalesce" d))
-        | _ ->
-            (* If [e] is not a nullable thing there is no point looking
-             * further: *)
-            if ret_nullable then not_null e else e) in
-  loop 0 l es
+    | (e, nullable) :: es ->
+        if nullable then
+          let name = "coalesced_"^ string_of_int i in
+          let_ ~name e (fun e ->
+            if_null e
+              ~then_:(loop (i + 1) es)
+              ~else_:(
+                if ret_nullable then e
+                else force ~what:"coalesce" e))
+        else
+          (* If [e] is not a nullable thing there is no point looking
+           * further: *)
+          if ret_nullable then not_null e else e in
+  loop 0 es
 
 (* Implement a simple for-loop: *)
-let repeat ~l ~from ~to_ body =
-  let_ ~name:"repeat_n" ~l (make_ref (to_i32 from)) (fun l n_ref ->
+let repeat ~from ~to_ body =
+  let_ ~name:"repeat_n" (make_ref (to_i32 from)) (fun n_ref ->
     let n = get_ref n_ref in
     while_ (lt n (to_i32 to_))
       (seq [
-        body l n ;
+        body n ;
         set_ref n_ref (add n (i32_of_int 1)) ]))
 
 let random_i32 =
@@ -58,10 +57,10 @@ let rec random_lst mn =
   and to_ =
     force ~what:"random_lst rem"
       (rem (add (i32_of_int 1) random_i32) max_list_length) in
-  let_ ~name:"lst" ~l:E.no_env (make_ref (eol mn)) (fun l lst_ref ->
+  let_ ~name:"lst" (make_ref (eol mn)) (fun lst_ref ->
     let lst = get_ref lst_ref in
     seq [
-      repeat ~l ~from ~to_ (fun _l _n ->
+      repeat ~from ~to_ (fun _n ->
         set_ref lst_ref (cons (random mn) lst)) ;
       lst ])
 
@@ -88,10 +87,10 @@ and random mn =
       eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
   | Base String ->
       (* Just 5 random letters for now: *)
-      let_ ~name:"s_ref" ~l:E.no_env (make_ref (string "")) (fun l s_ref ->
+      let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
         let s = get_ref s_ref in
         seq [
-          repeat ~l ~from:(i32 0l) ~to_:(i32 5l) (fun _l _i ->
+          repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
               let c = random T.(required (Base Char)) in
               let s' = append_string s (string_of_char_ c) in
               (set_ref s_ref s')) ;
@@ -190,13 +189,13 @@ struct
 
   (* Add [x] (a float) to [sum] ([c] is carried along and must be added too
    * eventually): *)
-  let add ~l sum_c x =
+  let add sum_c x =
     let open E.Ops in
-    let_ ~name:"kahan_state" ~l sum_c (fun l sum_c ->
-      let_ ~name:"kahan_x" ~l (to_float x) (fun l x ->
+    let_ ~name:"kahan_state" sum_c (fun sum_c ->
+      let_ ~name:"kahan_x" (to_float x) (fun x ->
         let sum = get_item 0 sum_c
         and carry = get_item 1 sum_c in
-        let_ ~name:"kahan_sum" ~l (add sum x) (fun _l s ->
+        let_ ~name:"kahan_sum" (add sum x) (fun s ->
           let carry' =
             if_ (ge (abs sum) (abs x))
               ~then_:(add (sub sum s) x)
@@ -204,18 +203,17 @@ struct
           make_tup [ s ; add carry carry' ])))
 
   (* In some rare cases we might want to scale the counter: *)
-  let mul ~l sum_c x =
+  let mul sum_c x =
     let open E.Ops in
-    let_ ~name:"kahan_state" ~l sum_c (fun l sum_c ->
-      let_ ~name:"kahan_x2" ~l (to_float x) (fun _l x ->
+    let_ ~name:"kahan_state" sum_c (fun sum_c ->
+      let_ ~name:"kahan_x2" (to_float x) (fun x ->
         let sum = get_item 0 sum_c
         and carry = get_item 1 sum_c in
         make_tup [ mul sum x ; mul carry x ]))
 
-  let finalize ~l sum_c =
-    ignore l ;
+  let finalize sum_c =
     let open E.Ops in
-    let_ ~name:"kahan_state" ~l sum_c (fun _l sum_c ->
+    let_ ~name:"kahan_state" sum_c (fun sum_c ->
       let sum = get_item 0 sum_c
       and carry = get_item 1 sum_c in
       add sum carry)
@@ -224,49 +222,38 @@ end
 (*
  * Compute the percentiles [ps] of a set of values [vs].
  * [vs] and [ps] must be vectors.
+ * [ps] item type is given as [p_t] whereas the type of the full vector
+ * of values is given as [vs_t].
  * The result is a vector of same dimension than [ps].
+ *
+ * TODO: rewrite without map, using only imperative operations
  *)
 
-let percentiles ~l vs ps =
+let percentiles vs vs_t ps p_t =
   let open E.Ops in
   comment "Compute the indices of those percentiles" (
-    match E.get_item_type_err ~vec:true ~arr:true l ps with
-    | Error mn ->
-        BatPrintf.sprintf2
-          "percentiles: coefficients must be a vector/list (not %a)"
-          T.print_mn mn |>
-        invalid_arg
-    | Ok p_t ->
-        let_ ~name:"vs" ~l vs (fun l vs ->
-          let ks =
-            let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
-            let_ ~l ~name:"card_vs" card_vs (fun l card_vs ->
-              map_ card_vs (E.func2 ~l T.float p_t (fun _l card_vs p ->
-                seq [
-                  assert_ (and_ (ge (to_float p) (float 0.))
-                                (le (to_float p) (float 100.))) ;
-                  mul (mul (to_float p) (float 0.01)) card_vs |>
-                  round |>
-                  to_u32 ])
-              ) ps) in
-          let vs_t = E.type_of l vs in
-          let_ ~name:"perc_ks" ~l ks (fun l ks ->
+    let_ ~name:"vs" vs (fun vs ->
+      let ks =
+        let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
+        let_ ~name:"card_vs" card_vs (fun card_vs ->
+          map_ card_vs (E.func2 T.float p_t (fun card_vs p ->
             seq [
-              (* Sort vs: *)
-              partial_sort vs ks ;
-              map_ vs (E.func2 ~l vs_t T.u32 (fun _l vs k ->
-                unsafe_nth k vs)
-              ) ks ])))
-
-(* If [e] is not nullable, [to_nullable l e] is [not_null e].
- * If [e] is nullable already then [to_nullable l e] is just [e]. *)
-let to_nullable l e =
-  let open E.Ops in
-  if (E.type_of l e).T.nullable then e
-  else not_null e
+              assert_ (and_ (ge (to_float p) (float 0.))
+                            (le (to_float p) (float 100.))) ;
+              mul (mul (to_float p) (float 0.01)) card_vs |>
+              round |>
+              to_u32 ])
+          ) ps) in
+      let_ ~name:"perc_ks" ks (fun ks ->
+        seq [
+          (* Sort vs: *)
+          partial_sort vs ks ;
+          map_ vs (E.func2 vs_t T.u32 (fun vs k ->
+            unsafe_nth k vs)
+          ) ks ])))
 
 (* Tells if a vector/list/set/lst/ptr is empty, dealing with nullable: *)
-let is_empty l e =
+let is_empty e e_t =
   let open E.Ops in
   let prop_null nullable e f =
     if nullable then
@@ -275,7 +262,7 @@ let is_empty l e =
         ~else_:(not_null (f (force e)))
     else
       f e in
-  match E.type_of l e with
+  match e_t with
   | T.{ typ = (Base String) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
@@ -302,14 +289,14 @@ let is_empty l e =
       invalid_arg
 
 (* Tells if any item [i] from the container [lst] matches [f i]. *)
-let exists ~l lst f =
+let exists lst f =
   let open E.Ops in
   (* FIXME: a way to exit the loop that iterates through a container *)
-  let_ ~name:"res" ~l (make_ref false_) (fun l res_ref ->
+  let_ ~name:"res" (make_ref false_) (fun res_ref ->
     let res = get_ref res_ref in
     seq [
-      for_each ~name:"item" ~l lst (fun l item ->
-        set_ref res_ref (or_ res (f l item))) ;
+      for_each ~name:"item" lst (fun item ->
+        set_ref res_ref (or_ res (f item))) ;
       res ])
 
 let first_ip_of_cidr width all_ones cidr =
@@ -352,23 +339,23 @@ let last_ip_of_cidr6 cidr =
  * Also handles the case where [lst] and/or [e] is null (note than null is known
  * not to be in a (non-null) empty set).
  * Return value is nullable whenever [item] or [lst] is. *)
-let rec is_in ~l item lst =
+let rec is_in item item_t lst lst_t =
   let open E.Ops in
-  let_ ~l ~name:"lst" lst (fun l lst ->
-    let_ ~l ~name:"item" item (fun l item ->
-      let lst_t = E.type_of l lst
-      and item_t = E.type_of l item in
+  let_ ~name:"lst" lst (fun lst ->
+    let_ ~name:"item" item (fun item ->
       if lst_t.T.nullable then
         if_null lst
           ~then_:(null T.(Base Bool))
           ~else_:(
-            to_nullable l (is_in ~l item (force ~what:"is_in(0)" lst)))
+            let lst = force ~what:"is_in(0)" lst
+            and lst_t = { lst_t with nullable = false } in
+            not_null (is_in item item_t lst lst_t))
       else
         if_ (comment "is_in: Is List empty?"
               ((* It makes that code simpler to allow `scalar is_in scalar` and
                   treat it as meaning `scalar = scalar`, so we must accept non
                   containers as never empty: *)
-                try is_empty l lst
+                try is_empty lst lst_t
                 with Invalid_argument _ -> bool false))
           ~then_:(
             let ret = bool true in
@@ -378,7 +365,9 @@ let rec is_in ~l item lst =
               if_null item
                 ~then_:(null T.(Base Bool))
                 ~else_:(
-                  to_nullable l (is_in ~l (force ~what:"is_in(1)" item) lst))
+                  let item = force ~what:"is_in(1)" item
+                  and item_t = { item_t with nullable = false } in
+                  not_null (is_in item item_t lst lst_t))
             else (
               let err () =
                 BatPrintf.sprintf2 "is_in: invalid types (%a in %a)"
@@ -409,13 +398,17 @@ let rec is_in ~l item lst =
                     ~then_:(
                       if_ (eq (label_of item) (u16_of_int 0))
                         ~then_:(
-                          let_ ~l ~name:"ip" (get_alt "v4" item) (fun l ip ->
-                            let_ ~l ~name:"cidr" (get_alt "v4" lst) (fun l cidr ->
-                              is_in ~l ip cidr)))
+                          let_ ~name:"ip" (get_alt "v4" item) (fun ip ->
+                            let_ ~name:"cidr" (get_alt "v4" lst) (fun cidr ->
+                              let ip_t = T.(required (get_user_type "Ip4"))
+                              and cidr_t = T.(required (get_user_type "Cidr4")) in
+                              is_in ip ip_t cidr cidr_t)))
                         ~else_:(
-                          let_ ~l ~name:"ip" (get_alt "v6" item) (fun l ip ->
-                            let_ ~l ~name:"cidr" (get_alt "v6" lst) (fun l cidr ->
-                              is_in ~l ip cidr))))
+                          let_ ~name:"ip" (get_alt "v6" item) (fun ip ->
+                            let_ ~name:"cidr" (get_alt "v6" lst) (fun cidr ->
+                              let ip_t = T.(required (get_user_type "Ip6"))
+                              and cidr_t = T.(required (get_user_type "Cidr6")) in
+                              is_in ip ip_t cidr cidr_t))))
                     ~else_:(bool false)
               | item_typ, (Vec (_, { typ = lst_typ ; nullable }) |
                            Arr { typ = lst_typ ; nullable }) ->
@@ -425,21 +418,28 @@ let rec is_in ~l item lst =
                    * [is_in] cannot be merely called recursively because of the
                    * semantic with strings: "ba" is in "foobar" whereas it is
                    * not in [ "foobar" ]! *)
-                  let op l =
+                  let op =
                     if T.eq item_typ lst_typ then eq
-                                             else is_in ~l in
-                  exists ~l lst (fun l i ->
+                    else (fun a b ->
+                      is_in a item_t
+                            b T.{ lst_t with nullable = false })  in
+                  exists lst (fun i ->
                     if nullable then
                       if_null i
                         ~then_:(bool false)
-                        ~else_:(op l item (force ~what:"is_in(2)" i))
+                        ~else_:(op item (force ~what:"is_in(2)" i))
                     else
-                      op l item i)
+                      op item i)
               | _ ->
                   (* If we can convert item into lst (which at this point is
                    * known not to be a list) then we can try equality: *)
-                  (match C.conv_mn ~to_:lst_t l item with
+                  (match C.conv_mn ~from:item_t ~to_:lst_t item with
                   | exception _ ->
                       err ()
                   | item' ->
                       eq item' lst)))))
+
+let rec cases ~else_ = function
+  | [] -> invalid_arg "cases"
+  | [ c, t ] -> if_ c ~then_:t ~else_
+  | (c, t) :: rest -> if_ c ~then_:t ~else_:(cases ~else_ rest)

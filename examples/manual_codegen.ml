@@ -68,9 +68,9 @@ let () =
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
       compunit,
-      E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
+      E.func2 T.ptr T.ptr (fun src dst ->
         comment "Convert from RowBinary into S-Expression:"
-          (DS.desser ~ser_config:sexpr_config typ l src dst))
+          (DS.desser ~ser_config:sexpr_config typ src dst))
     ) else (
       (* convert from RowBinary into a heapvalue, compute its serialization
        * size in RamenringBuf format, then convert it into S-Expression: *)
@@ -91,13 +91,13 @@ let () =
       let compunit, sersize =
         OfValue1.sersize typ compunit in
       compunit,
-      E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
+      E.func2 T.ptr T.ptr (fun src dst ->
         comment "Convert from RowBinary into a heap value:" (
           let v_src = apply des [ src ] in
-          E.with_sploded_pair ~l "v_src" v_src (fun l v src ->
+          E.with_sploded_pair "v_src" v_src (fun v src ->
             comment "Compute the serialized size of this tuple:" (
               let sz = apply sersize [ ma ; v ] in
-              E.let_ ~name:"sz" ~l sz (fun _l sz ->
+              E.let_ ~name:"sz" sz (fun sz ->
                 seq [
                   dump (string "Size: ") ;
                   dump sz ;

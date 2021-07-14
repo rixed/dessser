@@ -18,13 +18,13 @@ struct
   type state = unit
   let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _vtyp _l src = config, src
-  let stop () _l src = src
-  type des = state -> T.mn -> Path.t -> E.env -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
+  let start ?(config=()) _vtyp src = config, src
+  let stop () src = src
+  type des = state -> T.mn -> Path.t -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
-  let from_byte v1 v2 _ _ l src =
+  let from_byte v1 v2 _ _ src =
     let b_src = read_u8 src in
-    E.with_sploded_pair ~l "from_byte" b_src (fun _l b src ->
+    E.with_sploded_pair "from_byte" b_src (fun b src ->
       make_pair
         (if_ (bool_of_u8 b) ~then_:v1 ~else_:v2)
         src)
@@ -32,8 +32,8 @@ struct
   let dfloat () = from_byte (float 1.) (float 0.)
   let dstring () = from_byte (string "x") (string "")
   let dbool () = from_byte true_ false_
-  let dchar () _ _ l src =
-    E.with_sploded_pair ~l "dchar" (read_u8 src) (fun _l b src ->
+  let dchar () _ _ src =
+    E.with_sploded_pair "dchar" (read_u8 src) (fun b src ->
       make_pair (char_of_u8 b) src)
   let di8 () = from_byte (i8 Int8.one) (i8 Int8.zero)
   let di16 () = from_byte (i16 Int16.one) (i16 Int16.zero)
@@ -53,26 +53,26 @@ struct
   let du56 () = from_byte (u56 Uint56.one) (u56 Uint56.zero)
   let du64 () = from_byte (u64 Uint64.one) (u64 Uint64.zero)
   let du128 () = from_byte (u128 Uint128.one) (u128 Uint128.zero)
-  let tup_opn _ () _ _ _ src = src
-  let tup_cls () _ _ _ src = src
-  let tup_sep () _ _ _ src = src
-  let rec_opn _ () _ _ _ src = src
-  let rec_cls () _ _ _ src = src
-  let rec_sep () _ _ _ src = src
-  let sum_opn _ () _ _ _ src = src
-  let sum_cls () _ _ _ src = src
-  let vec_opn _ _ () _ _ _ src = src
-  let vec_cls () _ _ _ src = src
-  let vec_sep () _ _ _ src = src
+  let tup_opn _ () _ _ src = src
+  let tup_cls () _ _ src = src
+  let tup_sep () _ _ src = src
+  let rec_opn _ () _ _ src = src
+  let rec_cls () _ _ src = src
+  let rec_sep () _ _ src = src
+  let sum_opn _ () _ _ src = src
+  let sum_cls () _ _ src = src
+  let vec_opn _ _ () _ _ src = src
+  let vec_cls () _ _ src = src
+  let vec_sep () _ _ src = src
   let arr_opn () =
-    KnownSize (fun _ _ _ l src ->
-      E.with_sploded_pair ~l "b_src" (read_u8 src) (fun _l b src ->
+    KnownSize (fun _ _ _ src ->
+      E.with_sploded_pair "b_src" (read_u8 src) (fun b src ->
         make_pair (to_u32 b) src))
-  let arr_cls () _ _ _ src = src
-  let arr_sep () _ _ _ src = src
-  let is_null () _ _ _ src =
+  let arr_cls () _ _ src = src
+  let arr_sep () _ _ src = src
+  let is_null () _ _ src =
     bool_of_u8 (peek_u8 src (size 0))
-  let dnull _t () _ _ _ src = ptr_add src (size 1)
+  let dnull _t () _ _ src = ptr_add src (size 1)
   let dnotnull = dnull
 end
 
@@ -84,82 +84,82 @@ struct
   type state = unit
   let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _l _v dst = config, dst
-  let stop () _l dst = dst
-  type ser = state -> T.mn -> Path.t -> E.env -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
+  let start ?(config=()) _v dst = config, dst
+  let stop () dst = dst
+  type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
     write_u8 dst (u8_of_bool b)
   let from_eq v1 v = from_bool (eq v1 v)
-  let sfloat () _ _ _ = from_eq (float 1.)
-  let sstring () _ _ _ v = from_bool (ge (string_length v) (u32 Uint32.zero))
-  let sbool () _ _ _ = from_bool
+  let sfloat () _ _ = from_eq (float 1.)
+  let sstring () _ _ v = from_bool (ge (string_length v) (u32 Uint32.zero))
+  let sbool () _ _ = from_bool
 
-  let schar () _ _ _ b dst = write_u8 dst (u8_of_char b)
-  let si8 () _ _ _ = from_eq (i8 Int8.one)
-  let si16 () _ _ _ = from_eq (i16 Int16.one)
-  let si24 () _ _ _ = from_eq (i24 Int24.one)
-  let si32 () _ _ _ = from_eq (i32 1l)
-  let si40 () _ _ _ = from_eq (i40 Int40.one)
-  let si48 () _ _ _ = from_eq (i48 Int48.one)
-  let si56 () _ _ _ = from_eq (i56 Int56.one)
-  let si64 () _ _ _ = from_eq (i64 1L)
-  let si128 () _ _ _ = from_eq (i128 Int128.one)
-  let su8 () _ _ _ = from_eq (u8 Uint8.one)
-  let su16 () _ _ _ = from_eq (u16 Uint16.one)
-  let su24 () _ _ _ = from_eq (u24 Uint24.one)
-  let su32 () _ _ _ = from_eq (u32 Uint32.one)
-  let su40 () _ _ _ = from_eq (u40 Uint40.one)
-  let su48 () _ _ _ = from_eq (u48 Uint48.one)
-  let su56 () _ _ _ = from_eq (u56 Uint56.one)
-  let su64 () _ _ _ = from_eq (u64 Uint64.one)
-  let su128 () _ _ _ = from_eq (u128 Uint128.one)
-  let tup_opn _ () _ _ _ dst = dst
-  let tup_cls () _ _ _ dst = dst
-  let tup_sep () _ _ _ dst = dst
-  let rec_opn _ () _ _ _ dst = dst
-  let rec_cls () _ _ _ dst = dst
-  let rec_sep () _ _ _ dst = dst
-  let sum_opn _ _ () _ _ _ dst = dst
-  let sum_cls () _ _ _ dst = dst
-  let vec_opn _ _ () _ _ _ dst = dst
-  let vec_cls () _ _ _ dst = dst
-  let vec_sep () _ _ _ dst = dst
-  let arr_opn _ _ () _ _ _ dst = dst
-  let arr_cls () _ _ _ dst = dst
-  let arr_sep () _ _ _ dst = dst
-  let nullable () _ _ _ dst = dst
-  let snull _t () _ _ _ dst = write_u8 dst (u8_of_int 1)
-  let snotnull _t () _ _ _ dst = write_u8 dst (u8_of_int 0)
+  let schar () _ _ b dst = write_u8 dst (u8_of_char b)
+  let si8 () _ _ = from_eq (i8 Int8.one)
+  let si16 () _ _ = from_eq (i16 Int16.one)
+  let si24 () _ _ = from_eq (i24 Int24.one)
+  let si32 () _ _ = from_eq (i32 1l)
+  let si40 () _ _ = from_eq (i40 Int40.one)
+  let si48 () _ _ = from_eq (i48 Int48.one)
+  let si56 () _ _ = from_eq (i56 Int56.one)
+  let si64 () _ _ = from_eq (i64 1L)
+  let si128 () _ _ = from_eq (i128 Int128.one)
+  let su8 () _ _ = from_eq (u8 Uint8.one)
+  let su16 () _ _ = from_eq (u16 Uint16.one)
+  let su24 () _ _ = from_eq (u24 Uint24.one)
+  let su32 () _ _ = from_eq (u32 Uint32.one)
+  let su40 () _ _ = from_eq (u40 Uint40.one)
+  let su48 () _ _ = from_eq (u48 Uint48.one)
+  let su56 () _ _ = from_eq (u56 Uint56.one)
+  let su64 () _ _ = from_eq (u64 Uint64.one)
+  let su128 () _ _ = from_eq (u128 Uint128.one)
+  let tup_opn _ () _ _ dst = dst
+  let tup_cls () _ _ dst = dst
+  let tup_sep () _ _ dst = dst
+  let rec_opn _ () _ _ dst = dst
+  let rec_cls () _ _ dst = dst
+  let rec_sep () _ _ dst = dst
+  let sum_opn _ _ () _ _ dst = dst
+  let sum_cls () _ _ dst = dst
+  let vec_opn _ _ () _ _ dst = dst
+  let vec_cls () _ _ dst = dst
+  let vec_sep () _ _ dst = dst
+  let arr_opn _ _ () _ _ dst = dst
+  let arr_cls () _ _ dst = dst
+  let arr_sep () _ _ dst = dst
+  let nullable () _ _ dst = dst
+  let snull _t () _ _ dst = write_u8 dst (u8_of_int 1)
+  let snotnull _t () _ _ dst = write_u8 dst (u8_of_int 0)
 
-  type ssizer = T.mn -> Path.t -> E.env -> (*valueptr*) E.t -> E.t
-  let ssize_of_float _ _ _ _ = size 1
-  let ssize_of_string _ _ _ _ = size 1
-  let ssize_of_bool _ _ _ _ = size 1
-  let ssize_of_char _ _ _ _ = size 1
-  let ssize_of_i8 _ _ _ _ = size 1
-  let ssize_of_i16 _ _ _ _ = size 1
-  let ssize_of_i24 _ _ _ _ = size 1
-  let ssize_of_i32 _ _ _ _ = size 1
-  let ssize_of_i40 _ _ _ _ = size 1
-  let ssize_of_i48 _ _ _ _ = size 1
-  let ssize_of_i56 _ _ _ _ = size 1
-  let ssize_of_i64 _ _ _ _ = size 1
-  let ssize_of_i128 _ _ _ _ = size 1
-  let ssize_of_u8 _ _ _ _ = size 1
-  let ssize_of_u16 _ _ _ _ = size 1
-  let ssize_of_u24 _ _ _ _ = size 1
-  let ssize_of_u32 _ _ _ _ = size 1
-  let ssize_of_u40 _ _ _ _ = size 1
-  let ssize_of_u48 _ _ _ _ = size 1
-  let ssize_of_u56 _ _ _ _ = size 1
-  let ssize_of_u64 _ _ _ _ = size 1
-  let ssize_of_u128 _ _ _ _ = size 1
-  let ssize_of_tup _ _ _ _ = size 0
-  let ssize_of_rec _ _ _ _ = size 0
-  let ssize_of_sum _ _ _ _ = size 0
-  let ssize_of_vec _ _ _ _ = size 0
-  let ssize_of_arr _ _ _ _ = size 0
+  type ssizer = T.mn -> Path.t -> (*valueptr*) E.t -> E.t
+  let ssize_of_float _ _ _ = size 1
+  let ssize_of_string _ _ _ = size 1
+  let ssize_of_bool _ _ _ = size 1
+  let ssize_of_char _ _ _ = size 1
+  let ssize_of_i8 _ _ _ = size 1
+  let ssize_of_i16 _ _ _ = size 1
+  let ssize_of_i24 _ _ _ = size 1
+  let ssize_of_i32 _ _ _ = size 1
+  let ssize_of_i40 _ _ _ = size 1
+  let ssize_of_i48 _ _ _ = size 1
+  let ssize_of_i56 _ _ _ = size 1
+  let ssize_of_i64 _ _ _ = size 1
+  let ssize_of_i128 _ _ _ = size 1
+  let ssize_of_u8 _ _ _ = size 1
+  let ssize_of_u16 _ _ _ = size 1
+  let ssize_of_u24 _ _ _ = size 1
+  let ssize_of_u32 _ _ _ = size 1
+  let ssize_of_u40 _ _ _ = size 1
+  let ssize_of_u48 _ _ _ = size 1
+  let ssize_of_u56 _ _ _ = size 1
+  let ssize_of_u64 _ _ _ = size 1
+  let ssize_of_u128 _ _ _ = size 1
+  let ssize_of_tup _ _ _ = size 0
+  let ssize_of_rec _ _ _ = size 0
+  let ssize_of_sum _ _ _ = size 0
+  let ssize_of_vec _ _ _ = size 0
+  let ssize_of_arr _ _ _ = size 0
   let ssize_of_null _ _ = size 1
   let ssize_start ?(config=()) _ =
     ignore config ;
@@ -175,7 +175,7 @@ let test_desser () =
                nullable = false } in
   let src = ptr_of_string (string "\001X")
   and dst = ptr_of_string (string "_____") in
-  E.Ops.let_ ~l:E.no_env (TestDesSer.desser mn E.no_env src dst) (fun _l e ->
+  E.Ops.let_ (TestDesSer.desser mn src dst) (fun e ->
     seq [ dump e ;
           dump (string "\n") ;
           e ])

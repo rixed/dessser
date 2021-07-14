@@ -449,7 +449,7 @@ and e2_gen l depth =
               try
                 let l = E.add_local name (E.type_of l e) l in
                 let body = generate1 (expression_gen (l, depth - 1)) in
-                let_ ~name ~l e (fun _l _e -> body)
+                let_ ~name e (fun _e -> body)
               with _ ->
                 generate1 (e2_gen l depth)
             ) let_name_gen expr ;
@@ -691,8 +691,8 @@ let sexpr mn =
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      E.func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
-        (fun l src dst -> S2S.desser mn l src dst) in
+      E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+        (fun src dst -> S2S.desser mn src dst) in
     let compunit = U.make () in
     make_converter ~dev_mode:true ~mn compunit be e
 
@@ -702,15 +702,19 @@ let sexpr mn =
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      E.func2 ~l:E.no_env (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
-        (fun l src dst ->
-          E.Ops.let_ ~l alloc_dst (fun l tdst ->
-            E.with_sploded_pair ~l "s2t" (S2T.desser mn l src tdst) (fun l src tdst_end ->
+      E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+        (fun src dst ->
+          E.Ops.let_ alloc_dst (fun tdst ->
+            E.with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
               let tdst = ptr_of_ptr tdst (size 0) (ptr_sub tdst_end tdst) in
-              let dst = secnd (T2S.desser mn l tdst dst) in
+              let dst = secnd (T2S.desser mn tdst dst) in
               make_pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
+    if dbg then (
+      let e' = DessserEval.peval E.no_env e in
+      Format.eprintf "@[<v>After peval:@,%a@." (E.pretty_print ?max_depth:None) e'
+    ) ;
     let compunit = U.make () in
     make_converter ~dev_mode:true ~mn compunit be e
 
@@ -762,14 +766,13 @@ let sexpr mn =
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr compunit mn =
-    let l = E.no_env in
     let compunit, ser_func = OfValue.serialize mn compunit in
     let compunit, des = ToValue.make mn compunit in
     compunit,
-    E.func2 ~l (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
-      (fun l src dst ->
+    E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      (fun src dst ->
         let v_src = apply des [ src ] in
-        E.with_sploded_pair ~l "v_src" v_src (fun _l v src ->
+        E.with_sploded_pair "v_src" v_src (fun v src ->
           let dst = apply ser_func [ copy_field ; v ; dst ] in
           make_pair src dst))
 *)
@@ -915,8 +918,8 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser mn l src dst) in
+        E.func2 T.ptr T.ptr (fun src dst ->
+          DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make () in
@@ -930,8 +933,8 @@ let sexpr mn =
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser mn l src dst) in
+        E.func2 T.ptr T.ptr (fun src dst ->
+          DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make () in
@@ -969,8 +972,8 @@ let sexpr mn =
       DessserSExpr.{ default_config with list_prefix_length = false } in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser ~ser_config ?des_config:config mn l src dst) in
+        E.func2 T.ptr T.ptr (fun src dst ->
+          DS.desser ~ser_config ?des_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make () in
@@ -982,8 +985,8 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser ?ser_config:config mn l src dst) in
+        E.func2 T.ptr T.ptr (fun src dst ->
+          DS.desser ?ser_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make () in

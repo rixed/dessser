@@ -123,15 +123,14 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       U.add_identifier_of_expression compunit ~name ser in
     compunit
   and add_converter compunit (encoding_in, encoding_out) =
-    let l = U.environment compunit in
     let module Des = (val (des_of_encoding encoding_in) : DES) in
     let module Ser = (val (ser_of_encoding encoding_out) : SER) in
     assert (encoding_in <> encoding_out) ;
     let convert =
       (* convert from encoding_in to encoding_out: *)
-      E.func2 ~l T.ptr T.ptr (fun l p1 p2 ->
+      E.func2 T.ptr T.ptr (fun p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
-        DS.desser schema ?transform:None l p1 p2) in
+        DS.desser schema ?transform:None p1 p2) in
     if !debug then E.type_check E.no_env convert ;
     let compunit, _, _ =
       let name =
@@ -165,13 +164,13 @@ let converter
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
   init_backend backend schema ;
-  let transform _mn0 path _l v =
+  let transform _mn0 path v =
     match List.find (fun (p, _) -> p = path) modifier_exprs with
     | exception Not_found -> v
     | _p, e -> apply e [ v ] in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser schema ~transform l) in
+    E.func2 T.ptr T.ptr (DS.desser schema ~transform) in
   if !debug then E.type_check E.no_env convert ;
   let compunit = U.make () in
   let compunit, _, convert_name =
@@ -215,9 +214,9 @@ let lmdb main
                                            "value", val_schema |])) ;
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser key_schema l) in
+    E.func2 T.ptr T.ptr (DS.desser key_schema) in
   let convert_val =
-    E.func2 ~l:E.no_env T.ptr T.ptr (fun l -> DS.desser val_schema l) in
+    E.func2 T.ptr T.ptr (DS.desser val_schema) in
   if !debug then (
     E.type_check E.no_env convert_key ;
     E.type_check E.no_env convert_val
@@ -317,15 +316,15 @@ let aggregator
   let compunit, state_id, state_name =
     U.add_identifier_of_expression compunit ~name:"init" init_expr in
   let input_expr =
-    E.func1 ~l:(U.environment compunit) T.ptr (fun l src ->
+    E.func1 T.ptr (fun src ->
       let v_src = apply des [ src ] in
-      E.with_sploded_pair ~l "input_expr" v_src (fun _l v src ->
+      E.with_sploded_pair "input_expr" v_src (fun v src ->
         seq [ apply update_expr [ state_id ; v ] ;
               src ])) in
   let compunit, _, input_name =
     U.add_identifier_of_expression compunit ~name:"input" input_expr in
   let output_expr =
-    E.func1 ~l:(U.environment compunit) T.ptr (fun _l dst ->
+    E.func1 T.ptr (fun dst ->
       let v = apply finalize_expr [ state_id ] in
       apply ser [ copy_field ; v ; dst ]) in
   let compunit, _, output_name =

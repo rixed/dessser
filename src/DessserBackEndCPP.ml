@@ -464,8 +464,11 @@ struct
           | _ ->
               assert false)
     | E.E1 (NotNull, e1) ->
-        let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s" n1)
+        if (E.type_of l e1).T.nullable then
+          print ?name p l e1
+        else
+          let n1 = print p l e1 in
+          emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E.E1 (Force what, e1) ->
         let n1 = print p l e1 in
         if what <> "" then ppi p.P.def "/* Force: %s */" what ;
@@ -1051,8 +1054,9 @@ struct
           pp oc "dessser_gen::%s.%s"
             (valid_identifier typ)
             (E.string_of_type_method meth |> valid_identifier))
-    | E.E2 (Let (n, t), e1, e2) ->
+    | E.E2 (Let (n, r), e1, e2) ->
         let n1 = print p l e1 in
+        let t = E.get_memo_mn r l e1 in
         let tn = type_identifier_mn p t in
         let l = E.add_local n t l in
         let t2 = E.type_of l e2 in
@@ -1066,8 +1070,10 @@ struct
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
-    | E.E2 (LetPair (name1, t1, name2, t2), e1, e2) ->
+    | E.E2 (LetPair (name1, r1, name2, r2), e1, e2) ->
         let n1 = print p l e1 in
+        let t1 = E.get_memo_mn r1 l (E.Ops.first e1)
+        and t2 = E.get_memo_mn r2 l (E.Ops.secnd e1) in
         let l = E.add_local name1 t1 l |>
                 E.add_local name2 t2 in
         let t2 = E.type_of l e2 in
@@ -1136,8 +1142,9 @@ struct
           ppi p.P.def "}") ;
         ppi p.P.def "} while (%s);" flag ;
         "VOID"
-    | E.E2 (ForEach (n, t), lst, body) ->
+    | E.E2 (ForEach (n, r), lst, body) ->
         let n1 = valid_identifier n in
+        let t = E.get_memo_item_mn r l lst in
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
         let item_tn = type_identifier_mn p t in

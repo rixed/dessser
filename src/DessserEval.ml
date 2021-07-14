@@ -304,17 +304,18 @@ let rec final_expression = function
   | E2 (LetPair _, _, e) -> final_expression e
   | e -> e
 
-let rec replace_final_expression e r =
+let rec replace_final_expression e e' =
   match e with
-  | E.E2 (Let (n, t), def, body) ->
-      let body' = replace_final_expression body r in
+  | E.E2 (Let (n, r), def, body) ->
+      let body' = replace_final_expression body e' in
       if E.eq body body' then e
-      else E.E2 (Let (n, t), def, body')
-  | E2 (LetPair (n1, t1, n2, t2), def, body) ->
-      let body' = replace_final_expression body r in
+      else E.E2 (Let (n, r), def, body')
+  | E2 (LetPair (n1, r1, n2, r2), def, body) ->
+      let body' = replace_final_expression body e' in
       if E.eq body body' then e
-      else E.E2 (LetPair (n1, t1, n2, t2), def, body')
-  | _ -> r
+      else E.E2 (LetPair (n1, r1, n2, r2), def, body')
+  | _ ->
+      e'
 
 (* When combining two [replace_final_expression] calls, the outer one must
  * actually not bind any variable, but merely execute the value of the bounds
@@ -445,6 +446,11 @@ let rec peval l e =
       | IsNull, E1 (NotNull, _) -> repl false_
       | NotNull, E1 (Force _, e) -> repl e
       | Force _, E1 (NotNull, e) -> repl e
+      | NotNull, _ ->
+          if (E.type_of l e1).T.nullable then
+            e1
+          else
+            E.E1 (NotNull, e1)
       | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl |> p
       | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl |> p
       | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl |> p
@@ -668,7 +674,7 @@ let rec peval l e =
       | E1 (Function (fid, _), body), es
         when not (E.is_recursive body) ->
           List.fold_lefti (fun body i e ->
-            let_ ~l e (fun _l e ->
+            let_ e (fun e ->
               E.map (function
                 | E0 (Param (fid', i')) when fid' = fid && i' = i -> e
                 | x -> x
@@ -688,13 +694,12 @@ let rec peval l e =
   (*
    * Let expressions
    *)
-  | E2 (Let (name, value_t), value, body) ->
+  | E2 (Let (name, value_r), value, body) ->
       let value = p value in
-      (* Best effort, as sometime we cannot provide the environment but
-       * do not need it in the [body]: *)
+      let value_t = E.get_memo_mn value_r l value in
       let l' = E.add_local name value_t l in
       let body = peval l' body in
-      let def = E.E2 (Let (name, value_t), value, body) in
+      let def = E.E2 (Let (name, value_r), value, body) in
       (* The identifier is useless in  that case: *)
       if body = E.E0 (Identifier name) then value else
       (* Also avoid introducing aliases: *)
@@ -759,14 +764,18 @@ let rec peval l e =
                       E.E2 (letpair, E0S (MakeTup, tup), body)
                   | e -> e
                 ) body in
-              E.E2 (LetPair (n1, mn1, n2, mn2), value, body) |> p
+              E.E2 (LetPair (n1, ref (Some mn1), n2, ref (Some mn2)),
+                            value, body) |> p
           | _ ->
               def)
-  | E2 (LetPair (n1, mn1, n2, mn2), value, body) ->
+  | E2 (LetPair (n1, r1, n2, r2), value, body) ->
       let value = p value in
+      let mn1 = E.get_memo_mn r1 l (first value)
+      and mn2 = E.get_memo_mn r2 l (secnd value) in
       let l = E.add_local n1 mn1 l |>
               E.add_local n2 mn2 in
       let body = peval l body in
+      let def = E.E2 (LetPair (n1, r1, n2, r2), value, body) in
       let fst_count, snd_count =
         E.fold (0, 0) (fun (c1, c2 as prev) -> function
           | E.E0 (Identifier n) ->
@@ -778,19 +787,19 @@ let rec peval l e =
         ) body in
       if fst_count = 0 then
         if snd_count = 0 then body
-        else E.E2 (Let (n2, mn2), secnd value, body) |> p
+        else E.E2 (Let (n2, ref (Some mn2)), secnd value, body) |> p
       else if snd_count = 0 then
-        E.E2 (Let (n1, mn1), first value, body) |> p
+        E.E2 (Let (n1, ref (Some mn1)), first value, body) |> p
       else (match value with
         | E.E0S (MakeTup, [ e1 ; e2 ]) ->
-            E.E2 (Let (n1, mn1), e1, E2 (Let (n2, mn2), e2, body)) |> p
+            E.E2 (Let (n1, ref (Some mn1)), e1,
+              E2 (Let (n2, ref (Some mn2)), e2, body)) |> p
         | _ ->
             (* The value could still result in a MakeTup after some
              * intermediary let/let-pair definitions. In that case, if the
              * identifiers n1 and n2 are used only a few times then it is
              * beneficial to inline the MakeTup arguments into the body,
              * despite we cannot split the pair as easily as above. *)
-            let def = E.E2 (LetPair (n1, mn1, n2, mn2), value, body) in
             match final_expression value with
             | E.E0S (MakeTup, [ e1 ; e2 ]) as final_make_pair ->
                 (* So this MakeTup would be replaced with the body, where
@@ -844,16 +853,22 @@ let rec peval l e =
               (* Identifiers may be needed in [es], ie [e2] *)
               replace_final_expression e2 |>
               replace_final_expression_anonymously e1 |>
-              to_not_null ~l |>
+              not_null |>
               p
           | _ ->
               def)
       | Nth, _, E1 (AllocVec d, init) ->
-          let def = E.E2 (Nth, e1, e2) in
           if_ (lt (to_u32 e1) (u32_of_int d))
-            (* Avoid building the array unless e1is bogus: *)
-            ~then_:(replace_final_expression e2 init |> to_not_null ~l)
-            ~else_:def (* Will crash *) |>
+            (* Avoid building the array unless e1 is bogus: *)
+            ~then_:(replace_final_expression e2 init |> not_null)
+            ~else_:(
+              (* This needs to crash at runtime, after having performed the
+               * side effects in e1 and e2. Also, it must have the same type
+               * as init and to not loop forever in peval: *)
+              seq [ replace_final_expression_anonymously e2 false_ |>
+                    replace_final_expression_anonymously e1 |>
+                    assert_ ;
+                    init ]) |>
           p (* Will simplify further if e1 is known *)
       | Nth, idx, E0 (String s) ->
           let def = E.E2 (Nth, e1, e2) in
@@ -977,8 +992,9 @@ let rec peval l e =
           | exception _ ->
               E2 (Pow, e1, e2)
           | a, b ->
+              let from = T.(Base Float) in
               let to_ = T.(E.type_of l f1).typ in
-              (try not_null (C.conv ~to_ l (float (a ** b)))
+              (try not_null (fst (C.conv ~from ~to_ (float (a ** b))))
               with _ -> null to_ |> repl))
       | UnsafePow, E0 (Float a), E0 (Float b) ->
           let v = a ** b in
@@ -995,8 +1011,9 @@ let rec peval l e =
           | exception _ ->
               def
           | a, b ->
+              let from = T.(Base Float) in
               let to_ = T.(E.type_of l f1).typ in
-              (try C.conv ~to_ l (float (a ** b)) |> repl
+              (try fst (C.conv ~from ~to_ (float (a ** b))) |> repl
               with _ -> def))
       | PtrAdd, E2 (PtrAdd, e1_1, e1_2), _ ->
           E.E2 (PtrAdd, e1_1, E.E2 (Add, e1_2, e2)) |>
@@ -1019,8 +1036,9 @@ let rec peval l e =
           | exception _ -> E2 (LeftShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
+              let from = T.(Base I128) in
               let to_ = T.(E.type_of l e1).typ in
-              C.conv ~to_ l (i128 (Int128.shift_left x n)) |> repl)
+              fst (C.conv ~from ~to_ (i128 (Int128.shift_left x n))) |> repl)
       | RightShift, E0 (U128 x), E0 (U8 n) ->
           let n = Uint8.to_int n in
           u128 (Uint128.shift_right x n) |> repl
@@ -1029,8 +1047,9 @@ let rec peval l e =
           | exception _ -> E2 (RightShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
+              let from = T.(Base I128) in
               let to_ = T.(E.type_of l f1).typ in
-              C.conv ~to_ l (i128 (Int128.shift_right x n)) |> repl)
+              fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl)
       | Join, E0 (String s1), E0S (MakeVec, ss) ->
           (try
             (* TODO: we could join only some of the strings *)
@@ -1141,9 +1160,9 @@ let rec peval l e =
                          HashTable _ | Heap), _) |
                     E3 (Top _, _, _, _)), _ ->
           replace_final_expression_anonymously e1 nop
-      | ForEach (n, t), (E0S ((MakeVec | MakeArr _), [ item ]) |
+      | ForEach (n, r), (E0S ((MakeVec | MakeArr _), [ item ]) |
                          E1 (AllocVec 1, item)), body ->
-          E2 (Let (n, t), replace_final_expression e1 item,
+          E2 (Let (n, r), replace_final_expression e1 item,
                           replace_final_expression e2 body)
       (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *)
       | Index, E0 (Char c), E0 (String s) ->
@@ -1236,20 +1255,20 @@ let rec peval l e =
 (*$= test_peval & ~printer:BatPervasives.identity
   "(make-tup (size 4) (size 0))" \
     (test_peval 3 \
-      "(let \"useless\" \"(SIZE ; SIZE)\" (make-tup (add (size 0) (size 0)) (size 0)) \
+      "(let \"useless\" (make-tup (add (size 0) (size 0)) (size 0)) \
           (make-tup (add (size 4) (fst (identifier \"useless\"))) \
           (snd (identifier \"useless\"))))")
 
   "(make-tup (size 8) (size 0))" \
     (test_peval 3 "(make-tup (add (size 4) (size 4)) (size 0))")
 
-  "(let \"a\" \"U8\" (u8 1) (let \"b\" \"U8\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
-    (test_peval 0 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-tup (u8 1) (u8 2)) \
+  "(let \"a\" (u8 1) (let \"b\" (u8 2) (dump (add (add (identifier \"a\") (identifier \"b\")) (add (identifier \"a\") (identifier \"b\"))))))" \
+    (test_peval 0 "(let-pair \"a\" \"b\" (make-tup (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
   "(dump (u8 6))" \
-    (test_peval 1 "(let-pair \"a\" \"U8\" \"b\" \"U8\" (make-tup (u8 1) (u8 2)) \
+    (test_peval 1 "(let-pair \"a\" \"b\" (make-tup (u8 1) (u8 2)) \
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
@@ -1269,30 +1288,30 @@ let rec peval l e =
   "(fun 0 \"U16\" (add (u16 1) (param 0 0)))" \
     (test_peval 3 \
       "(fun 0 \"U16\" \
-        (let \"p\" \"(U8;U16)\" (make-tup (u8 1) (param 0 0)) \
-          (let-pair \"a\" \"U8\" \"b\" \"U16\" (identifier \"p\") \
+        (let \"p\" (make-tup (u8 1) (param 0 0)) \
+          (let-pair \"a\" \"b\" (identifier \"p\") \
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
 
-  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" (read-u32 little-endian (param 0 0)) (make-tup (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
+  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"innerPtr\" (read-u32 little-endian (param 0 0)) (make-tup (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
     (test_peval 3 \
       "(fun 0 \"Ptr\" \"Ptr\" \
-        (let-pair \"outer1\" \"U32\" \"outerPtr\" \"Ptr\" \
-          (let-pair \"inner1\" \"U32\" \"innerPtr\" \"Ptr\" \
+        (let-pair \"outer1\" \"outerPtr\" \
+          (let-pair \"inner1\" \"innerPtr\" \
             (read-u32 little-endian (param 0 0)) \
             (make-tup (identifier \"inner1\") (identifier \"innerPtr\"))) \
           (make-tup (identifier \"outer1\") \
                      (ptr-add (identifier \"outerPtr\") (size 4)))))")
 
-  "(let \"a\" \"U8\" (random-u8) (add (identifier \"a\") (identifier \"a\")))" \
+  "(let \"a\" (random-u8) (add (identifier \"a\") (identifier \"a\")))" \
     (test_peval 0 \
-      "(fst (let \"a\" \"U8\" (random-u8) \
+      "(fst (let \"a\" (random-u8) \
               (make-tup (add (identifier \"a\") (identifier \"a\")) (u8 0))))")
 
   "(random-u8)" \
     (test_peval 3 \
       "(force (nth (u8 1) \
-         (let \"a\" \"U8\" (random-u8) \
+         (let \"a\" (random-u8) \
            (make-vec (identifier \"a\") (identifier \"a\")))))")
 
   "(null \"FLOAT\")" \
