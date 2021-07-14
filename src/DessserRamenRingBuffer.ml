@@ -835,7 +835,7 @@ struct
     leave_frame l p_stk
 
   let arr_opn () = KnownSize
-    (fun mn0 path mn l p_stk ->
+    (fun mn mn0 path l p_stk ->
       E.with_sploded_pair ~l "list_opn1" p_stk (fun l p stk ->
         E.with_sploded_pair ~l "list_opn2" (read_u32 LittleEndian p) (fun l n p ->
           let has_nullmask = mn.T.nullable in

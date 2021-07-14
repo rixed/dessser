@@ -178,6 +178,21 @@ let is_in_fixed_string mn0 path =
     let parent_path, _ = list_split_last path in
     is_fixed_string mn0 parent_path
 
+let is_list mn0 path =
+  match Path.(type_of_path mn0 path).typ |> T.develop with
+  | Vec _ | Arr _ ->
+      true
+  | _ ->
+      false
+
+let is_in_list mn0 path =
+  if path = [] then
+    (* outermost value, so not within a vector *)
+    false
+  else
+    let parent_path, _ = list_split_last path in
+    is_list mn0 parent_path
+
 (*$inject
   let make_serializable_str =
     T.mn_to_string %
@@ -295,53 +310,67 @@ struct
 
   let sum_cls _conf _ _ _ p = p
 
-  let vec_opn _dim _t conf mn0 path _l p =
+  let write_quote conf _l p =
+    match conf.quote with
+    | None -> p
+    | Some c -> write_u8 p (u8_of_const_char c)
+
+  let vec_opn _dim _t conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
       | Some q -> write_u8 p (u8_of_const_char q)
-    else if not conf.clickhouse_syntax then p
-    else
+    else if conf.clickhouse_syntax then
       (* FIXME: we are supposed to switch to clickhouse's TSV from now on. *)
       (* Use mn0 and path to find out if opening that string is required *)
-      let p = write_u8 p (u8_of_const_char '"') in
+      let p = write_quote conf l p in
       write_u8 p (u8_of_const_char '[')
+    else
+      p
 
-  let vec_cls conf mn0 path _l p =
+  let vec_cls conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
       | Some q -> write_u8 p (u8_of_const_char q)
-    else if not conf.clickhouse_syntax then p
-    else
+    else if conf.clickhouse_syntax then
       (* Use mn0 and path to find out if opening that string is required *)
       let p = write_u8 p (u8_of_const_char ']') in
-      write_u8 p (u8_of_const_char '"')
+      write_quote conf l p
+    else
+      p
 
   let vec_sep conf mn0 path l p =
-    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
-    if not conf.clickhouse_syntax then sep conf l p else
-    write_u8 p (u8_of_const_char ',')
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
+      p
+    else if conf.clickhouse_syntax then
+      write_u8 p (u8_of_const_char ',')
+    else
+      sep conf l p
 
   (* Lists are prefixed with a column or their length: *)
   let arr_opn t n conf mn0 path l p =
-    if not conf.clickhouse_syntax then
+    if conf.clickhouse_syntax then
+      vec_opn 0 t conf mn0 path l p
+    else
       match n with
       | Some n ->
           let p = su32 conf mn0 path l n p in
           sep conf l p
       | None ->
           failwith "Csv.Ser needs list length upfront"
-    else
-      vec_opn 0 t conf mn0 path l p
 
   let arr_cls conf mn0 path l p =
-    if not conf.clickhouse_syntax then p else
-    vec_cls conf mn0 path l p
+    if conf.clickhouse_syntax then
+      vec_cls conf mn0 path l p
+    else
+      p
 
   let arr_sep conf mn0 path l p =
-    if not conf.clickhouse_syntax then sep conf l p else
-    vec_sep conf mn0 path l p
+    if conf.clickhouse_syntax then
+      vec_sep conf mn0 path l p
+    else
+      sep conf l p
 
   let nullable _conf _ _ _ p = p
 
@@ -404,39 +433,42 @@ struct
 
   let skip n p = ptr_add p (size n)
 
-  let skip_byte b p =
+  let skip_byte b l p =
     (* On debug, check that the expected character is present: *)
     if debug then
-      seq [ assert_ (eq (peek_u8 p (size 0)) b) ;
-            skip 1 p ]
+      let_ ~name:"c" ~l (peek_u8 p (size 0)) (fun _l c ->
+        if_ (ne c b)
+          ~then_:(
+            seq [ dump (string "Bad char at ") ; dump (offset p) ;
+                  dump (string ": ") ; dump c ;
+                  dump (string " should be: ") ; dump b ;
+                  dump (char '\n') ;
+                  assert_ false_ ;
+                  p ])
+          ~else_:(skip 1 p))
     else
       skip 1 p
 
-  let skip_char c p =
-    skip_byte (u8_of_const_char c) p
+  let skip_char c l p =
+    skip_byte (u8_of_const_char c) l p
 
-  let skip_sep conf p =
-    skip_char conf.separator p
+  let skip_sep conf l p =
+    skip_char conf.separator l p
+
+  let skip_quote conf l p =
+    match conf.quote with
+    | None -> p
+    | Some c -> skip_char c l p
 
   (* Skip the final newline if present: *)
-  let stop conf _l p =
-    let ret =
-      match conf.newline with
-      | None ->
-          p
-      | Some c ->
-          if_ (gt (rem_size p) (size 0))
-            ~then_:(skip_char c p)
-            ~else_:p in
-    if debug then
-      seq [ dump (string "rec stop at offset ") ;
-            dump (offset p) ;
-            dump (string "with rem size ") ;
-            dump (rem_size p) ;
-            dump (string "\n") ;
-            ret ]
-    else
-      ret
+  let stop conf l p =
+    match conf.newline with
+    | None ->
+        p
+    | Some c ->
+        if_ (gt (rem_size p) (size 0))
+          ~then_:(skip_char c l p)
+          ~else_:p
 
   let dfloat _conf _ _ _ p =
     float_of_ptr p
@@ -450,17 +482,23 @@ struct
       ~then_:(make_pair true_ (skip (String.length conf.true_) p))
       ~else_:(make_pair false_ (skip (String.length conf.false_) p))
 
-  let is_sep_or_newline conf _l b =
+  let is_sep_or_newline conf mn0 path _l b =
     let sep_byte = u8_of_const_char conf.separator in
-    match conf.newline with
-    | None ->
-        eq b sep_byte
-    | Some c ->
-        or_ (eq b sep_byte)
-            (eq b (u8_of_const_char c))
+    let e =
+      match conf.newline with
+      | None ->
+          eq b sep_byte
+      | Some c ->
+          or_ (eq b sep_byte)
+              (eq b (u8_of_const_char c)) in
+    if conf.clickhouse_syntax && is_in_list mn0 path then
+      (* Also account for clickhouse delimiter ',': *)
+      or_ e (eq b (u8_of_const_char ','))
+    else
+      e
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes_quoted conf op l p =
+  let dbytes_quoted op conf mn0 path l p =
     (* Skip the double-quote: *)
     let quote_byte = u8_of_const_char (Option.get conf.quote) in
     let_ ~name:"had_quote" ~l
@@ -469,7 +507,7 @@ struct
       (fun l had_quote ->
         let init_p =
           if_ had_quote
-            ~then_:(skip_byte quote_byte p)
+            ~then_:(skip_byte quote_byte l p)
             ~else_:p in
         let_ ~name:"p_ref" ~l (make_ref init_p) (fun l p_ref ->
           let p = get_ref p_ref in
@@ -486,7 +524,7 @@ struct
                   let continue =
                     if_ had_quote
                       ~then_:(ne b quote_byte)
-                      ~else_:(not_ (is_sep_or_newline conf l b)) in
+                      ~else_:(not_ (is_sep_or_newline conf mn0 path l b)) in
                   let_ ~name:"continue" ~l continue (fun _l continue ->
                     seq [
                       if_ (or_ had_quote continue)
@@ -498,7 +536,7 @@ struct
               let bytes_p = read_bytes init_p sz in
               make_pair (op (first bytes_p)) p ])))
 
-  let dbytes conf op l p =
+  let dbytes op conf mn0 path l p =
     let init_p = p in
     let_ ~name:"p_ref" ~l (make_ref init_p) (fun l p_ref ->
       let p = get_ref p_ref in
@@ -508,7 +546,7 @@ struct
           while_
             (E.with_sploded_pair ~l "dbytes" (read_u8 p) (fun l b p' ->
               (* Read up to next double-quote or separator/newline *)
-              let continue = not_ (is_sep_or_newline conf l b) in
+              let continue = not_ (is_sep_or_newline conf mn0 path l b) in
               let_ ~name:"continue" ~l continue (fun _l continue ->
                 seq [
                   if_ continue
@@ -519,9 +557,9 @@ struct
           let bytes_p = read_bytes init_p sz in
           make_pair (op (first bytes_p)) (secnd bytes_p) ]))
 
-  let dstring conf _ _ l p =
+  let dstring conf mn0 path l p =
     (if conf.quote = None then dbytes else dbytes_quoted)
-      conf string_of_bytes l p
+      string_of_bytes conf mn0 path l p
 
   (* Chars are encoded as single char strings (unless part of a FixedString) *)
   let dchar conf mn0 path l p =
@@ -530,9 +568,9 @@ struct
         make_pair (char_of_u8 b) p)
     else
       (if conf.quote = None then dbytes else dbytes_quoted)
-        conf (fun e ->
+        (fun e ->
           char_of_u8 (unsafe_nth (u8_of_int 0) e)
-        ) l p
+        ) conf mn0 path l p
 
   let di8 _conf _ _ _ p = i8_of_ptr p
   let du8 _conf _ _ _ p = u8_of_ptr p
@@ -557,80 +595,93 @@ struct
 
   let tup_cls _conf _ _ _ p = p
 
-  let tup_sep conf _ _ _ p =
-    skip_sep conf p
+  let tup_sep conf _ _ l p =
+    skip_sep conf l p
 
   let rec_opn _conf _ _ _ _ p = p
 
   let rec_cls _conf _ _ _ p = p
 
-  let rec_sep conf _ _ _ p =
-      skip_sep conf p
+  let rec_sep conf _ _ l p =
+      skip_sep conf l p
 
   let sum_opn _ conf mn0 path l p =
     let c_p = du16 conf mn0 path l p in
-    E.with_sploded_pair ~l "sum_opn" c_p (fun _l c p ->
-      make_pair c (skip_sep conf p))
+    E.with_sploded_pair ~l "sum_opn" c_p (fun l c p ->
+      make_pair c (skip_sep conf l p))
 
   let sum_cls _conf _ _ _ p = p
 
-  let vec_opn _dim _t conf mn0 path _l p =
+  let vec_opn _dim _t conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
       | Some _ -> skip 1 p
-    else if not conf.clickhouse_syntax then p
-    else
+    else if conf.clickhouse_syntax then
       (* FIXME: we may switch back from clickhouse's TSV from now on. *)
       (* Use mn0 and path to find out if opening that string is required *)
-      let p = skip_char '"' p in
-      skip_char '[' p
+      (* TODO: support for optional quote around that notation? *)
+      let p = skip_quote conf l p in
+      skip_char '[' l p
+    else
+      p
 
-  let vec_cls conf mn0 path _l p =
+  let vec_cls conf mn0 path l p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
       | Some _ -> skip 1 p
-    else if not conf.clickhouse_syntax then p
-    else
+    else if conf.clickhouse_syntax then
       (* FIXME: we may switch back from clickhouse's TSV from now on. *)
       (* Use mn0 and path to find out if opening that string is required *)
-      let p = skip_char ']' p in
-      skip_char '"' p
+      (* TODO: support for optional quote around that notation? *)
+      let p = skip_char ']' l p in
+      skip_quote conf l p
+    else
+      p
 
-  let vec_sep conf mn0 path _l p =
-    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then p else
-    if not conf.clickhouse_syntax then skip_sep conf p else
-    skip_char ',' p
+  let vec_sep conf mn0 path l p =
+    if conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
+      p
+    else if conf.clickhouse_syntax then
+      skip_char ',' l p
+    else
+      skip_sep conf l p
 
   let arr_opn conf =
-    if not conf.clickhouse_syntax then
-      KnownSize (fun mn0 path _ l p ->
-        E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun _l v p ->
-          make_pair v (skip_sep conf p)))
-    else
+    if conf.clickhouse_syntax then
       UnknownSize (
-        (fun _ _ _ _ p -> p),
+        (fun _ _ _ l p ->
+          let p = skip_quote conf l p in
+          skip_char '[' l p),
         (fun _mn0 _path _l p ->
           (* Won't work for nested compound types: *)
           eq (peek_u8 p (size 0)) (u8_of_const_char ']')))
+    else
+      KnownSize (fun _ mn0 path l p ->
+        E.with_sploded_pair ~l "list_opn" (du32 conf mn0 path l p) (fun l v p ->
+          make_pair v (skip_sep conf l p)))
 
   let arr_cls conf mn0 path l p =
-    if not conf.clickhouse_syntax then p else
-    vec_cls conf mn0 path l p
+    if conf.clickhouse_syntax then
+      vec_cls conf mn0 path l p
+    else
+      p
 
   let arr_sep conf mn0 path l p =
-    if not conf.clickhouse_syntax then skip_sep conf p else
-    vec_sep conf mn0 path l p
+    if conf.clickhouse_syntax then
+      vec_sep conf mn0 path l p
+    else
+      skip_sep conf l p
 
-  let is_null conf _ _ l p =
+  let is_null conf mn0 path l p =
     let len = String.length conf.null in
     let rec loop i =
       if i >= len then
         comment (Printf.sprintf "Test end of string %S" conf.null)
           (or_ (eq (rem_size p) (size len))
                (let_ ~l ~name:"b" (peek_u8 p (size len)) (fun _l b ->
-                 is_sep_or_newline conf l b)))
+                 is_sep_or_newline conf mn0 path l b)))
       else
         and_
           (comment (Printf.sprintf "Test char %d of %S" i conf.null)

@@ -85,7 +85,7 @@ struct
   and dlist of_list mn dstate mn0 path l src =
     match Des.arr_opn dstate with
     | KnownSize list_opn ->
-        let dim_src = list_opn mn0 path mn l src in
+        let dim_src = list_opn mn mn0 path l src in
         let inits_src =
           E.with_sploded_pair ~l "dlist1" dim_src (fun l dim src ->
             let inits_src_ref = make_ref (make_pair (end_of_list mn) src) in
@@ -109,7 +109,7 @@ struct
           and src = Des.arr_cls dstate mn0 path l src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
-        let src = list_opn mn0 path mn l src in
+        let src = list_opn mn mn0 path l src in
         let_ ~name:"inits_ref" ~l (make_ref (end_of_list mn)) (fun l inits_ref ->
           let_ ~name:"src_ref" ~l (make_ref src) (fun l src_ref ->
             let_ ~name:"n_ref" ~l (make_ref (u32_of_int 0)) (fun l n_ref ->

@@ -14,13 +14,13 @@ module U = DessserCompilationUnit
 type arr_opener =
   (* When a arr size is known from the beginning, implement this that
    * returns both the arr size and the new src pointer: *)
-  | KnownSize of (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
+  | KnownSize of (T.mn -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (* (u32 * ptr) *) E.t)
   (* Whereas when the arr size is not known beforehand, rather implement
    * this pair of functions, one to parse the arr header and return the new
    * src pointer and one that will be called before any new token and must
    * return true if the arr is finished: *)
   | UnknownSize of
-      (T.mn -> Path.t -> T.mn -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
+      (T.mn -> T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*ptr*) E.t) *
       (T.mn -> Path.t -> E.env -> (*ptr*) E.t -> (*bool*) E.t)
 
 (* Given the above we can built interesting expressions.
@@ -406,7 +406,7 @@ struct
         match Des.arr_opn dstate with
         | KnownSize arr_opn ->
             let src_dst =
-              let dim_src = arr_opn mn0 path mn l src in
+              let dim_src = arr_opn mn mn0 path l src in
               E.with_sploded_pair ~l "dsarr2" dim_src (fun l dim src ->
                 let dst = Ser.arr_opn mn (Some dim) sstate mn0 path l dst in
                 let src_dst_ref = make_ref (make_pair src dst) in
@@ -434,7 +434,7 @@ struct
                 (Des.arr_cls dstate mn0 path l src)
                 (Ser.arr_cls sstate mn0 path l dst))
         | UnknownSize (arr_opn, end_of_arr) ->
-            let src = arr_opn mn0 path mn l src in
+            let src = arr_opn mn mn0 path l src in
             let dst = Ser.arr_opn mn None sstate mn0 path l dst in
             let src_dst_ref = make_ref (make_pair src dst) in
             let_ ~name:"src_dst_ref" ~l src_dst_ref (fun l src_dst_ref ->

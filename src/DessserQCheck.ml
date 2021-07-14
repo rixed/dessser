@@ -965,10 +965,12 @@ let sexpr mn =
   let check_des_csv ?config be ts vs =
     let mn = T.mn_of_string ts in
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
+    let ser_config =
+      DessserSExpr.{ default_config with list_prefix_length = false } in
     let exe =
       let e =
         E.func2 ~l:E.no_env T.ptr T.ptr (fun l src dst ->
-          DS.desser ?des_config:config mn l src dst) in
+          DS.desser ~ser_config ?des_config:config mn l src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make () in
@@ -1011,6 +1013,12 @@ let sexpr mn =
       true_ = "1" ;
       false_ = "0" ;
       clickhouse_syntax = true }
+
+  let csv_config_ramen =
+    DessserCsv.{ default_config with
+      separator = '\t' ;
+      quote = None ;
+      clickhouse_syntax = true }
 *)
 (*$= check_des_csv & ~printer:BatPervasives.identity
   "(1 F null)" \
@@ -1033,9 +1041,9 @@ let sexpr mn =
                    "FLOAT?" "-0x1.79c428d047e73p-16\n")
   "((1 2 3) F null)" \
     (check_des_csv ~config:csv_config_CH ocaml_be \
-                   "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1\t2\t3]\",0,\\N\n")
+                   "{u:U8[3]; b:BOOL; name:STRING?}" "\"[1,2,3]\",0,\\N\n")
 *)
-(* Test FixedStrings: *)
+(* Test FixedStrings *)
 (*$= check_des_csv & ~printer:BatPervasives.identity
   "(\"a\" \"b\" \"c\")" \
     (check_des_csv ~config:csv_config_1 ocaml_be \
@@ -1043,6 +1051,39 @@ let sexpr mn =
   "(\"a\" \"b\" \"c\")" \
     (check_des_csv ~config:csv_config_2 ocaml_be \
                    "char[3]" "abc\n")
+*)
+(* Test ClickHouse syntax for lists: *)
+(*$= check_des_csv & ~printer:BatPervasives.identity
+  "(() null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[]; u64?)" \
+      "[]	\\N")
+  "(() null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[]?; u64?)" \
+      "[]	\\N")
+  "(null null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[]?; u64?)" \
+      "\\N	\\N")
+  "(() null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16?[]; u64?)" \
+      "[]	\\N")
+  "((42) null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[]; u64?)" \
+      "[42]	\\N")
+  "((42 43 44) null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[]; u64?)" \
+      "[42,43,44]	\\N")
+  "((42 null 44) null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16?[]; u64?)" \
+      "[42,\\N,44]	\\N")
+  "(null null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[3]?; u64?)" \
+      "\\N	\\N")
+  "((42 43 44) null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16[3]; u64?)" \
+      "[42,43,44]	\\N")
+  "((42 null 44) null)" \
+    (check_des_csv ~config:csv_config_ramen ocaml_be "(u16?[3]; u64?)" \
+      "[42,\\N,44]	\\N")
 *)
 (*$= check_ser_csv & ~printer:BatPervasives.identity
   "\"abc\"" \
