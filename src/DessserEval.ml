@@ -1031,13 +1031,14 @@ let rec peval l e =
           make_lst T.(required (Base String)) |>
           repl
       | SplitAt, f1, E0 (String s) ->
-          (match E.to_cst_int f1 with
-          | exception _ ->
-              E2 (SplitAt, e1, e2)
-          | i ->
-              make_tup
-                [ string (String.sub s 0 i) ;
-                  string (String.sub s i (String.length s - i)) ] |> repl)
+          let def = E.E2 (SplitAt, e1, e2) in
+          (try
+            let i = E.to_cst_int f1 in
+            make_tup
+              [ string (String.sub s 0 i) ;
+                string (String.sub s i (String.length s - i)) ] |> repl
+          with _ ->
+            def)
       | AppendBytes, E0 (Bytes b1), E0 (Bytes b2) ->
           bytes (Bytes.cat b1 b2) |> repl
       | AppendBytes, E0 (Bytes b), _ when Bytes.length b = 0 -> keep2 ()
