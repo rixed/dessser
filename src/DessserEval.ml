@@ -299,12 +299,6 @@ let count_pair_uses name e =
         prev
   ) e
 
-let count_id_uses name e =
-  E.fold 0 (fun count -> function
-    | E.E0 (Identifier n) when n = name -> count + 1
-    | _ -> count
-  ) e
-
 let rec final_expression = function
   | E.E2 (Let _, _, e) -> final_expression e
   | E2 (LetPair _, _, e) -> final_expression e
@@ -773,8 +767,15 @@ let rec peval l e =
       let l = E.add_local n1 mn1 l |>
               E.add_local n2 mn2 in
       let body = peval l body in
-      let fst_count = count_id_uses n1 body
-      and snd_count = count_id_uses n2 body in
+      let fst_count, snd_count =
+        E.fold (0, 0) (fun (c1, c2 as prev) -> function
+          | E.E0 (Identifier n) ->
+              let c1 = if n = n1 then c1 + 1 else c1 in
+              let c2 = if n = n2 then c2 + 1 else c2 in
+              c1, c2
+          | _ ->
+              prev
+        ) body in
       if fst_count = 0 then
         if snd_count = 0 then body
         else E.E2 (Let (n2, mn2), secnd value, body) |> p
