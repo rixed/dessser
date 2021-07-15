@@ -338,10 +338,3 @@ and conv_mn ?(depth=0) ~from ~to_ e =
             let from = T.{ from with nullable = false } in
             let e = force ~what:"conv from nullable to nullable" e in
             conv_mn ~depth:(depth+1) ~from ~to_ e))
-
-(* If [e] is nullable, then return it. If it's a not nullable value type,
- * then make it nullable: *)
-let ensure_nullable ~l e =
-  match E.type_of l e with
-  | T. { nullable = false ; _ } -> not_null e
-  | T. { nullable = true ; _ } -> e
