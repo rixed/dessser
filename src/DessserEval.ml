@@ -395,9 +395,9 @@ let rec peval l e =
           | _ ->
               def)
       | op, es -> E0S (op, es))
-  | E1 (Function (fid, ts), body) ->
-      let l = E.enter_function fid ts l in
-      E1 (Function (fid, ts), peval l body)
+  | E1 (Function ts, body) ->
+      let l = E.enter_function ts l in
+      E1 (Function ts, peval l body)
   | E1 (op, e1) ->
       let e1 = p e1 in
       let repl = repl (replace_final_expression e1) in
@@ -671,12 +671,12 @@ let rec peval l e =
        * substitutions unless each variable is used only once. We can
        * turn the apply into a sequence of lets that will further
        * substitute what can be substituted: *)
-      | E1 (Function (fid, _), body), es
+      | E1 (Function _, body), es
         when not (E.is_recursive body) ->
           List.fold_lefti (fun body i e ->
             let_ e (fun e ->
-              E.map (function
-                | E0 (Param (fid', i')) when fid' = fid && i' = i -> e
+              E.map ~enter_functions:false (function
+                | E0 (Param i') when i' = i -> e
                 | x -> x
               ) body)
           ) body es |>
@@ -1291,33 +1291,33 @@ let rec peval l e =
                      (dump (add (add (identifier \"a\") (identifier \"b\")) \
                                 (add (identifier \"a\") (identifier \"b\")))))")
 
-  "(fun 0 \"FLOAT\" (unsafe-log (add (float 0x1p+0) (abs (param 0 0)))))" \
-    (test_peval 3 "(fun 0 \"float\" \
+  "(fun (\"FLOAT\") (unsafe-log (add (float 0x1p+0) (abs (param 0)))))" \
+    (test_peval 3 "(fun (\"float\") \
                      (force (log (add (force (sqrt (float 1))) \
-                                      (abs (param 0 0))))))")
+                                      (abs (param 0))))))")
 
   "(bool true)" \
     (test_peval 3 \
       "(apply \
-        (fun 0 \"U32\" \
+        (fun (\"U32\") \
           (gt (cardinality (make-vec (char \"f\") (char \"o\") (char \"o\"))) \
-              (param 0 0))) \
+              (param 0))) \
           (u32 2))")
 
-  "(fun 0 \"U16\" (add (u16 1) (param 0 0)))" \
+  "(fun (\"U16\") (add (u16 1) (param 0)))" \
     (test_peval 3 \
-      "(fun 0 \"U16\" \
-        (let \"p\" (make-tup (u8 1) (param 0 0)) \
+      "(fun (\"U16\") \
+        (let \"p\" (make-tup (u8 1) (param 0)) \
           (let-pair \"a\" \"b\" (identifier \"p\") \
             (add (to-u16 (identifier \"a\")) \
                  (identifier \"b\")))))")
 
-  "(fun 0 \"Ptr\" \"Ptr\" (let-pair \"inner1\" \"innerPtr\" (read-u32 little-endian (param 0 0)) (make-tup (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
+  "(fun (\"Ptr\" \"Ptr\") (let-pair \"inner1\" \"innerPtr\" (read-u32 little-endian (param 0)) (make-tup (identifier \"inner1\") (ptr-add (identifier \"innerPtr\") (size 4)))))" \
     (test_peval 3 \
-      "(fun 0 \"Ptr\" \"Ptr\" \
+      "(fun (\"Ptr\" \"Ptr\") \
         (let-pair \"outer1\" \"outerPtr\" \
           (let-pair \"inner1\" \"innerPtr\" \
-            (read-u32 little-endian (param 0 0)) \
+            (read-u32 little-endian (param 0)) \
             (make-tup (identifier \"inner1\") (identifier \"innerPtr\"))) \
           (make-tup (identifier \"outer1\") \
                      (ptr-add (identifier \"outerPtr\") (size 4)))))")
@@ -1336,30 +1336,30 @@ let rec peval l e =
   "(null \"FLOAT\")" \
     (test_peval 3 "(float-of-string (string \"POISON\"))")
 
-  "(fun 0 \"U8\" (if (is-null (param 0 0)) (u8 49) (add (force (param 0 0)) (u8 1))))" \
+  "(fun (\"U8\") (if (is-null (param 0)) (u8 49) (add (force (param 0)) (u8 1))))" \
     (test_peval 3 \
-      "(fun 0 \"U8\" \
-         (if (is-null (param 0 0)) \
-             (add (if (is-null (param 0 0)) (u8 42) (force (param 0 0))) \
+      "(fun (\"U8\") \
+         (if (is-null (param 0)) \
+             (add (if (is-null (param 0)) (u8 42) (force (param 0))) \
                   (u8 7)) \
-             (add (force (param 0 0)) \
+             (add (force (param 0)) \
                   (u8 1))))")
 *)
 (* This one is but a wish for now:
-  "(fun 0 \"u32\" \
-    (repeat (u32_of_int 0) (param 0 0) \
-      (fun 1 \"u32\" \"string\" \
+  "(fun (\"u32\") \
+    (repeat (u32_of_int 0) (param 0) \
+      (fun (\"u32\" \"string\") \
         (append-string (param 1 1) (string \"x\"))) \
       (string \"\")))" \
     (test_peval 3 \
-      "(fun 0 \"u32\" \
+      "(fun (\"u32\") \
         (get-item 1 \
           (loop-while \
-            (fun 1 \"(U32;String;U32)\" \
+            (fun (\"(U32;String;U32)\") \
               (lt (get-item 0 (param 1 0)) (get-item 2 (param 1 0)))) \
-            (fun 1 \"(U32;String;U32)\" \
+            (fun (\"(U32;String;U32)\") \
               (make-tup (get-item 0 (param 1 0)) \
                         (append-string (get-item 1 (param 1 0)) (string \"x\")) \
                         (get-item 2 (param 1 0)))) \
-            (make-tup (u32 0) (string \"\") (param 0 0)))))")
+            (make-tup (u32 0) (string \"\") (param 0)))))")
 *)

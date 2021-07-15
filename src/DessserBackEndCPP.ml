@@ -248,7 +248,7 @@ struct
     | Mask -> "Mask"
 
   (* Identifiers used for function parameters: *)
-  let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
+  let param n = "p_"^ string_of_int n
 
   let print_binding p t n f oc =
     let tn = type_identifier_mn p t in
@@ -1090,25 +1090,25 @@ struct
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
         res
-    | E.E1 (Function (fid, ts), e1) ->
+    | E.E1 (Function ts, e1) ->
         (* Pick the name here so we can add it to the environment, where it
          * can later be found by Myself: *)
-        let name = gen_sym ?name ("fun_"^ string_of_int fid) in
+        let name = gen_sym ?name "fun" in
         emit ?name:(Some name) p l e (fun oc ->
           array_print_i ~first:"[](" ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier_mn p t)
               (if is_mutable t then "&" else "")
-              (param fid i))
+              (param i))
             oc ts ;
-          let l = E.enter_function ~name fid ts l in
+          let l = E.enter_function ~name ts l in
           P.indent_more p (fun () ->
             let n = print p l e1 in
             print_return n p) ;
           pp oc "%s}\n" p.P.indent ;
           pp oc "%s" p.P.indent)
-    | E.E0 (Param (fid, n)) ->
-        param fid n
+    | E.E0 (Param n) ->
+        param n
     | E.E0 (Myself _) ->
         (match l.E.name with
         | None -> invalid_arg "print Myself while function name is unknown"

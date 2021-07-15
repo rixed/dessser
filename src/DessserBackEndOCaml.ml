@@ -403,7 +403,7 @@ struct
         invalid_arg
 
   (* Identifiers used for function parameters: *)
-  let param fid n = "p_"^ string_of_int fid ^"_"^ string_of_int n
+  let param n = "p_"^ string_of_int n
 
   let print_binding p mn n f oc =
     let tn = type_identifier_mn p mn in
@@ -1320,7 +1320,7 @@ struct
           | [] -> csts, non_csts
           | e :: es ->
               let csts, non_csts =
-                if E.can_precompute [] [] e then
+                if E.can_precompute [] e then
                   (e :: csts), non_csts
                 else
                   csts, (e :: non_csts) in
@@ -1422,26 +1422,26 @@ struct
         let l = E.add_local n1 t1 l |>
                 E.add_local n2 t2 in
         print ?name p l e2
-    | E.E1 (Function (_fid, [||]), e1) ->
+    | E.E1 (Function [||], e1) ->
         emit ?name p l e (fun oc ->
           pp oc "(fun () ->\n" ;
           P.indent_more p (fun () ->
             let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))
-    | E.E1 (Function (fid, ts), e1) ->
-        (* Pick the name here so we can add it to the environment, where it
-         * can later be found by Myself: *)
-        let name = gen_sym ?name ("fun_"^ string_of_int fid) in
+    | E.E1 (Function ts, e1) ->
+        let name = gen_sym ?name "fun" in
         emit ?name:(Some name) p l e (fun oc ->
           array_print_i ~first:"(fun " ~last:" ->\n" ~sep:" "
-            (fun i oc _t -> String.print oc (param fid i))
+            (fun i oc _t -> String.print oc (param i))
             oc ts ;
-          let l = E.enter_function ~name fid ts l in
+          (* Pick the name here so we can add it to the environment, where it
+           * can later be found by Myself: *)
+          let l = E.enter_function ~name ts l in
           P.indent_more p (fun () ->
             let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))
-    | E.E0 (Param (fid, n)) ->
-        param fid n
+    | E.E0 (Param n) ->
+        param n
     | E.E0 (Myself _) ->
         (match l.E.name with
         | None -> invalid_arg "print Myself while function name is unknown"

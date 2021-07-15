@@ -235,7 +235,7 @@ let percentiles vs vs_t ps ps_t =
         let_ ~name:"card_vs" card_vs (fun card_vs ->
           let p_t =
             T.get_item_type ~vec:true ~arr:true ~set:true ~lst:true ps_t in
-          map_ card_vs (E.func2 T.float p_t (fun card_vs p ->
+          map_ card_vs (func2 T.float p_t (fun card_vs p ->
             seq [
               assert_ (and_ (ge (to_float p) (float 0.))
                             (le (to_float p) (float 100.))) ;
@@ -247,7 +247,7 @@ let percentiles vs vs_t ps ps_t =
         seq [
           (* Sort vs: *)
           partial_sort vs ks ;
-          map_ vs (E.func2 vs_t T.u32 (fun vs k ->
+          map_ vs (func2 vs_t T.u32 (fun vs k ->
             unsafe_nth k vs)
           ) ks ])))
 

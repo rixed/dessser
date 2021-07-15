@@ -21,7 +21,7 @@ let rec conv ?(depth=0) ~from ~to_ e =
   let conv_mn = conv_mn ~depth:(depth+1) in
   let map_items e from to_ =
     map_ nop (
-      E.func2 T.void from (fun _void item ->
+      func2 T.void from (fun _void item ->
         conv_mn ~from ~to_ item)
       ) e in
   if T.eq from to_ then e, false else

@@ -68,7 +68,7 @@ let () =
       (* Just convert the rowbinary to s-expr: *)
       let module DS = DesSer (DessserRowBinary.Des) (DessserSExpr.Ser) in
       compunit,
-      E.func2 T.ptr T.ptr (fun src dst ->
+      func2 T.ptr T.ptr (fun src dst ->
         comment "Convert from RowBinary into S-Expression:"
           (DS.desser ~ser_config:sexpr_config typ src dst))
     ) else (
@@ -91,7 +91,7 @@ let () =
       let compunit, sersize =
         OfValue1.sersize typ compunit in
       compunit,
-      E.func2 T.ptr T.ptr (fun src dst ->
+      func2 T.ptr T.ptr (fun src dst ->
         comment "Convert from RowBinary into a heap value:" (
           let v_src = apply des [ src ] in
           E.with_sploded_pair "v_src" v_src (fun v src ->

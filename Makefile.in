@@ -368,9 +368,9 @@ convert-check: src/dessserc
 	   src/dessserc converter \
 	     --input-enc s-expr --output-enc s-expr -o "$$f" \
 	     --language=$$be --dev-mode --schema="$$schema" \
-	     -e '/0:(fun 0 "i32" (add (i32 1) (param 0 0)))' \
-	     -e '/1:(fun 0 "float" (add (float 0.5) (param 0 0)))' \
-	     -e '/2:(fun 0 "string" (upper (param 0 0)))'; \
+	     -e '/0:(fun ("i32") (add (i32 1) (param 0)))' \
+	     -e '/1:(fun ("float") (add (float 0.5) (param 0)))' \
+	     -e '/2:(fun ("string") (upper (param 0)))'; \
 	   out=$$($$f '(42 0 "foo")'); \
 	   exp='(43 0x1p-1 "FOO")'; \
 	   if test "$$out" = "$$exp"; then \
@@ -396,8 +396,8 @@ aggregator-simplest-check: src/dessserc examples/i32s.csv
 	     --input-enc csv --output-enc csv -o "$$f" \
 	     --language=$$be --dev-mode --schema="$$schema" \
 	     --init '(make-vec (i32 0))' \
-	     --update '(fun 0 "i32[1]" "i32" (set-vec (u8 0) (param 0 0) (add (unsafe-nth (u8 0) (param 0 0)) (param 0 1))))' \
-	     --finalize '(fun 0 "i32[1]" (unsafe-nth (u8 0) (param 0 0)))'; \
+	     --update '(fun ("i32[1]" "i32") (set-vec (u8 0) (param 0) (add (unsafe-nth (u8 0) (param 0)) (param 1))))' \
+	     --finalize '(fun ("i32[1]") (unsafe-nth (u8 0) (param 0)))'; \
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='55'; \
 	   if test "$$out" = "$$exp"; then \
@@ -420,8 +420,8 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 	     --input-enc csv --output-enc s-expr -o "$$f" \
 	     --language=$$be --dev-mode --schema="$$schema" \
 	     --init '(sliding-window "i32" (u8 3))' \
-	     --update '(fun 0 "i32{sliding}" "i32" (insert (param 0 0) (param 0 1)))' \
-	     --finalize '(fun 0 "i32{sliding}" (param 0 0))'; \
+	     --update '(fun ("i32{sliding}" "i32") (insert (param 0) (param 1)))' \
+	     --finalize '(fun ("i32{sliding}") (param 0))'; \
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='3 (8 9 10)'; \
 	   if test "$$out" = "$$exp"; then \

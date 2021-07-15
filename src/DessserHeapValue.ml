@@ -274,7 +274,7 @@ struct
     (* Start by defining all required deserializers for subtypes: *)
     let compunit = make_des_for_subtypes ?config compunit mn0.T.typ in
     compunit,
-    E.func1 T.ptr (fun src ->
+    func1 T.ptr (fun src ->
       let dstate, src = Des.start ?config mn0 src in
       let v_src = make1 dstate mn0 [] mn0 src in
       E.with_sploded_pair "make" v_src (fun v src ->
@@ -539,13 +539,13 @@ struct
       make_ser_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
     compunit,
     if with_fieldmask then
-      E.func3 T.mask mn0 T.ptr (fun ma v dst ->
+      func3 T.mask mn0 T.ptr (fun ma v dst ->
         let path = [] in
         let sstate, dst = Ser.start ?config mn0 dst in
         let dst = ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst in
         Ser.stop sstate dst)
     else
-      E.func2 mn0 T.ptr (fun v dst ->
+      func2 mn0 T.ptr (fun v dst ->
         let path = [] in
         let sstate, dst = Ser.start ?config mn0 dst in
         let dst = ser1 sstate mn0 path mn0 v CompTimeMask dst in
@@ -761,11 +761,11 @@ struct
       make_ssize_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
     compunit,
     if with_fieldmask then
-      E.func2 T.mask mn0 (fun ma v ->
+      func2 T.mask mn0 (fun ma v ->
         let sz = Ser.ssize_start ?config mn0 in
         sersz1 mn0 mn0 [] v (RunTimeMask ma) sz)
     else
-      E.func1 mn0 (fun v ->
+      func1 mn0 (fun v ->
         let sz = Ser.ssize_start ?config mn0 in
         sersz1 mn0 mn0 [] v CompTimeMask sz)
 

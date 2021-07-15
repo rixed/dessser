@@ -268,12 +268,6 @@ let endianness_gen =
 let path_gen =
   Gen.(tiny_list tiny_int)
 
-let get_next_fid =
-  let next_fid = ref 0 in
-  fun () ->
-    incr next_fid ;
-    !next_fid
-
 (* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
@@ -414,10 +408,9 @@ and e1_gen l depth =
     1,
       join (
         map (fun ts ->
-          let fid = get_next_fid () in
-          let l = E.enter_function fid ts l in
+          let l = E.enter_function ts l in
           map (fun e ->
-            E.E1 (Function (fid, ts), e)
+            E.E1 (Function ts, e)
           ) (expression_gen (l, depth - 1))
         ) (tiny_array maybe_nullable_gen)
       ) ;
@@ -568,11 +561,11 @@ let expression =
   compile_check "(string-of-ip (random-u128))"
   compile_check \
     "(map nop \
-          (fun 0 \"void\" \"u8\" (mul (param 0 1) (param 0 1))) \
+          (fun (\"void\" \"u8\") (mul (param 1) (param 1))) \
           (make-vec (u8 1) (u8 2) (u8 3)))"
   compile_check \
     "(map nop \
-          (fun 0 \"void\" \"u8\" (mul (param 0 1) (param 0 1))) \
+          (fun (\"void\" \"u8\") (mul (param 1) (param 1))) \
           (make-arr \"u8\" (u8 1) (u8 2) (u8 3)))"
 *)
 
@@ -691,7 +684,7 @@ let sexpr mn =
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
         (fun src dst -> S2S.desser mn src dst) in
     let compunit = U.make () in
     make_converter ~dev_mode:true ~mn compunit be e
@@ -702,7 +695,7 @@ let sexpr mn =
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
         (fun src dst ->
           E.Ops.let_ alloc_dst (fun tdst ->
             E.with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
@@ -769,7 +762,7 @@ let sexpr mn =
     let compunit, ser_func = OfValue.serialize mn compunit in
     let compunit, des = ToValue.make mn compunit in
     compunit,
-    E.func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
       (fun src dst ->
         let v_src = apply des [ src ] in
         E.with_sploded_pair "v_src" v_src (fun v src ->
@@ -918,7 +911,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
       let e =
-        E.func2 T.ptr T.ptr (fun src dst ->
+        func2 T.ptr T.ptr (fun src dst ->
           DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -933,7 +926,7 @@ let sexpr mn =
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
       let e =
-        E.func2 T.ptr T.ptr (fun src dst ->
+        func2 T.ptr T.ptr (fun src dst ->
           DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -972,7 +965,7 @@ let sexpr mn =
       DessserSExpr.{ default_config with list_prefix_length = false } in
     let exe =
       let e =
-        E.func2 T.ptr T.ptr (fun src dst ->
+        func2 T.ptr T.ptr (fun src dst ->
           DS.desser ~ser_config ?des_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -985,7 +978,7 @@ let sexpr mn =
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =
-        E.func2 T.ptr T.ptr (fun src dst ->
+        func2 T.ptr T.ptr (fun src dst ->
           DS.desser ?ser_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;

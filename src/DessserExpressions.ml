@@ -27,11 +27,6 @@ let endianness_of_string = function
   | "big-endian" -> BigEndian
   | en -> invalid_arg ("endianness_of_string "^ en)
 
-type param_id = int (* function id *) * int (* param number *)
-
-let param_print oc (f, n) =
-  Printf.fprintf oc "%d:%d" f n
-
 type type_method =
   | SerWithMask of encoding_id  (* serialize into this encoding *)
   | SerNoMask of encoding_id
@@ -78,7 +73,7 @@ type ext_identifier =
   | Method of { typ : string ; meth : type_method }
 
 type e0 =
-  | Param of param_id
+  | Param of int (* parameter number *)
   (* Special identifier referencing the currently executing function.
    * Allows to encode recursive calls even though the name of the enclosing
    * function is unknown. The specified types are resp. the input and output
@@ -147,7 +142,7 @@ type e0s =
   | Verbatim of ((backend_id * string) list * (* output type: *) T.mn)
 
 type e1 =
-  | Function of (*function id*) int * (*args*) T.mn array
+  | Function of (*args*) T.mn array
   | Comment of string
   | GetItem of int (* for tuples *)
   | GetField of string (* For records *)
@@ -457,8 +452,7 @@ and e0s_eq e1 e2 = e1 = e2
 
 and e1_eq e1 e2 =
   match e1, e2 with
-  | Function (fid1, typ1), Function (fid2, typ2) ->
-      fid1 = fid2 &&
+  | Function typ1, Function typ2 ->
       array_for_all2_no_exc T.eq_mn typ1 typ2
   | e1, e2 -> e1 = e2
 
@@ -491,12 +485,10 @@ and eq e1 e2 =
       e3_eq op1 op2 && eq e11 e21 && eq e12 e22 && eq e13 e23
   | _ -> false
 
-(* Note re. Apply: even if the function can be precomputed (which it usually
- * can) and its parameters as well, the application can be precomputed only
- * if the function body can in a context where the parameters can.
- * Here, [f] is a list of function ids which parameters can be precomputed
- * and [i] a set of identifiers (names) that can. *)
-let rec can_precompute f i = function
+(* [i] a set of identifiers (names) that can.
+ * [has_function_body] is set whenever we enter a function body, and imply
+ * all parameters are known. *)
+let rec can_precompute ?(has_function_body=false) i = function
   | E0 (Now | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128) ->
       false
   | E0 (Null _ | EndOfList _ | EmptySet _ | Float _ | String _ | Bool _
@@ -506,39 +498,39 @@ let rec can_precompute f i = function
        | Bytes _ | CopyField | SkipField | SetFieldNull
        | ExtIdentifier _) ->
       true
-  | E0 (Param (fid, _)) ->
-      (match f with last::_ -> last = fid | _ -> false)
+  | E0 (Param _) ->
+      has_function_body
   | E0 (Myself _) ->
       true
   | E0 (Identifier n) ->
       List.mem n i
   | E0S (_, es) ->
-      List.for_all (can_precompute f i) es
+      List.for_all (can_precompute ~has_function_body i) es
   | E1 (Function _, body) ->
-      can_precompute f i body
+      can_precompute ~has_function_body i body
   | E1 ((Dump | Assert | MaskGet _), _) ->
       false
-  | E1 (_, e) -> can_precompute f i e
-  | E1S (Apply, E1 (Function (fid, _), body), e2s) ->
-      List.for_all (can_precompute f i) e2s &&
-      can_precompute (fid :: f) i body
+  | E1 (_, e) -> can_precompute ~has_function_body i e
+  | E1S (Apply, E1 (Function _, body), e2s) ->
+      List.for_all (can_precompute ~has_function_body i) e2s &&
+      can_precompute ~has_function_body:true i body
   | E1S (Apply, _, _) ->
       false
   | E2 (Let (n, _), e1, e2) ->
-      can_precompute f i e1 &&
-      can_precompute f (n :: i) e2
+      can_precompute ~has_function_body i e1 &&
+      can_precompute ~has_function_body (n :: i) e2
   | E2 (LetPair (n1, _, n2, _), e1, e2) ->
-      can_precompute f i e1 &&
-      can_precompute f (n1 :: n2 :: i) e2
+      can_precompute ~has_function_body i e1 &&
+      can_precompute ~has_function_body (n1 :: n2 :: i) e2
   | E2 (_, e1, e2) ->
-      can_precompute f i e1 &&
-      can_precompute f i e2
+      can_precompute ~has_function_body i e1 &&
+      can_precompute ~has_function_body i e2
   | E3 (Top _, _, _, _) ->
       false (* TODO *)
   | E3 (_, e1, e2, e3) ->
-      can_precompute f i e1 &&
-      can_precompute f i e2 &&
-      can_precompute f i e3
+      can_precompute ~has_function_body i e1 &&
+      can_precompute ~has_function_body i e2 &&
+      can_precompute ~has_function_body i e3
 
 (*
  * User-defined constructors for user-defined types.
@@ -649,9 +641,9 @@ let rec default ?(allow_null=true) t =
   | Set (HashTable, mn) ->
       E1 (HashTable mn, E0 (U8 Uint8.zero))
   | Set (Heap, mn) ->
-      let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param (0, 0)))) ;
-                            E1 (Ignore, (E0 (Param (0, 1)))) ]) in
-      E1 (Heap, E1 (Function (0, [| mn ; mn |]), cmp))
+      let cmp = E0S (Seq, [ E1 (Ignore, (E0 (Param 0))) ;
+                            E1 (Ignore, (E0 (Param 1))) ]) in
+      E1 (Heap, E1 (Function [| mn ; mn |], cmp))
   | Set (Top, mn) ->
       let size = E0 (U8 Uint8.one) in
       let max_size = size
@@ -686,7 +678,7 @@ let backend_of_string s =
   | _ -> invalid_arg ("backend_of_string: "^ s)
 
 let string_of_e0 = function
-  | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
+  | Param n -> "param "^ string_of_int n
   | Myself (ins, out) ->
       let print_mn oc mn = Printf.fprintf oc "%S" (T.mn_to_string mn) in
       "myself "^
@@ -753,10 +745,10 @@ let string_of_e1s = function
   | Apply -> "apply"
 
 let string_of_e1 = function
-  | Function (fid, typs) ->
-      "fun "^ string_of_int fid ^
+  | Function typs ->
+      "fun "^
       (if typs = [||] then "" else
-       IO.to_string (Array.print ~first:" " ~sep:" " ~last:"" (fun oc t ->
+       IO.to_string (Array.print ~first:"(" ~sep:" " ~last:")" (fun oc t ->
          Printf.fprintf oc "%S" (T.mn_to_string t))) typs)
   | Comment s -> "comment "^ String.quote s
   | GetItem n -> "get-item "^ string_of_int n
@@ -1233,8 +1225,8 @@ struct
 
   let rec e = function
     (* e0 *)
-    | Lst [ Sym "param" ; Sym fid ; Sym n ] as s ->
-        E0 (Param (int_of_symbol s fid, int_of_symbol s n))
+    | Lst [ Sym "param" ; Sym n ] as s ->
+        E0 (Param (int_of_symbol s n))
     | Lst [ Sym "myself" ; Lst ins ; Str out ] ->
         let ins =
           List.enum ins /@ (function
@@ -1308,22 +1300,20 @@ struct
         let temps = List.map temp_of_strings temps in
         E0S (Verbatim (temps, T.mn_of_string mn), List.map e xs)
     (* e1 *)
-    | Lst (Sym ("function" | "fun") :: Sym fid :: (_ :: _ :: _ as tail)) as s ->
+    | Lst [ Sym ("function" | "fun") ; Lst typs ; body ] ->
         (* Syntax for functions is:
-         *    (fun id "type arg 1" "type arg 2" ... body)
+         *    (fun ("type arg 1" "type arg 2" ...) body)
          * where:
          *   - id is an integer used to identify this function when using param
          *   - body is an expression *)
-        let typs, x = list_split_last tail in
         let typs =
-          Array.of_list typs |>
-          Array.map (function
+          List.enum typs /@
+          (function
             | Str s -> T.mn_of_string s
             | x ->
-                Printf.sprintf2 "Need a type (in string) not %a" print_sexpr x |>
-                failwith
-          ) in
-        E1 (Function (int_of_symbol s fid, typs), e x)
+                raise (Must_be_quoted_type x)) |>
+          Array.of_enum in
+        E1 (Function typs, e body)
     | Lst [ Sym "comment" ; Str s ; x ] ->
         E1 (Comment s, e x)
     | Lst [ Sym "get-item" ; Sym n ; x ] as s ->
@@ -1662,7 +1652,7 @@ exception Struct_error of t * string
 exception Apply_error of t * string
 exception Comparator_error of t * T.mn * string
 exception Unbound_identifier of t * env
-exception Unbound_parameter of t * param_id * env
+exception Unbound_parameter of t * int * env
 exception Invalid_expression of t * string
 exception Redefinition of string
 
@@ -1671,9 +1661,9 @@ let field_name_of_expr = function
   | E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
-let enter_function ?name fid ts l =
+let enter_function ?name ts l =
   { l with local = Array.fold_lefti (fun l i t ->
-                     (E0 (Param (fid, i)), t) :: l
+                     (E0 (Param i), t) :: l
                    ) [] ts ;
            name }
 
@@ -2057,8 +2047,8 @@ and type_of l e0 =
       let l = add_local n1 t1 l |>
               add_local n2 t2 in
       type_of l e2
-  | E1 (Function (fid, ts), e) ->
-      let l = enter_function fid ts l in
+  | E1 (Function ts, e) ->
+      let l = enter_function ts l in
       T.func ts (type_of l e)
   | E0 (Param p) as e ->
       (try List.assoc e l.local
@@ -2155,7 +2145,7 @@ and get_compared_type l cmp =
 and register_user_constructor name out_vt ?print ?parse def =
   (* Add identity to the passed definitions (aka "copy constructor"): *)
   let out_t = T.required out_vt in
-  let id = E1 (Function (0, [| out_t |]), E0 (Param (0, 0))) in
+  let id = E1 (Function [| out_t |], E0 (Param (0))) in
   let def = id :: def in
   (* Check constructors' signatures: *)
   let _ =
@@ -2208,9 +2198,19 @@ and check_fun_sign e0 l f ps =
         raise (Apply_error (e0, err))) ;
       List.iteri (fun i p ->
         let act = type_of l p in
-        if not (T.eq_mn act ts.(i)) then
+        if not (T.eq_mn act ts.(i)) then (
+          (match act with
+          | { typ = T.This n ; _ } ->
+              Printf.eprintf "Arg %d of type %a instead of %a\n"
+                i
+                T.print_mn act
+                T.print_mn ts.(i) ;
+              Printf.eprintf "This %S is: %a\n"
+                n
+                T.print (T.find_this n)
+          | _ -> ()) ;
           let expected = T.mn_to_string ts.(i) in
-          raise (Type_error (e0, p, act, "be a "^ expected))
+          raise (Type_error (e0, p, act, "be a "^ expected)))
       ) ps
   | t ->
       raise (Type_error (e0, f, t, "be a function"))
@@ -2299,8 +2299,8 @@ let rec fold_env u l f e =
       u
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
-  | E1 (Function (fid, ts), e1) ->
-      let l = enter_function fid ts l in
+  | E1 (Function ts, e1) ->
+      let l = enter_function ts l in
       fold_env u l f e1
   | E1 (_, e1) ->
       fold_env u l f e1
@@ -2339,7 +2339,7 @@ let size e =
  * It is important that when [f] returns the same [e] then the expression
  * is not rebuild, both for performance and to allow the use of the ==
  * operator, for instance in DessserEval.ml: *)
-let rec map f e =
+let rec map ?(enter_functions=true) f e =
   let same = List.for_all2 (==) in
   match e with
   | E0 _ ->
@@ -2348,6 +2348,8 @@ let rec map f e =
       let es' = List.map (map f) es in
       if same es' es then f e else
       f (E0S (op, es'))
+  | E1 (Function _, _) when not enter_functions ->
+      f e
   | E1 (op, e1) ->
       let e1' = map f e1 in
       if e1 == e1' then f e else
@@ -2376,10 +2378,10 @@ let rec map_env l f e =
   | E0S (op, es) ->
       let es = List.map (map_env l f) es in
       f l (E0S (op, es))
-  | E1 (Function (fid, ts), e1) ->
-      let l = enter_function fid ts l in
+  | E1 (Function ts, e1) ->
+      let l = enter_function ts l in
       let e1 = map_env l f e1 in
-      f l (E1 (Function (fid, ts), e1))
+      f l (E1 (Function ts, e1))
   | E1 (op, e1) ->
       let e1 = map_env l f e1 in
       f l (E1 (op, e1))
@@ -3017,10 +3019,10 @@ let () =
     | Unbound_parameter (e0, p, l) ->
         Some (
           Printf.sprintf2
-            "Unbound parameter %a: In expression\
+            "Unbound parameter #%d: In expression\
              %s\
              environment is %a"
-            param_print p
+            p
             (to_pretty_string ~max_depth e0)
             print_environment l)
     | Invalid_expression (e0, msg) ->
@@ -3082,58 +3084,10 @@ let with_sploded_pair what e f =
   let_ ~name:what e (fun p ->
     let_pair ~n1 ~n2 p f)
 
-(* Create a function expression: *)
-let func =
-  let next_id = ref 0 in
-  fun ts f ->
-    let fid = !next_id in
-    incr next_id ;
-    E1 (Function (fid, ts), f fid)
-
-(* Specialized to a given arity: *)
-
-let func0 f =
-  func [||] (fun _fid -> f ())
-
-let func1 t1 f =
-  func [| t1 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0)) in
-    f p1)
-
-let func2 t1 t2 f =
-  func [| t1 ; t2 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1)) in
-    f p1 p2)
-
-let func3 t1 t2 t3 f =
-  func [| t1 ; t2 ; t3 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1))
-    and p3 = E0 (Param (fid, 2)) in
-    f p1 p2 p3)
-
-let func4 t1 t2 t3 t4 f =
-  func [| t1 ; t2 ; t3 ; t4 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1))
-    and p3 = E0 (Param (fid, 2))
-    and p4 = E0 (Param (fid, 3)) in
-    f p1 p2 p3 p4)
-
-let func5 t1 t2 t3 t4 t5 f =
-  func [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun fid ->
-    let p1 = E0 (Param (fid, 0))
-    and p2 = E0 (Param (fid, 1))
-    and p3 = E0 (Param (fid, 2))
-    and p4 = E0 (Param (fid, 3))
-    and p5 = E0 (Param (fid, 4)) in
-    f p1 p2 p3 p4 p5)
-
 (* Tells is a function just return its [p]th argument: *)
 let is_identity p = function
-  | E1 (Function (fid, _), E0 (Param (fid', p'))) ->
-      fid = fid' && p = p'
+  | E1 (Function _, E0 (Param p')) ->
+      p = p'
   | _ ->
       false
 
@@ -3159,6 +3113,50 @@ let is_recursive e =
 
 module Ops =
 struct
+  (* Create a function expression: *)
+  let func ts f =
+    E1 (Function ts, f ())
+
+  (* Specialized to a given arity: *)
+
+  let func0 f =
+    func [||] f
+
+  let func1 t1 f =
+    func [| t1 |] (fun () ->
+      let p1 = E0 (Param 0) in
+      f p1)
+
+  let func2 t1 t2 f =
+    func [| t1 ; t2 |] (fun () ->
+      let p1 = E0 (Param 0)
+      and p2 = E0 (Param 1) in
+      f p1 p2)
+
+  let func3 t1 t2 t3 f =
+    func [| t1 ; t2 ; t3 |] (fun () ->
+      let p1 = E0 (Param 0)
+      and p2 = E0 (Param 1)
+      and p3 = E0 (Param 2) in
+      f p1 p2 p3)
+
+  let func4 t1 t2 t3 t4 f =
+    func [| t1 ; t2 ; t3 ; t4 |] (fun () ->
+      let p1 = E0 (Param 0)
+      and p2 = E0 (Param 1)
+      and p3 = E0 (Param 2)
+      and p4 = E0 (Param 3) in
+      f p1 p2 p3 p4)
+
+  let func5 t1 t2 t3 t4 t5 f =
+    func [| t1 ; t2 ; t3 ; t4 ; t5 |] (fun () ->
+      let p1 = E0 (Param 0)
+      and p2 = E0 (Param 1)
+      and p3 = E0 (Param 2)
+      and p4 = E0 (Param 3)
+      and p5 = E0 (Param 4) in
+      f p1 p2 p3 p4 p5)
+
   let identity e1 = E1 (Identity, e1)
 
   let ignore_ e1 = E1 (Ignore, e1)
@@ -3509,7 +3507,7 @@ struct
 
   let ne e1 e2 = not_ (eq e1 e2)
 
-  let param fid n = E0 (Param (fid, n))
+  let param n = E0 (Param n)
 
   let myself ins out = E0 (Myself (ins, out))
 
