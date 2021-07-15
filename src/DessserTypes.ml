@@ -388,6 +388,9 @@ let rec shrink t =
   | exception Not_found -> do_typ t
   | _ -> t
 
+and shrink_mn mn =
+  { mn with typ = shrink mn.typ }
+
 (* Will also add declared subtypes: *)
 and add_type_as n t =
   (* As fold is top down, the result lst is bottom-up: *)

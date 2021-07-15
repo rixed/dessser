@@ -81,9 +81,9 @@ type e0 =
   | Param of param_id
   (* Special identifier referencing the currently executing function.
    * Allows to encode recursive calls even though the name of the enclosing
-   * function is unknown. The specified type is the output type (the input
-   * type of the function can be retrieved from the environment). *)
-  | Myself of T.mn
+   * function is unknown. The specified types are resp. the input and output
+   * type. *)
+  | Myself of (T.mn array * T.mn)
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -687,7 +687,12 @@ let backend_of_string s =
 
 let string_of_e0 = function
   | Param (fid, n) -> "param "^ string_of_int fid ^" "^ string_of_int n
-  | Myself mn -> "myself "^ String.quote (T.mn_to_string mn)
+  | Myself (ins, out) ->
+      let print_mn oc mn = Printf.fprintf oc "%S" (T.mn_to_string mn) in
+      "myself "^
+      IO.to_string (Array.print ~first:"(" ~last:")" ~sep:" " print_mn) ins ^
+      " "^
+      String.quote (T.mn_to_string out)
   | Null t -> "null "^ String.quote (T.to_string t)
   | EndOfList mn -> "end-of-list "^ String.quote (T.mn_to_string mn)
   | EmptySet mn -> "empty-set "^ String.quote (T.mn_to_string mn)
@@ -1159,6 +1164,7 @@ struct
   exception Extraneous_expressions of int
   exception Garbage_after of int
   exception Must_be_integer of sexpr * string
+  exception Must_be_quoted_type of sexpr
 
   let () =
     Printexc.register_printer (function
@@ -1170,6 +1176,8 @@ struct
           Some ("Cannot parse expressions after position "^ string_of_int i)
       | Must_be_integer (x, d) ->
           Some (Printf.sprintf2 "%S must be an integer in %a" d print_sexpr x)
+      | Must_be_quoted_type x ->
+          Some (Printf.sprintf2 "Must be a quoted type: %a" print_sexpr x)
       | _ ->
           None)
 
@@ -1227,8 +1235,14 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym fid ; Sym n ] as s ->
         E0 (Param (int_of_symbol s fid, int_of_symbol s n))
-    | Lst [ Sym "myself" ; Str mn ] ->
-        E0 (Myself (T.mn_of_string mn))
+    | Lst [ Sym "myself" ; Lst ins ; Str out ] ->
+        let ins =
+          List.enum ins /@ (function
+          | Str in_ -> T.mn_of_string in_ |> T.shrink_mn
+          | x -> raise (Must_be_quoted_type x)) |>
+          Array.of_enum
+        and out = T.mn_of_string out |> T.shrink_mn in
+        E0 (Myself (ins, out))
     | Lst [ Sym "null" ; Str t ] ->
         E0 (Null (T.of_string t))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
@@ -1709,16 +1723,7 @@ and type_of l e0 =
   in
   match e0 with
   | E0 (Null typ) -> T.{ typ ; nullable = true }
-  | E0 (Myself out) ->
-      let num_params =
-        List.fold_left (fun n (e, _) ->
-          match e with E0 (Param _) -> n + 1 | _ -> n
-        ) 0 l.local in
-      let ins = Array.make num_params T.void in
-      List.iter (function
-        | E0 (Param (_, n)), mn -> ins.(n) <- mn
-        | _ -> ()
-      ) l.local ;
+  | E0 (Myself (ins, out)) ->
       T.(required (Function (ins, out)))
   | E0 (EndOfList t) -> T.required (T.Lst t)
   | E0 (EmptySet mn) -> T.required (T.Set (Simple, mn))
@@ -3506,7 +3511,7 @@ struct
 
   let param fid n = E0 (Param (fid, n))
 
-  let myself mn = E0 (Myself mn)
+  let myself ins out = E0 (Myself (ins, out))
 
   let add e1 e2 = E2 (Add, e1, e2)
 
