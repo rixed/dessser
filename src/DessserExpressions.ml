@@ -1725,8 +1725,8 @@ and type_of l e0 =
   | E0 (Null typ) -> T.{ typ ; nullable = true }
   | E0 (Myself (ins, out)) ->
       T.(required (Function (ins, out)))
-  | E0 (EndOfList t) -> T.required (T.Lst t)
-  | E0 (EmptySet mn) -> T.required (T.Set (Simple, mn))
+  | E0 (EndOfList t) -> T.required (T.lst t)
+  | E0 (EmptySet mn) -> T.required (T.set Simple mn)
   | E0 Now -> T.float
   | E0 RandomFloat -> T.float
   | E0 RandomU8 -> T.u8

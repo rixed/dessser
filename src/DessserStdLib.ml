@@ -178,8 +178,7 @@ module Kahan =
 struct
   (* The state of the sum consists of the sum itself and some carry: *)
   let state_t =
-    let float = T.(required (Base Float)) in
-    T.tuple [| float ; float |]
+    T.(tuple [| float ; float |])
 
   (* Return the initial value for the state: *)
   let init =
