@@ -3443,19 +3443,31 @@ struct
 
   let end_of_list = eol
 
-  let sliding_window mn e1 = E1 (SlidingWindow mn, e1)
+  let sliding_window mn e1 =
+    let mn = T.shrink_mn mn in
+    E1 (SlidingWindow mn, e1)
 
-  let tumbling_window mn e1 = E1 (TumblingWindow mn, e1)
+  let tumbling_window mn e1 =
+    let mn = T.shrink_mn mn in
+    E1 (TumblingWindow mn, e1)
 
-  let sampling mn e1 = E1 (Sampling mn, e1)
+  let sampling mn e1 =
+    let mn = T.shrink_mn mn in
+    E1 (Sampling mn, e1)
 
-  let hash_table mn e1 = E1 (HashTable mn, e1)
+  let hash_table mn e1 =
+    let mn = T.shrink_mn mn in
+    E1 (HashTable mn, e1)
 
   let heap cmp = E1 (Heap, cmp)
 
-  let empty_set mn = E0 (EmptySet mn)
+  let empty_set mn =
+    let mn = T.shrink_mn mn in
+    E0 (EmptySet mn)
 
-  let top mn size max_size sigmas = E3 (Top mn, size, max_size, sigmas)
+  let top mn size max_size sigmas =
+    let mn = T.shrink_mn mn in
+    E3 (Top mn, size, max_size, sigmas)
 
   let now = E0 Now
 
@@ -3509,7 +3521,10 @@ struct
 
   let param n = E0 (Param n)
 
-  let myself ins out = E0 (Myself (ins, out))
+  let myself ins out =
+    let ins = Array.map T.shrink_mn ins
+    and out = T.shrink_mn out in
+    E0 (Myself (ins, out))
 
   let add e1 e2 = E2 (Add, e1, e2)
 
@@ -3684,7 +3699,9 @@ struct
     assert (d >= 0) ;
     E1 (AllocVec d, init)
 
-  let make_arr mn es = E0S (MakeArr mn, es)
+  let make_arr mn es =
+    let mn = T.shrink_mn mn in
+    E0S (MakeArr mn, es)
 
   let alloc_arr len init = E2 (AllocArr, len, init)
 
