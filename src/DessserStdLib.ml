@@ -220,22 +220,22 @@ struct
 end
 
 (*
- * Compute the percentiles [ps] of a set of values [vs].
- * [vs] and [ps] must be vectors.
- * [ps] item type is given as [p_t] whereas the type of the full vector
- * of values is given as [vs_t].
+ * Compute the percentiles [ps] of a set of values [vs], which actual types
+ * are passed as [vs_t] and [ps_t].
  * The result is a vector of same dimension than [ps].
  *
  * TODO: rewrite without map, using only imperative operations
  *)
 
-let percentiles vs vs_t ps p_t =
+let percentiles vs vs_t ps ps_t =
   let open E.Ops in
   comment "Compute the indices of those percentiles" (
     let_ ~name:"vs" vs (fun vs ->
       let ks =
         let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
         let_ ~name:"card_vs" card_vs (fun card_vs ->
+          let p_t =
+            T.get_item_type ~vec:true ~arr:true ~set:true ~lst:true ps_t in
           map_ card_vs (E.func2 T.float p_t (fun card_vs p ->
             seq [
               assert_ (and_ (ge (to_float p) (float 0.))

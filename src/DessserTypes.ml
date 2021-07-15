@@ -984,72 +984,6 @@ let of_string ?(any_format=false) ?what =
 *)
 
 (*
- * Tools
- *)
-
-(* Consider user types opaque by default, so that it matches DessserQCheck
- * generators. *)
-let rec depth ?(opaque_user_type=true) t =
-  let depth = depth ~opaque_user_type in
-  match t with
-  | Unknown -> invalid_arg "depth"
-  | This _ ->
-      (* For this purpose assume This is not going to be recursed into,
-       * and behave like a scalar: *)
-      0
-  | Usr { def ; _ } ->
-      if opaque_user_type then 0 else depth def
-  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
-      1 + depth mn.typ
-  | Tup mns ->
-      1 + Array.fold_left (fun d mn ->
-        max d (depth mn.typ)
-      ) 0 mns
-  | Rec mns | Sum mns ->
-      1 + Array.fold_left (fun d (_, mn) ->
-        max d (depth mn.typ)
-      ) 0 mns
-  | Map (mn1, mn2) ->
-      1 + max (depth mn1.typ) (depth mn2.typ)
-  | _ -> 0
-
-(*$= depth & ~printer:string_of_int
-  0 (depth (Base U8))
-  2 (depth (Tup [| required (Base U8) ; required (Arr (required (Base U8))) |]))
-  7 (depth (\
-    Arr (required (\
-      Vec (4, (required (\
-        Rec [| \
-          "mgfhm", required (\
-            Rec [| \
-              "ceci", optional (Base Char) ; \
-              "zauxs", required (\
-                Rec [| \
-                  "gidf", required (\
-                    Rec [| \
-                      "qskv", optional (Base Float) ; \
-                      "lefr", required (Base I16) ; \
-                      "bdujmi", required (\
-                        Vec (8, required (get_user_type "Cidr6"))) |]) ; \
-                  "cdwcv", required (Base U64) ; \
-                  "jcdivs", required (\
-                    Rec [| \
-                      "hgtixf", required (Arr (optional (Base I128))) ; \
-                      "yuetd", required (Base Char) ; \
-                      "bsbff", required (Base U16) |]) |]) |]) ; \
-          "pudia", required (get_user_type "Cidr4") ; \
-          "qngl", required (Base Bool) ; \
-          "iajv", optional (Base I128) |])))))))
-*)
-
-let uniq_id t =
-  shrink t |>
-  develop |>
-  IO.to_string print_sorted |>
-  Digest.string |>
-  Digest.to_hex
-
-(*
  * Some functional constructors:
  *)
 
@@ -1203,6 +1137,83 @@ let is_integer t =
 
 let is_numeric t =
   is_num ~accept_float:true t
+
+(*
+ * Tools
+ *)
+
+(* Consider user types opaque by default, so that it matches DessserQCheck
+ * generators. *)
+let rec depth ?(opaque_user_type=true) t =
+  let depth = depth ~opaque_user_type in
+  match t with
+  | Unknown -> invalid_arg "depth"
+  | This _ ->
+      (* For this purpose assume This is not going to be recursed into,
+       * and behave like a scalar: *)
+      0
+  | Usr { def ; _ } ->
+      if opaque_user_type then 0 else depth def
+  | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
+      1 + depth mn.typ
+  | Tup mns ->
+      1 + Array.fold_left (fun d mn ->
+        max d (depth mn.typ)
+      ) 0 mns
+  | Rec mns | Sum mns ->
+      1 + Array.fold_left (fun d (_, mn) ->
+        max d (depth mn.typ)
+      ) 0 mns
+  | Map (mn1, mn2) ->
+      1 + max (depth mn1.typ) (depth mn2.typ)
+  | _ -> 0
+
+(*$= depth & ~printer:string_of_int
+  0 (depth (Base U8))
+  2 (depth (Tup [| required (Base U8) ; required (Arr (required (Base U8))) |]))
+  7 (depth (\
+    Arr (required (\
+      Vec (4, (required (\
+        Rec [| \
+          "mgfhm", required (\
+            Rec [| \
+              "ceci", optional (Base Char) ; \
+              "zauxs", required (\
+                Rec [| \
+                  "gidf", required (\
+                    Rec [| \
+                      "qskv", optional (Base Float) ; \
+                      "lefr", required (Base I16) ; \
+                      "bdujmi", required (\
+                        Vec (8, required (get_user_type "Cidr6"))) |]) ; \
+                  "cdwcv", required (Base U64) ; \
+                  "jcdivs", required (\
+                    Rec [| \
+                      "hgtixf", required (Arr (optional (Base I128))) ; \
+                      "yuetd", required (Base Char) ; \
+                      "bsbff", required (Base U16) |]) |]) |]) ; \
+          "pudia", required (get_user_type "Cidr4") ; \
+          "qngl", required (Base Bool) ; \
+          "iajv", optional (Base I128) |])))))))
+*)
+
+let uniq_id t =
+  shrink t |>
+  develop |>
+  IO.to_string print_sorted |>
+  Digest.string |>
+  Digest.to_hex
+
+let rec get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
+                      ?(str=false) ?(bytes=false) = function
+  | Usr { def ; _ } -> get_item_type ~vec ~arr ~set ~lst ~str ~bytes def
+  | Vec (_, mn) when vec -> mn
+  | Arr mn when arr -> mn
+  | Set (_, mn) when set -> mn
+  | Lst mn when lst -> mn
+  | Base String when str -> char
+  | Bytes when bytes -> u8
+  | t -> "get_item_type: "^ to_string t |> invalid_arg
 
 (*
  * Registering User Types.
