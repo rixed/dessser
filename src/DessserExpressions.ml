@@ -522,6 +522,9 @@ let rec can_precompute ?(has_function_body=false) i = function
   | E2 (LetPair (n1, _, n2, _), e1, e2) ->
       can_precompute ~has_function_body i e1 &&
       can_precompute ~has_function_body (n1 :: n2 :: i) e2
+  | E2 (ForEach (n, _), e1, e2) ->
+      can_precompute ~has_function_body i e1 &&
+      can_precompute ~has_function_body (n :: i) e2
   | E2 (_, e1, e2) ->
       can_precompute ~has_function_body i e1 &&
       can_precompute ~has_function_body i e2

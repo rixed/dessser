@@ -829,6 +829,26 @@ let rec peval l e =
             | _ ->
                 (* never mind then *)
                 def)
+  | E2 (ForEach (name, item_r), lst, body) ->
+      let lst = p lst in
+      let item_t = E.get_memo_item_mn item_r l lst in
+      let l' = E.add_local name item_t l in
+      let body = peval l' body in
+      (match final_expression lst with
+      (* Loop over empty lst: that's a nop,  but for the side effect of lst: *)
+      | E0S ((MakeVec | MakeArr _), [])
+      | E1 (AllocVec 0, _)
+      | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
+             HashTable _ | Heap), _)
+      | E3 (Top _, _, _, _) ->
+          replace_final_expression_anonymously lst nop
+      (* Loop over a single item: no need for the loop *)
+      | E0S ((MakeVec | MakeArr _), [ item ])
+      | E1 (AllocVec 1, item) ->
+          E2 (Let (name, item_r), replace_final_expression lst item, body)
+      | _ ->
+          E.E2 (ForEach(name, item_r), lst, body)
+      (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *))
   | E2 (op, e1, e2) ->
       let e1 = p e1
       and e2 = p e2 in
@@ -1160,17 +1180,6 @@ let rec peval l e =
       | While, E0 (Bool false), _ ->
           replace_final_expression_anonymously e2 nop |>
           replace_final_expression_anonymously e1
-      | ForEach _, (E0S ((MakeVec | MakeArr _), []) |
-                    E1 (AllocVec 0, _) |
-                    E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
-                         HashTable _ | Heap), _) |
-                    E3 (Top _, _, _, _)), _ ->
-          replace_final_expression_anonymously e1 nop
-      | ForEach (n, r), (E0S ((MakeVec | MakeArr _), [ item ]) |
-                         E1 (AllocVec 1, item)), body ->
-          E2 (Let (n, r), replace_final_expression e1 item,
-                          replace_final_expression e2 body)
-      (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *)
       | Index, E0 (Char c), E0 (String s) ->
           (try not_null (u32_of_int (String.index s c))
           with Not_found -> null (Base U32)) |>
