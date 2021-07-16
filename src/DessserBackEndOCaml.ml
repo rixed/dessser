@@ -1654,7 +1654,8 @@ struct
         let init = print p l init in
         emit ?name p l e (fun oc ->
           pp oc "Array.make %d %s" d init)
-    | E.E1 (Convert _, _) ->
+    | E.E1 (Convert _, _)
+    | E.E2 (NullMap _, _, _) ->
         assert false (* because of type checking *)
     | E.E2 (SplitBy, e1, e2) ->
         let n1 = print p l e1

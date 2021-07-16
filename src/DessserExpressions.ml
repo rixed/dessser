@@ -406,6 +406,9 @@ type e2 =
   | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
   | ForEach of (string * memo_mn) (* list/vector/set * body *)
+  (* Apply e2 to e1, skipping nulls if e2 is nullable.
+   * Like Convert, replaced at typing. *)
+  | NullMap of (string * memo_mn) (* value * body *)
   | Index (* of a char in a string, or null *)
 
 type e3 =
@@ -972,6 +975,7 @@ let string_of_e2 = function
   | PtrOfAddress -> "ptr-of-address"
   | While -> "while"
   | ForEach (n, _) -> "for-each "^ String.quote n
+  | NullMap (n, _) -> "null-map "^ String.quote n
   | Index -> "index"
 
 let string_of_e3 = function
@@ -1587,6 +1591,8 @@ struct
         E2 (While, e x1, e x2)
     | Lst [ Sym "for-each" ; Str n ; x1 ; x2 ] ->
         E2 (ForEach (n, ref None), e x1, e x2)
+    | Lst [ Sym "null-map" ; Str n ; x1 ; x2 ] ->
+        E2 (NullMap (n, ref None), e x1, e x2)
     | Lst [ Sym "index" ; x1 ; x2 ] ->
         E2 (Index, e x1, e x2)
     (* e3 *)
@@ -2010,6 +2016,10 @@ and type_of l e0 =
   | E2 (PtrOfAddress, _, _) -> T.ptr
   | E2 (While, _, _) -> T.void
   | E2 (ForEach _, _, _) -> T.void
+  | E2 (NullMap (n, r), e1, e2) ->
+      let t = get_memo_mn r l (E1 (Force "NullMap", e1)) in
+      let l = add_local n t l in
+      type_of l e2
   | E2 (Index, _, _) -> T.optional (Base U32)
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
@@ -2339,6 +2349,10 @@ let rec fold_env u l f e =
       let mn = get_memo_item_mn r l e1 in
       let l' = add_local n mn l in
       fold_env (fold_env u l f e1) l' f e2
+  | E2 (NullMap (n, r), e1, e2) ->
+      let mn = get_memo_mn r l (E1 (Force "fold_env", e1)) in
+      let l' = add_local n mn l in
+      fold_env (fold_env u l f e1) l' f e2
   | E2 (_, e1, e2) ->
       fold_env (fold_env u l f e1) l f e2
   | E3 (_, e1, e2, e3) ->
@@ -2428,6 +2442,12 @@ let rec map_env l f e =
       let l = add_local n t l in
       let e2 = map_env l f e2 in
       f l (E2 (ForEach (n, r), e1, e2))
+  | E2 (NullMap (n, r), e1, e2) ->
+      let t = get_memo_mn r l (E1 (Force "map_env", e1)) in
+      let e1 = map_env l f e1 in
+      let l' = add_local n t l in
+      let e2 = map_env l' f e2 in
+      f l (E2 (Let (n, r), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
@@ -3097,6 +3117,10 @@ struct
   let for_each ?name lst f =
     let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
     E2 (ForEach (n, ref None), lst, f (E0 (Identifier n)))
+
+  let null_map ?name x f =
+    let n = match name with Some n -> gen_id n | None -> gen_id "null_map" in
+    E2 (NullMap (n, ref None), x, f (E0 (Identifier n)))
 
   let identifier n = E0 (Identifier n)
 

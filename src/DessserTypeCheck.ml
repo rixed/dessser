@@ -117,15 +117,31 @@ let rec type_check l e =
       | { typ = Sum mns ; nullable = false } when rec_ = false ->
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l mn) mns
       | t -> raise (E.Type_error (e0, e, t, "be an ip")) in
-    (* Convert is the only operation that returns a different expression: *)
+    (* Convert and NullMap are the only operations that returns a different
+     * expression: *)
     match e0 with
     | E1 (Convert to_, e1) ->
         let from = E.type_of l e1 |> T.develop_mn in
         let res = C.conv_mn ~from ~to_ e1 in
         type_check l res
+    | E2 (NullMap (n, r), x, body) ->
+        let res =
+          let open E.Ops in
+          if (E.type_of l x).T.nullable then
+            let t = E.get_memo_mn r l (force x) in
+            let l' = E.add_local n t l in
+            let res_typ = (E.type_of l' body).T.typ in
+            let_ ~name:"null_map" x (fun x ->
+              if_null x
+                ~then_:(null res_typ)
+                ~else_:(E.E2 (Let (n, r), force x, not_null body)))
+          else
+            E.E2 (Let (n, r), x, body) in
+        type_check l res
     | e0 ->
         (match e0 with
-        | E1 (Convert _, _) ->
+        | E1 (Convert _, _)
+        | E2 (NullMap _, _, _) ->
             assert false (* Handled right above *)
         | E0 (Null _ | Myself _ | EndOfList _ | EmptySet _ | Now
              | RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128

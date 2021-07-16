@@ -855,6 +855,8 @@ let rec peval l e =
       | _ ->
           E.E2 (ForEach(name, item_r), lst, body)
       (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *))
+  | E2 (NullMap _, _, _) ->
+      assert false (* Because of type_checking *)
   | E2 (op, e1, e2) ->
       let e1 = p e1
       and e2 = p e2 in
