@@ -13,6 +13,7 @@ module T = DessserTypes
 (* Controls whether [debug] translates into Dump or Ignore: *)
 let dump_debug = ref false
 
+(* FIXME: move into MiscTypes? *)
 type endianness = LittleEndian | BigEndian
 
 let string_of_endianness = function
@@ -2386,6 +2387,7 @@ let rec map ?(enter_functions=true) f e =
       if e1' == e1 && e2' == e2 && e3' == e3 then f e else
       f (E3 (op, e1', e2', e3'))
 
+(* Call [f] bottom to top *)
 let rec map_env l f e =
   match e with
   | E0 _ ->
@@ -2605,10 +2607,6 @@ let let_pair ?n1 ?n2 value f =
   let n1 = name n1 and n2 = name n2 in
   let id n = E0 (Identifier n) in
   E2 (LetPair (n1, ref None, n2, ref None), value, f (id n1) (id n2))
-
-let for_each ?name lst f =
-  let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
-  E2 (ForEach (n, ref None), lst, f (E0 (Identifier n)))
 
 (* Do not use a function to avoid leaking function parameters *)
 let with_sploded_pair what e f =
@@ -3094,7 +3092,9 @@ struct
 
   let let_pair = let_pair
 
-  let for_each = for_each
+  let for_each ?name lst f =
+    let n = match name with Some n -> gen_id n | None -> gen_id "for_each" in
+    E2 (ForEach (n, ref None), lst, f (E0 (Identifier n)))
 
   let identifier n = E0 (Identifier n)
 
