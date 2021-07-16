@@ -398,6 +398,8 @@ let rec peval l e =
   | E1 (Function ts, body) ->
       let l = E.enter_function ts l in
       E1 (Function ts, peval l body)
+  | E1 (Convert _, _) ->
+      assert false (* Because of type_checking *)
   | E1 (op, e1) ->
       let e1 = p e1 in
       let repl = repl (replace_final_expression e1) in

@@ -111,8 +111,9 @@ LIBDESSSER_SOURCES = \
 	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
-	src/DessserPath.ml \
 	src/DessserConversions.ml \
+	src/DessserTypeCheck.ml \
+	src/DessserPath.ml \
 	src/DessserEval.ml \
 	src/DessserStdLib.ml \
 	src/DessserMasks.ml \
@@ -236,6 +237,7 @@ QUICK_TESTABLE_SOURCES = \
 	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
+	src/DessserTypeCheck.ml \
 	src/DessserPath.ml \
 	src/DessserEval.ml \
 	src/DessserMasks.ml \
@@ -246,7 +248,8 @@ QUICK_TESTABLE_SOURCES = \
 	src/DessserCsv.ml
 
 SLOW_TESTABLE_SOURCES = \
-	src/DessserQCheck.ml
+	src/DessserQCheck.ml \
+	src/DessserJson.ml
 
 LINKED_FOR_TESTS = \
 	src/DessserTools.ml \
@@ -255,8 +258,9 @@ LINKED_FOR_TESTS = \
 	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
 	src/DessserExpressions.ml \
-	src/DessserPath.ml \
 	src/DessserConversions.ml \
+	src/DessserTypeCheck.ml \
+	src/DessserPath.ml \
 	src/DessserEval.ml \
 	src/DessserStdLib.ml \
 	src/DessserMasks.ml \

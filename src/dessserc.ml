@@ -6,9 +6,10 @@ open DessserCompilConfig
 open DessserDSTools
 open DessserMiscTypes
 open DessserTools
-module T = DessserTypes
 module E = DessserExpressions
 module M = DessserMasks
+module T = DessserTypes
+module TC = DessserTypeCheck
 open E.Ops
 
 let debug = ref false
@@ -92,7 +93,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     let module ToValue = DessserHeapValue.Materialize (Des) in
     (* convert from encoding_in into a heapvalue: *)
     let compunit, des = ToValue.make schema compunit in
-    if !debug then E.type_check E.no_env des ;
+    if !debug then ignore(TC.type_check E.no_env des) ;
     let compunit, _, _ =
       let name = E.string_of_type_method (E.DesNoMask encoding_in) in
       U.add_identifier_of_expression compunit ~name des in
@@ -107,8 +108,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       (* convert from a heapvalue into encoding_out. *)
       OfValue.serialize ~with_fieldmask schema compunit in
     if !debug then (
-      E.type_check E.no_env sersize ;
-      E.type_check E.no_env ser) ;
+      ignore (TC.type_check E.no_env sersize) ;
+      ignore (TC.type_check E.no_env ser)) ;
     let compunit, _, _ =
       let name =
         (if with_fieldmask then E.SSizeWithMask encoding_out
@@ -131,7 +132,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       func2 T.ptr T.ptr (fun p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None p1 p2) in
-    if !debug then E.type_check E.no_env convert ;
+    if !debug then ignore (TC.type_check E.no_env convert) ;
     let compunit, _, _ =
       let name =
         E.string_of_type_method (E.Convert (encoding_in, encoding_out)) in
@@ -171,7 +172,7 @@ let converter
   let convert =
     (* convert from encoding_in to encoding_out: *)
     func2 T.ptr T.ptr (DS.desser schema ~transform) in
-  if !debug then E.type_check E.no_env convert ;
+  if !debug then ignore (TC.type_check E.no_env convert) ;
   let compunit = U.make () in
   let compunit, _, convert_name =
     U.add_identifier_of_expression compunit ~name:"convert" convert in
@@ -218,8 +219,8 @@ let lmdb main
   let convert_val =
     func2 T.ptr T.ptr (DS.desser val_schema) in
   if !debug then (
-    E.type_check E.no_env convert_key ;
-    E.type_check E.no_env convert_val
+    ignore (TC.type_check E.no_env convert_key) ;
+    ignore (TC.type_check E.no_env convert_val)
   ) ;
   let compunit = U.make () in
   let compunit, _, convert_key_name =
@@ -277,11 +278,11 @@ let aggregator
   let compunit, des = ToValue.make schema compunit in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
-  E.type_check E.no_env init_expr ;
+  if !debug then ignore (TC.type_check E.no_env init_expr) ;
   let state_t = E.type_of E.no_env init_expr in
   (* Then check the update expression, that must be a function of the state_t
    * and the input_t: *)
-  E.type_check E.no_env update_expr ;
+  if !debug then ignore (TC.type_check E.no_env update_expr) ;
   let update_t = E.type_of E.no_env update_expr in
   if not (T.eq_mn update_t (T.func [| state_t ; schema |] T.void))
   then
@@ -294,7 +295,7 @@ let aggregator
       T.print_mn update_t |>
     failwith ;
   (* Then check the finalizer: *)
-  E.type_check E.no_env finalize_expr ;
+  if !debug then ignore (TC.type_check E.no_env finalize_expr) ;
   let output_t =
     match E.type_of E.no_env finalize_expr with
     | T.{ typ = Function ([| a1 |], mn) ; nullable = false }

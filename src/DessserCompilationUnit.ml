@@ -2,6 +2,7 @@ open DessserMiscTypes
 module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
+module TC = DessserTypeCheck
 
 let debug = false
 
@@ -94,7 +95,7 @@ let add_identifier_of_expression compunit ?name expr =
   if debug then
     BatPrintf.eprintf "add_identifier_of_expression: type checking%s\n"
       (E.to_pretty_string expr) ;
-  E.type_check l expr ;
+  let expr = TC.type_check l expr in
   let t = E.type_of l expr in
   if debug then
     BatPrintf.eprintf "  …of type: %a\n" T.print_mn t ;
@@ -104,7 +105,7 @@ let add_identifier_of_expression compunit ?name expr =
       if debug then (
         BatPrintf.eprintf "  …simplified into%s\n" (E.to_pretty_string expr) ;
         (* Check that the expression types are equivalent: *)
-        E.type_check l expr
+        ignore (TC.type_check l expr)
       ) ;
       assert (T.eq_mn t (E.type_of l expr)) ;
       expr

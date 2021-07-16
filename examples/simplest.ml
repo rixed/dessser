@@ -183,7 +183,6 @@ let test_desser () =
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =
   let e = test_desser () in
-  E.type_check E.no_env e ;
   let backend, exe_ext, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
       (module DessserBackEndOCaml : BACKEND), ".opt", ""

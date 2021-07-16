@@ -10,6 +10,7 @@ module T = DessserTypes
   open Batteries
   module E = DessserExpressions
   module T = DessserTypes
+  module TC = DessserTypeCheck
   module U = DessserCompilationUnit
   let dbg = false *)
 
@@ -530,10 +531,10 @@ let expression =
 
 (*$Q expression & ~count:20
   expression (fun e -> \
-    match E.type_check E.no_env e with \
+    match TC.type_check E.no_env e with \
     | exception _ -> \
         true \
-    | () -> \
+    | e -> \
         T.eq_mn (E.type_of E.no_env e) T.void || can_be_compiled e)
 *)
 
