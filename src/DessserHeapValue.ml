@@ -203,7 +203,7 @@ struct
   (* Call the decoder for type name [n]: *)
   and dthis n _dstate mn0 _path src =
     let f =
-      if n = "" then myself T.[| ptr |] T.(pair mn0 ptr)
+      if n = "" then myself T.(pair mn0 ptr)
       else identifier (local_des_for n) in
     apply f [ src ]
 
@@ -448,21 +448,16 @@ struct
     | CompTimeMask ->
         apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ]
 
-  and sthis n ma _sstate mn0 path v dst =
-    (* At this point null values have been dealt with already: *)
-    let v_t = { (Path.type_of_path mn0 path) with nullable = false } in
-    let args, args_t =
-      match ma with
-      | RunTimeMask ma ->
-          [ ma ; v ; dst ], T.[| mask ; v_t ; ptr |]
-      | CompTimeMask ->
-          [ v ; dst ], T.[| v_t ; ptr |] in
+  and sthis n ma _sstate _mn0 _path v dst =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
-      if n = "" then myself args_t T.ptr
+      if n = "" then myself T.ptr
       else identifier (local_ser_for ~with_fieldmask n) in
     (* Call ourself recursively *)
-    apply f args
+    apply f (
+      match ma with
+      | RunTimeMask ma -> [ ma ; v ; dst ]
+      | CompTimeMask -> [ v ; dst ])
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
@@ -676,20 +671,15 @@ struct
     | CompTimeMask ->
         apply (type_method name (E.SSizeNoMask Ser.id)) [ v ]
 
-  and ssthis n ma mn0 path v =
-    (* At this point null values have been dealt with already: *)
-    let v_t = { (Path.type_of_path mn0 path) with nullable = false } in
-    let args, args_t =
-      match ma with
-      | RunTimeMask ma ->
-          [ ma ; v ], T.[| mask ; v_t |]
-      | CompTimeMask ->
-          [ v ], [| v_t |] in
+  and ssthis n ma _mn0 _path v =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
-      if n = "" then myself args_t T.size
+      if n = "" then myself T.size
       else identifier (local_ssize_for ~with_fieldmask n) in
-    apply f args
+    apply f (
+      match ma with
+      | RunTimeMask ma -> [ ma ; v ]
+      | CompTimeMask -> [ v ])
 
   and sersz1 mn mn0 path v ma sz =
     let cumul ssizer mn0 path v sz =

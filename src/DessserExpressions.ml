@@ -76,9 +76,9 @@ type e0 =
   | Param of int (* parameter number *)
   (* Special identifier referencing the currently executing function.
    * Allows to encode recursive calls even though the name of the enclosing
-   * function is unknown. The specified types are resp. the input and output
-   * type. *)
-  | Myself of (T.mn array * T.mn)
+   * function is unknown. The specified type is the output type (the input
+   * type of the function can be retrieved from the environment). *)
+  | Myself of T.mn
   (* Identifier are set with `Let` expressions, or obtained from the code
    * generators in exchange for an expression: *)
   | Identifier of string
@@ -679,12 +679,7 @@ let backend_of_string s =
 
 let string_of_e0 = function
   | Param n -> "param "^ string_of_int n
-  | Myself (ins, out) ->
-      let print_mn oc mn = Printf.fprintf oc "%S" (T.mn_to_string mn) in
-      "myself "^
-      IO.to_string (Array.print ~first:"(" ~last:")" ~sep:" " print_mn) ins ^
-      " "^
-      String.quote (T.mn_to_string out)
+  | Myself mn -> "myself "^ String.quote (T.mn_to_string mn)
   | Null t -> "null "^ String.quote (T.to_string t)
   | EndOfList mn -> "end-of-list "^ String.quote (T.mn_to_string mn)
   | EmptySet mn -> "empty-set "^ String.quote (T.mn_to_string mn)
@@ -1227,14 +1222,8 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym n ] as s ->
         E0 (Param (int_of_symbol s n))
-    | Lst [ Sym "myself" ; Lst ins ; Str out ] ->
-        let ins =
-          List.enum ins /@ (function
-          | Str in_ -> T.mn_of_string in_ |> T.shrink_mn
-          | x -> raise (Must_be_quoted_type x)) |>
-          Array.of_enum
-        and out = T.mn_of_string out |> T.shrink_mn in
-        E0 (Myself (ins, out))
+    | Lst [ Sym "myself" ; Str mn ] ->
+        E0 (Myself (T.mn_of_string mn))
     | Lst [ Sym "null" ; Str t ] ->
         E0 (Null (T.of_string t))
     | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
@@ -1713,7 +1702,16 @@ and type_of l e0 =
   in
   match e0 with
   | E0 (Null typ) -> T.{ typ ; nullable = true }
-  | E0 (Myself (ins, out)) ->
+  | E0 (Myself out) ->
+      let num_params =
+        List.fold_left (fun n (e, _) ->
+          match e with E0 (Param _) -> n + 1 | _ -> n
+        ) 0 l.local in
+      let ins = Array.make num_params T.void in
+      List.iter (function
+        | E0 (Param n), mn -> ins.(n) <- mn
+        | _ -> ()
+      ) l.local ;
       T.(required (Function (ins, out)))
   | E0 (EndOfList t) -> T.required (T.lst t)
   | E0 (EmptySet mn) -> T.required (T.set Simple mn)
@@ -3521,10 +3519,9 @@ struct
 
   let param n = E0 (Param n)
 
-  let myself ins out =
-    let ins = Array.map T.shrink_mn ins
-    and out = T.shrink_mn out in
-    E0 (Myself (ins, out))
+  let myself mn =
+    let mn = T.shrink_mn mn in
+    E0 (Myself mn)
 
   let add e1 e2 = E2 (Add, e1, e2)
 
