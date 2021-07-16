@@ -155,7 +155,8 @@ type e1 =
   | IsNull
   (* Turn e into a nullable, if it's not already: *)
   | NotNull
-  (* Turn e into a not-nullable (or fail with the given message): *)
+  (* Turn e into a not-nullable if it's not already.
+   * Fails on NULL values with the given message: *)
   | Force of string
   (* Convert from/to string for all base value types: *)
   | StringOfFloat

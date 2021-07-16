@@ -456,6 +456,11 @@ let rec peval l e =
       | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl |> p
       | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl |> p
       | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl |> p
+      | Force m, _ ->
+          if not (E.type_of l e1).T.nullable then
+            e1
+          else
+            E.E1 (Force m, e1)
       | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n) |> repl
       | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n) |> repl
       | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n) |> repl
@@ -1347,9 +1352,9 @@ let rec peval l e =
   "(null \"FLOAT\")" \
     (test_peval 3 "(float-of-string (string \"POISON\"))")
 
-  "(fun (\"U8\") (if (is-null (param 0)) (u8 49) (add (force (param 0)) (u8 1))))" \
+  "(fun (\"U8?\") (if (is-null (param 0)) (u8 49) (add (force (param 0)) (u8 1))))" \
     (test_peval 3 \
-      "(fun (\"U8\") \
+      "(fun (\"U8?\") \
          (if (is-null (param 0)) \
              (add (if (is-null (param 0)) (u8 42) (force (param 0))) \
                   (u8 7)) \

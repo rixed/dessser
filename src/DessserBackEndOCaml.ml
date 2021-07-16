@@ -706,11 +706,14 @@ struct
           let n1 = print p l e1 in
           emit ?name p l e (fun oc -> pp oc "Some %s" n1)
     | E.E1 (Force what, e1) ->
-        let n1 = print p l e1 in
-        emit ?name p l e (fun oc ->
-          Printf.fprintf oc "nullable_get %s%s"
-            (if what = "" then "" else "~what:"^ String.quote what ^" ")
-            n1)
+        if not (E.type_of l e1).T.nullable then
+          print ?name p l e1
+        else
+          let n1 = print p l e1 in
+          emit ?name p l e (fun oc ->
+            Printf.fprintf oc "nullable_get %s%s"
+              (if what = "" then "" else "~what:"^ String.quote what ^" ")
+              n1)
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "None")
     | E.E0 (Float f) ->
