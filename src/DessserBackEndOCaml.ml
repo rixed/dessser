@@ -660,9 +660,6 @@ struct
           p.P.indent n ;
         ppi p.P.def "flush stdout ;" ;
         "()"
-    | E.E1 (IsNull, e1) ->
-        let n = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "%s = None" n)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print p l e1 in
         let n2 = print p l e2 in
@@ -714,6 +711,12 @@ struct
             Printf.fprintf oc "nullable_get %s%s"
               (if what = "" then "" else "~what:"^ String.quote what ^" ")
               n1)
+    | E.E1 (IsNull, e1) ->
+        if (E.type_of l e1).T.nullable then
+          let n = print p l e1 in
+          emit ?name p l e (fun oc -> pp oc "%s = None" n)
+        else
+          emit ?name p l e (fun oc -> pp oc "false")
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "None")
     | E.E0 (Float f) ->

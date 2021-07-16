@@ -446,6 +446,9 @@ let rec peval l e =
           else E1 (op, e1)
       | IsNull, E0 (Null _) -> repl true_
       | IsNull, E1 (NotNull, _) -> repl false_
+      | IsNull, _ ->
+          if not (E.type_of l e1).T.nullable then false_
+          else E.E1 (IsNull, e1)
       | NotNull, E1 (Force _, e) -> repl e
       | NotNull, _ ->
           if (E.type_of l e1).T.nullable then e1

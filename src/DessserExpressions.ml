@@ -153,6 +153,8 @@ type e1 =
   | Dump
   | Identity  (* Useful as a default function *)
   | Ignore
+  (* Tells if a nullable value is NULL. Returns false on non nullable
+   * values. *)
   | IsNull
   (* Turn e into a nullable, if it's not already: *)
   | NotNull

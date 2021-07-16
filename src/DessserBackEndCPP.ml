@@ -428,13 +428,6 @@ struct
         let n = print p l e1 in
         ppi p.P.def "std::cout << %s;" n ;
         "VOID"
-    | E.E1 (IsNull, e1) ->
-        if E.is_const_null e1 then
-          (* Cannot call has_value on nullopt: *)
-          emit ?name p l e (fun oc -> pp oc "true")
-        else
-          let n = print p l e1 in
-          emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
     | E.E2 (Nth, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
@@ -476,6 +469,16 @@ struct
           let n1 = print p l e1 in
           if what <> "" then ppi p.P.def "/* Force: %s */" what ;
           emit ?name p l e (fun oc -> Printf.fprintf oc "%s.value()" n1)
+    | E.E1 (IsNull, e1) ->
+        if (E.type_of l e1).T.nullable then
+          if E.is_const_null e1 then
+            (* Cannot call has_value on nullopt: *)
+            emit ?name p l e (fun oc -> pp oc "true")
+          else
+            let n = print p l e1 in
+            emit ?name p l e (fun oc -> pp oc "!(%s.has_value ())" n)
+        else
+          emit ?name p l e (fun oc -> pp oc "false")
     | E.E0 (Null _) ->
         emit ?name p l e (fun oc -> pp oc "std::nullopt")
     | E.E0 (Float f) ->
