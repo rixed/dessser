@@ -1236,14 +1236,14 @@ struct
     (* e0 *)
     | Lst [ Sym "param" ; Sym n ] as s ->
         E0 (Param (int_of_symbol s n))
-    | Lst [ Sym "myself" ; Str mn ] ->
-        E0 (Myself (T.mn_of_string mn))
+    | Lst [ Sym "myself" ; Str mn ] as s ->
+        E0 (Myself (mn_of_string s mn))
     | Lst [ Sym "null" ; Str t ] ->
         E0 (Null (T.of_string t))
-    | Lst [ Sym ("end-of-list" | "eol") ; Str t ] ->
-        E0 (EndOfList (T.mn_of_string t))
-    | Lst [ Sym "empty-set" ; Str mn ] ->
-        E0 (EmptySet (T.mn_of_string mn))
+    | Lst [ Sym ("end-of-list" | "eol") ; Str mn ] as s ->
+        E0 (EndOfList (mn_of_string s mn))
+    | Lst [ Sym "empty-set" ; Str mn ] as s ->
+        E0 (EmptySet (mn_of_string s mn))
     | Lst [ Sym "now" ] -> E0 Now
     | Lst [ Sym "random-float" ] -> E0 RandomFloat
     | Lst [ Sym "random-u8" ] -> E0 RandomU8
@@ -1289,21 +1289,21 @@ struct
     | Lst [] -> E0S (Seq, [])
     | Sym "nop" -> E0S (Seq, [])
     | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
-    | Lst (Sym "make-arr" :: Str mn :: xs) ->
-        E0S (MakeArr (T.mn_of_string mn), List.map e xs)
+    | Lst (Sym "make-arr" :: Str mn :: xs) as s ->
+        E0S (MakeArr (mn_of_string s mn), List.map e xs)
     | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
     | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
     | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
-    | Lst (Sym "verbatim" :: Lst temps :: Str mn :: xs) ->
+    | Lst (Sym "verbatim" :: Lst temps :: Str mn :: xs) as s ->
         let temp_of_strings = function
           | Lst [ Sym id ; Str temp ] -> backend_of_string id, temp
           | x ->
               Printf.sprintf2 "Cannot parse verbatim template %a" print_sexpr x |>
               failwith in
         let temps = List.map temp_of_strings temps in
-        E0S (Verbatim (temps, T.mn_of_string mn), List.map e xs)
+        E0S (Verbatim (temps, mn_of_string s mn), List.map e xs)
     (* e1 *)
-    | Lst [ Sym ("function" | "fun") ; Lst typs ; body ] ->
+    | Lst [ Sym ("function" | "fun") ; Lst typs ; body ] as s ->
         (* Syntax for functions is:
          *    (fun ("type arg 1" "type arg 2" ...) body)
          * where:
@@ -1312,7 +1312,7 @@ struct
         let typs =
           List.enum typs /@
           (function
-            | Str s -> T.mn_of_string s
+            | Str d -> mn_of_string s d
             | x ->
                 raise (Must_be_quoted_type x)) |>
           Array.of_enum in
@@ -1327,7 +1327,7 @@ struct
         E1 (GetAlt s, e x)
     | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] as s ->
         let i = int_of_symbol s i in
-        (match T.mn_of_string mn with
+        (match mn_of_string s mn with
         | { typ = Sum mns ; nullable = false } ->
             let max_lbl = Array.length mns - 1 in
             if i > max_lbl then
@@ -1470,14 +1470,14 @@ struct
     | Lst [ Sym "mask-get" ; Sym d ; x1 ] as s ->
         E1 (MaskGet (int_of_symbol s d), e x1)
     | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
-    | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
-        E1 (SlidingWindow (T.mn_of_string mn), e x)
-    | Lst [ Sym "tumbling-window" ; Str mn ; x ] ->
-        E1 (TumblingWindow (T.mn_of_string mn), e x)
-    | Lst [ Sym "sampling" ; Str mn ; x ] ->
-        E1 (Sampling (T.mn_of_string mn), e x)
-    | Lst [ Sym "hash-table" ; Str mn ; x ] ->
-        E1 (HashTable (T.mn_of_string mn), e x)
+    | Lst [ Sym "sliding-window" ; Str mn ; x ] as s ->
+        E1 (SlidingWindow (mn_of_string s mn), e x)
+    | Lst [ Sym "tumbling-window" ; Str mn ; x ] as s ->
+        E1 (TumblingWindow (mn_of_string s mn), e x)
+    | Lst [ Sym "sampling" ; Str mn ; x ] as s ->
+        E1 (Sampling (mn_of_string s mn), e x)
+    | Lst [ Sym "hash-table" ; Str mn ; x ] as s ->
+        E1 (HashTable (mn_of_string s mn), e x)
     | Lst [ Sym "heap" ; x ] ->
         E1 (Heap, e x)
     | Lst [ Sym "ptr-of-string" ; x ] ->
@@ -1596,8 +1596,8 @@ struct
         E3 (PtrOfPtr, e x1, e x2, e x3)
     | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
         E3 (FindSubstring, e x1, e x2, e x3)
-    | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] ->
-        E3 (Top (T.mn_of_string mn), e x1, e x2, e x3)
+    | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] as s ->
+        E3 (Top (mn_of_string s mn), e x1, e x2, e x3)
     | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
         E3 (InsertWeighted, e x1, e x2, e x3)
     | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
