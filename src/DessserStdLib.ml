@@ -421,12 +421,13 @@ let rec is_in item item_t lst lst_t =
                     if T.eq item_typ lst_typ then eq
                     else (fun a b ->
                       is_in a item_t
-                            b T.{ lst_t with nullable = false })  in
+                            b T.(required lst_typ)) in
                   exists lst (fun i ->
                     if nullable then
-                      if_null i
-                        ~then_:(bool false)
-                        ~else_:(op item (force ~what:"is_in(2)" i))
+                      let_ ~name:"i" i (fun i ->
+                        if_null i
+                          ~then_:(bool false)
+                          ~else_:(op item (force ~what:"is_in(2)" i)))
                     else
                       op item i)
               | _ ->
