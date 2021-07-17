@@ -228,8 +228,9 @@ end
 
 let percentiles vs vs_t ps ps_t =
   let open E.Ops in
-  comment "Compute the indices of those percentiles" (
-    let_ ~name:"vs" vs (fun vs ->
+  null_map ~name:"vs" vs (fun vs ->
+    let vs_t = T.force vs_t in
+    comment "Compute the indices of those percentiles" (
       let ks =
         let card_vs = to_float (sub (cardinality vs) (u32_of_int 1)) in
         let_ ~name:"card_vs" card_vs (fun card_vs ->
