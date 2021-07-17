@@ -10,7 +10,7 @@ module T = DessserTypes
   module T = DessserTypes *)
 
 (* [l] is the stack of expr * type *)
-let rec type_check l e =
+let rec type_check l =
   E.map_env l (fun l e0 ->
     let check_void l e =
       match E.type_of l e |> T.develop1 with
@@ -107,7 +107,7 @@ let rec type_check l e =
       | t -> raise (E.Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign = E.check_fun_sign e0 in
-    let rec check_ip ?(rec_=false) l t =
+    let rec check_ip ?(rec_=false) l e t =
       (* Any 32 or 128 unsigned integer will do, or any sum of such thing,
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
@@ -115,7 +115,7 @@ let rec type_check l e =
       | { typ = Base (U32 | U128) ; nullable = false } ->
           ()
       | { typ = Sum mns ; nullable = false } when rec_ = false ->
-          Array.iter (fun (_, mn) -> check_ip ~rec_:true l mn) mns
+          Array.iter (fun (_, mn) -> check_ip ~rec_:true l e mn) mns
       | t -> raise (E.Type_error (e0, e, t, "be an ip")) in
     (* Convert and NullMap are the only operations that returns a different
      * expression: *)
@@ -207,7 +207,7 @@ let rec type_check l e =
             | { typ = (Vec (_, t) | Arr t | Set (_, t)) ; nullable = false } ->
                 check_eq l e1 t
             | t ->
-                raise (E.Type_error (e0, e, t, "be a vector, array or set")))
+                raise (E.Type_error (e0, e2, t, "be a vector, array or set")))
         | E2 ((BitAnd | BitOr | BitXor), e1, e2) ->
             check_integer l e1 ;
             check_same_types l e1 e2
@@ -219,7 +219,7 @@ let rec type_check l e =
         | E1 ((StringOfChar | U8OfChar), e) ->
             check_eq l e T.char
         | E1 (StringOfIp, e) ->
-            check_ip l (E.type_of l e)
+            check_ip l e (E.type_of l e)
         | E1 ((FloatOfString | U8OfString | U16OfString
              | U24OfString | U32OfString | U40OfString | U48OfString
              | U56OfString | U64OfString | U128OfString | I8OfString
@@ -371,7 +371,7 @@ let rec type_check l e =
         | E1 (GetField _, _)
         | E1 (GetAlt _, _) ->
             (* everything checks already performed in [type_of] *)
-            ignore (E.type_of l e)
+            ignore (E.type_of l e0)
         | E1 (Construct (mns, i), e) ->
               let max_lbl = Array.length mns - 1 in
               if i < 0 || i > max_lbl then (
@@ -453,7 +453,7 @@ let rec type_check l e =
             let item_t = E.get_item_type ~arr:true ~vec:true e0 l e2 in
             if item_t <> T.(required (Base String)) then
               let msg = "be a list or vector of strings" in
-              raise (E.Type_error (e0, e, item_t, msg))
+              raise (E.Type_error (e0, e2, E.type_of l e2, msg))
         | E2 (AllocArr, e1, _) ->
             check_unsigned l e1
         | E2 (PartialSort, e1, e2) ->
@@ -485,7 +485,7 @@ let rec type_check l e =
             check_integer l stop
         ) ;
         e0
-  ) e
+  )
 
 (*$inject
   let pass_type_check s =
