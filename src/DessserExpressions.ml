@@ -2319,6 +2319,7 @@ let rec fold u f e =
   | E3 (_, e1, e2, e3) ->
       fold (fold (fold u f e1) f e2) f e3
 
+(* Top to bottom: *)
 (* Folding a tree of 100M nodes takes ~30s :-< *)
 let rec fold_env u l f e =
   let u = f u l e in
@@ -2403,7 +2404,8 @@ let rec map ?(enter_functions=true) f e =
       if e1' == e1 && e2' == e2 && e3' == e3 then f e else
       f (E3 (op, e1', e2', e3'))
 
-(* Call [f] bottom to top *)
+(* Call [f] bottom to top. [f] is not allowed to change the type of the passed
+ * expression. *)
 let rec map_env l f e =
   match e with
   | E0 _ ->
@@ -2412,8 +2414,8 @@ let rec map_env l f e =
       let es = List.map (map_env l f) es in
       f l (E0S (op, es))
   | E1 (Function ts, e1) ->
-      let l = enter_function ts l in
-      let e1 = map_env l f e1 in
+      let l' = enter_function ts l in
+      let e1 = map_env l' f e1 in
       f l (E1 (Function ts, e1))
   | E1 (op, e1) ->
       let e1 = map_env l f e1 in
@@ -2423,31 +2425,31 @@ let rec map_env l f e =
       and es = List.map (map_env l f) es in
       f l (E1S (op, e1, es))
   | E2 (Let (n, r), e1, e2) ->
+      let e1 = map_env l f e1 in
       let t = get_memo_mn r l e1 in
-      let e1 = map_env l f e1 in
-      let l = add_local n t l in
-      let e2 = map_env l f e2 in
-      f l (E2 (Let (n, r), e1, e2))
-  | E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
-      let t1 = get_memo_mn r1 l (E1 (GetItem 0, e1))
-      and t2 = get_memo_mn r2 l (E1 (GetItem 1, e1)) in
-      let e1 = map_env l f e1 in
-      let l = add_local n1 t1 l |>
-              add_local n2 t2 in
-      let e2 = map_env l f e2 in
-      f l (E2 (LetPair (n1, r1, n2, r2), e1, e2))
-  | E2 (ForEach (n, r), e1, e2) ->
-      let t = get_memo_item_mn r l e1 in
-      let e1 = map_env l f e1 in
-      let l = add_local n t l in
-      let e2 = map_env l f e2 in
-      f l (E2 (ForEach (n, r), e1, e2))
-  | E2 (NullMap (n, r), e1, e2) ->
-      let t = get_memo_mn r l (E1 (Force "map_env", e1)) in
-      let e1 = map_env l f e1 in
       let l' = add_local n t l in
       let e2 = map_env l' f e2 in
       f l (E2 (Let (n, r), e1, e2))
+  | E2 (LetPair (n1, r1, n2, r2), e1, e2) ->
+      let e1 = map_env l f e1 in
+      let t1 = get_memo_mn r1 l (E1 (GetItem 0, e1))
+      and t2 = get_memo_mn r2 l (E1 (GetItem 1, e1)) in
+      let l' = add_local n1 t1 l |>
+               add_local n2 t2 in
+      let e2 = map_env l' f e2 in
+      f l (E2 (LetPair (n1, r1, n2, r2), e1, e2))
+  | E2 (ForEach (n, r), e1, e2) ->
+      let e1 = map_env l f e1 in
+      let t = get_memo_item_mn r l e1 in
+      let l' = add_local n t l in
+      let e2 = map_env l' f e2 in
+      f l (E2 (ForEach (n, r), e1, e2))
+  | E2 (NullMap (n, r), e1, e2) ->
+      let e1 = map_env l f e1 in
+      let t = get_memo_mn r l (E1 (Force "null_map", e1)) in
+      let l' = add_local n t l in
+      let e2 = map_env l' f e2 in
+      f l (E2 (NullMap (n, r), e1, e2))
   | E2 (op, e1, e2) ->
       let e1 = map_env l f e1
       and e2 = map_env l f e2 in
