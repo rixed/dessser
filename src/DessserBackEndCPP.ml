@@ -431,16 +431,24 @@ struct
     | E.E2 (Nth, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
+        let mn2 = E.type_of l e2 |> T.develop_mn in
+        let item_t = T.get_item_type ~vec:true ~arr:true ~lst:true ~str:true
+                                     ~bytes:true mn2.T.typ in
+        let need_optional = not item_t.T.nullable in
         emit ?name p l e (fun oc ->
           match (E.type_of l e2 |> T.develop_mn).T.typ with
           | T.(Vec _ | Arr _) ->
               pp oc "%s < %s.size() ? \
-                     std::make_optional(%s[%s]) : std::nullopt" n1 n2 n2 n1
+                     %s(%s[%s]) : std::nullopt"
+                 (if need_optional then "std::make_optional" else "")
+                 n1 n2 n2 n1
           | T.Lst _
           | T.Base String
           | T.Bytes ->
               pp oc "%s < %s.length() ? \
-                     std::make_optional(%s[%s]) : std::nullopt" n1 n2 n2 n1
+                     %s(%s[%s]) : std::nullopt"
+                 (if need_optional then "std::make_optional" else "")
+                 n1 n2 n2 n1
           | _ ->
               assert false)
     | E.E2 (UnsafeNth, e1, e2) ->

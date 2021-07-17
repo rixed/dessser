@@ -664,9 +664,13 @@ struct
         let n1 = print p l e1 in
         let n2 = print p l e2 in
         let m = mod_name (E.type_of l e1) in
+        let mn2 = E.type_of l e2 |> T.develop_mn in
+        let item_t = T.get_item_type ~vec:true ~arr:true ~lst:true ~str:true
+                                     ~bytes:true mn2.T.typ in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "try Some (" ;
-          (match (E.type_of l e2 |> T.develop_mn).T.typ with
+          Printf.fprintf oc "try %s("
+            (if item_t.T.nullable then "" else "Some ") ;
+          (match mn2.typ with
           | T.(Vec _ | Arr _) ->
               Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1
           | T.Lst _ ->
