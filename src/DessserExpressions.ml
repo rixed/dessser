@@ -2464,7 +2464,6 @@ let has_side_effect e =
   try
     iter (function
       | E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
-      | E0S (MakeVec, _)
       | E1 ((Dump | ReadU8 | ReadU16 _ |
              ReadU32 _ | ReadU64 _ |ReadU128 _ | Assert |
              FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
@@ -2492,6 +2491,7 @@ let can_duplicate e =
       (* Although not exactly a side effect, those functions produce a copy of
        * a given pointer that are then mutable and which address is used in
        * comparisons *)
+      | E0S ((MakeVec | MakeArr _ | MakeTup | MakeRec | MakeUsr _), _)
       | E1 ((PtrOfString | PtrOfBuffer), _)
       | E2 (PtrOfAddress, _, _)
       | E3 (PtrOfPtr, _, _, _)
