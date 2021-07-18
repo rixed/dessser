@@ -1,0 +1,7 @@
+{
+  foo: float;
+  bar: {
+    baz: i32?[]?;
+    glop: bool;
+  }?;
+}?

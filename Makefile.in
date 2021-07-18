@@ -74,7 +74,7 @@ all: $(INSTALLED) examples
 .PHONY: \
   clean distclean all dep doc examples \
   check unit-check quick-check slow-check examples-check cpp-check \
-  aggregator-simplest-check aggregator-sets-check dessserc-check \
+  aggregator-simplest-check aggregator-sets-check dessserc-check json-check \
   install uninstall reinstall
 
 %.cmi: %.mli
@@ -128,6 +128,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserRowBinary.ml \
 	src/DessserRamenRingBuffer.ml \
 	src/DessserDevNull.ml \
+	src/DessserJson.ml \
 	src/DessserBackEndDIL.ml \
 	src/DessserBackEndCLike.ml \
 	src/DessserBackEndCPP.ml \
@@ -280,7 +281,8 @@ LINKED_FOR_TESTS = \
 	src/DessserRowBinary.ml \
 	src/DessserRamenRingBuffer.ml \
 	src/DessserHeapValue.ml \
-	src/DessserQCheck.ml
+	src/DessserQCheck.ml \
+	src/DessserJson.ml
 
 src/quick_tests.ml: $(QUICK_TESTABLE_SOURCES)
 	@echo 'Generating quick unit tests into $@'
@@ -324,11 +326,11 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	 examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK" && \
 	 examples/manual_codegen.opt ocaml && \
 	 examples/rowbinary2sexpr.opt < udp_v30.chb > examples/rowbinary2sexpr.opt.out && \
-	 diff examples/rowbinary2sexpr.opt.out examples/rowbinary2sexpr.expected && \
+	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.opt.out && \
 	 echo "manual_codegen ocaml OK" && \
 	 examples/manual_codegen.opt c++ && \
 	 examples/rowbinary2sexpr.exe < udp_v30.chb > examples/rowbinary2sexpr.exe.out && \
-	 diff examples/rowbinary2sexpr.exe.out examples/rowbinary2sexpr.expected && \
+	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.exe.out && \
 	 echo "manual_codegen c++ OK"
 	@echo SUCCESS
 
@@ -359,7 +361,7 @@ dump-load-check: testdb-dump testdb-load testdb.dump
 	 export DESSSER_DEV_MODE=1 ;\
 	 ./testdb-load --kv-delim : $$ENVNAME < testdb.dump ;\
 	 ./testdb-dump --kv-delim : $$ENVNAME | sort > /tmp/testdb.dump ;\
-	 diff /tmp/testdb.dump testdb.dump
+	 diff testdb.dump /tmp/testdb.dump
 
 # Check we can build a simple program that transform its input, in any backend
 convert-check: src/dessserc
@@ -439,7 +441,7 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 
 dessserc-check: src/dessserc $(wildcard tests/*.type)
 	@echo Testing dessserc
-	@set -e; \
+	@set -e ;\
 	for f in tests/*.type; do \
 	  echo "...on $$f" ;\
 	  src_file=/tmp/$$(basename $$f .type) ;\
@@ -449,6 +451,33 @@ dessserc-check: src/dessserc $(wildcard tests/*.type)
 	    --language=OCaml --schema=@$$f -o "$$src_file.ml" ;\
 	  $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.mli" ;\
 	  $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.ml" ;\
+	done
+	@echo SUCCESS
+
+JSON_TESTS = $(wildcard tests/json/*.type)
+
+# TODO: OCaml and C++
+json-check: src/dessserc $(JSON_TESTS)
+	@set -e ;\
+	for be in OCaml C++; do \
+	  for f in $(JSON_TESTS); do \
+	    echo "Testing $$f" ;\
+	    base=tests/json/$$(basename $$f .type) ;\
+	    src/dessserc converter \
+	      --schema=@$$f \
+	      --backend=$$be \
+	      --input-encoding=json \
+	      --output-encoding=s-expr \
+	      --dev-mode -O3 -o $$base ;\
+	    for in in $$base.*.in; do \
+	      out=/tmp/$$(basename $$in .in).out ;\
+	      expected=tests/json/$$(basename $$in .in).out ;\
+	      echo "Running: $$base -i $$in > $$out" ;\
+	      $$base -i $$in > $$out ;\
+	      echo >> $$out ;\
+	      diff $$expected $$out ;\
+	    done ;\
+	  done ;\
 	done
 	@echo SUCCESS
 
@@ -479,6 +508,7 @@ clean:
 	@$(RM) quick_tests.* src/quick_tests.ml slow_tests.* src/slow_tests.ml
 	@$(RM) *.opt perf.data* gmon.out .depend
 	@$(RM) src/libdessser_ext.a
+	@$(RM) json-test-parser
 
 distclean: clean
 	@echo 'Cleaning all build files'

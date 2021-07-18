@@ -117,15 +117,12 @@ struct
 
   let arr_opn _ n conf mn0 path p =
     let p =
-      if conf.list_prefix_length then
-        match n with
-        | Some n ->
-            let p = su32 conf mn0 path n p in
-            write_u8 p (u8_of_const_char ' ')
-        | None ->
-            failwith "SExpr.Ser needs array's length upfront"
-      else
-        p in
+      match n with
+      | Some n ->
+          let p = su32 conf mn0 path n p in
+          write_u8 p (u8_of_const_char ' ')
+      | None ->
+          p in
     write_u8 p (u8_of_const_char '(')
 
   let arr_cls _conf _ _ p =

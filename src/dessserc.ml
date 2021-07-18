@@ -33,6 +33,7 @@ let des_of_encoding = function
   | RowBinary -> (module DessserRowBinary.Des : DES)
   | SExpr -> (module DessserSExpr.Des : DES)
   | CSV -> (module DessserCsv.Des : DES)
+  | JSON -> (module DessserJson.Des : DES)
   | _ -> failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
@@ -52,6 +53,12 @@ let init_backend backend schema =
   | OCaml -> DessserBackEndOCaml.init schema
   | _ -> ()
 
+(* Some des/ser modules need to register some functions before they can be
+ * used: *)
+let init_encoding compunit = function
+  | JSON -> DessserJson.init compunit
+  | _ -> compunit
+
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
@@ -68,6 +75,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let backend = module_of_backend backend in
   init_backend backend schema ;
   let compunit = U.make () in
+  let compunit = List.fold_left init_encoding compunit encodings_in in
+  let compunit = List.fold_left init_encoding compunit encodings_out in
   (* Christen the schema type the global type name "t" *)
   let type_name = "t" in
   let compunit = U.name_type compunit schema.T.typ type_name in
@@ -174,6 +183,8 @@ let converter
     func2 T.ptr T.ptr (DS.desser schema ~transform) in
   if !debug then ignore (TC.type_check E.no_env convert) ;
   let compunit = U.make () in
+  let compunit = init_encoding compunit encoding_in in
+  let compunit = init_encoding compunit encoding_out in
   let compunit, _, convert_name =
     U.add_identifier_of_expression compunit ~name:"convert" convert in
   let def_fname =
@@ -223,6 +234,8 @@ let lmdb main
     ignore (TC.type_check E.no_env convert_val)
   ) ;
   let compunit = U.make () in
+  let compunit = init_encoding compunit encoding_in in
+  let compunit = init_encoding compunit encoding_out in
   let compunit, _, convert_key_name =
     U.add_identifier_of_expression compunit ~name:"convert_key" convert_key in
   let compunit, _, convert_val_name =
@@ -275,6 +288,8 @@ let aggregator
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
   let compunit = U.make () in
+  let compunit = init_encoding compunit encoding_in in
+  let compunit = init_encoding compunit encoding_out in
   let compunit, des = ToValue.make schema compunit in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
@@ -400,7 +415,7 @@ let docv_of_enum l =
   ) l
 
 let known_inputs =
-  T.[ RingBuff ; RowBinary ; SExpr ; CSV ] |>
+  T.[ RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
   List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_in =

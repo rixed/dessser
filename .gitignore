@@ -58,3 +58,12 @@ testdb-dump
 testdb-load
 testdb_dump.ml
 testdb_load.ml
+tests/json/not-an-object
+tests/json/not_an_object.ml
+tests/json/not_an_object.cc
+tests/json/nullable-array
+tests/json/nullable_array.ml
+tests/json/nullable_array.cc
+tests/json/simple-object
+tests/json/simple_object.ml
+tests/json/simple-object.cc
