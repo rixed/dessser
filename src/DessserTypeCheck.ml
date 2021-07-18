@@ -121,7 +121,7 @@ let rec type_check l =
      * expression: *)
     match e0 with
     | E1 (Convert to_, e1) ->
-        let from = E.type_of l e1 |> T.develop_mn in
+        let from = E.type_of l e1 in
         let res = C.conv_mn ~from ~to_ e1 in
         type_check l res
     | E2 (NullMap (n, r), x, body) ->

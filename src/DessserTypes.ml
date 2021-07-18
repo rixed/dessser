@@ -368,8 +368,8 @@ let rec shrink t =
   and do_typ t =
     let t' =
       match t with
+      (* Leave Usr types as they are *)
       | Named (_, t) -> do_typ t
-      | Usr { def ; _ } -> do_typ def
       | Vec (d, mn) -> Vec (d, do_mn mn)
       | Arr mn -> Arr (do_mn mn)
       | Set (st, mn) -> Set (st, do_mn mn)
