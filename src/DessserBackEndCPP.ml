@@ -440,15 +440,17 @@ struct
           | T.(Vec _ | Arr _) ->
               pp oc "%s < %s.size() ? \
                      %s(%s[%s]) : std::nullopt"
+                 n1 n2
                  (if need_optional then "std::make_optional" else "")
-                 n1 n2 n2 n1
+                 n2 n1
           | T.Lst _
           | T.Base String
           | T.Bytes ->
               pp oc "%s < %s.length() ? \
                      %s(%s[%s]) : std::nullopt"
+                 n1 n2
                  (if need_optional then "std::make_optional" else "")
-                 n1 n2 n2 n1
+                 n2 n1
           | _ ->
               assert false)
     | E.E2 (UnsafeNth, e1, e2) ->
@@ -886,21 +888,21 @@ struct
     | E.E2 (PeekU8, e1, e2) ->
         method_call e1 "peekU8" [ e2 ]
     | E.E2 (PeekU16 LittleEndian, e1, e2) ->
-        method_call e1 "peekWorkLe" [ e2 ]
+        method_call e1 "peekU16Le" [ e2 ]
     | E.E2 (PeekU16 BigEndian, e1, e2) ->
-        method_call e1 "peekWorkBe" [ e2 ]
+        method_call e1 "peekU16Be" [ e2 ]
     | E.E2 (PeekU32 LittleEndian, e1, e2) ->
-        method_call e1 "peekDWorkLe" [ e2 ]
+        method_call e1 "peekU32Le" [ e2 ]
     | E.E2 (PeekU32 BigEndian, e1, e2) ->
-        method_call e1 "peekDWorkBe" [ e2 ]
+        method_call e1 "peekU32Be" [ e2 ]
     | E.E2 (PeekU64 LittleEndian, e1, e2) ->
-        method_call e1 "peekQWorkLe" [ e2 ]
+        method_call e1 "peekU64Le" [ e2 ]
     | E.E2 (PeekU64 BigEndian, e1, e2) ->
-        method_call e1 "peekQWorkBe" [ e2 ]
+        method_call e1 "peekU64Be" [ e2 ]
     | E.E2 (PeekU128 LittleEndian, e1, e2) ->
-        method_call e1 "peekOWorkLe" [ e2 ]
+        method_call e1 "peekU128Le" [ e2 ]
     | E.E2 (PeekU128 BigEndian, e1, e2) ->
-        method_call e1 "peekOWorkBe" [ e2 ]
+        method_call e1 "peekU128Be" [ e2 ]
     | E.E2 (WriteU8, e1, e2) ->
         method_call e1 "writeU8" [ e2 ]
     | E.E2 (WriteU16 LittleEndian, e1, e2) ->
@@ -1182,7 +1184,7 @@ struct
         let chr = print p l chr in
         let str = print p l str in
         let pos = gen_sym ?name "pos_" in
-        ppi p.P.def "std::size %s { %s.find(%s) };"
+        ppi p.P.def "std::size_t %s { %s.find(%s) };"
           pos str chr ;
         emit ?name p l e (fun oc ->
           pp oc "%s != std::string::npos ? \
@@ -1338,7 +1340,7 @@ struct
         and n2 = print p l e2
         and n3 = print p l e3 in
         let pos = gen_sym ?name "pos_" in
-        ppi p.P.def "std::size %s { %s ? %s.find(%s) : %s.rfind(%s) };"
+        ppi p.P.def "std::size_t %s { %s ? %s.find(%s) : %s.rfind(%s) };"
           pos n1 n3 n2 n3 n2 ;
         emit ?name p l e (fun oc ->
           pp oc "%s != std::string::npos ? \
