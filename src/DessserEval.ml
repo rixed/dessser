@@ -727,6 +727,9 @@ let rec peval l e =
            *     (set-vec 0 (make-vec 0) 1))
            * then ultimately into:
            *   1
+           *
+           * This must not be done when both the value and the body have side
+           * effect though, as those could then be reordered.
            *)
           let use_count =
             (* TODO: early exit *)
@@ -737,6 +740,8 @@ let rec peval l e =
           if use_count = 0 then
             if not (E.has_side_effect value) then body
             else p (seq [ ignore_ value ; body ])
+          else if E.has_side_effect body && E.has_side_effect value then
+            def
           else if use_count = 1 ||
                   E.can_duplicate value &&
                   (use_count - 1) * E.size value <= max_inline_size ()
@@ -748,7 +753,7 @@ let rec peval l e =
           (* If the let binds a pair, and this binding appears only in Fst or Snd
            * expression, then use a LetPair instead and save the intermediary
            * bindings: *)
-          else match value_t with
+          else (match value_t with
           (* FIXME: would work as well if Tup had any number of items and was only
            * ever used with GetItem. *)
           | T.{ typ = Tup [| mn1 ; mn2 |] ; nullable = false } ->
@@ -773,7 +778,7 @@ let rec peval l e =
               E.E2 (LetPair (n1, ref (Some mn1), n2, ref (Some mn2)),
                             value, body) |> p
           | _ ->
-              def)
+              def))
   | E2 (LetPair (n1, r1, n2, r2), value, body) ->
       let value = p value in
       let mn1 = E.get_memo_mn r1 l (first value)
