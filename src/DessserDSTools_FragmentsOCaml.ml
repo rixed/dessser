@@ -19,9 +19,12 @@ let main () =
   and delim = ref '\000'
   and single_input = ref "" in
 
-  let syntax () =
+  let print_syntax () =
     String.print stdout
-      "Syntax: [(--delim|-d) DELIM] [(--input|-i) FILE | INPUT]\n" ;
+      "Syntax: [(--delim|-d) DELIM] [(--input|-i) FILE | INPUT]\n" in
+
+  let syntax () =
+    print_syntax () ;
     exit 1 in
 
   let read_whole_file fname =
@@ -30,7 +33,10 @@ let main () =
   let rec loop_args i =
     if i < Array.length Sys.argv then (
       let arg = Sys.argv.(i) in
-      if i < Array.length Sys.argv - 1 &&
+      if arg = "-h" || arg = "--help" then (
+        print_syntax () ;
+        exit 0
+      ) else if i < Array.length Sys.argv - 1 &&
          (String.icompare arg "--delim" = 0 ||
           String.icompare arg "-d" = 0)
       then (

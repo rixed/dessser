@@ -27,6 +27,13 @@ int main(int numArgs, char **args)
 
   for (int a = 1; a < numArgs; a++) {
     if (
+      0 == strcasecmp(args[a], "--help") ||
+      0 == strcasecmp(args[a], "-h")
+    ) {
+      std::cout << "Syntax: [(--delim|-d) DELIM] [(--input|-i) FILE | INPUT]"
+                << std::endl;
+      return 0;
+    } else if (
       a < numArgs - 1 && (
         0 == strcasecmp(args[a], "--delim") ||
         0 == strcasecmp(args[a], "-d")
