@@ -37,6 +37,7 @@ struct Lst {
   Lst(TInit const init, std::function<T(TInit, T2)> f, Lst<T2> const that)
   {
     // TODO
+    assert(false);
   }
 
   bool empty() const { return !cells; }

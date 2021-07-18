@@ -81,7 +81,7 @@ let skip_string p =
       seq [
         assert_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"')) ;
         make_ref (size 1) ] in
-    let_ ~name:"off_ref" off_ref (fun off_ref ->
+    let_ ~name:"off_ref2" off_ref (fun off_ref ->
       let off = get_ref off_ref in
       let incr n = set_ref off_ref (add off (size n)) in
       seq [
