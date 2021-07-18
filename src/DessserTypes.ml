@@ -1090,6 +1090,7 @@ let ni48 = optional (Base I48)
 let ni56 = optional (Base I56)
 let ni64 = optional (Base I64)
 let ni128 = optional (Base I128)
+let nptr = optional Ptr
 
 let to_nullable mn =
   { mn with nullable = true }

@@ -507,6 +507,9 @@ let expression =
   open DessserTools
   open DessserDSTools
 
+  let ocaml_be = (module DessserBackEndOCaml : BACKEND)
+  let cpp_be = (module DessserBackEndCPP : BACKEND)
+
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
     let compunit = U.make () in
@@ -525,8 +528,8 @@ let expression =
         false
 
   let can_be_compiled e =
-    can_be_compiled_with_backend (module DessserBackEndOCaml : BACKEND) e &&
-    can_be_compiled_with_backend (module DessserBackEndCPP : BACKEND) e
+    can_be_compiled_with_backend ocaml_be e &&
+    can_be_compiled_with_backend cpp_be  e
 *)
 
 (*$Q expression & ~count:20
@@ -713,9 +716,6 @@ let sexpr mn =
     make_converter ~dev_mode:true ~mn compunit be e
 
   let test_data_desser = test_desser (ptr_of_buffer (size 50_000))
-
-  let ocaml_be = (module DessserBackEndOCaml : BACKEND)
-  let cpp_be = (module DessserBackEndCPP : BACKEND)
 *)
 
 (* Given a type and a backend, build a converter from s-expr to s-expr for

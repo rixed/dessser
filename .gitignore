@@ -47,11 +47,14 @@ ber/IntRepr.ml
 examples/example.cc
 examples/example.ml
 examples/rowbinary2sexpr.*.out
+examples/rowbinary2sexpr.cc
+examples/rowbinary2sexpr.exe
+examples/rowbinary2sexpr.ml
 examples/i32s.csv
 src/dessserc
 src/DessserCompilConfig.ml
 src/cpp_tests
 testdb-dump
 testdb-load
-testdb-dump.ml
-testdb-load.ml
+testdb_dump.ml
+testdb_load.ml
