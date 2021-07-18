@@ -1111,7 +1111,10 @@ struct
          * can later be found by Myself: *)
         let name = gen_sym ?name "fun" in
         emit ?name:(Some name) p l e (fun oc ->
-          array_print_i ~first:"[](" ~last:") {\n" ~sep:", "
+          (* Make sure this function can be called recursively by capturing
+           * its name: *)
+          let first = "[&"^ name ^"](" in
+          array_print_i ~first ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier_mn p t)
               (if is_mutable t then "&" else "")
