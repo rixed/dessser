@@ -114,12 +114,19 @@ struct Bytes {
   }
 };
 
+static inline std::ostream &operator<<(std::ostream &os, Bytes const &b)
+{
+  os << b.toString();
+  return os;
+}
+
 inline bool operator==(Bytes const &lhs, Bytes const &rhs)
 {
   if (lhs.size != rhs.size) return false;
   if (lhs.buffer == rhs.buffer && lhs.offset == rhs.offset) return true;
   // Slow path
-  return 0 == std::memcmp(lhs.buffer.get(), rhs.buffer.get(), lhs.size);
+  return 0 == std::memcmp(lhs.buffer.get() + lhs.offset,
+                          rhs.buffer.get() + rhs.offset, lhs.size);
 }
 
 inline bool operator!=(Bytes const &lhs, Bytes const &rhs)
