@@ -137,10 +137,10 @@ struct Pointer {
       peekU8(), skip(1));
   }
 
-  uint16_t peekU16Le() const
+  uint16_t peekU16Le(size_t at = 0) const
   {
-    checkOffset(offset + 2);
-    return (((uint16_t)get(offset + 1)) << 8) | get(offset);
+    checkOffset(offset + at + 2);
+    return (((uint16_t)get(offset + at + 1)) << 8) | get(offset + at);
   }
 
   std::tuple<uint16_t, Pointer> readU16Le() const
@@ -149,10 +149,10 @@ struct Pointer {
       peekU16Le(), skip(2));
   }
 
-  uint16_t peekU16Be() const
+  uint16_t peekU16Be(size_t at = 0) const
   {
-    checkOffset(offset + 2);
-    return (((uint16_t)get(offset)) << 8) | get(offset + 1);
+    checkOffset(offset + at + 2);
+    return (((uint16_t)get(offset + at)) << 8) | get(offset + at + 1);
   }
 
   std::tuple<uint16_t, Pointer> readU16Be() const
@@ -161,13 +161,13 @@ struct Pointer {
       peekU16Be(), skip(2));
   }
 
-  uint32_t peekU32Le() const
+  uint32_t peekU32Le(size_t at = 0) const
   {
     checkOffset(offset + 4);
-    return (((uint32_t)get(offset + 3)) << 24) |
-           (((uint32_t)get(offset + 2)) << 16) |
-           (((uint32_t)get(offset + 1)) << 8) |
-           get(offset);
+    return (((uint32_t)get(offset + at + 3)) << 24) |
+           (((uint32_t)get(offset + at + 2)) << 16) |
+           (((uint32_t)get(offset + at + 1)) << 8) |
+           get(offset + at);
   }
 
   std::tuple<uint32_t, Pointer> readU32Le() const
@@ -176,13 +176,13 @@ struct Pointer {
       peekU32Le(), skip(4));
   }
 
-  uint32_t peekU32Be() const
+  uint32_t peekU32Be(size_t at = 0) const
   {
     checkOffset(offset + 4);
-    return (((uint32_t)get(offset)) << 24) |
-           (((uint32_t)get(offset + 1)) << 16) |
-           (((uint32_t)get(offset + 2)) << 8) |
-           get(offset + 3);
+    return (((uint32_t)get(offset + at)) << 24) |
+           (((uint32_t)get(offset + at + 1)) << 16) |
+           (((uint32_t)get(offset + at + 2)) << 8) |
+           get(offset + at + 3);
   }
 
   std::tuple<uint32_t, Pointer> readU32Be() const
@@ -191,17 +191,17 @@ struct Pointer {
       peekU32Be(), skip(4));
   }
 
-  uint64_t peekU64Le() const
+  uint64_t peekU64Le(size_t at = 0) const
   {
     checkOffset(offset + 8);
-    return (((uint64_t)get(offset + 7)) << 56) |
-           (((uint64_t)get(offset + 6)) << 48) |
-           (((uint64_t)get(offset + 5)) << 40) |
-           (((uint64_t)get(offset + 4)) << 32) |
-           (((uint64_t)get(offset + 3)) << 24) |
-           (((uint64_t)get(offset + 2)) << 16) |
-           (((uint64_t)get(offset + 1)) << 8) |
-           get(offset);
+    return (((uint64_t)get(offset + at + 7)) << 56) |
+           (((uint64_t)get(offset + at + 6)) << 48) |
+           (((uint64_t)get(offset + at + 5)) << 40) |
+           (((uint64_t)get(offset + at + 4)) << 32) |
+           (((uint64_t)get(offset + at + 3)) << 24) |
+           (((uint64_t)get(offset + at + 2)) << 16) |
+           (((uint64_t)get(offset + at + 1)) << 8) |
+           get(offset + at);
   }
 
   std::tuple<uint64_t, Pointer> readU64Le() const
@@ -210,17 +210,17 @@ struct Pointer {
       peekU64Le(), skip(8));
   }
 
-  uint64_t peekU64Be() const
+  uint64_t peekU64Be(size_t at = 0) const
   {
     checkOffset(offset + 8);
-    return (((uint64_t)get(offset)) << 56) |
-           (((uint64_t)get(offset + 1)) << 48) |
-           (((uint64_t)get(offset + 2)) << 40) |
-           (((uint64_t)get(offset + 3)) << 32) |
-           (((uint64_t)get(offset + 4)) << 24) |
-           (((uint64_t)get(offset + 5)) << 16) |
-           (((uint64_t)get(offset + 6)) << 8) |
-           get(offset + 7);
+    return (((uint64_t)get(offset + at)) << 56) |
+           (((uint64_t)get(offset + at + 1)) << 48) |
+           (((uint64_t)get(offset + at + 2)) << 40) |
+           (((uint64_t)get(offset + at + 3)) << 32) |
+           (((uint64_t)get(offset + at + 4)) << 24) |
+           (((uint64_t)get(offset + at + 5)) << 16) |
+           (((uint64_t)get(offset + at + 6)) << 8) |
+           get(offset + at + 7);
   }
 
   std::tuple<uint64_t, Pointer> readU64Be() const
@@ -229,25 +229,25 @@ struct Pointer {
       peekU64Be(), skip(8));
   }
 
-  uint128_t peekU128Le() const
+  uint128_t peekU128Le(size_t at = 0) const
   {
     checkOffset(offset + 16);
-    return (((uint128_t)get(offset + 15)) << 120) |
-           (((uint128_t)get(offset + 14)) << 112) |
-           (((uint128_t)get(offset + 13)) << 104) |
-           (((uint128_t)get(offset + 12)) << 96) |
-           (((uint128_t)get(offset + 11)) << 88) |
-           (((uint128_t)get(offset + 10)) << 80) |
-           (((uint128_t)get(offset + 9)) << 72) |
-           (((uint128_t)get(offset + 8)) << 64) |
-           (((uint128_t)get(offset + 7)) << 56) |
-           (((uint128_t)get(offset + 6)) << 48) |
-           (((uint128_t)get(offset + 5)) << 40) |
-           (((uint128_t)get(offset + 4)) << 32) |
-           (((uint128_t)get(offset + 3)) << 24) |
-           (((uint128_t)get(offset + 2)) << 16) |
-           (((uint128_t)get(offset + 1)) << 8) |
-           get(offset);
+    return (((uint128_t)get(offset + at + 15)) << 120) |
+           (((uint128_t)get(offset + at + 14)) << 112) |
+           (((uint128_t)get(offset + at + 13)) << 104) |
+           (((uint128_t)get(offset + at + 12)) << 96) |
+           (((uint128_t)get(offset + at + 11)) << 88) |
+           (((uint128_t)get(offset + at + 10)) << 80) |
+           (((uint128_t)get(offset + at + 9)) << 72) |
+           (((uint128_t)get(offset + at + 8)) << 64) |
+           (((uint128_t)get(offset + at + 7)) << 56) |
+           (((uint128_t)get(offset + at + 6)) << 48) |
+           (((uint128_t)get(offset + at + 5)) << 40) |
+           (((uint128_t)get(offset + at + 4)) << 32) |
+           (((uint128_t)get(offset + at + 3)) << 24) |
+           (((uint128_t)get(offset + at + 2)) << 16) |
+           (((uint128_t)get(offset + at + 1)) << 8) |
+           get(offset + at);
   }
 
   std::tuple<uint128_t, Pointer> readU128Le() const
@@ -257,25 +257,25 @@ struct Pointer {
       peekU128Le(), skip(16));
   }
 
-  uint128_t peekU128Be() const
+  uint128_t peekU128Be(size_t at = 0) const
   {
     checkOffset(offset + 16);
-    return (((uint128_t)get(offset)) << 120) |
-           (((uint128_t)get(offset + 1)) << 112) |
-           (((uint128_t)get(offset + 2)) << 104) |
-           (((uint128_t)get(offset + 3)) << 96) |
-           (((uint128_t)get(offset + 4)) << 88) |
-           (((uint128_t)get(offset + 5)) << 80) |
-           (((uint128_t)get(offset + 6)) << 72) |
-           (((uint128_t)get(offset + 7)) << 64) |
-           (((uint128_t)get(offset + 8)) << 56) |
-           (((uint128_t)get(offset + 9)) << 48) |
-           (((uint128_t)get(offset + 10)) << 40) |
-           (((uint128_t)get(offset + 11)) << 32) |
-           (((uint128_t)get(offset + 12)) << 24) |
-           (((uint128_t)get(offset + 13)) << 16) |
-           (((uint128_t)get(offset + 14)) << 8) |
-           get(offset + 15);
+    return (((uint128_t)get(offset + at)) << 120) |
+           (((uint128_t)get(offset + at + 1)) << 112) |
+           (((uint128_t)get(offset + at + 2)) << 104) |
+           (((uint128_t)get(offset + at + 3)) << 96) |
+           (((uint128_t)get(offset + at + 4)) << 88) |
+           (((uint128_t)get(offset + at + 5)) << 80) |
+           (((uint128_t)get(offset + at + 6)) << 72) |
+           (((uint128_t)get(offset + at + 7)) << 64) |
+           (((uint128_t)get(offset + at + 8)) << 56) |
+           (((uint128_t)get(offset + at + 9)) << 48) |
+           (((uint128_t)get(offset + at + 10)) << 40) |
+           (((uint128_t)get(offset + at + 11)) << 32) |
+           (((uint128_t)get(offset + at + 12)) << 24) |
+           (((uint128_t)get(offset + at + 13)) << 16) |
+           (((uint128_t)get(offset + at + 14)) << 8) |
+           get(offset + at + 15);
   }
 
   std::tuple<uint128_t, Pointer> readU128Be() const
