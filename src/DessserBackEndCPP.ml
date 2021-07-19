@@ -1081,7 +1081,7 @@ struct
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "{" ;
         P.indent_more p (fun () ->
-          ppi p.P.def "%s %s(%s);" tn (valid_identifier n) n1 ;
+          ppi p.P.def "%s %s { %s };" tn (valid_identifier n) n1 ;
           let tmp = print p l e2 in
           if has_res then ppi p.P.def "%s = %s;" res tmp) ;
         ppi p.P.def "}" ;
