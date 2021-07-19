@@ -96,7 +96,7 @@ struct Pointer {
   {
     if (offs > size)
       throw std::out_of_range(
-        std::to_string(size - offs) + " bytes short");
+        std::to_string(offs - size) + " byte(s) short");
   }
 
   uint8_t get(size_t offs) const
