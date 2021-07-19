@@ -455,10 +455,12 @@ dessserc-check: src/dessserc $(wildcard tests/*.type)
 	@echo SUCCESS
 
 JSON_TESTS = \
+  tests/json/string.type \
   tests/json/float.type \
   tests/json/not-an-object.type \
   tests/json/nullable-array.type \
-  tests/json/simple-object.type
+  tests/json/simple-object.type \
+  tests/json/empty-object.type
 
 # TODO: OCaml and C++
 json-check: src/dessserc $(JSON_TESTS)

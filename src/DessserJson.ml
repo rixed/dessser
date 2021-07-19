@@ -250,6 +250,72 @@ let parse_bytes p =
     let s = first (read_bytes (ptr_add p (size 1)) len) in
     make_tup [ s ; p' ])
 
+(* Convert the passed json string (as bytes) into a proper string.
+ * The string is computed into an array of bytes (which are mutable), that is
+ * then converted into a string: *)
+let parse_string bytes =
+  (* Read 2 hex digits from offset [o] in bytes [bs] and return the u8,
+   * assuming the bytes are indeed valid: *)
+  let read_2_hexs o =
+    let d1 = StdLib.u8_of_hex_digit (unsafe_nth o bytes) in
+    let_ ~name:"read_2_hexs_d1" d1 (fun d1 ->
+      let d2 = StdLib.u8_of_hex_digit (unsafe_nth (add o (size 1)) bytes) in
+      let_ ~name:"read_2_hexs_d2" d2 (fun d2 ->
+        add (left_shift d1 (u8_of_int 4)) d2)) in
+  let inc r = set_ref r (add (get_ref r) (size 1)) in
+  (* The resulting string will be at most as long as bytes: *)
+  let res = alloc_arr (bytes_length bytes) (char_of_int 0) in
+  let_ ~name:"parse_string_res" res (fun res ->
+    let src_ref = make_ref (size 0) in
+    let_ ~name:"src_ref" src_ref (fun src_ref ->
+      let src = get_ref src_ref in
+      let with_next_src f =
+        let b = unsafe_nth src bytes in
+        let_ ~name:"parse_string_b" b (fun b ->
+          seq [
+            inc src_ref ;
+            f b ]) in
+      let dst_ref = make_ref (size 0) in
+      let_ ~name:"dst_ref" dst_ref (fun dst_ref ->
+        let dst = get_ref dst_ref in
+        let write_next_dst b =
+          seq [
+            set_vec dst res (char_of_u8 b) ;
+            inc dst_ref ] in
+        seq [
+          while_ (and_ (lt src (bytes_length bytes))
+                       (ne (unsafe_nth src bytes) (u8_of_const_char '"')))
+            ~do_:(
+              with_next_src (fun b1 ->
+                if_ (eq b1 (u8_of_const_char '\\'))
+                  ~then_:(
+                    with_next_src (fun b2 ->
+                      if_ (eq b2 (u8_of_const_char 'u'))
+                        ~then_:(
+                          (* 16 bits unicode: *)
+                          let dd1 = read_2_hexs src in
+                          let_ ~name:"dd1" dd1 (fun dd1 ->
+                            let dd2 =  read_2_hexs (add src (size 2)) in
+                            let_ ~name:"dd2" dd2 (fun dd2 ->
+                              seq [
+                                set_ref src_ref (add src (size 4)) ;
+                                write_next_dst dd1 ;
+                                write_next_dst dd2 ])))
+                        ~else_:(
+                          let b2' =
+                            StdLib.cases [
+                              eq b2 (u8_of_const_char 'b'), u8_of_int 8 ;
+                              eq b2 (u8_of_const_char 't'), u8_of_int 9 ;
+                              eq b2 (u8_of_const_char 'n'), u8_of_int 10 ;
+                              eq b2 (u8_of_const_char 'f'), u8_of_int 12 ;
+                              eq b2 (u8_of_const_char 'r'), u8_of_int 13
+                            ] ~else_:b2 in
+                          write_next_dst b2')))
+                  ~else_:(
+                    write_next_dst b1))) ;
+          let n = sub (bytes_length bytes) dst in
+          convert T.string (chop_end res n) ])))
+
 (* Build a vector of pointers from an object value: *)
 let parse_object mns p =
   let ptrs = alloc_arr (size (Array.length mns)) (null T.Ptr) in
@@ -416,7 +482,7 @@ struct
   let dstring : des =
     with_p_stk (fun p stk ->
       let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
-        make_pair (string_of_bytes b) (make_pair p stk)))
+        make_pair (parse_string b) (make_pair p stk)))
 
   let dbool : des =
     with_p_stk (fun p stk ->

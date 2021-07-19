@@ -2793,6 +2793,8 @@ struct
 
   let bytes s = E0 (Bytes s)
 
+  let char_of_int n = char (Char.chr n)
+
   let i8_of_int n = i8 (Int8.of_int n)
 
   let u8_of_int n = u8 (Uint8.of_int n)

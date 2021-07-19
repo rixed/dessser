@@ -1,0 +1,1 @@
+{ "bar": [ {}, {}, null, { "glop":false } , {"baz":[-1, -2, null]} ] }

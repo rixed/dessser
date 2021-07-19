@@ -444,3 +444,12 @@ let rec cases ~else_ = function
   | [] -> invalid_arg "cases"
   | [ c, t ] -> if_ c ~then_:t ~else_
   | (c, t) :: rest -> if_ c ~then_:t ~else_:(cases ~else_ rest)
+
+(* Given a byte that's a hex digit (0-9, a-f or A-F), returns the value of
+ * that digit as a u8: *)
+let u8_of_hex_digit b =
+  let_ ~name:"u8_of_hex_b" b (fun b ->
+    cases [
+      le b (u8_of_const_char '9'), sub b (u8_of_const_char '0') ;
+      le b (u8_of_const_char 'F'), sub b (u8_of_const_char 'A')
+    ] ~else_:(sub b (u8_of_const_char 'a')))
