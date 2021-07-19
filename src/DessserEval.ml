@@ -728,8 +728,9 @@ let rec peval l e =
            * then ultimately into:
            *   1
            *
-           * This must not be done when both the value and the body have side
-           * effect though, as those could then be reordered.
+           * This must not be done when either the value or the body has side
+           * effect though, as this side effect must not be seen by other
+           * parts of the program at a different time.
            *)
           let use_count =
             (* TODO: early exit *)
@@ -740,7 +741,7 @@ let rec peval l e =
           if use_count = 0 then
             if not (E.has_side_effect value) then body
             else p (seq [ ignore_ value ; body ])
-          else if E.has_side_effect body && E.has_side_effect value then
+          else if E.has_side_effect body || E.has_side_effect value then
             def
           else if use_count = 1 ||
                   E.can_duplicate value &&
