@@ -227,6 +227,8 @@ let rec type_check l =
              | I48OfString | I56OfString | I64OfString | I128OfString
              | StringLength | BytesOfString), e) ->
             check_eq l e T.string
+        | E1 (BytesLength, e) ->
+            check_eq l e T.bytes
         | E1 ((FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr
              | U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr
              | U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr

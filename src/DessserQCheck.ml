@@ -285,12 +285,12 @@ let e1_of_int n =
          ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
          BitNot ; FloatOfU64 ; U64OfFloat ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
          U32OfSize ; ArrOfLst ; ArrOfLstRev ; SetOfLst ; ArrOfVec ; ArrOfSet ;
-         U8OfBool ; BoolOfU8 ; StringLength ; StringOfBytes ; BytesOfString ;
-         Cardinality ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp ; Log ;
-         UnsafeLog ; Log10 ; UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ; Floor ;
-         Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ; SinH ; TanH ;
-         Lower ; Upper ; Hash ; Identity ; GetEnv ; GetMin |] in
-  e1s.(n mod Array.length e1s)
+         U8OfBool ; BoolOfU8 ; StringLength ; BytesLength ; StringOfBytes ;
+         BytesOfString ; Cardinality ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp
+         ; Log ; UnsafeLog ; Log10 ; UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ;
+         Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ; SinH ;
+         TanH ; Lower ; Upper ; Hash ; Identity ; GetEnv ; GetMin |] in
+    e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
   let e2s =

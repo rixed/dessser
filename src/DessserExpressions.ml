@@ -246,6 +246,7 @@ type e1 =
   | U8OfBool
   | BoolOfU8
   | StringLength
+  | BytesLength
   | StringOfBytes
   | BytesOfString
   | Cardinality (* of lists, vectors or sets *)
@@ -853,6 +854,7 @@ let string_of_e1 = function
   | U8OfBool -> "u8-of-bool"
   | BoolOfU8 -> "bool-of-u8"
   | StringLength -> "string-length"
+  | BytesLength -> "bytes-length"
   | StringOfBytes -> "string-of-bytes"
   | BytesOfString -> "bytes-of-string"
   | Cardinality -> "cardinality"
@@ -1430,6 +1432,7 @@ struct
     | Lst [ Sym "u8-of-bool" ; x ] -> E1 (U8OfBool, e x)
     | Lst [ Sym "bool-of-u8" ; x ] -> E1 (BoolOfU8, e x)
     | Lst [ Sym "string-length" ; x ] -> E1 (StringLength, e x)
+    | Lst [ Sym "bytes-length" ; x ] -> E1 (BytesLength, e x)
     | Lst [ Sym "string-of-bytes" ; x ] -> E1 (StringOfBytes, e x)
     | Lst [ Sym "bytes-of-string" ; x ] -> E1 (BytesOfString, e x)
     | Lst [ Sym "cardinality" ; x ] -> E1 (Cardinality, e x)
@@ -1949,6 +1952,7 @@ and type_of l e0 =
   | E2 (AppendString, _, _) -> T.string
   | E2 ((StartsWith | EndsWith), _, _) -> T.bool
   | E1 (StringLength, _) -> T.u32
+  | E1 (BytesLength, _) -> T.size
   | E1 (StringOfBytes, _) -> T.string
   | E1 (BytesOfString, _) -> T.bytes
   | E1 (Cardinality, _) -> T.u32
@@ -3225,6 +3229,8 @@ struct
   let ptr_of_ptr e1 e2 e3 = E3 (PtrOfPtr, e1, e2, e3)
 
   let string_length e = E1 (StringLength, e)
+
+  let bytes_length e = E1 (BytesLength, e)
 
   let cardinality e = E1 (Cardinality, e)
 

@@ -151,7 +151,7 @@ struct
         U128OfPtr | I128OfPtr | FloatOfU64 | U64OfFloat | U8OfChar |
         CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
         U8OfBool | BoolOfU8 |
-        BitNot | StringLength | RemSize | Not | Abs | Neg |
+        BitNot | StringLength | BytesLength | RemSize | Not | Abs | Neg |
         Head | Tail | Ignore | Identity), _)
     | E2 ((
         Nth | Gt | Ge | Eq | Add | Sub | Mul | Min | Max |

@@ -826,6 +826,8 @@ struct
         method_call e1 op [ e2 ]
     | E.E1 (StringLength, e1) ->
         method_call e1 "size" []
+    | E.E1 (BytesLength, e1) ->
+        method_call e1 "length" []
     | E.E1 (Cardinality, e1) ->
         method_call e1 "size" []
     | E.E1 (StringOfBytes, e1) ->

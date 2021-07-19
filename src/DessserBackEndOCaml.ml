@@ -1065,6 +1065,9 @@ struct
         binary_op "BatString.ends_with" e1 e2
     | E.E1 (StringLength, e1) ->
         unary_op "Uint32.of_int @@ String.length" e1
+    | E.E1 (BytesLength, e1) ->
+        let n1 = print p l e1 in
+        emit ?name p l e (fun oc -> pp oc "%s.Slice.length" n1)
     | E.E1 (StringOfBytes, e1) ->
         unary_op "Slice.to_string" e1
     | E.E1 (BytesOfString, e1) ->
