@@ -27,6 +27,13 @@ struct Arr : public std::vector<T> {
   {
   }
 
+  // Used by chopBegin/chopEnd:
+  Arr(typename std::vector<T>::const_iterator first,
+      typename std::vector<T>::const_iterator last)
+    : std::vector<T>(first, last)
+  {
+  }
+
   template<unsigned DIM>
   Arr(Vec<DIM, T> vec) : std::vector<T>(vec)
   {
