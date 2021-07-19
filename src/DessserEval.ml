@@ -706,7 +706,7 @@ let rec peval l e =
       let l' = E.add_local name value_t l in
       let body = peval l' body in
       let def = E.E2 (Let (name, value_r), value, body) in
-      (* The identifier is useless in  that case: *)
+      (* The identifier is useless in that case: *)
       if body = E.E0 (Identifier name) then value else
       (* Also avoid introducing aliases: *)
       (match value with

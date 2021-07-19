@@ -481,7 +481,7 @@ let rec type_check l =
                 check_eq l x mn
             | t ->
                 raise (E.Type_error (e0, set, t, "be a set")))
-        | E3 (Substring, str, start, stop) ->
+        | E3 (SubString, str, start, stop) ->
             check_eq l str T.string ;
             check_integer l start ;
             check_integer l stop

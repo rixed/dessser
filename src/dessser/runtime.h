@@ -50,7 +50,7 @@ inline std::string hex_string_of_float(double f)
   return so.str();
 }
 
-inline std::size_t clamp_to_string_length(long p, std::size_t const l)
+inline std::size_t clamp_to_length(long p, std::size_t const l)
 {
   if (0 == l) return 0;
   if (p >= 0) return std::min((std::size_t)p, l);

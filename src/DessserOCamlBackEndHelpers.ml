@@ -203,20 +203,26 @@ end
  * in several steps). Thus the many unsafe operations. *)
 module Slice =
 struct
-  type t = { bytes : Bytes.t ; offset : int ; length : int }
+  type t =
+    { (* The underlying buffer: *)
+      buffer : Bytes.t ;
+      (* Where the bytes start: *)
+      offset : int ;
+      (* The length of the bytes: *)
+      length : int }
 
-  let make bytes offset length =
-    { bytes ; offset ; length }
+  let make buffer offset length =
+    { buffer ; offset ; length }
 
   (* Returns an optional value: *)
   let get s i =
-    Bytes.get s.bytes (s.offset + i)
+    Bytes.get s.buffer (s.offset + i)
 
   let unsafe_get s i =
-    Bytes.unsafe_get s.bytes (s.offset + i)
+    Bytes.unsafe_get s.buffer (s.offset + i)
 
   let append s1 s2 =
-    if s1.bytes == s2.bytes &&
+    if s1.buffer == s2.buffer &&
        s1.offset + s1.length = s2.offset
     then
       { s1 with length = s1.length + s2.length }
@@ -224,37 +230,37 @@ struct
     else if s2.length = 0 then s1
     else
       let length = s1.length + s2.length in
-      let bytes = Bytes.create length in
-      Bytes.unsafe_blit s1.bytes s1.offset bytes 0 s1.length ;
-      Bytes.unsafe_blit s2.bytes s2.offset bytes s1.length s2.length ;
-      { bytes ; offset = 0 ; length }
+      let buffer = Bytes.create length in
+      Bytes.unsafe_blit s1.buffer s1.offset buffer 0 s1.length ;
+      Bytes.unsafe_blit s2.buffer s2.offset buffer s1.length s2.length ;
+      { buffer ; offset = 0 ; length }
 
   let add s1 b =
     let b = Char.chr (Uint8.to_int b) in
-    if s1.offset + s1.length < Bytes.length s1.bytes &&
-       Bytes.unsafe_get s1.bytes (s1.offset + s1.length) = b
+    if s1.offset + s1.length < Bytes.length s1.buffer &&
+       Bytes.unsafe_get s1.buffer (s1.offset + s1.length) = b
     then
       { s1 with length = s1.length + 1 }
     else
       let length = s1.length + 1 in
-      let bytes = Bytes.create length in
-      Bytes.unsafe_blit s1.bytes s1.offset bytes 0 s1.length ;
-      Bytes.unsafe_set bytes s1.length b ;
-      { bytes ; offset = 0 ; length }
+      let buffer = Bytes.create length in
+      Bytes.unsafe_blit s1.buffer s1.offset buffer 0 s1.length ;
+      Bytes.unsafe_set buffer s1.length b ;
+      { buffer ; offset = 0 ; length }
 
   (* FIXME: the string type should be implemented as a slice *)
   let to_string s =
-    if s.offset = 0 && s.length = Bytes.length s.bytes then
-      Bytes.unsafe_to_string s.bytes
+    if s.offset = 0 && s.length = Bytes.length s.buffer then
+      Bytes.unsafe_to_string s.buffer
     else
-      Bytes.sub_string s.bytes s.offset s.length
+      Bytes.sub_string s.buffer s.offset s.length
 
   let of_string s =
     make (Bytes.unsafe_of_string s) 0 (String.length s)
 
   let eq s1 s2 =
     s1.length = s2.length && (
-      (s1.bytes == s2.bytes && s1.offset = s2.offset) ||
+      (s1.buffer == s2.buffer && s1.offset = s2.offset) ||
       (* Slow path *)
       (to_string s1 = to_string s2)
     )
@@ -590,7 +596,7 @@ let pointer_of_bytes t =
     poke8_be at (Uint128.to_uint64 snd) ;
     poke8_be (at+8) (Uint128.to_uint64 fst) in
   let poken at slice =
-    Bytes.blit slice.Slice.bytes slice.offset t at slice.length in
+    Bytes.blit slice.Slice.buffer slice.offset t at slice.length in
   let to_string () =
     Bytes.unsafe_to_string t in
   Pointer.make

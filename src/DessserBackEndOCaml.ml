@@ -1755,7 +1755,7 @@ struct
         (* Avoids using [emit] to not generate a binding for unit: *)
         ppi p.P.def "%s.insert_weighted %s %s %s ;" m set w x ;
         "()"
-    | E.E3 (Substring, str, start, stop) ->
+    | E.E3 (SubString, str, start, stop) ->
         let m_start = mod_name (E.type_of l start)
         and m_stop = mod_name (E.type_of l stop) in
         let str = print p l str

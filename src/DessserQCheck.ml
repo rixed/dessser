@@ -306,7 +306,7 @@ let e2_of_int n =
 let e3_of_int n =
   let e3s =
     E.[| SetBit ; SetVec ; BlitByte ; If ; Map ;
-         FindSubstring ; InsertWeighted ; Substring |] in
+         FindSubstring ; InsertWeighted ; SubString |] in
   e3s.(n mod Array.length e3s)
 
 let rec e0_gen l depth =

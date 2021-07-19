@@ -394,10 +394,10 @@ type e2 =
    * in the 2sn parameter have reached their final location. Other part of the
    * array might not be sorted. *)
   | PartialSort
-  (* Remove the first items from a list (args are the list and the length to
+  (* Remove the first items from an array (args are the array and the length to
    * remove): *)
   | ChopBegin
-  (* Truncate a list at the end (args are the list and the length to
+  (* Truncate an array at the end (args are the array and the length to
    * remove): *)
   | ChopEnd
   (* Scale the weight of a weighted set (ie. top) *)
@@ -416,7 +416,7 @@ type e3 =
   | SetBit
   (* Similarly to Nth: first the index, then the vector or array, then
    * the value *)
-  | SetVec
+  | SetVec  (* TODO: Rename? *)
   | BlitByte
   | If (* Condition * Consequent * Alternative *)
   | Map (* args are: init, (init -> item -> item'), item list/lst/vec *)
@@ -437,7 +437,7 @@ type e3 =
   (* Extract a substring. Arguments are the string, the start and stop positions
    * (counted from the end of the string if negative). Returns an empty string
    * if nothing the selected part is outside the string bounds. *)
-  | Substring
+  | SubString
 
 type t =
   | E0 of e0
@@ -990,7 +990,7 @@ let string_of_e3 = function
   | FindSubstring -> "find-substring"
   | Top mn -> "top "^ String.quote (T.mn_to_string mn)
   | InsertWeighted -> "insert-weighted"
-  | Substring -> "substring"
+  | SubString -> "substring"
 
 let pp = Printf.fprintf
 
@@ -1613,7 +1613,7 @@ struct
     | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
         E3 (InsertWeighted, e x1, e x2, e x3)
     | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
-        E3 (Substring, e x1, e x2, e x3)
+        E3 (SubString, e x1, e x2, e x3)
 
     | x -> raise (Unknown_expression x)
 
@@ -2136,7 +2136,7 @@ and type_of l e0 =
       T.(required (set Top mn))
   | E3 (InsertWeighted, _, _, _) ->
       T.void
-  | E3 (Substring, _, _, _)
+  | E3 (SubString, _, _, _)
   | E2 (Strftime, _, _) ->
       T.string
 
@@ -2507,7 +2507,7 @@ let can_duplicate e =
       (* Expensive: *)
       | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
       | E2 ((While | ForEach _), _, _)
-      | E3 ((FindSubstring | Substring), _, _, _) ->
+      | E3 ((FindSubstring | SubString), _, _, _) ->
           raise Exit
       | _ -> ()
     ) e ;
@@ -2873,7 +2873,7 @@ struct
 
   let insert_weighted set w x = E3 (InsertWeighted, set, w, x)
 
-  let substring str start stop = E3 (Substring, str, start, stop)
+  let substring str start stop = E3 (SubString, str, start, stop)
 
   let del_min set n = E2 (DelMin, set, n)
 

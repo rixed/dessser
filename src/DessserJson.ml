@@ -37,7 +37,7 @@ let state_t =
 
 let skip_while p cond =
   let_ ~name:"p" p (fun p ->
-    let_ ~name:"off_ref" (make_ref (size 0)) (fun off_ref ->
+    let_ ~name:"off_ref2" (make_ref (size 0)) (fun off_ref ->
       let off = get_ref off_ref in
       seq [
         while_ (and_ (gt (rem_size p) off)
@@ -81,7 +81,7 @@ let skip_string p =
       seq [
         assert_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"')) ;
         make_ref (size 1) ] in
-    let_ ~name:"off_ref2" off_ref (fun off_ref ->
+    let_ ~name:"off_ref3" off_ref (fun off_ref ->
       let off = get_ref off_ref in
       let incr n = set_ref off_ref (add off (size n)) in
       seq [
@@ -243,7 +243,7 @@ let init compunit =
  * is ripe to turn to the main piece: opening objects into records: *)
 
 (* Return both the string and the advanced pointer: *)
-let read_bytes p =
+let parse_bytes p =
   let_ ~name:"p" p (fun p ->
     let p' = skip_string p in
     let len = sub (ptr_sub p' p) (size 2) in
@@ -265,7 +265,7 @@ let parse_object mns p =
                 set_ref p_ref (ptr_add p (size 1)) ;
                 false_ ])
             ~else_:(
-              let_pair ~n1:"s" ~n2:"p" (read_bytes p) (fun s p ->
+              let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun s p ->
                 let p = comment "skip name-separator" (skip_char p ':') in
                 (* Which field is that? *)
                 let idx =
@@ -415,7 +415,7 @@ struct
 
   let dstring : des =
     with_p_stk (fun p stk ->
-      let_pair ~n1:"b" ~n2:"p" (read_bytes p) (fun b p ->
+      let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
         make_pair (string_of_bytes b) (make_pair p stk)))
 
   let dbool : des =
@@ -432,7 +432,7 @@ struct
   (* Chars are represented as 1 char strings: *)
   let dchar : des =
     with_p_stk (fun p stk ->
-      let_pair ~n1:"b" ~n2:"p" (read_bytes p) (fun b p ->
+      let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
         make_pair (unsafe_nth (size 0) b) (make_pair p stk)))
 
   let dnum of_ptr : des =
@@ -508,7 +508,7 @@ struct
     with_p_stk (fun p stk ->
       let p = comment "skip begin-object for sum" (skip_char p '{') in
       let p = skip_blanks p in
-      let_pair ~n1:"s" ~n2:"p" (read_bytes p) (fun cstr p ->
+      let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun cstr p ->
         let p = skip_char p ':' in
         let i =
           Array.enum mns |>
