@@ -264,6 +264,11 @@ struct
       (* Slow path *)
       (to_string s1 = to_string s2)
     )
+
+  let iter f s =
+    for i = 0 to s.length - 1 do
+      f (unsafe_get s i)
+    done
 end
 
 (* Pointers

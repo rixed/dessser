@@ -93,6 +93,9 @@ let rec type_check l =
                             e0 l e) in
     let check_any_lst l e =
       ignore (E.get_item_type ~arr:true ~vec:true ~set:true ~lst:true e0 l e) in
+    let check_any_set l e =
+      ignore (E.get_item_type ~arr:true ~vec:true ~set:true ~lst:true ~str:true
+                              ~bytes:true e0 l e) in
     let check_lst l e =
       match E.type_of l e |> T.develop1 with
       | T.{ typ = Lst _ ; nullable = false } -> ()
@@ -280,7 +283,7 @@ let rec type_check l =
             check_eq l cond T.bool ;
             check_eq l body T.void
         | E2 (ForEach _, lst, body) ->
-            check_any_lst l lst ;
+            check_any_set l lst ;
             check_eq l body T.void
         | E2 (Index, chr, str) ->
             check_eq l chr T.char ;

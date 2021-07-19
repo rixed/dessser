@@ -406,7 +406,7 @@ type e2 =
   | Strftime
   | PtrOfAddress (* Points to a given address in memory *)
   | While (* Condition (bool) * body *)
-  | ForEach of (string * memo_mn) (* list/vector/set * body *)
+  | ForEach of (string * memo_mn) (* list/vector/set/arr/string/bytes * body *)
   (* Apply e2 to e1, skipping nulls if e2 is nullable.
    * Like Convert, replaced at typing. *)
   | NullMap of (string * memo_mn) (* value * body *)

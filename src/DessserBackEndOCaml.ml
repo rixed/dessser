@@ -1489,9 +1489,16 @@ struct
         let t = E.get_memo_item_mn r l lst in
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
+        let iter mod_name =
+          ppi p.P.def "%s.iter (fun %s ->" mod_name n1 ;
+          P.indent_more p (fun () ->
+            let l = E.add_local n t l in
+            let body = print p l body in
+            ppi p.P.def "%s" body) ;
+          ppi p.P.def ") %s ;" lst in
         (match lst_t.T.typ with
         | (Vec _ | Arr _) ->
-            (* Both lists and vectors are represented as arrays *)
+            (* Both arrays and vectors are represented as arrays *)
             ppi p.P.def "for i_ = 0 to Array.length (%s) - 1 do" lst ;
             P.indent_more p (fun () ->
               ppi p.P.def "let %s = %s.(i_) in" n1 lst ;
@@ -1500,13 +1507,7 @@ struct
               ppi p.P.def "%s" body) ;
             ppi p.P.def "done ;"
         | Lst _ ->
-            (* Both lists and vectors are represented as arrays *)
-            ppi p.P.def "List.iter (fun %s ->" n1 ;
-            P.indent_more p (fun () ->
-              let l = E.add_local n t l in
-              let body = print p l body in
-              ppi p.P.def "%s" body) ;
-            ppi p.P.def ") %s ;" lst
+            iter "List"
         | Set (st, _) ->
             let m = mod_of_set_type st in
             ppi p.P.def "%s.fold %s () (fun () %s ->" m lst n1 ;
@@ -1515,6 +1516,10 @@ struct
               let body = print p l body in
               ppi p.P.def "%s" body) ;
             ppi p.P.def ") ;"
+        | Base String ->
+            iter "String"
+        | Bytes ->
+            iter "Slice"
         | _ ->
             assert false (* Because type checking *)) ;
         "()"
