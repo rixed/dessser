@@ -22,6 +22,11 @@ struct Arr : public std::vector<T> {
     this->insert(this->begin(), lst);
   }
 
+  // Used by AllocVec
+  Arr(std::size_t n, T const &x) : std::vector<T>(n, x)
+  {
+  }
+
   template<unsigned DIM>
   Arr(Vec<DIM, T> vec) : std::vector<T>(vec)
   {

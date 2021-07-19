@@ -256,11 +256,9 @@ struct
       pp oc "%s %s { ((void)(%t), VOID) };" tn n f
     ) else (
       (* Beware that this must not be parsed as a function declaration. Thus
-       * the use of the "uniform initialization" syntax. But then a new issue
-       * arises since when the function [f] will emit an immediate structure
-       * the presence of two curly braces will cause a syntax error.
-       * Work around: check that f's output does not start with a curly brace.
-       * Oh boy! *)
+       * the use of the "uniform initialization" syntax, which, this being
+       * C++, cannot be used uniformly, as it favors the initialization-list
+       * constructor. *)
       pp oc "%s %s { %t };" tn n f
     )
 
@@ -1279,8 +1277,14 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s->getMin();" set)
     | E.E1 (AllocVec d, init) ->
         let init = print p l init in
-        emit ?name p l e (fun oc ->
-          pp oc "(std::size_t)%d, %s" d init)
+        let t = E.type_of l e in
+        (* We want the size+item constructor, not a list initialization, so
+         * since Arr is a std::vector we must avoid brace-initializer.
+         * Work around: *)
+        let tmp = gen_sym "vec" in
+        ppi p.P.def "%s %s(std::size_t(%d), %s); /* size+init constructor */"
+          (type_identifier_mn p t) tmp d init ;
+        emit ?name p l e (fun oc -> pp oc "%s" tmp)
     | E.E1 (Convert _, _)
     | E.E2 (NullMap _, _, _) ->
         assert false (* because of type checking *)
@@ -1312,9 +1316,15 @@ struct
           pp oc "string_join(%s, %s)" n1 n2)
     | E.E2 (AllocArr, e1, e2) ->
         let n1 = print p l e1
-        and n2 = print p l e2 in
-        (* Use the constructor inherited from std::vector: *)
-        emit ?name p l e (fun oc -> pp oc "%s, %s" n1 n2)
+        and n2 = print p l e2
+        and t = E.type_of l e in
+        (* We want the size+item constructor, not a list initialization, so
+         * since Arr is a std::vector we must avoid brace-initializer.
+         * Work around: *)
+        let tmp = gen_sym "arr" in
+        ppi p.P.def "%s %s(%s, %s); /* size+init constructor */"
+          (type_identifier_mn p t) tmp n1 n2 ;
+        emit ?name p l e (fun oc -> pp oc "%s" tmp)
     | E.E2 (PartialSort, e1, e2) ->
         let n1 = print ?name p l e1
         and n2 = print p l e2 in
