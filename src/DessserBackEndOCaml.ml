@@ -1007,6 +1007,8 @@ struct
           pp oc "Uint64.of_int64 (BatInt64.bits_of_float %s)" n)
     | E.E1 (StringOfFloat, e1) ->
         unary_op "DessserFloatTools.hexstring_of_float" e1
+    | E.E1 (DecimalStringOfFloat, e1) ->
+        unary_op "DessserFloatTools.string_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         unary_op "string_of_char" e1
     | E.E1 (ArrOfVec, e1) ->

@@ -240,7 +240,7 @@ let rec type_check l =
             check_eq l e T.ptr
         | E1 (FloatOfU64, e) ->
             check_eq l e T.u64
-        | E1 ((U64OfFloat | StringOfFloat), e) ->
+        | E1 ((U64OfFloat | StringOfFloat | DecimalStringOfFloat), e) ->
             check_eq l e T.float
         | E1 ((CharOfU8 | BoolOfU8), e) ->
             check_eq l e T.u8

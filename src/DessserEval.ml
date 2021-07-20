@@ -2,8 +2,8 @@ open Batteries
 open Stdint
 
 open DessserTools
-open DessserFloatTools
 module C = DessserConversions
+module FloatTools = DessserFloatTools
 module T = DessserTypes
 module E = DessserExpressions
 open E.Ops
@@ -478,7 +478,10 @@ let rec peval l e =
       | StringOfInt, E0 (I56 n) -> string (Int56.to_string n) |> repl
       | StringOfInt, E0 (I64 n) -> string (Int64.to_string n) |> repl
       | StringOfInt, E0 (I128 n) -> string (Int128.to_string n) |> repl
-      | StringOfFloat, E0 (Float f) -> string (hexstring_of_float f) |> repl
+      | StringOfFloat, E0 (Float f) ->
+          string (FloatTools.hexstring_of_float f) |> repl
+      | DecimalStringOfFloat, E0 (Float f) ->
+          string (FloatTools.string_of_float f) |> repl
       | StringOfIp, E0 (U32 n) -> string (DessserIpTools.V4.to_string n) |> repl
       | StringOfIp, E0 (U128 n) -> string (DessserIpTools.V6.to_string n) |> repl
       | StringOfChar, E0 (Char c) -> string (String.of_char c) |> repl

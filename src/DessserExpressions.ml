@@ -163,6 +163,8 @@ type e1 =
   | Force of string
   (* Convert from/to string for all base value types: *)
   | StringOfFloat
+  (* Only for the hopeless: *)
+  | DecimalStringOfFloat
   | StringOfChar
   | StringOfInt
   | StringOfIp
@@ -776,6 +778,7 @@ let string_of_e1 = function
   | Force "" -> "force"
   | Force what -> "force "^ String.quote what
   | StringOfFloat -> "string-of-float"
+  | DecimalStringOfFloat -> "decimal-string-of-float"
   | StringOfChar -> "string-of-char"
   | StringOfInt -> "string-of-int"
   | StringOfIp -> "string-of-ip"
@@ -1354,6 +1357,7 @@ struct
     | Lst [ Sym "force" ; Str w ; x ] -> E1 (Force w, e x)
     | Lst [ Sym "force" ; x ] -> E1 (Force "", e x)
     | Lst [ Sym "string-of-float" ; x ] -> E1 (StringOfFloat, e x)
+    | Lst [ Sym "decimal-string-of-float" ; x ] -> E1 (DecimalStringOfFloat, e x)
     | Lst [ Sym "string-of-char" ; x ] -> E1 (StringOfChar, e x)
     | Lst [ Sym "string-of-int" ; x ] -> E1 (StringOfInt, e x)
     | Lst [ Sym "string-of-ip" ; x ] -> E1 (StringOfIp, e x)
@@ -1873,6 +1877,7 @@ and type_of l e0 =
   | E2 (Ge, _, _) -> T.bool
   | E2 (Eq, _, _) -> T.bool
   | E1 (StringOfFloat, _)
+  | E1 (DecimalStringOfFloat, _)
   | E1 (StringOfChar, _)
   | E1 (StringOfInt, _) -> T.string
   | E1 (StringOfIp, _) -> T.string
@@ -2502,7 +2507,7 @@ let can_duplicate e =
       (* Similarly, sets and vec are mutable: *)
       | E0 (EmptySet _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
-             Heap), _)
+             Heap | DecimalStringOfFloat), _)
       | E3 (Top _, _, _, _)
       (* Expensive: *)
       | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
@@ -2890,6 +2895,8 @@ struct
   let string_of_int_ e = E1 (StringOfInt, e)
 
   let string_of_float_ e = E1 (StringOfFloat, e)
+
+  let decimal_string_of_float e = E1 (DecimalStringOfFloat, e)
 
   let string_of_ip e = E1 (StringOfIp, e)
 

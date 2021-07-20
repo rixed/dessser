@@ -279,6 +279,7 @@ let e1_of_int n =
       NotNull ;
       Force "" ;
       StringOfFloat ;
+      DecimalStringOfFloat ;
       StringOfChar ;
       StringOfInt ;
       StringOfIp ;
