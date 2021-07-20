@@ -272,41 +272,194 @@ let path_gen =
 (* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
-    E.[| Dump ; Ignore ; IsNull ; NotNull ; Force "" ; StringOfFloat ;
-         StringOfChar ; StringOfInt ; StringOfIp ; FloatOfString ; U8OfString ;
-         U16OfString ; U24OfString ; U32OfString ; U40OfString ; U48OfString ;
-         U56OfString ; U64OfString ; U128OfString ; I8OfString ; I16OfString ;
-         I24OfString ; I32OfString ; I40OfString ; I48OfString ; I56OfString ;
-         I64OfString ; I128OfString ; FloatOfPtr ; CharOfPtr ; U8OfPtr ;
-         U16OfPtr ; U24OfPtr ; U32OfPtr ; U40OfPtr ; U48OfPtr ; U56OfPtr ;
-         U64OfPtr ; U128OfPtr ; I8OfPtr ; I16OfPtr ; I24OfPtr ; I32OfPtr ;
-         I40OfPtr ; I48OfPtr ; I56OfPtr ; I64OfPtr ; I128OfPtr ; ToU8 ; ToU16 ;
-         ToU24 ; ToU32 ; ToU40 ; ToU48 ; ToU56 ; ToU64 ; ToU128 ; ToI8 ; ToI16
-         ; ToI24 ; ToI32 ; ToI40 ; ToI48 ; ToI56 ; ToI64 ; ToI128 ; ToFloat ;
-         BitNot ; FloatOfU64 ; U64OfFloat ; U8OfChar ; CharOfU8 ; SizeOfU32 ;
-         U32OfSize ; ArrOfLst ; ArrOfLstRev ; SetOfLst ; ArrOfVec ; ArrOfSet ;
-         U8OfBool ; BoolOfU8 ; StringLength ; BytesLength ; StringOfBytes ;
-         BytesOfString ; Cardinality ; ReadU8 ; RemSize ; Not ; Abs ; Neg ; Exp
-         ; Log ; UnsafeLog ; Log10 ; UnsafeLog10 ; Sqrt ; UnsafeSqrt ; Ceil ;
-         Floor ; Round ; Cos ; Sin ; Tan ; ACos ; ASin ; ATan ; CosH ; SinH ;
-         TanH ; Lower ; Upper ; Hash ; Identity ; GetEnv ; GetMin |] in
-    e1s.(n mod Array.length e1s)
+    E.[|
+      Dump ;
+      Ignore ;
+      IsNull ;
+      NotNull ;
+      Force "" ;
+      StringOfFloat ;
+      StringOfChar ;
+      StringOfInt ;
+      StringOfIp ;
+      FloatOfString ;
+      U8OfString ;
+      U16OfString ;
+      U24OfString ;
+      U32OfString ;
+      U40OfString ;
+      U48OfString ;
+      U56OfString ;
+      U64OfString ;
+      U128OfString ;
+      I8OfString ;
+      I16OfString ;
+      I24OfString ;
+      I32OfString ;
+      I40OfString ;
+      I48OfString ;
+      I56OfString ;
+      I64OfString ;
+      I128OfString ;
+      FloatOfPtr ;
+      CharOfPtr ;
+      U8OfPtr ;
+      U16OfPtr ;
+      U24OfPtr ;
+      U32OfPtr ;
+      U40OfPtr ;
+      U48OfPtr ;
+      U56OfPtr ;
+      U64OfPtr ;
+      U128OfPtr ;
+      I8OfPtr ;
+      I16OfPtr ;
+      I24OfPtr ;
+      I32OfPtr ;
+      I40OfPtr ;
+      I48OfPtr ;
+      I56OfPtr ;
+      I64OfPtr ;
+      I128OfPtr ;
+      ToU8 ;
+      ToU16 ;
+      ToU24 ;
+      ToU32 ;
+      ToU40 ;
+      ToU48 ;
+      ToU56 ;
+      ToU64 ;
+      ToU128 ;
+      ToI8 ;
+      ToI16 ;
+      ToI24 ;
+      ToI32 ;
+      ToI40 ;
+      ToI48 ;
+      ToI56 ;
+      ToI64 ;
+      ToI128 ;
+      ToFloat ;
+      BitNot ;
+      FloatOfU64 ;
+      U64OfFloat ;
+      U8OfChar ;
+      CharOfU8 ;
+      SizeOfU32 ;
+      U32OfSize ;
+      ArrOfLst ;
+      ArrOfLstRev ;
+      SetOfLst ;
+      ArrOfVec ;
+      ArrOfSet ;
+      U8OfBool ;
+      BoolOfU8 ;
+      StringLength ;
+      BytesLength ;
+      StringOfBytes ;
+      BytesOfString ;
+      Cardinality ;
+      ReadU8 ;
+      RemSize ;
+      Not ;
+      Abs ;
+      Neg ;
+      Exp ;
+      Log ;
+      UnsafeLog ;
+      Log10 ;
+      UnsafeLog10 ;
+      Sqrt ;
+      UnsafeSqrt ;
+      Ceil ;
+      Floor ;
+      Round ;
+      Cos ;
+      Sin ;
+      Tan ;
+      ACos ;
+      ASin ;
+      ATan ;
+      CosH ;
+      SinH ;
+      TanH ;
+      Lower ;
+      Upper ;
+      Hash ;
+      Identity ;
+      GetEnv ;
+      GetMin |] in
+  e1s.(n mod Array.length e1s)
 
 let e2_of_int n =
   let e2s =
-    E.[| Nth ; Gt ; Ge ; Eq ; Add ; Sub ; Mul ; Div ; UnsafeDiv ; Rem ;
-    UnsafeRem ; Pow ; UnsafePow ; BitAnd ; BitOr ; BitXor ; And ; Or ; Min ;
-    Max ; Member ; Insert ; LeftShift ; RightShift ; AppendBytes ; AppendString
-    ; StartsWith ; EndsWith ; GetBit ; ReadBytes ; PeekU8 ; WriteU8 ;
-    WriteBytes ; PokeU8 ; PtrAdd ; PtrSub ; And ; Or ; Min ; Max ; Member ;
-    Insert ; DelMin ; SplitBy ; SplitAt ; Join ; AllocArr ; PartialSort ;
-    ChopBegin ; ChopEnd ; Strftime ; While ; Index |] in
+    E.[|
+      Nth ;
+      Gt ;
+      Ge ;
+      Eq ;
+      Add ;
+      Sub ;
+      Mul ;
+      Div ;
+      UnsafeDiv ;
+      Rem ;
+      UnsafeRem ;
+      Pow ;
+      UnsafePow ;
+      BitAnd ;
+      BitOr ;
+      BitXor ;
+      And ;
+      Or ;
+      Min ;
+      Max ;
+      Member ;
+      Insert ;
+      LeftShift ;
+      RightShift ;
+      AppendBytes ;
+      AppendString ;
+      StartsWith ;
+      EndsWith ;
+      GetBit ;
+      ReadBytes ;
+      PeekU8 ;
+      WriteU8 ;
+      WriteBytes ;
+      PokeU8 ;
+      PtrAdd ;
+      PtrSub ;
+      And ;
+      Or ;
+      Min ;
+      Max ;
+      Member ;
+      Insert ;
+      DelMin ;
+      SplitBy ;
+      SplitAt ;
+      Join ;
+      AllocArr ;
+      PartialSort ;
+      ChopBegin ;
+      ChopEnd ;
+      Strftime ;
+      While ;
+      Index |] in
   e2s.(n mod Array.length e2s)
 
 let e3_of_int n =
   let e3s =
-    E.[| SetBit ; SetVec ; BlitByte ; If ; Map ;
-         FindSubstring ; InsertWeighted ; SubString |] in
+    E.[|
+      SetBit ;
+      SetVec ;
+      BlitByte ;
+      If ;
+      Map ;
+      FindSubstring ;
+      InsertWeighted ;
+      SubString |] in
   e3s.(n mod Array.length e3s)
 
 let rec e0_gen l depth =
