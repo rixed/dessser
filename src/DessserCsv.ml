@@ -436,16 +436,9 @@ struct
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
     if debug then
-      let_ ~name:"c" (peek_u8 p (size 0)) (fun c ->
-        if_ (ne c b)
-          ~then_:(
-            seq [ dump (string "Bad char at ") ; dump (offset p) ;
-                  dump (string ": ") ; dump c ;
-                  dump (string " should be: ") ; dump b ;
-                  dump (char '\n') ;
-                  assert_ false_ ;
-                  p ])
-          ~else_:(skip 1 p))
+      seq [
+        StdLib.check_byte p b ;
+        skip 1 p ]
     else
       skip 1 p
 

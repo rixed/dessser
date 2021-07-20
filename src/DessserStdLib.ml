@@ -453,3 +453,23 @@ let u8_of_hex_digit b =
       le b (u8_of_const_char '9'), sub b (u8_of_const_char '0') ;
       le b (u8_of_const_char 'F'), sub b (u8_of_const_char 'A')
     ] ~else_:(sub b (u8_of_const_char 'a')))
+
+(* Assuming [c] is a number between 0 and 15, returns the digit (as an u8): *)
+let hex_digit_of_u8 c =
+  (* TODO: have a conversion table once those constants are moved into global *)
+  add c (
+    if_ (ge c (u8_of_int 10))
+      ~then_:(u8_of_int 87)
+      ~else_:(u8_of_const_char '0'))
+
+let check_byte p c =
+  let_ ~name:"check_byte_c" c (fun c ->
+    let_ ~name:"check_byte_b" (peek_u8 p (size 0)) (fun b ->
+      if_ (ne b c)
+        ~then_:(
+          seq [ dump (string "Bad char at ") ; dump (offset p) ;
+                dump (string ": ") ; dump b ;
+                dump (string " should be: ") ; dump c ;
+                dump (char '\n') ;
+                assert_ false_ ])
+        ~else_:nop))

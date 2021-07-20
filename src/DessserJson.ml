@@ -60,17 +60,10 @@ let skip_char p c =
   let p = skip_blanks p in
   (* On debug_flag, check that the expected character is present: *)
   if debug_flag then
-    let c = u8_of_const_char c in
-    let_ ~name:"b" (peek_u8 p (size 0)) (fun b ->
-      if_ (ne b c)
-        ~then_:(
-          seq [ dump (string "Bad char at ") ; dump (offset p) ;
-                dump (string ": ") ; dump b ;
-                dump (string " should be: ") ; dump c ;
-                dump (char '\n') ;
-                assert_ false_ ;
-                p ])
-        ~else_:(ptr_add p (size 1)))
+    let_ ~name:"skip_char_p" p (fun p ->
+      seq [
+        StdLib.check_byte p (u8_of_const_char c) ;
+        ptr_add p (size 1) ])
   else
     ptr_add p (size 1)
 
@@ -79,7 +72,7 @@ let skip_string p =
   let_ ~name:"p" p (fun p ->
     let off_ref =
       seq [
-        assert_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"')) ;
+        StdLib.check_byte p (u8_of_const_char '"') ;
         make_ref (size 1) ] in
     let_ ~name:"off_ref3" off_ref (fun off_ref ->
       let off = get_ref off_ref in
