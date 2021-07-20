@@ -47,7 +47,7 @@ let compile_and_load ?optim ?extra_search_paths backend compunit =
  * into stdout and stops (for tests). *)
 let make_converter ?dev_mode ?optim ?exe_fname ?mn compunit backend convert =
   let module BE = (val backend : BACKEND) in
-  let convert = TC.type_check E.no_env convert in
+  let convert = TC.type_check U.(environment compunit) convert in
   let compunit, _, entry_point =
     U.add_identifier_of_expression compunit convert in
   let exe_fname = match exe_fname with
