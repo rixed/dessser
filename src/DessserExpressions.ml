@@ -2266,7 +2266,8 @@ and get_memo_mn r l e =
 
 and get_memo_item_mn r l e =
   memoize_type r (fun () ->
-    match get_item_type_err ~vec:true ~arr:true ~set:true ~lst:true l e with
+    match get_item_type_err ~vec:true ~arr:true ~set:true ~lst:true
+                            ~str:true ~bytes:true l e with
     | Ok mn ->
         mn
     | Error mn ->
