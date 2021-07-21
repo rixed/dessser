@@ -746,14 +746,14 @@ let int_string_gen mi ma =
 
 let to_sexpr lst = "("^ String.join " " lst ^")"
 
-let rec sexpr_of_typ_gen typ =
+let rec sexpr_of_typ_gen ?sexpr_config typ =
   let open Gen in
   match typ with
   | T.Named (_, t) ->
-      sexpr_of_typ_gen t
+      sexpr_of_typ_gen ?sexpr_config t
   | T.This n ->
       let t = T.find_this n in
-      sexpr_of_typ_gen t
+      sexpr_of_typ_gen ?sexpr_config t
   | T.Void ->
       return "()"
   | T.Base Float ->
@@ -783,56 +783,58 @@ let rec sexpr_of_typ_gen typ =
   | T.Base I56 -> int_string_gen (-36028797018963968L) 36028797018963967L
   | T.Base I64 -> map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
   | T.Base I128 -> map Int128.to_string i128_gen
-  | T.Usr ut -> sexpr_of_typ_gen ut.def
+  | T.Usr ut -> sexpr_of_typ_gen ?sexpr_config ut.def
   | T.Vec (dim, mn) ->
-      list_repeat dim (sexpr_of_mn_gen mn) |> map to_sexpr
+      list_repeat dim (sexpr_of_mn_gen ?sexpr_config mn) |> map to_sexpr
   | T.Arr mn ->
-      tiny_list (sexpr_of_mn_gen mn) |> map (fun lst ->
-        (* FIXME: make list_prefix_length a parameter of this function *)
-        (if DessserSExpr.default_config.list_prefix_length then
+      tiny_list (sexpr_of_mn_gen ?sexpr_config mn) |> map (fun lst ->
+        (if DessserSExpr.((sexpr_config |? default_config).list_prefix_length)
+        then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
   | T.Set (_, mn) ->
-      sexpr_of_typ_gen (Arr mn)
+      sexpr_of_typ_gen ?sexpr_config (Arr mn)
   | T.Tup mns ->
-      tup_gen mns
+      tup_gen ?sexpr_config mns
   | T.Rec mns ->
-      tup_gen (Array.map snd mns)
+      tup_gen ?sexpr_config (Array.map snd mns)
   | T.Sum mns ->
       join (
         map (fun i ->
           let i = (Stdlib.abs i) mod (Array.length mns) in
-          sexpr_of_mn_gen (snd mns.(i)) |>
+          sexpr_of_mn_gen ?sexpr_config (snd mns.(i)) |>
           map (fun se -> "("^ Stdlib.string_of_int i ^" "^ se ^")")
         ) int
       )
   | T.Map (k, v) ->
-      sexpr_of_typ_gen (Arr { typ = Tup [| k ; v |] ; nullable = false })
+      sexpr_of_typ_gen ?sexpr_config
+        (Arr { typ = Tup [| k ; v |] ; nullable = false })
   | _ ->
       invalid_arg "sexpr_of_typ_gen"
 
-and tup_gen mns st =
+and tup_gen ?sexpr_config mns st =
   "("^ (
     Array.fold_left (fun sexpr mn ->
-      (if sexpr = "" then "" else (sexpr ^ " ")) ^ sexpr_of_mn_gen mn st
+      (if sexpr = "" then "" else (sexpr ^ " ")) ^
+      sexpr_of_mn_gen ?sexpr_config mn st
     ) "" mns
   ) ^")"
 
-and sexpr_of_mn_gen mn =
+and sexpr_of_mn_gen ?sexpr_config mn =
   let open Gen in
   if mn.nullable then
     join (
       (* Note: This "null" must obviously match the one used in DessserSExpr.ml *)
       map (function true -> return "null"
-                 | false -> sexpr_of_typ_gen mn.typ) bool)
+                 | false -> sexpr_of_typ_gen ?sexpr_config mn.typ) bool)
   else
-    sexpr_of_typ_gen mn.typ
+    sexpr_of_typ_gen ?sexpr_config mn.typ
 
-let sexpr mn =
+let sexpr ?sexpr_config mn =
   let print = BatPervasives.identity
   and small = String.length in
-  make ~print ~small (sexpr_of_mn_gen mn)
+  make ~print ~small (sexpr_of_mn_gen ?sexpr_config mn)
 
 (* A program that convert from s-expr to s-expr for the given schema [mn],
  * to check s-expr is reliable before using it in further tests: *)
@@ -847,7 +849,7 @@ let sexpr mn =
     let compunit = U.make () in
     make_converter ~dev_mode:true ~mn compunit be e
 
-  let test_desser alloc_dst be mn des ser =
+  let test_desser ?sexpr_config alloc_dst be mn des ser =
     let module Des = (val des : DES) in
     let module Ser = (val ser : SER) in
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
@@ -856,9 +858,11 @@ let sexpr mn =
       func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
         (fun src dst ->
           E.Ops.let_ alloc_dst (fun tdst ->
-            E.with_sploded_pair "s2t" (S2T.desser mn src tdst) (fun src tdst_end ->
+            let s2t = S2T.desser ?des_config:sexpr_config mn src tdst in
+            E.with_sploded_pair "s2t" s2t (fun src tdst_end ->
               let tdst = ptr_of_ptr tdst (size 0) (ptr_sub tdst_end tdst) in
-              let dst = secnd (T2S.desser mn tdst dst) in
+              let t2s = T2S.desser ?ser_config:sexpr_config mn tdst dst in
+              let dst = secnd t2s in
               make_pair src dst))) in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -866,10 +870,11 @@ let sexpr mn =
       let e' = DessserEval.peval E.no_env e in
       Format.eprintf "@[<v>After peval:@,%a@." (E.pretty_print ?max_depth:None) e'
     ) ;
-    let compunit = U.make () in
+    let compunit = U.make () |> DessserJson.init in
     make_converter ~dev_mode:true ~mn compunit be e
 
-  let test_data_desser = test_desser (ptr_of_buffer (size 50_000))
+  let test_data_desser ?sexpr_config =
+    test_desser ?sexpr_config (ptr_of_buffer (size 50_000))
 *)
 
 (* Given a type and a backend, build a converter from s-expr to s-expr for
@@ -898,17 +903,17 @@ let sexpr mn =
 (* Now that we trust the s-expr ser/des, we can use it to create random
  * values or arbitrary type in the other formats: *)
 (*$inject
-  let test_exe format mn exe =
-    Gen.generate ~n:100 (sexpr_of_mn_gen mn) |>
+  let test_exe ?sexpr_config format mn exe =
+    Gen.generate ~n:100 (sexpr_of_mn_gen ?sexpr_config mn) |>
     List.iter (fun s ->
       let s' = String.trim (run_converter ~timeout:2 exe s) in
       if dbg then Printf.eprintf "Testing %s %S of type %a -> %S\n%!"
         format s T.print_mn mn s' ;
       assert_equal ~printer:BatPervasives.identity s s')
 
-  let test_format be mn des ser format =
-    let exe = test_data_desser be mn des ser in
-    test_exe format mn exe
+  let test_format ?sexpr_config be mn des ser format =
+    let exe = test_data_desser ?sexpr_config be mn des ser in
+    test_exe ?sexpr_config format mn exe
 
   module ToValue = DessserHeapValue.Materialize (DessserSExpr.Des)
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
@@ -923,16 +928,16 @@ let sexpr mn =
         E.with_sploded_pair "v_src" v_src (fun v src ->
           let dst = apply ser_func [ copy_field ; v ; dst ] in
           make_pair src dst))
-*)
-(*$R
+
   let test_heap be mn =
     let compunit = U.make () in
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     let exe = make_converter ~dev_mode:true ~mn compunit be e in
-    test_exe "heap-value" mn exe in
-
+    test_exe "heap-value" mn exe
+*)
+(*$R
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
     (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
@@ -962,9 +967,17 @@ let sexpr mn =
       (module DessserCsv.Ser : SER) format ;
     test_format cpp_be mn_csv
       (module DessserCsv.Des : DES)
-      (module DessserCsv.Ser : SER) format)
+      (module DessserCsv.Ser : SER) format ;
+    let format = "JSON" in
+    let sexpr_config =
+      DessserSExpr.{ default_config with list_prefix_length = false } in
+    test_format ~sexpr_config ocaml_be mn
+      (module DessserJson.Des : DES)
+      (module DessserJson.Ser : SER) format ;
+    test_format ~sexpr_config cpp_be mn
+      (module DessserJson.Des : DES)
+      (module DessserJson.Ser : SER) format)
 *)
-
 (* Non regression tests: *)
 
 (* A function to test specifically a given value of a given type for a given

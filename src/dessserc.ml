@@ -42,6 +42,7 @@ let ser_of_encoding = function
   | RowBinary -> (module DessserRowBinary.Ser : SER)
   | SExpr -> (module DessserSExpr.Ser : SER)
   | CSV -> (module DessserCsv.Ser : SER)
+  | JSON -> (module DessserJson.Ser : SER)
   | _ -> failwith "No serializer for that encoding"
 
 (* Some back-ends cannot deal with some schema, or need to adapt it somewhat.
@@ -431,7 +432,7 @@ let encodings_in =
   Arg.(opt_all (enum known_inputs) [] i)
 
 let known_outputs =
-  T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ] |>
+  T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
   List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_out =

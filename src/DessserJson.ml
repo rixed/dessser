@@ -179,7 +179,7 @@ let init compunit =
   module T = DessserTypes
   module U = DessserCompilationUnit
   open E.Ops
-  let dbg = true
+  let dbg = false
 
   let do_exe e =
     if dbg then
@@ -632,4 +632,309 @@ struct
 
   let dnotnull _t () _mn0 _path p_stk =
     p_stk
+end
+
+(* Compared to desserialization, serialization offers little sophistication,
+ * as we are free to dump values in the order specified by the schema. *)
+
+module Ser : SER with type config = config =
+struct
+  let id = JSON
+
+  type config = unit
+  type state = unit
+
+  let ptr _mn = T.ptr
+
+  let start ?(config=()) _mn p =
+    ignore config ;
+    (),
+    p
+
+  let stop () p = p
+
+  type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
+
+  let write_str p v =
+    let escape p = write_u8 p (u8_of_const_char '\\') in
+    let p = write_u8 p (u8_of_const_char '"') in
+    let_ ~name:"p_ref" (make_ref p) (fun p_ref ->
+      let p = get_ref p_ref in
+      seq [
+        for_each ~name:"write_str_c" v (fun c ->
+          if_ (or_ (lt c (char ' ')) (gt c (char '~')))
+            ~then_:(
+              (* Here any non ascii is going to be encoded as a 8 bits
+               * UTF2. TODO: decode multichars as UTF8. *)
+              let p = escape p in
+              let p = write_u8 p (u8_of_const_char 'u') in
+              let p = write_u8 p (u8_of_const_char '0') in
+              let p = write_u8 p (u8_of_const_char '0') in
+              let p = write_u8 p (StdLib.hex_digit_of_u8
+                           (right_shift (u8_of_char c) (u8_of_int 4))) in
+              let p = write_u8 p
+                        (StdLib.hex_digit_of_u8
+                          (bit_and (u8_of_char c) (u8_of_int 15))) in
+              set_ref p_ref p)
+            ~else_:(
+              let escape_char c =
+                let p = escape p in
+                write_u8 p (u8_of_char c) in
+              let p =
+                StdLib.cases [
+                  or_ (eq c (char '"'))
+                      (or_ (eq c (char '\\'))
+                           (* This one sacrificed to gods it seems: *)
+                           (eq c (char '/'))), escape_char c ;
+                  eq c (char '\b'), escape_char (char 'b') ;
+                  eq c (char '\012'), escape_char (char 'f') ;
+                  eq c (char '\n'), escape_char (char 'n') ;
+                  eq c (char '\r'), escape_char (char 'r') ;
+                  eq c (char '\t'), escape_char (char 't') ;
+                ] ~else_:(write_u8 p (u8_of_char c)) in
+              set_ref p_ref p)) ;
+        write_u8 p (u8_of_const_char '"') ])
+
+  let json_string s =
+    String.fold_left (fun s c ->
+      let c' =
+        match c with
+        | '"' -> "\""
+        | '\\' -> "\\\\"
+        | '/' -> "\\/"
+        | '\b' -> "\\b"
+        | '\012' -> "\\f"
+        | '\n' -> "\\n"
+        | '\r' -> "\\r"
+        | '\t' -> "\\t"
+        | c when c < ' ' || c > '~' -> Printf.sprintf "\\u%04x" (Char.code c)
+        | c -> String.of_char c in
+      s ^ c'
+    ) "" s
+
+  let write_field mn0 path p =
+    match Path.type_of_parent mn0 path with
+    | exception Invalid_argument _ ->
+        (* No parent, therefore cannot be in a record: *)
+        p
+    | T.{ typ = Rec mns ; _ } ->
+        let p = write_u8 p (u8_of_const_char '"') in
+        (* Our index in the parent: *)
+        let p =
+          match List.last path with
+          | Path.CompTime i ->
+              assert (i >= 0 && i < Array.length mns) ;
+              write_bytes p
+                (bytes_of_string (string (json_string (fst mns.(i)))))
+          | Path.RunTime i ->
+              StdLib.cases (
+                Array.enum mns |>
+                Enum.mapi (fun j (n, _) ->
+                  eq (to_u32 i) (u32_of_int j),
+                  write_str p (string (json_string n))) |>
+                List.of_enum
+              ) ~else_:(seq [ assert_ false_ ; p ]) in
+        let p = write_u8 p (u8_of_const_char '"') in
+        write_u8 p (u8_of_const_char ':')
+    | _ ->
+        (* No need for a field name: *)
+        p
+
+  let write_bytes_of to_bytes () mn0 path v p =
+    let p = write_field mn0 path p in
+    write_bytes p (to_bytes v)
+
+  let sfloat =
+    write_bytes_of (bytes_of_string % decimal_string_of_float)
+
+  let sstring () mn0 path v p =
+    let p = write_field mn0 path p in
+    write_str p v
+
+  let sbool =
+    write_bytes_of
+      (fun v ->
+        bytes_of_string (
+          if_ v ~then_:(string "true") ~else_:(string "false")))
+
+  let schar () mn0 path v p =
+    sstring () mn0 path (string_of_char v) p
+
+  let num =
+    write_bytes_of (bytes_of_string % string_of_int_)
+
+  let si8 = num
+  let si16 = num
+  let si24 = num
+  let si32 = num
+  let si40 = num
+  let si48 = num
+  let si56 = num
+  let si64 = num
+  let si128 = num
+  let su8 = num
+  let su16 = num
+  let su24 = num
+  let su32 = num
+  let su40 = num
+  let su48 = num
+  let su56 = num
+  let su64 = num
+  let su128 = num
+
+  let write_opn_chr c () mn0 path p =
+    let p = write_field mn0 path p in
+    write_u8 p (u8_of_const_char c)
+
+  let write_chr c () _mn0 _path p =
+    write_u8 p (u8_of_const_char c)
+
+  let tup_opn _mns = write_opn_chr '['
+
+  let tup_cls = write_chr ']'
+
+  let tup_sep = write_chr ','
+
+  let rec_opn _mns = write_opn_chr '{'
+
+  let rec_cls = write_chr '}'
+
+  let rec_sep = write_chr ','
+
+  let sum_opn mns lbl () mn0 path p =
+    let p = write_field mn0 path p in
+    let p = write_u8 p (u8_of_const_char '{') in
+    let s =
+      StdLib.cases (
+        Array.enum mns |>
+        Enum.mapi (fun i (n, _) ->
+          eq lbl (u16_of_int i),
+          string n) |>
+        List.of_enum
+      ) ~else_:(seq [ assert_ false_ ; string "" ]) in
+    let p = write_str p s in
+    write_u8 p (u8_of_const_char ':')
+
+  let sum_cls = write_chr '}'
+
+  let vec_opn _dim _mns = write_opn_chr '['
+
+  let vec_cls = write_chr ']'
+
+  let vec_sep = write_chr ','
+
+  let arr_opn _mns _card = write_opn_chr '['
+
+  let arr_cls = write_chr ']'
+
+  let arr_sep = write_chr ','
+
+  let nullable () _mn0 _path p = p
+
+  let snull _t () mn0 path p =
+    (* TODO: when we have a field, then skip the 'null' altogether! *)
+    let p = write_field mn0 path p in
+    write_u32 BigEndian p (u32 (Uint32.of_int32 0x6e_75_6c_6cl))
+
+  let snotnull _t () _mn0 _path p = p
+
+  type ssizer = T.mn -> Path.t -> E.t -> E.t
+
+  let ssize_start ?(config=()) _mn0 =
+    ignore config ;
+    size 0
+
+  (* Those are maximums: *)
+  let ssize_of_float _mn0 _path _v =
+    size 20
+
+  let const_string_size s =
+    size (String.length (json_string s))
+
+  let ssize_of_str v =
+    (* Assuming only non ascii chars (and no utf8 support): *)
+    size_of_u32 (add (mul (u32_of_int 5) (string_length v)) (u32_of_int 2))
+
+  let ssize_of_string _mn0 _path v =
+    ssize_of_str v
+
+  let ssize_of_bool _mn0 _path v =
+    if_ v ~then_:(size 4) ~else_:(size 5)
+
+  let ssize_of_char _mn0 _path v =
+    ssize_of_str (string_of_char v)
+
+  let ssize_of_i8 _mn0 _path _v = size 4
+
+  let ssize_of_i16 _mn0 _path _v = size 6
+
+  let ssize_of_i24 _mn0 _path _v = size 8
+
+  let ssize_of_i32 _mn0 _path _v = size 11
+
+  let ssize_of_i40 _mn0 _path _v = size 13
+
+  let ssize_of_i48 _mn0 _path _v = size 16
+
+  let ssize_of_i56 _mn0 _path _v = size 18
+
+  let ssize_of_i64 _mn0 _path _v = size 20
+
+  let ssize_of_i128 _mn0 _path _v = size 40
+
+  let ssize_of_u8 _mn0 _path _v = size 3
+
+  let ssize_of_u16 _mn0 _path _v = size 5
+
+  let ssize_of_u24 _mn0 _path _v = size 7
+
+  let ssize_of_u32 _mn0 _path _v = size 10
+
+  let ssize_of_u40 _mn0 _path _v = size 12
+
+  let ssize_of_u48 _mn0 _path _v = size 15
+
+  let ssize_of_u56 _mn0 _path _v = size 17
+
+  let ssize_of_u64 _mn0 _path _v = size 19
+
+  let ssize_of_u128 _mn0 _path _v = size 39
+
+  let ssize_of_array mn0 path v =
+    let num_items =
+      match (Path.type_of_path mn0 path).typ |> T.develop with
+      | Tup mns -> u32_of_int (Array.length mns)
+      | (Arr _ | Set _) -> cardinality v
+      | Vec (d, _) -> u32_of_int d
+      | _ -> assert false in
+    size_of_u32 (add (u32_of_int 2) (sub num_items (u32_of_int 1)))
+
+  let ssize_of_tup = ssize_of_array
+  let ssize_of_vec = ssize_of_array
+  let ssize_of_arr = ssize_of_array
+
+  let ssize_of_sum mn0 path v =
+    StdLib.cases (
+      match (Path.type_of_path mn0 path).typ |> T.develop with
+      | Sum mns ->
+          Array.enum mns |>
+          Enum.mapi (fun i (n, _) ->
+            eq (u16_of_int i) (label_of v), size (String.length n + 2)) |>
+          List.of_enum
+      | _ ->
+          assert false
+    ) ~else_:(seq [assert_ false_ ; size 0 ])
+
+  let ssize_of_rec mn0 path _v =
+    match (Path.type_of_path mn0 path).typ |> T.develop with
+    | Rec mns ->
+        Array.fold_left (fun e (n, _) ->
+          add e (add (size 1 (* sep *)) (const_string_size n))
+        ) (size 2 (* braces *)) mns
+    | _ ->
+        assert false
+
+  let ssize_of_null _mn0 _path =
+    size 4
+
 end
