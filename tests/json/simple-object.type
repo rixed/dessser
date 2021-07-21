@@ -4,4 +4,5 @@
     baz: i32?[]?;
     glop: bool;
   }?;
+  zap: i8[2][[]]?;  // list of vectors
 }?

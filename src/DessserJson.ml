@@ -904,7 +904,7 @@ struct
     let num_items =
       match (Path.type_of_path mn0 path).typ |> T.develop with
       | Tup mns -> u32_of_int (Array.length mns)
-      | (Arr _ | Set _) -> cardinality v
+      | (Arr _ | Set _ | Lst _) -> cardinality v
       | Vec (d, _) -> u32_of_int d
       | _ -> assert false in
     size_of_u32 (add (u32_of_int 2) (sub num_items (u32_of_int 1)))
