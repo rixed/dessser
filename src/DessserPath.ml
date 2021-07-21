@@ -47,14 +47,14 @@ let type_and_index_of_path t0 path =
     | This n, _ ->
         let t = T.find_this n in
         loop index { mn with typ = t } path
+    | Usr { def ; _ }, _ ->
+        loop index { mn with typ = def } path
     | _, [] ->
         mn, index
     | T.(Unknown | Base _ | Ext _ | Map _ |
          Size |
          Void | Ptr | Address | Bytes | Mask | Function _), _ ->
         assert false
-    | Usr { def ; _ }, _ ->
-        loop index { mn with typ = def } path
     (* CompTime *)
     | Vec (dim, mn), CompTime i :: path  ->
         assert (i < dim) ;

@@ -67,3 +67,5 @@ tests/json/float
 tests/json/empty-object
 tests/json/string
 tests/json/set
+tests/json/cidr
+tests/json/cidr2

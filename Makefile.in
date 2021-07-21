@@ -455,6 +455,8 @@ dessserc-check: src/dessserc $(wildcard tests/*.type)
 	@echo SUCCESS
 
 JSON_TESTS = \
+  tests/json/cidr.type \
+  tests/json/cidr2.type \
   tests/json/set.type \
   tests/json/string.type \
   tests/json/float.type \
