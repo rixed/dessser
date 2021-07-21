@@ -489,11 +489,12 @@ struct
               assert_ (eq c (u8_of_const_char 't')) ;
               make_pair true_ (make_pair (ptr_add p (size 4)) stk) ])))
 
-  (* Chars are represented as 1 char strings: *)
+  (* Chars are represented as 1 char strings (with usual escaping): *)
   let dchar : des =
     with_p_stk (fun p stk ->
-      let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
-        make_pair (char_of_u8 (unsafe_nth (size 0) b))
+      let_pair ~n1:"bytes" ~n2:"p" (parse_bytes p) (fun bytes p ->
+        let s = parse_string bytes in
+        make_pair (unsafe_nth (size 0) s)
                   (make_pair p stk)))
 
   let dnum of_ptr : des =
