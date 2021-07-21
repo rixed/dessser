@@ -365,6 +365,9 @@ type e2 =
   | PokeU8
   | PtrAdd
   | PtrSub
+  (* Unlike PtrSub that subtract two pointers, rewind subtract a size from a
+   * pointer: *)
+  | Rewind
   | And
   | Or
   | Cons
@@ -952,6 +955,7 @@ let string_of_e2 = function
   | PokeU8 -> "poke-u8"
   | PtrAdd -> "ptr-add"
   | PtrSub -> "ptr-sub"
+  | Rewind -> "rewind"
   | And -> "and"
   | Or -> "or"
   | Cons -> "cons"
@@ -1548,6 +1552,7 @@ struct
     | Lst [ Sym "poke-u8" ; x1 ; x2 ] -> E2 (PokeU8, e x1, e x2)
     | Lst [ Sym "ptr-add" ; x1 ; x2 ] -> E2 (PtrAdd, e x1, e x2)
     | Lst [ Sym "ptr-sub" ; x1 ; x2 ] -> E2 (PtrSub, e x1, e x2)
+    | Lst [ Sym "rewind" ; x1 ; x2 ] -> E2 (Rewind, e x1, e x2)
     | Lst [ Sym "and" ; x1 ; x2 ] -> E2 (And, e x1, e x2)
     | Lst [ Sym "or" ; x1 ; x2 ] -> E2 (Or, e x1, e x2)
     | Lst [ Sym "cons" ; x1 ; x2 ] -> E2 (Cons, e x1, e x2)
@@ -1987,6 +1992,7 @@ and type_of l e0 =
   | E3 (BlitByte, _, _, _) -> T.ptr
   | E2 (PtrAdd, _, _) -> T.ptr
   | E2 (PtrSub, _, _) -> T.size
+  | E2 (Rewind, _, _) -> T.ptr
   | E1 (RemSize, _) -> T.size
   | E1 (Offset, _) -> T.size
   | E2 (And, _, _) -> T.bool
@@ -3229,6 +3235,8 @@ struct
   let ptr_add e1 e2 = E2 (PtrAdd, e1, e2)
 
   let ptr_sub e1 e2 = E2 (PtrSub, e1, e2)
+
+  let rewind e1 e2 = E2 (Rewind, e1, e2)
 
   let ptr_of_string e = E1 (PtrOfString, e)
 

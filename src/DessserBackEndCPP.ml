@@ -933,6 +933,8 @@ struct
         method_call e1 "skip" [ e2 ]
     | E.E2 (PtrSub, e1, e2) ->
         binary_infix_op e1 "-" e2
+    | E.E2 (Rewind, e1, e2) ->
+        method_call e1 "rewind" [ e2 ]
     | E.E1 (RemSize, e1) ->
         method_call e1 "remSize" []
     | E.E1 (Offset, e1) ->

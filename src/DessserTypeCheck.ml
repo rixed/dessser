@@ -359,6 +359,9 @@ let rec type_check l =
         | E2 (PtrSub, e1, e2) ->
             check_eq l e1 T.ptr ;
             check_eq l e2 T.ptr
+        | E2 (Rewind, e1, e2) ->
+            check_eq l e1 T.ptr ;
+            check_eq l e2 T.size
         | E1 ((RemSize | Offset), e) ->
             check_eq l e T.ptr
         | E3 (PtrOfPtr, e1, e2, e3) ->

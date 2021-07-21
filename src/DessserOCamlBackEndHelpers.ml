@@ -344,6 +344,13 @@ struct
       Printf.eprintf "Advance from %d to %d\n%!" o o' ;
     p, o'
 
+  let rewind (p, o) n =
+    let o' = o - n in
+    assert (o' > 0) ;
+    if debug then
+      Printf.eprintf "Rewind from %d to %d\n%!" o o' ;
+    p, o'
+
   let sub (p1, o1) (p2, o2) =
     assert (p1.seq = p2.seq) ;
     assert (o1 >= o2) ;

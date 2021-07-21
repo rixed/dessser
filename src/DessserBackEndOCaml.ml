@@ -1225,6 +1225,9 @@ struct
     | E.E2 (PtrSub, e1, e2) ->
         let m = mod_name (E.type_of l e1) in
         binary_op (m ^".sub") e1 e2
+    | E.E2 (Rewind, e1, e2) ->
+        let m = mod_name (E.type_of l e1) in
+        binary_op (m ^".rewind") e1 e2
     | E.E1 (RemSize, e1) ->
         let m = mod_name (E.type_of l e1) in
         unary_op (m ^".remSize") e1

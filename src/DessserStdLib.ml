@@ -462,6 +462,19 @@ let hex_digit_of_u8 c =
       ~then_:(u8_of_int 87)
       ~else_:(u8_of_const_char '0'))
 
+let cap_size n e =
+  let_ ~name:"cap_size_e" e (fun e ->
+    if_ (ge e (size n)) ~then_:(size n) ~else_:e)
+
+let string_around ?(width=6) p =
+  let_ ~name:"string_around_p" p (fun p ->
+    let rwd = cap_size width (offset p) in
+    let fwd = cap_size width (rem_size p) in
+    let_ ~name:"string_around_fwd" fwd (fun fwd ->
+      let_ ~name:"string_around_rwd_p" (rewind p rwd) (fun p ->
+        let bytes_p = read_bytes p (add rwd fwd) in
+        string_of_bytes (first bytes_p))))
+
 let check_byte p c =
   let_ ~name:"check_byte_c" c (fun c ->
     let_ ~name:"check_byte_b" (peek_u8 p (size 0)) (fun b ->
@@ -470,6 +483,7 @@ let check_byte p c =
           seq [ dump (string "Bad char at ") ; dump (offset p) ;
                 dump (string ": ") ; dump b ;
                 dump (string " should be: ") ; dump c ;
+                dump (string " (") ; dump (string_around p) ; dump (string ")") ;
                 dump (char '\n') ;
                 assert_ false_ ])
         ~else_:nop))

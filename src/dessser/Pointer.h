@@ -117,6 +117,14 @@ struct Pointer {
     return ptr;
   }
 
+  Pointer rewind(Size const &sz) const
+  {
+    Pointer ptr(*this);
+    ptr.checkOffset(ptr.offset - sz);
+    ptr.offset -= sz;
+    return ptr;
+  }
+
   bool getBit(size_t b) const
   {
     size_t const off = offset + b / 8;

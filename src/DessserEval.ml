@@ -1058,6 +1058,12 @@ let rec peval l e =
           repl
       | PtrAdd, _, E0 (Size 0) ->
           replace_final_expression_anonymously e2 e1
+      | Rewind, E2 (Rewind, e1_1, e1_2), _ ->
+          E.E2 (Rewind, e1_1, E.E2 (Add, e1_2, e2)) |>
+          replace_final_expression_anonymously e1 |>
+          repl
+      | Rewind, _, E0 (Size 0) ->
+          replace_final_expression_anonymously e2 e1
       | BitAnd, f1, f2 ->
           (try arith2 f1 f2 no_floats Int128.logand Uint128.logand |> repl
           with Invalid_argument _ -> E.E2 (BitAnd, e1, e2))
