@@ -2494,7 +2494,26 @@ let has_side_effect e =
              Insert | DelMin | AllocArr | PartialSort), _, _)
       | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
           raise Exit
-      | _ -> ()
+      | _ ->
+          ()
+    ) e ;
+    false
+  with Exit ->
+    true
+
+(* Some expressions that have no side effect still depends on side effects,
+ * sur as when reading a container that can be modified. those should not be
+ * reordered with side effectful operations.
+ * The simplifying assumption is made that every side effectful operation also
+ * depends on side effects. *)
+let depends_on_side_effect e =
+  has_side_effect e ||
+  try
+    iter (function
+      | E2 ((Nth | UnsafeNth), _, _) -> (* Only GetVec really (FIXME) *)
+          raise Exit
+      | _ ->
+          ()
     ) e ;
     false
   with Exit ->
