@@ -493,7 +493,8 @@ struct
   let dchar : des =
     with_p_stk (fun p stk ->
       let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
-        make_pair (unsafe_nth (size 0) b) (make_pair p stk)))
+        make_pair (char_of_u8 (unsafe_nth (size 0) b))
+                  (make_pair p stk)))
 
   let dnum of_ptr : des =
     with_p_stk (fun p stk ->
