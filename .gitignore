@@ -66,3 +66,4 @@ tests/json/simple-object
 tests/json/float
 tests/json/empty-object
 tests/json/string
+tests/json/set

@@ -521,30 +521,33 @@ struct
   let du128 = dnum u128_of_ptr
   let dfloat = dnum float_of_ptr
 
+  (* If in a record, locate the pointer at the beginning of the field first: *)
+  let skip_1_reloc c : des =
+    with_p_stk (fun p stk ->
+      let p = skip_char p c in
+      make_pair p stk)
+
+  (* Skip the character regardless of where the pointer is: *)
+  let skip_1 c () _mn0 _path p_stk =
+    let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
+      let p = skip_char p c in
+      make_pair p stk)
+
   (* Tuples are represented by arrays
    * "There is no requirement that the values in an array be of the same
    *  type." Of course there isn't! *)
 
-  let skip_1_non_blank p =
-    let p = skip_blanks p in
-    ptr_add p (size 1)
+  let tup_opn _mns = skip_1_reloc '['
 
-  let skip_1 : des =
-    with_p_stk (fun p stk ->
-      let p = skip_1_non_blank p in
-      make_pair p stk)
+  let tup_cls = skip_1 ']'
 
-  let tup_opn _mns = skip_1
+  let tup_sep  = skip_1 ','
 
-  let tup_cls = skip_1
+  let vec_opn _dim _mn = skip_1_reloc '['
 
-  let tup_sep  = skip_1
+  let vec_cls = skip_1 ']'
 
-  let vec_opn _dim _mn = skip_1
-
-  let vec_cls = skip_1
-
-  let vec_sep = skip_1
+  let vec_sep = skip_1 ','
 
   (* Records: locate all fields, push that frame and return the position of the
    * and of the object. But every reader will read from the pointers stored in
@@ -580,22 +583,19 @@ struct
             let p_stk = make_pair p stk in
             make_pair i p_stk)))
 
-  let sum_cls =
-    with_p_stk (fun p stk ->
-      make_pair (skip_char p '}') stk)
+  let sum_cls = skip_1 '}'
 
   let arr_opn () =
     UnknownSize (
-      (fun _mn -> skip_1 ()),
+      (fun _mn -> skip_1_reloc '[' ()),
       (fun _mn0 _path p_stk ->
         let p = first p_stk in
-        (* Won't work for nested compound types: *)
         let p = skip_blanks p in
         eq (peek_u8 p (size 0)) (u8_of_const_char ']')))
 
-  let arr_cls = skip_1
+  let arr_cls = skip_1 ']'
 
-  let arr_sep = skip_1
+  let arr_sep = skip_1 ','
 
   let is_null () mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
