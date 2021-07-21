@@ -784,7 +784,7 @@ struct
     | E.E1 (StringOfFloat, e1) ->
         unary_func "hex_string_of_float" e1
     | E.E1 (DecimalStringOfFloat, e1) ->
-        unary_func "std::to_string" e1
+        unary_func "dec_string_of_float" e1
     | E.E1 (StringOfChar, e1) ->
         let n = print p l e1 in
         (* This will use the list-initializer. Beware that "1, %s" would _also_ use

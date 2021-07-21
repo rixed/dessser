@@ -50,6 +50,16 @@ inline std::string hex_string_of_float(double f)
   return so.str();
 }
 
+inline std::string dec_string_of_float(double f)
+{
+  /* Try hard to be able to parse the same double back: */
+  std::ostringstream so;
+  so << std::setprecision(std::numeric_limits<double>::max_digits10)
+     << f;
+  // TODO: Try boring std::to_string first if it can be parsed back!
+  return so.str();
+}
+
 inline std::size_t clamp_to_length(long p, std::size_t const l)
 {
   if (0 == l) return 0;

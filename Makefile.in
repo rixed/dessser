@@ -246,7 +246,8 @@ QUICK_TESTABLE_SOURCES = \
 	src/DessserCompilationUnit.ml \
 	src/DessserBackEndCPP.ml \
 	src/DessserOCamlBackEndHelpers.ml \
-	src/DessserCsv.ml
+	src/DessserCsv.ml \
+	src/DessserFloatTools.ml
 
 SLOW_TESTABLE_SOURCES = \
 	src/DessserQCheck.ml \
