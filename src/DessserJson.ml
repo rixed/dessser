@@ -285,7 +285,8 @@ let parse_string bytes =
                     with_next_src (fun b2 ->
                       if_ (eq b2 (u8_of_const_char 'u'))
                         ~then_:(
-                          (* 16 bits unicode: *)
+                          (* 16 bits unicode. Let's write this as is.
+                           * TODO: encode in UTF8. *)
                           let dd1 = read_2_hexs src in
                           let_ ~name:"dd1" dd1 (fun dd1 ->
                             let dd2 =  read_2_hexs (add src (size 2)) in
@@ -427,9 +428,9 @@ struct
         (* No parent, therefore cannot be in a record: *)
         not_null p
     | T.{ typ = Rec mns ; _ } ->
-        (* Our index in the parent: *)
         let frame = frame_top stk in
         let ptrs = get_item 0 frame in
+        (* Our index in the parent: *)
         (match List.last path with
         | Path.CompTime i ->
             assert (i >= 0 && i < Array.length mns) ;

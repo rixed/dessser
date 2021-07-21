@@ -247,7 +247,7 @@ let wait_log pid =
       Printf.eprintf "couldn't execve after fork\n%!"
   | _, WEXITED code ->
       if code <> 0 then
-        Printf.eprintf "Child process existed with status code %d\n%!" code
+        Printf.eprintf "Child process exited with status code %d\n%!" code
   | _, WSIGNALED sign ->
       Printf.eprintf "Child process killed by signal %s\n%!" (name_of_signal sign)
   | _, WSTOPPED sign ->

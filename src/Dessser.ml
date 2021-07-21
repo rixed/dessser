@@ -393,7 +393,7 @@ struct
     let open E.Ops in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
-    comment "Convert a List"
+    comment "Convert an array "
       (E.with_sploded_pair "dsarr1" src_dst (fun src dst ->
         (* FIXME: for some deserializers (such as SExpr) it's not easy to
          * know the arr length in advance. For those, it would be better
