@@ -12,20 +12,6 @@ open E.Ops
 
 let debug_flag = true
 
-(* For parsing JSON objects (as records), fields need to be reordered.
- * Therefore, when "opening" a record, all fields are located within the
- * incoming bytes and recorded in an array of pointers, in order of
- * definition, as well as a pointer to the end of the record.
- * All objects we are currently in form a stack of such objects. *)
-
-let object_t =
-  T.(record [|
-    "fields", required (arr (optional Ptr)) ;
-    "stop", required Ptr |])
-
-let state_t =
-  T.(lst (required object_t))
-
 (* The name of the game is to be able to skip any JSON value quickly to locate
  * field values: *)
 
@@ -420,8 +406,11 @@ struct
   type config = unit
   type state = unit
 
-  (* Each frame is made with the array of ptrs where the fields are to be
-   * found, and the ptr at the end of the record: *)
+  (* For parsing JSON objects (as records), fields need to be reordered.
+   * Therefore, when "opening" a record, all fields are located within the
+   * incoming bytes and recorded in an array of pointers, in order of
+   * definition, as well as a pointer to the end of the record.
+   * All objects we are currently in form a stack of such objects. *)
   let frame_t = T.(tuple [| required (arr nptr) ; ptr |])
 
   let frame_push ptrs end_p stk =
@@ -945,7 +934,7 @@ struct
 
   let ssize_of_array mn0 path v =
     let num_items =
-      match (Path.type_of_path mn0 path).typ |> T.develop with
+      match (Path.type_of_path mn0 path |> T.develop1).typ with
       | Tup mns -> u32_of_int (Array.length mns)
       | (Arr _ | Set _ | Lst _) -> cardinality v
       | Vec (d, _) -> u32_of_int d
@@ -958,7 +947,7 @@ struct
 
   let ssize_of_sum mn0 path v =
     StdLib.cases (
-      match (Path.type_of_path mn0 path).typ |> T.develop with
+      match (Path.type_of_path mn0 path |> T.develop1).typ with
       | Sum mns ->
           Array.enum mns |>
           Enum.mapi (fun i (n, _) ->
@@ -969,7 +958,7 @@ struct
     ) ~else_:(seq [assert_ false_ ; size 0 ])
 
   let ssize_of_rec mn0 path _v =
-    match (Path.type_of_path mn0 path).typ |> T.develop with
+    match (Path.type_of_path mn0 path |> T.develop1).typ with
     | Rec mns ->
         Array.fold_left (fun e (n, _) ->
           add e (add (size 1 (* sep *)) (const_string_size n))
