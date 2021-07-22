@@ -346,7 +346,7 @@ struct
 
   let rewind (p, o) n =
     let o' = o - n in
-    assert (o' > 0) ;
+    assert (o' >= 0) ;
     if debug then
       Printf.eprintf "Rewind from %d to %d\n%!" o o' ;
     p, o'
