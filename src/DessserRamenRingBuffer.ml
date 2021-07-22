@@ -391,6 +391,10 @@ struct
                 (write_u128 LittleEndian p v) in
       align_const p 16)
 
+  let sext f () mn0 path v p_stk =
+    with_nullbit_done mn0 path p_stk (fun p ->
+      with_debug p "ext" (f p v))
+
   (* The given mns has all the types of the input structure, regardless of the
    * fieldmask. When runtime fieldmasks are added then we must also be given
    * either the fieldmask and quickly compute the number of fields that are
@@ -781,6 +785,9 @@ struct
     with_nullbit_done mn0 path p_stk (fun p ->
       E.with_sploded_pair "di128" (read_u128 LittleEndian p) (fun w p ->
         make_pair (to_i128 w) (align_const p 8)))
+
+  let dext f () mn0 path p_stk =
+    with_nullbit_done mn0 path p_stk f
 
   let tup_rec_opn _mns mn0 path p_stk =
     E.with_sploded_pair

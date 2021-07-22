@@ -41,6 +41,7 @@ struct
   let su64 () _ _ _v p = p
   let si128 () _ _ _v p = p
   let su128 () _ _ _v p = p
+  let sext _f () _ _ _v p = p
   let schar () _ _ _v p = p
   let tup_opn _ () _ _ p = p
   let tup_cls () _ _ p = p

@@ -53,6 +53,7 @@ struct
   let du56 () = from_byte (u56 Uint56.one) (u56 Uint56.zero)
   let du64 () = from_byte (u64 Uint64.one) (u64 Uint64.zero)
   let du128 () = from_byte (u128 Uint128.one) (u128 Uint128.zero)
+  let dext f () _ _ p = f p
   let tup_opn _ () _ _ src = src
   let tup_cls () _ _ src = src
   let tup_sep () _ _ src = src
@@ -114,6 +115,7 @@ struct
   let su56 () _ _ = from_eq (u56 Uint56.one)
   let su64 () _ _ = from_eq (u64 Uint64.one)
   let su128 () _ _ = from_eq (u128 Uint128.one)
+  let sext f () _ _ v dst = f v dst
   let tup_opn _ () _ _ dst = dst
   let tup_cls () _ _ dst = dst
   let tup_sep () _ _ dst = dst

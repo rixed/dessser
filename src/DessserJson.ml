@@ -524,6 +524,11 @@ struct
   let du128 = dnum u128_of_ptr
   let dfloat = dnum float_of_ptr
 
+  let dext f : des =
+    with_p_stk (fun p stk ->
+      let_pair ~n1:"v" ~n2:"p" (f p) (fun v p ->
+        make_pair v (make_pair p stk)))
+
   (* If in a record, locate the pointer at the beginning of the field first: *)
   let skip_1_reloc c : des =
     with_p_stk (fun p stk ->
@@ -781,6 +786,10 @@ struct
   let su56 = num
   let su64 = num
   let su128 = num
+
+  let sext f () mn0 path v p =
+    let p = write_field mn0 path p in
+    f v p
 
   let write_opn_chr c () mn0 path p =
     let p = write_field mn0 path p in

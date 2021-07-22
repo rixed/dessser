@@ -77,6 +77,9 @@ sig
   val du56 : des
   val du64 : des
   val du128 : des
+  (* The callback receives and returns mere T.ptr instead of the ptr used for
+   * desser: *)
+  val dext : ((*ptr*) E.t -> (*V*ptr*) E.t) -> des
 
   (* Paths passed to opn/cls/sep functions are the path of the compound structure
    * itself *)
@@ -152,6 +155,7 @@ sig
   val su56 : ser
   val su64 : ser
   val su128 : ser
+  val sext : ((*v*) E.t -> (*ptr*) E.t -> (*v*ptr*) E.t) -> ser
 
   (* NOTE regarding _opn functions:
    * When dessser handle fieldmasks, subtypes and vectors dim will not be so
@@ -464,6 +468,7 @@ struct
                     (Des.arr_cls dstate mn0 path src)
                     (Ser.arr_cls sstate mn0 path dst) ]))))
 
+  (* TODO: Ext *)
   and desser_value = function
     | T.This _ -> assert false (* Because of Path.type_of_path *)
     | T.Void ->

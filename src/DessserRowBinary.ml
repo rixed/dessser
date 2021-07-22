@@ -104,6 +104,9 @@ struct
   let su128 () _ _ v p =
     write_u128 LittleEndian p v
 
+  let sext f () _ _ v p =
+    f v p
+
   let tup_opn _ () _ _ p = p
   let tup_cls () _ _ p = p
   let tup_sep () _ _ p = p
@@ -328,6 +331,9 @@ struct
   let du128 () _ _ p =
     E.with_sploded_pair "di128" (read_u128 LittleEndian p) (fun w p ->
       make_pair w p)
+
+  let dext f () _ _ p =
+    f p
 
   (* Items of a tuples are just concatenated together: *)
   let tup_opn _ () _ _ p = p

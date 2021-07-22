@@ -79,6 +79,9 @@ struct
   let su64 = si
   let su128 = si
 
+  let sext f _conf _ _ v p =
+    f v p
+
   (* Could also write the field names with the value in a pair... *)
   let tup_opn _ _conf _ _ p =
     write_u8 p (u8_of_const_char '(')
@@ -320,6 +323,9 @@ struct
   let du64 _conf _ _ p = u64_of_ptr p
   let di128 _conf _ _ p = i128_of_ptr p
   let du128 _conf _ _ p = u128_of_ptr p
+
+  let dext f _conf _ _ p =
+    f p
 
   let tup_opn _conf _ _ _ p = skip1 p
 

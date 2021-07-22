@@ -197,8 +197,9 @@ struct
   and dvoid _ _ _ src =
     make_pair void src
 
-  and dext name _dstate _mn0 _path src =
-    apply (type_method name (E.DesNoMask Des.id)) [ src ]
+  and dext name =
+    Des.dext (fun src ->
+      apply (type_method name (E.DesNoMask Des.id)) [ src ])
 
   (* Call the decoder for type name [n]: *)
   and dthis n _dstate mn0 _path src =
@@ -441,12 +442,13 @@ struct
 
   and svoid _ _ _ _ dst = dst
 
-  and sext name ma _sstate _mn0 _path v dst =
-    match ma with
-    | RunTimeMask ma ->
-        apply (type_method name (E.SerWithMask Ser.id)) [ ma ; v ; dst ]
-    | CompTimeMask ->
-        apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ]
+  and sext name ma =
+    Ser.sext (fun v dst ->
+      match ma with
+      | RunTimeMask ma ->
+          apply (type_method name (E.SerWithMask Ser.id)) [ ma ; v ; dst ]
+      | CompTimeMask ->
+          apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ])
 
   and sthis n ma _sstate _mn0 _path v dst =
     let f =
