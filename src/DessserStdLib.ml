@@ -358,7 +358,7 @@ let rec is_in item item_t lst lst_t =
                 try is_empty lst lst_t
                 with Invalid_argument _ -> bool false))
           ~then_:(
-            let ret = bool true in
+            let ret = false_ in
             if item_t.T.nullable then not_null ret else ret)
           ~else_:(
             if item_t.T.nullable then
