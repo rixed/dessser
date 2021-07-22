@@ -493,7 +493,7 @@ json-check: src/dessserc $(JSON_TESTS)
 
 check: \
   unit-check examples-check cpp-check dump-load-check convert-check \
-  aggregator-simplest-check aggregator-sets-check dessserc-check
+  aggregator-simplest-check aggregator-sets-check dessserc-check json-check
 
 # Installation
 
