@@ -299,11 +299,15 @@ let count_pair_uses name e =
         prev
   ) e
 
+(* Extract the "final" value of an expression, in case it is hidden by
+ * let bindings or at the end of a sequence: *)
 let rec final_expression = function
   | E.E2 (Let _, _, e) -> final_expression e
   | E2 (LetPair _, _, e) -> final_expression e
+  | E0S (Seq, l) when l <> [] -> final_expression (List.last l)
   | e -> e
 
+(* Return [e] with its final expression replaced with [r]: *)
 let rec replace_final_expression e e' =
   match e with
   | E.E2 (Let (n, r), def, body) ->
@@ -314,22 +318,50 @@ let rec replace_final_expression e e' =
       let body' = replace_final_expression body e' in
       if E.eq body body' then e
       else E.E2 (LetPair (n1, r1, n2, r2), def, body')
+  | E0S (Seq, l) when l <> [] ->
+      let l', last = list_split_last l in
+      let last' = replace_final_expression last e' in
+      if E.eq last last' then e
+      else E.E0S (Seq, l' @ [ last' ])
   | _ ->
       e'
 
-(* When combining two [replace_final_expression] calls, the outer one must
- * actually not bind any variable, but merely execute the value of the bounds
- * for their side effects. So avoid all possible shadowing by removing the
- * binding altogether: *)
-let rec replace_final_expression_anonymously e r =
+(* When combining two [replace_final_expression] calls into a single
+ * expression, the names bound on each branch that needed not be unique,
+ * must now be unique (one way to create non unique names in disjoint
+ * expressions is to inline a value containing a let binding).
+ * So new names are generated for every identifier bound within [e]: *)
+let rec replace_final_expression_anonymously e e' =
   match e with
-  | E.E2 (Let _, def, body)
-  | E2 (LetPair _, def, body) ->
-      if E.has_side_effect def then
-        E.E0S (Seq, [ def ; replace_final_expression_anonymously body r ])
-      else
-        replace_final_expression_anonymously body r
-  | _ -> r
+  | E.E2 (Let (n, r), def, body) ->
+      let n' = E.gen_id n in
+      let rep =
+        E.map (function
+          | E.E0 (Identifier n0) when n0 = n -> E.E0 (Identifier n')
+          | e -> e) in
+      let body = rep body
+      and e' = rep e' in
+      let body = replace_final_expression_anonymously body e' in
+      E.E2 (Let (n', r), def, body)
+  | E2 (LetPair (n1, r1, n2, r2), def, body) ->
+      let n1' = E.gen_id n1
+      and n2' = E.gen_id n2 in
+      let rep =
+        E.map (function
+          | E.E0 (Identifier n0) when n0 = n1 -> E.E0 (Identifier n1')
+          | E.E0 (Identifier n0) when n0 = n2 -> E.E0 (Identifier n2')
+          | e -> e) in
+      let body = rep body in
+      let e' = rep e' in
+      let body = replace_final_expression_anonymously body e' in
+      E.E2 (LetPair (n1', r1, n2', r2), def, body)
+  | E0S (Seq, l) when l <> [] ->
+      let l', last = list_split_last l in
+      let last' = replace_final_expression_anonymously last e' in
+      if E.eq last last' then e
+      else E.E0S (Seq, l' @ [ last' ])
+  | _ ->
+      e'
 
 let rec peval l e =
   (* For when some operations are invalid on floats: *)
@@ -402,7 +434,7 @@ let rec peval l e =
       assert false (* Because of type_checking *)
   | E1 (op, e1) ->
       let e1 = p e1 in
-      let repl = repl (replace_final_expression e1) in
+      let repl1 = repl (replace_final_expression e1) in
       (match op, final_expression e1 with
       | Comment _, _ ->
           e1 (* FIXME: Would prevent further optimization *)
@@ -436,239 +468,240 @@ let rec peval l e =
               replace_final_expression e1 |> p)
       | GetAlt n, E1 (Construct (mns, i), e)
         when i < Array.length mns && fst mns.(i) = n ->
-          repl e
+          repl1 e
       | Ignore, f1 ->
-          if T.eq_mn (E.type_of l f1) T.void then repl f1
+          if T.eq_mn (E.type_of l f1) T.void then repl1 f1
           (* In theory any expression of type Void and with no side effect should
            * be disposed of. Ignore is the only way to build such an expression,
            * though, so it is enough to test this case only: *)
           else if not (E.has_side_effect e1) then nop
           else E1 (op, e1)
-      | IsNull, E0 (Null _) -> repl true_
-      | IsNull, E1 (NotNull, _) -> repl false_
+      | IsNull, E0 (Null _) -> repl1 true_
+      | IsNull, E1 (NotNull, _) -> repl1 false_
       | IsNull, _ ->
           if not (E.type_of l e1).T.nullable then false_
           else E.E1 (IsNull, e1)
-      | NotNull, E1 (Force _, e) -> repl e
+      | NotNull, E1 (Force _, e) -> repl1 e
       | NotNull, _ ->
           if (E.type_of l e1).T.nullable then e1
           else E.E1 (NotNull, e1)
-      | Force _, E1 (NotNull, e) -> repl e
-      | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl |> p
-      | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl |> p
-      | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl |> p
+      | Force _, E1 (NotNull, e) -> repl1 e
+      | Force _, E2 (Div, e1, e2) -> E.E2 (UnsafeDiv, e1, e2) |> repl1
+      | Force _, E2 (Rem, e1, e2) -> E.E2 (UnsafeRem, e1, e2) |> repl1
+      | Force _, E2 (Pow, e1, e2) -> E.E2 (UnsafePow, e1, e2) |> repl1
       | Force m, _ ->
           if not (E.type_of l e1).T.nullable then e1
           else E.E1 (Force m, e1)
-      | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n) |> repl
-      | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n) |> repl
-      | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n) |> repl
-      | StringOfInt, E0 (U32 n) -> string (Uint32.to_string n) |> repl
-      | StringOfInt, E0 (U40 n) -> string (Uint40.to_string n) |> repl
-      | StringOfInt, E0 (U48 n) -> string (Uint48.to_string n) |> repl
-      | StringOfInt, E0 (U56 n) -> string (Uint56.to_string n) |> repl
-      | StringOfInt, E0 (U64 n) -> string (Uint64.to_string n) |> repl
-      | StringOfInt, E0 (U128 n) -> string (Uint128.to_string n) |> repl
-      | StringOfInt, E0 (I8 n) -> string (Int8.to_string n) |> repl
-      | StringOfInt, E0 (I16 n) -> string (Int16.to_string n) |> repl
-      | StringOfInt, E0 (I24 n) -> string (Int24.to_string n) |> repl
-      | StringOfInt, E0 (I32 n) -> string (Int32.to_string n) |> repl
-      | StringOfInt, E0 (I40 n) -> string (Int40.to_string n) |> repl
-      | StringOfInt, E0 (I48 n) -> string (Int48.to_string n) |> repl
-      | StringOfInt, E0 (I56 n) -> string (Int56.to_string n) |> repl
-      | StringOfInt, E0 (I64 n) -> string (Int64.to_string n) |> repl
-      | StringOfInt, E0 (I128 n) -> string (Int128.to_string n) |> repl
+      | StringOfInt, E0 (U8 n) -> string (Uint8.to_string n) |> repl1
+      | StringOfInt, E0 (U16 n) -> string (Uint16.to_string n) |> repl1
+      | StringOfInt, E0 (U24 n) -> string (Uint24.to_string n) |> repl1
+      | StringOfInt, E0 (U32 n) -> string (Uint32.to_string n) |> repl1
+      | StringOfInt, E0 (U40 n) -> string (Uint40.to_string n) |> repl1
+      | StringOfInt, E0 (U48 n) -> string (Uint48.to_string n) |> repl1
+      | StringOfInt, E0 (U56 n) -> string (Uint56.to_string n) |> repl1
+      | StringOfInt, E0 (U64 n) -> string (Uint64.to_string n) |> repl1
+      | StringOfInt, E0 (U128 n) -> string (Uint128.to_string n) |> repl1
+      | StringOfInt, E0 (I8 n) -> string (Int8.to_string n) |> repl1
+      | StringOfInt, E0 (I16 n) -> string (Int16.to_string n) |> repl1
+      | StringOfInt, E0 (I24 n) -> string (Int24.to_string n) |> repl1
+      | StringOfInt, E0 (I32 n) -> string (Int32.to_string n) |> repl1
+      | StringOfInt, E0 (I40 n) -> string (Int40.to_string n) |> repl1
+      | StringOfInt, E0 (I48 n) -> string (Int48.to_string n) |> repl1
+      | StringOfInt, E0 (I56 n) -> string (Int56.to_string n) |> repl1
+      | StringOfInt, E0 (I64 n) -> string (Int64.to_string n) |> repl1
+      | StringOfInt, E0 (I128 n) -> string (Int128.to_string n) |> repl1
       | StringOfFloat, E0 (Float f) ->
-          string (FloatTools.hexstring_of_float f) |> repl
+          string (FloatTools.hexstring_of_float f) |> repl1
       | DecimalStringOfFloat, E0 (Float f) ->
-          string (FloatTools.string_of_float f) |> repl
-      | StringOfIp, E0 (U32 n) -> string (DessserIpTools.V4.to_string n) |> repl
-      | StringOfIp, E0 (U128 n) -> string (DessserIpTools.V6.to_string n) |> repl
-      | StringOfChar, E0 (Char c) -> string (String.of_char c) |> repl
-      | FloatOfString, E0 (String s) -> or_null_ (Base Float) float float_of_string s |> repl
-      | U8OfString, E0 (String s) -> or_null_ (Base U8) u8 Uint8.of_string s |> repl
-      | U16OfString, E0 (String s) -> or_null_ (Base U16) u16 Uint16.of_string s |> repl
-      | U24OfString, E0 (String s) -> or_null_ (Base U24) u24 Uint24.of_string s |> repl
-      | U32OfString, E0 (String s) -> or_null_ (Base U32) u32 Uint32.of_string s |> repl
-      | U40OfString, E0 (String s) -> or_null_ (Base U40) u40 Uint40.of_string s |> repl
-      | U48OfString, E0 (String s) -> or_null_ (Base U48) u48 Uint48.of_string s |> repl
-      | U56OfString, E0 (String s) -> or_null_ (Base U56) u56 Uint56.of_string s |> repl
-      | U64OfString, E0 (String s) -> or_null_ (Base U64) u64 Uint64.of_string s |> repl
-      | U128OfString, E0 (String s) -> or_null_ (Base U128) u128 Uint128.of_string s |> repl
-      | I8OfString, E0 (String s) -> or_null_ (Base I8) i8 Int8.of_string s |> repl
-      | I16OfString, E0 (String s) -> or_null_ (Base I16) i16 Int16.of_string s |> repl
-      | I24OfString, E0 (String s) -> or_null_ (Base I24) i24 Int24.of_string s |> repl
-      | I32OfString, E0 (String s) -> or_null_ (Base I32) i32 Int32.of_string s |> repl
-      | I40OfString, E0 (String s) -> or_null_ (Base I40) i40 Int40.of_string s |> repl
-      | I48OfString, E0 (String s) -> or_null_ (Base I48) i48 Int48.of_string s |> repl
-      | I56OfString, E0 (String s) -> or_null_ (Base I56) i56 Int56.of_string s |> repl
-      | I64OfString, E0 (String s) -> or_null_ (Base I64) i64 Int64.of_string s |> repl
-      | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s |> repl
-      | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0) |> repl
-      | BoolOfU8, E1 (U8OfBool, e) -> repl e
-      | U8OfChar, E0 (Char c) -> u8 (Uint8.of_int (Char.code c)) |> repl
-      | U8OfChar, E1 (CharOfU8, e) -> repl e
-      | U8OfBool, E0 (Bool false) -> u8 (Uint8.of_int 0) |> repl
-      | U8OfBool, E0 (Bool true) -> u8 (Uint8.of_int 1) |> repl
-      | U8OfBool, E1 (BoolOfU8, e) -> repl e
-      | CharOfU8, E0 (U8 n) -> char (Char.chr (Uint8.to_int n)) |> repl
-      | CharOfU8, E1 (U8OfChar, e) -> repl e
-      | U32OfSize, E0 (Size n) -> u32 (Uint32.of_int n) |> repl
-      | U32OfSize, E1 (SizeOfU32, e) -> repl e
-      | SizeOfU32, E0 (U32 n) -> size (Uint32.to_int n) |> repl
-      | SizeOfU32, E1 (U32OfSize, e) -> repl e
-      | U64OfAddress, E0 (Address n) -> u64 n |> repl
-      | U64OfAddress, E1 (AddressOfU64, e) -> repl e
-      | AddressOfU64, E0 (U64 n) -> address n |> repl
-      | AddressOfU64, E1 (U64OfAddress, e) -> repl e
-      | Head, E2 (Cons, e, _) -> repl e
+          string (FloatTools.string_of_float f) |> repl1
+      | StringOfIp, E0 (U32 n) -> string (DessserIpTools.V4.to_string n) |> repl1
+      | StringOfIp, E0 (U128 n) -> string (DessserIpTools.V6.to_string n) |> repl1
+      | StringOfChar, E0 (Char c) -> string (String.of_char c) |> repl1
+      | FloatOfString, E0 (String s) -> or_null_ (Base Float) float float_of_string s |> repl1
+      | U8OfString, E0 (String s) -> or_null_ (Base U8) u8 Uint8.of_string s |> repl1
+      | U16OfString, E0 (String s) -> or_null_ (Base U16) u16 Uint16.of_string s |> repl1
+      | U24OfString, E0 (String s) -> or_null_ (Base U24) u24 Uint24.of_string s |> repl1
+      | U32OfString, E0 (String s) -> or_null_ (Base U32) u32 Uint32.of_string s |> repl1
+      | U40OfString, E0 (String s) -> or_null_ (Base U40) u40 Uint40.of_string s |> repl1
+      | U48OfString, E0 (String s) -> or_null_ (Base U48) u48 Uint48.of_string s |> repl1
+      | U56OfString, E0 (String s) -> or_null_ (Base U56) u56 Uint56.of_string s |> repl1
+      | U64OfString, E0 (String s) -> or_null_ (Base U64) u64 Uint64.of_string s |> repl1
+      | U128OfString, E0 (String s) -> or_null_ (Base U128) u128 Uint128.of_string s |> repl1
+      | I8OfString, E0 (String s) -> or_null_ (Base I8) i8 Int8.of_string s |> repl1
+      | I16OfString, E0 (String s) -> or_null_ (Base I16) i16 Int16.of_string s |> repl1
+      | I24OfString, E0 (String s) -> or_null_ (Base I24) i24 Int24.of_string s |> repl1
+      | I32OfString, E0 (String s) -> or_null_ (Base I32) i32 Int32.of_string s |> repl1
+      | I40OfString, E0 (String s) -> or_null_ (Base I40) i40 Int40.of_string s |> repl1
+      | I48OfString, E0 (String s) -> or_null_ (Base I48) i48 Int48.of_string s |> repl1
+      | I56OfString, E0 (String s) -> or_null_ (Base I56) i56 Int56.of_string s |> repl1
+      | I64OfString, E0 (String s) -> or_null_ (Base I64) i64 Int64.of_string s |> repl1
+      | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s |> repl1
+      | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0) |> repl1
+      | BoolOfU8, E1 (U8OfBool, e) -> repl1 e
+      | U8OfChar, E0 (Char c) -> u8 (Uint8.of_int (Char.code c)) |> repl1
+      | U8OfChar, E1 (CharOfU8, e) -> repl1 e
+      | U8OfBool, E0 (Bool false) -> u8 (Uint8.of_int 0) |> repl1
+      | U8OfBool, E0 (Bool true) -> u8 (Uint8.of_int 1) |> repl1
+      | U8OfBool, E1 (BoolOfU8, e) -> repl1 e
+      | CharOfU8, E0 (U8 n) -> char (Char.chr (Uint8.to_int n)) |> repl1
+      | CharOfU8, E1 (U8OfChar, e) -> repl1 e
+      | U32OfSize, E0 (Size n) -> u32 (Uint32.of_int n) |> repl1
+      | U32OfSize, E1 (SizeOfU32, e) -> repl1 e
+      | SizeOfU32, E0 (U32 n) -> size (Uint32.to_int n) |> repl1
+      | SizeOfU32, E1 (U32OfSize, e) -> repl1 e
+      | U64OfAddress, E0 (Address n) -> u64 n |> repl1
+      | U64OfAddress, E1 (AddressOfU64, e) -> repl1 e
+      | AddressOfU64, E0 (U64 n) -> address n |> repl1
+      | AddressOfU64, E1 (U64OfAddress, e) -> repl1 e
+      | Head, E2 (Cons, e, _) -> repl1 e
       (* | Tail, E0 (EndOfList _) -> TODO: return Null *)
-      | Tail, E2 (Cons, _, e) -> repl e |> p
-      | MaskGet _, (E0 (CopyField | SkipField | SetFieldNull) as m) -> repl m
-      | LabelOf, E1 (Construct (_, i), _) -> u16 (Uint16.of_int i) |> repl
+      | Tail, E2 (Cons, _, e) -> repl1 e |> p
+      | MaskGet _, (E0 (CopyField | SkipField | SetFieldNull) as m) -> repl1 m
+      | LabelOf, E1 (Construct (_, i), _) -> u16 (Uint16.of_int i) |> repl1
       | FloatOfU64, E0 (U64 n) ->
-          float (BatInt64.float_of_bits (Uint64.to_int64 n)) |> repl
-      | FloatOfU64, E1 (U64OfFloat, e) -> repl e
+          float (BatInt64.float_of_bits (Uint64.to_int64 n)) |> repl1
+      | FloatOfU64, E1 (U64OfFloat, e) -> repl1 e
       | U64OfFloat, E0 (Float f) ->
-          u64 (Uint64.of_int64 (BatInt64.bits_of_float f)) |> repl
-      | U64OfFloat, E1 (FloatOfU64, e) -> repl e
-      | Not, E0 (Bool b) -> bool (not b) |> repl
-      | Not, E1 (Not, e) -> repl e
+          u64 (Uint64.of_int64 (BatInt64.bits_of_float f)) |> repl1
+      | U64OfFloat, E1 (FloatOfU64, e) -> repl1 e
+      | Not, E0 (Bool b) -> bool (not b) |> repl1
+      | Not, E1 (Not, e) -> repl1 e
       (* Shorten cascades of converters: *)
       | ToI8, E1 ((ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
                    ToI64 | ToI128), e) ->
-          E.E1 (ToI8, e) |> repl
+          E.E1 (ToI8, e) |> repl1
       | ToI16, E1 ((ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToI16, e) |> repl
+          E.E1 (ToI16, e) |> repl1
       | ToI24, E1 ((ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToI24, e) |> repl
+          E.E1 (ToI24, e) |> repl1
       | ToI32, E1 ((ToI32 | ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToI32, e) |> repl
+          E.E1 (ToI32, e) |> repl1
       | ToI40, E1 ((ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToI40, e) |> repl
+          E.E1 (ToI40, e) |> repl1
       | ToI48, E1 ((ToI48 | ToI56 | ToI64 | ToI128), e) ->
-          E.E1 (ToI48, e) |> repl
+          E.E1 (ToI48, e) |> repl1
       | ToI56, E1 ((ToI56 | ToI64 | ToI128), e) ->
-          E.E1 (ToI56, e) |> repl
+          E.E1 (ToI56, e) |> repl1
       | ToI64, E1 ((ToI64 | ToI128), e) ->
-          E.E1 (ToI64, e) |> repl
+          E.E1 (ToI64, e) |> repl1
       | ToI128, E1 (ToI128, e) ->
-          E.E1 (ToI128, e) |> repl
+          E.E1 (ToI128, e) |> repl1
       | ToU8, E1 ((ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 |
                    ToU64 | ToU128 |
                    ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
                    ToI64 | ToI128), e) ->
-          E.E1 (ToU8, e) |> repl
+          E.E1 (ToU8, e) |> repl1
       | ToU16, E1 ((ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 |
                     ToU64 | ToU128 |
                     ToI24 | ToI32 | ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU16, e) |> repl
+          E.E1 (ToU16, e) |> repl1
       | ToU24, E1 ((ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
                     ToI32 | ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU24, e) |> repl
+          E.E1 (ToU24, e) |> repl1
       | ToU32, E1 ((ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
                     ToI40 | ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU32, e) |> repl
+          E.E1 (ToU32, e) |> repl1
       | ToU40, E1 ((ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
                     ToI48 | ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU40, e) |> repl
+          E.E1 (ToU40, e) |> repl1
       | ToU48, E1 ((ToU48 | ToU56 | ToU64 | ToU128 |
                     ToI56 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU48, e) |> repl
+          E.E1 (ToU48, e) |> repl1
       | ToU56, E1 ((ToU56 | ToU64 | ToU128 |
                     ToI64 | ToI128), e) ->
-          E.E1 (ToU56, e) |> repl
+          E.E1 (ToU56, e) |> repl1
       | ToU64, E1 ((ToU64 | ToU128 | ToI128), e) ->
-          E.E1 (ToU64, e) |> repl
+          E.E1 (ToU64, e) |> repl1
       | ToU128, E1 (ToU128, e) ->
-          E.E1 (ToU128, e) |> repl
+          E.E1 (ToU128, e) |> repl1
       | ToFloat, E1 (ToFloat, e) ->
-          E.E1 (ToFloat, e) |> repl
+          E.E1 (ToFloat, e) |> repl1
       (* Evaluate conversions *)
-      | ToI8, e -> to_int ToI8 e i8 Int8.of_int128 |> repl
-      | ToI16, e -> to_int ToI16 e i16 Int16.of_int128 |> repl
-      | ToI24, e -> to_int ToI24 e i24 Int24.of_int128 |> repl
-      | ToI32, e -> to_int ToI32 e i32 Int32.of_int128 |> repl
-      | ToI40, e -> to_int ToI40 e i40 Int40.of_int128 |> repl
-      | ToI48, e -> to_int ToI48 e i48 Int48.of_int128 |> repl
-      | ToI56, e -> to_int ToI56 e i56 Int56.of_int128 |> repl
-      | ToI64, e -> to_int ToI64 e i64 Int64.of_int128 |> repl
-      | ToI128, e -> to_int ToI128 e i128 Int128.of_int128 |> repl
-      | ToU8, e -> to_uint ToU8 e u8 Uint8.of_uint128 |> repl
-      | ToU16, e -> to_uint ToU16 e u16 Uint16.of_uint128 |> repl
-      | ToU24, e -> to_uint ToU24 e u24 Uint24.of_uint128 |> repl
-      | ToU32, e -> to_uint ToU32 e u32 Uint32.of_uint128 |> repl
-      | ToU40, e -> to_uint ToU40 e u40 Uint40.of_uint128 |> repl
-      | ToU48, e -> to_uint ToU48 e u48 Uint48.of_uint128 |> repl
-      | ToU56, e -> to_uint ToU56 e u56 Uint56.of_uint128 |> repl
-      | ToU64, e -> to_uint ToU64 e u64 Uint64.of_uint128 |> repl
-      | ToU128, e -> to_uint ToU128 e u128 Uint128.of_uint128 |> repl
-      | ToFloat, e -> peval_to_float e |> repl
+      | ToI8, e -> to_int ToI8 e i8 Int8.of_int128 |> repl1
+      | ToI16, e -> to_int ToI16 e i16 Int16.of_int128 |> repl1
+      | ToI24, e -> to_int ToI24 e i24 Int24.of_int128 |> repl1
+      | ToI32, e -> to_int ToI32 e i32 Int32.of_int128 |> repl1
+      | ToI40, e -> to_int ToI40 e i40 Int40.of_int128 |> repl1
+      | ToI48, e -> to_int ToI48 e i48 Int48.of_int128 |> repl1
+      | ToI56, e -> to_int ToI56 e i56 Int56.of_int128 |> repl1
+      | ToI64, e -> to_int ToI64 e i64 Int64.of_int128 |> repl1
+      | ToI128, e -> to_int ToI128 e i128 Int128.of_int128 |> repl1
+      | ToU8, e -> to_uint ToU8 e u8 Uint8.of_uint128 |> repl1
+      | ToU16, e -> to_uint ToU16 e u16 Uint16.of_uint128 |> repl1
+      | ToU24, e -> to_uint ToU24 e u24 Uint24.of_uint128 |> repl1
+      | ToU32, e -> to_uint ToU32 e u32 Uint32.of_uint128 |> repl1
+      | ToU40, e -> to_uint ToU40 e u40 Uint40.of_uint128 |> repl1
+      | ToU48, e -> to_uint ToU48 e u48 Uint48.of_uint128 |> repl1
+      | ToU56, e -> to_uint ToU56 e u56 Uint56.of_uint128 |> repl1
+      | ToU64, e -> to_uint ToU64 e u64 Uint64.of_uint128 |> repl1
+      | ToU128, e -> to_uint ToU128 e u128 Uint128.of_uint128 |> repl1
+      | ToFloat, e -> peval_to_float e |> repl1
       | Abs, f1 ->
-          (try arith1 f1 abs_float Int128.abs Uint128.abs |> repl
+          (try arith1 f1 abs_float Int128.abs Uint128.abs |> repl1
           with Invalid_argument _ -> E.E1 (Abs, e1))
       | Neg, f1 ->
-          (try arith1 f1 (~-.) Int128.neg Uint128.neg |> repl
+          (try arith1 f1 (~-.) Int128.neg Uint128.neg |> repl1
           with Invalid_argument _ -> E.E1 (Neg, e1))
-      | StringOfBytes, E0 (Bytes v) -> string (Bytes.to_string v) |> repl
-      | StringOfBytes, E1 (BytesOfString, e) -> repl e
-      | BytesOfString, E0 (String s) -> bytes (Bytes.of_string s) |> repl
-      | BytesOfString, E1 (StringOfBytes, e) -> repl e
-      | Exp, E0 (Float n) -> float (exp n) |> repl
-      | Log, E0 (Float n) -> nullable_of_nan (log n) |> repl
+      | StringOfBytes, E0 (Bytes v) -> string (Bytes.to_string v) |> repl1
+      | StringOfBytes, E1 (BytesOfString, e) -> repl1 e
+      | BytesOfString, E0 (String s) -> bytes (Bytes.of_string s) |> repl1
+      | BytesOfString, E1 (StringOfBytes, e) -> repl1 e
+      | Exp, E0 (Float n) -> float (exp n) |> repl1
+      | Log, E0 (Float n) -> nullable_of_nan (log n) |> repl1
       | Log, e when known_positive ~strict:true e ->
-          not_null (E1 (UnsafeLog, e)) |> repl
-      | UnsafeLog, E0 (Float n) -> float (log n) |> repl
-      | Log10, E0 (Float n) -> nullable_of_nan (log10 n) |> repl
+          not_null (E1 (UnsafeLog, e)) |> repl1
+      | UnsafeLog, E0 (Float n) -> float (log n) |> repl1
+      | Log10, E0 (Float n) -> nullable_of_nan (log10 n) |> repl1
       | Log10, e when known_positive ~strict:true e ->
-          not_null (E1 (UnsafeLog10, e)) |> repl
-      | UnsafeLog10, E0 (Float n) -> float (log10 n) |> repl
-      | Sqrt, E0 (Float n) -> nullable_of_nan (sqrt n) |> repl
+          not_null (E1 (UnsafeLog10, e)) |> repl1
+      | UnsafeLog10, E0 (Float n) -> float (log10 n) |> repl1
+      | Sqrt, E0 (Float n) -> nullable_of_nan (sqrt n) |> repl1
       | Sqrt, e when known_positive ~strict:false e ->
-          not_null (E1 (UnsafeSqrt, e)) |> repl
-      | UnsafeSqrt, E0 (Float n) -> float (sqrt n) |> repl
-      | Ceil, E0 (Float n) -> float (ceil n) |> repl
-      | Floor, E0 (Float n) -> float (floor n) |> repl
-      | Round, E0 (Float n) -> float (Float.round n) |> repl
-      | Cos, E0 (Float n) -> float (cos n) |> repl
-      | Sin, E0 (Float n) -> float (sin n) |> repl
-      | Tan, E0 (Float n) -> nullable_of_nan (tan n) |> repl
-      | ACos, E0 (Float n) -> nullable_of_nan (acos n) |> repl
-      | ASin, E0 (Float n) -> nullable_of_nan (asin n) |> repl
-      | ATan, E0 (Float n) -> float (atan n) |> repl
-      | CosH, E0 (Float n) -> float (cosh n) |> repl
-      | SinH, E0 (Float n) -> float (sinh n) |> repl
-      | TanH, E0 (Float n) -> float (tanh n) |> repl
-      | Lower, E0 (String s) -> string (String.lowercase_ascii s) |> repl
-      | Upper, E0 (String s) -> string (String.uppercase_ascii s) |> repl
-      | StringLength, E0 (String s) -> u32_of_int (String.length s) |> repl
+          not_null (E1 (UnsafeSqrt, e)) |> repl1
+      | UnsafeSqrt, E0 (Float n) -> float (sqrt n) |> repl1
+      | Ceil, E0 (Float n) -> float (ceil n) |> repl1
+      | Floor, E0 (Float n) -> float (floor n) |> repl1
+      | Round, E0 (Float n) -> float (Float.round n) |> repl1
+      | Cos, E0 (Float n) -> float (cos n) |> repl1
+      | Sin, E0 (Float n) -> float (sin n) |> repl1
+      | Tan, E0 (Float n) -> nullable_of_nan (tan n) |> repl1
+      | ACos, E0 (Float n) -> nullable_of_nan (acos n) |> repl1
+      | ASin, E0 (Float n) -> nullable_of_nan (asin n) |> repl1
+      | ATan, E0 (Float n) -> float (atan n) |> repl1
+      | CosH, E0 (Float n) -> float (cosh n) |> repl1
+      | SinH, E0 (Float n) -> float (sinh n) |> repl1
+      | TanH, E0 (Float n) -> float (tanh n) |> repl1
+      | Lower, E0 (String s) -> string (String.lowercase_ascii s) |> repl1
+      | Upper, E0 (String s) -> string (String.uppercase_ascii s) |> repl1
+      | StringLength, E0 (String s) -> u32_of_int (String.length s) |> repl1
       | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
-          u32_of_int 1 |> repl
+          u32_of_int 1 |> repl1
       | Cardinality, E0S ((MakeVec | MakeArr _), es) ->
-          u32_of_int (List.length es) |> repl
+          u32_of_int (List.length es) |> repl1
       | Cardinality, E1 (AllocVec d, _) ->
           u32_of_int d
       | Cardinality, E0 (EndOfList _ | EmptySet _)
       | Cardinality, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
                           HashTable _ | Heap), _)
       | Cardinality, E3 (Top _, _, _, _) ->
-          u32_of_int 0 |> repl
-      | Assert, E0 (Bool true) -> repl nop
+          u32_of_int 0 |> repl1
+      | Assert, E0 (Bool true) -> repl1 nop
       | BitNot, f1 ->
-          (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl
+          (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl1
           with Invalid_argument _ -> E.E1 (BitNot, e1))
       | AllocVec 1, _ ->
           make_vec [ e1 ] |> p
-      | op, _ -> E.E1 (op, e1))
+      | op, _ ->
+          E.E1 (op, e1))
   | E1S (Apply, e1, es) ->
       let e1 = p e1 in
       let es = List.map p es in
@@ -876,7 +909,7 @@ let rec peval l e =
       (* Keep the side effects that may hide in [repl1], and use [p] to
        * simplify. Beware that this could create shadowing so use the
        * special `replace_final_expression_anonymously`. *)
-      let repl =
+      let repl12 =
         repl (replace_final_expression_anonymously e1 %
               replace_final_expression_anonymously e2) in
       (match op, final_expression e1, final_expression e2 with
@@ -909,18 +942,18 @@ let rec peval l e =
           p (* Will simplify further if e1 is known *)
       | Nth, idx, E0 (String s) ->
           let def = E.E2 (Nth, e1, e2) in
-          if String.length s = 0 then null (Base Char) |> repl
+          if String.length s = 0 then null (Base Char) |> repl12
           else (match E.to_cst_int idx with
           | exception _ -> def
-          | idx when idx < String.length s -> not_null (char s.[idx]) |> repl
+          | idx when idx < String.length s -> not_null (char s.[idx]) |> repl12
           | _ -> def)
       | Nth, idx, E0 (Bytes s) ->
           let def = E.E2 (Nth, e1, e2) in
-          if Bytes.length s = 0 then null (Base U8) |> repl
+          if Bytes.length s = 0 then null (Base U8) |> repl12
           else (match E.to_cst_int idx with
           | exception _ -> def
           | idx when idx < Bytes.length s ->
-              not_null (u8_of_const_char (Bytes.get s idx)) |> repl
+              not_null (u8_of_const_char (Bytes.get s idx)) |> repl12
           | _ -> def)
       (* Peel away some common wrappers: *)
       | Eq, E1 (NotNull, f1), E1 (NotNull, f2)
@@ -930,7 +963,7 @@ let rec peval l e =
        * anything that's NotNull: *)
       | Eq, E0 (Null _), E1 (NotNull, _)
       | Eq, E1 (NotNull, _), E0 (Null _) ->
-          repl false_
+          repl12 false_
       | Gt, f1, f2 ->
           (try
             comp2 f1 f2 (fun a b -> bool (a > b))
@@ -968,29 +1001,29 @@ let rec peval l e =
           | Add, f2_0, f2_1 ->
               (try E.E2 (Add, arith2 f1 f2_0 (+.) Int128.add Uint128.add, e2_2) |>
                    replace_final_expression_anonymously e2_1 |>
-                   repl
+                   repl12
               with Invalid_argument _ ->
                 (try E.E2 (Add, e2_1, arith2 f1 f2_1 (+.) Int128.add Uint128.add) |>
                      replace_final_expression_anonymously e2_2 |>
-                     repl
+                     repl12
                 with Invalid_argument _ ->
                   def))
             | _ -> (* TODO: other operators that we can combine with Add *)
                 def)
       | Add, f1, f2 ->
-          (try arith2 f1 f2 (+.) Int128.add Uint128.add |> repl
+          (try arith2 f1 f2 (+.) Int128.add Uint128.add |> repl12
           with Invalid_argument _ -> E.E2 (Add, e1, e2))
       | Sub, f1, f2 ->
-          (try arith2 f1 f2 (-.) Int128.sub Uint128.sub |> repl
+          (try arith2 f1 f2 (-.) Int128.sub Uint128.sub |> repl12
           with Invalid_argument _ -> E.E2 (Sub, e1, e2))
       | Mul, f1, f2 ->
-          (try arith2 f1 f2 ( *.) Int128.mul Uint128.mul |> repl
+          (try arith2 f1 f2 ( *.) Int128.mul Uint128.mul |> repl12
           with Invalid_argument _ -> E.E2 (Mul, e1, e2))
       | (Div | Rem as op), E0 (Float a), E0 (Float b) ->
           (try
             let v = if op = Div then a /. b else Stdlib.Float.rem a b in
             nullable_of_nan v
-          with Division_by_zero -> null (Base Float)) |> repl
+          with Division_by_zero -> null (Base Float)) |> repl12
       | (Div | Rem as op), f1, f2 ->
           (match arith2 f1 f2
                         (if op = Div then (/.) else (mod_float))
@@ -1000,30 +1033,30 @@ let rec peval l e =
               E.E2 (op, e1, e2)
           | exception Division_by_zero ->
               (* Tried to compute, but could not: *)
-              null (E.type_of l f1).T.typ |> repl
+              null (E.type_of l f1).T.typ |> repl12
           | e ->
               (* Did replace by the result, make it nullable: *)
-              not_null e |> repl)
+              not_null e |> repl12)
       | (UnsafeDiv | UnsafeRem as op), E0 (Float a), E0 (Float b) ->
           let def = E.E2 (op, e1, e2) in
           (try
             let v = if op = Div then a /. b else Stdlib.Float.rem a b in
-            if is_nan v then def else repl (float v)
+            if is_nan v then def else repl12 (float v)
           with Division_by_zero -> def)
       | (UnsafeDiv | UnsafeRem as op), f1, f2 ->
           (try arith2 f1 f2
                       (if op = Div then (/.) else (mod_float))
                       (if op = Div then Int128.div else Int128.rem)
-                      (if op = Div then Uint128.div else Uint128.rem) |> repl
+                      (if op = Div then Uint128.div else Uint128.rem) |> repl12
           with Invalid_argument _ | Division_by_zero -> E.E2 (op, e1, e2))
       | Pow, E0 (Float a), E0 (Float b) ->
-          nullable_of_nan (a ** b) |> repl
+          nullable_of_nan (a ** b) |> repl12
       | Pow, E0 (I32 a), E0 (I32 b) ->
           (try not_null (i32 (BatInt32.pow a b))
-          with Invalid_argument _ -> null (Base I32)) |> repl
+          with Invalid_argument _ -> null (Base I32)) |> repl12
       | Pow, E0 (I64 a), E0 (I64 b) ->
           (try not_null (i64 (BatInt64.pow a b))
-          with Invalid_argument _ -> null (Base I64)) |> repl
+          with Invalid_argument _ -> null (Base I64)) |> repl12
       | Pow, f1, f2 ->
           (match float_of_num f1, float_of_num f2 with
           | exception _ ->
@@ -1032,15 +1065,15 @@ let rec peval l e =
               let from = T.(Base Float) in
               let to_ = T.(E.type_of l f1).typ in
               (try not_null (fst (C.conv ~from ~to_ (float (a ** b))))
-              with _ -> null to_ |> repl))
+              with _ -> null to_ |> repl12))
       | UnsafePow, E0 (Float a), E0 (Float b) ->
           let v = a ** b in
-          if is_nan v then E.E2 (UnsafePow, e1, e2) else repl (float a)
+          if is_nan v then E.E2 (UnsafePow, e1, e2) else repl12 (float a)
       | UnsafePow, E0 (I32 a), E0 (I32 b) ->
-          (try i32 (BatInt32.pow a b) |> repl
+          (try i32 (BatInt32.pow a b) |> repl12
           with Invalid_argument _ -> E2 (UnsafePow, e1, e2))
       | UnsafePow, E0 (I64 a), E0 (I64 b) ->
-          (try i64 (BatInt64.pow a b) |> repl
+          (try i64 (BatInt64.pow a b) |> repl12
           with Invalid_argument _ -> E2 (UnsafePow, e1, e2))
       | UnsafePow, f1, f2 ->
           let def = E.E2 (UnsafePow, e1, e2) in
@@ -1050,32 +1083,30 @@ let rec peval l e =
           | a, b ->
               let from = T.(Base Float) in
               let to_ = T.(E.type_of l f1).typ in
-              (try fst (C.conv ~from ~to_ (float (a ** b))) |> repl
+              (try fst (C.conv ~from ~to_ (float (a ** b))) |> repl12
               with _ -> def))
       | PtrAdd, E2 (PtrAdd, e1_1, e1_2), _ ->
           E.E2 (PtrAdd, e1_1, E.E2 (Add, e1_2, e2)) |>
-          replace_final_expression_anonymously e1 |>
-          repl
+          repl (replace_final_expression_anonymously e1)
       | PtrAdd, _, E0 (Size 0) ->
           replace_final_expression_anonymously e2 e1
       | Rewind, E2 (Rewind, e1_1, e1_2), _ ->
           E.E2 (Rewind, e1_1, E.E2 (Add, e1_2, e2)) |>
-          replace_final_expression_anonymously e1 |>
-          repl
+          repl (replace_final_expression_anonymously e1)
       | Rewind, _, E0 (Size 0) ->
           replace_final_expression_anonymously e2 e1
       | BitAnd, f1, f2 ->
-          (try arith2 f1 f2 no_floats Int128.logand Uint128.logand |> repl
+          (try arith2 f1 f2 no_floats Int128.logand Uint128.logand |> repl12
           with Invalid_argument _ -> E.E2 (BitAnd, e1, e2))
       | BitOr, f1, f2 ->
-          (try arith2 f1 f2 no_floats Int128.logor Uint128.logor |> repl
+          (try arith2 f1 f2 no_floats Int128.logor Uint128.logor |> repl12
           with Invalid_argument _ -> E.E2 (BitOr, e1, e2))
       | BitXor, f1, f2 ->
-          (try arith2 f1 f2 no_floats Int128.logxor Uint128.logxor |> repl
+          (try arith2 f1 f2 no_floats Int128.logxor Uint128.logxor |> repl12
           with Invalid_argument _ -> E.E2 (BitXor, e1, e2))
       | LeftShift, E0 (U128 x), E0 (U8 n) ->
           let n = Uint8.to_int n in
-          u128 (Uint128.shift_left x n) |> repl
+          u128 (Uint128.shift_left x n) |> repl12
       | LeftShift, f1, E0 (U8 n) ->
           (match to_i128 f1 with
           | exception _ -> E2 (LeftShift, e1, e2)
@@ -1083,10 +1114,10 @@ let rec peval l e =
               let n = Uint8.to_int n in
               let from = T.(Base I128) in
               let to_ = T.(E.type_of l e1).typ in
-              fst (C.conv ~from ~to_ (i128 (Int128.shift_left x n))) |> repl)
+              fst (C.conv ~from ~to_ (i128 (Int128.shift_left x n))) |> repl12)
       | RightShift, E0 (U128 x), E0 (U8 n) ->
           let n = Uint8.to_int n in
-          u128 (Uint128.shift_right x n) |> repl
+          u128 (Uint128.shift_right x n) |> repl12
       | RightShift, f1, E0 (U8 n) ->
           (match to_i128 f1 with
           | exception _ -> E2 (RightShift, e1, e2)
@@ -1094,7 +1125,7 @@ let rec peval l e =
               let n = Uint8.to_int n in
               let from = T.(Base I128) in
               let to_ = T.(E.type_of l f1).typ in
-              fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl)
+              fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl12)
       | Join, E0 (String s1), E0S (MakeVec, ss) ->
           (try
             (* TODO: we could join only some of the strings *)
@@ -1103,7 +1134,7 @@ let rec peval l e =
               | _ -> raise Exit
             ) ss |>
             String.join s1 |>
-            string |> repl
+            string |> repl12
           with Exit ->
             E2 (Join, e1, e2))
       | And, E0 (Bool true), _ -> keep2 ()
@@ -1119,7 +1150,7 @@ let rec peval l e =
       (* Those are created empty: *)
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) ->
-          bool false |> repl
+          bool false |> repl12
       | AllocArr, f1, f2 ->
           let def = E.E2 (AllocArr, e1, e2) in
           let mn = E.type_of l f2 in
@@ -1127,9 +1158,9 @@ let rec peval l e =
           | exception _ ->
               def
           | 0 ->
-              make_arr mn [] |> repl
+              make_arr mn [] |> repl12
 (*          | 1 ->
-              make_arr mn [ e2 ] |> replace_final_expression_anonymously e1 |> p*)
+              make_arr mn [ e2 ] |> repl (replace_final_expression_anonymously e1) *)
           | _ ->
               def)
       | PartialSort, _, E0S ((MakeVec | MakeArr _), []) ->
@@ -1140,31 +1171,31 @@ let rec peval l e =
           String.split_on_string s1 s2 |>
           List.map string |>
           make_arr T.(required (Base String)) |>
-          repl
+          repl12
       | SplitAt, f1, E0 (String s) ->
           let def = E.E2 (SplitAt, e1, e2) in
           (try
             let i = E.to_cst_int f1 in
             make_tup
               [ string (String.sub s 0 i) ;
-                string (String.sub s i (String.length s - i)) ] |> repl
+                string (String.sub s i (String.length s - i)) ] |> repl12
           with _ ->
             def)
       | AppendBytes, E0 (Bytes b1), E0 (Bytes b2) ->
-          bytes (Bytes.cat b1 b2) |> repl
+          bytes (Bytes.cat b1 b2) |> repl12
       | AppendBytes, E0 (Bytes b), _ when Bytes.length b = 0 -> keep2 ()
       | AppendBytes, _, E0 (Bytes b) when Bytes.length b = 0 -> keep1 ()
       | AppendString, E0 (String s1), E0 (String s2) ->
-          string (s1 ^ s2) |> repl
+          string (s1 ^ s2) |> repl12
       | AppendString, E0 (String ""), _ -> keep2 ()
       | AppendString, _, E0 (String "") -> keep1 ()
       | StartsWith, E0 (String s1), E0 (String s2) ->
-          bool (String.starts_with s1 s2) |> repl
+          bool (String.starts_with s1 s2) |> repl12
       | EndsWith, E0 (String s1), E0 (String s2) ->
-          bool (String.ends_with s1 s2) |> repl
+          bool (String.ends_with s1 s2) |> repl12
       | Cons, E1 (Head, l1), E1 (Tail, l2)
         when E.eq l1 l2 && not (E.has_side_effect l1) ->
-          repl l1
+          repl12 l1
       (* Cannot be truncated further: *)
       | ChopBegin, E0S (MakeArr _, []), _ -> keep1 ()
       | ChopBegin, E0S (MakeArr mn, items), n ->
@@ -1174,7 +1205,7 @@ let rec peval l e =
           | n ->
               E.E0S (MakeArr mn, List.drop n items) |>
               replace_final_expression e1 |>
-              replace_final_expression_anonymously e2)
+              repl (replace_final_expression_anonymously e2))
       | ChopBegin, _, n ->
           let def = E.E2 (ChopBegin, e1, e2) in
           (match E.to_cst_int n with
@@ -1191,11 +1222,11 @@ let rec peval l e =
           | n ->
               let l = List.length items in
               (if n >= l then
-                E.E0S (MakeArr mn, []) |> repl
+                E.E0S (MakeArr mn, []) |> repl12
               else
                 E.E0S (MakeArr mn, List.take (l - n) items)) |>
                 replace_final_expression e1 |>
-                replace_final_expression_anonymously e2)
+                repl (replace_final_expression_anonymously e2))
       | ChopEnd, _, n ->
           let def = E.E2 (ChopEnd, e1, e2) in
           (match E.to_cst_int n with
@@ -1204,12 +1235,11 @@ let rec peval l e =
           | _ -> def)
       | While, E0 (Bool false), _ ->
           replace_final_expression_anonymously e2 nop |>
-          replace_final_expression_anonymously e1
+          repl (replace_final_expression_anonymously e1)
       | Index, E0 (Char c), E0 (String s) ->
           (try not_null (u32_of_int (String.index s c))
           with Not_found -> null (Base U32)) |>
-          replace_final_expression_anonymously e2 |>
-          replace_final_expression_anonymously e1
+          repl12
       | op, _, _ -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
       let e1 = p e1
@@ -1217,7 +1247,7 @@ let rec peval l e =
       and e3 = p e3 in
       let repl1 = repl (replace_final_expression e1)
       and repl3 = repl (replace_final_expression e3) in
-      let repl =
+      let repl123 =
         repl (replace_final_expression_anonymously e1 %
               replace_final_expression_anonymously e2 %
               replace_final_expression_anonymously e3) in
@@ -1277,7 +1307,7 @@ let rec peval l e =
             replace_final_expression_anonymously e3 |>
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
-            null T.(Base U24) |> repl)
+            null T.(Base U24) |> repl123)
       | SetVec, f1, (E.E0S ((MakeVec | MakeArr _) as op, [ _ ])), _ ->
           let def = E.E3 (SetVec, e1, e2, e3) in
           (match E.to_cst_int f1 with
