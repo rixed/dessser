@@ -2510,7 +2510,9 @@ let depends_on_side_effect e =
   has_side_effect e ||
   try
     iter (function
-      | E2 ((Nth | UnsafeNth), _, _) -> (* Only GetVec really (FIXME) *)
+      | E0S ((MakeVec | MakeArr _), _::_) (* Because those are mutable: *)
+      | E2 ((Nth | UnsafeNth), _, _) (* Only GetVec really (FIXME) *)
+      | E2 ((PeekU8 | PeekU16 _ | PeekU32 _ | PeekU64 _ | PeekU128 _), _, _) ->
           raise Exit
       | _ ->
           ()
@@ -2525,8 +2527,8 @@ let can_duplicate e =
     iter (function
       (* Although not exactly a side effect, those functions produce a copy of
        * a given pointer that are then mutable and which address is used in
-       * comparisons *)
-      | E0S ((MakeVec | MakeArr _ | MakeTup | MakeRec | MakeUsr _), _)
+       * comparisons (exception: empty things are not mutable): *)
+      | E0S ((MakeVec | MakeArr _ | MakeTup | MakeRec | MakeUsr _), _::_)
       | E1 ((PtrOfString | PtrOfBuffer), _)
       | E2 (PtrOfAddress, _, _)
       | E3 (PtrOfPtr, _, _, _)
