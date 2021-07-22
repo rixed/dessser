@@ -61,7 +61,7 @@ struct
   let rec_cls () _ _ src = src
   let rec_sep () _ _ src = src
   let sum_opn _ () _ _ src = src
-  let sum_cls () _ _ src = src
+  let sum_cls _ () _ _ src = src
   let vec_opn _ _ () _ _ src = src
   let vec_cls () _ _ src = src
   let vec_sep () _ _ src = src
@@ -123,7 +123,7 @@ struct
   let rec_cls () _ _ dst = dst
   let rec_sep () _ _ dst = dst
   let sum_opn _ _ () _ _ dst = dst
-  let sum_cls () _ _ dst = dst
+  let sum_cls _ () _ _ dst = dst
   let vec_opn _ _ () _ _ dst = dst
   let vec_cls () _ _ dst = dst
   let vec_sep () _ _ dst = dst

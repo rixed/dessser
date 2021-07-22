@@ -182,7 +182,7 @@ struct
           E.with_sploded_pair "dsum2" v_src (fun v src ->
             make_pair
               (construct mns i v)
-              (Des.sum_cls dstate mn0 path src))
+              (Des.sum_cls cstr dstate mn0 path src))
         in
         if i = max_lbl then
           seq [
@@ -417,28 +417,24 @@ struct
    * meaningful. *)
   and ssum mns ma sstate mn0 path v dst =
     let max_lbl = Array.length mns - 1 in
-    let dst =
-      let_ ~name:"label1"
-        (label_of v)
-        (fun label ->
-          let_ ~name:"ssum_dst"
-            (Ser.sum_opn mns label sstate mn0 path dst)
-            (fun dst ->
-              let rec choose_cstr i =
-                let subpath = Path.(append (CompTime i) path) in
-                assert (i <= max_lbl) ;
-                let field, mn = mns.(i) in
-                let v' = get_alt field v in
-                if i = max_lbl then
-                  seq [
-                    assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
-                    ser1 sstate mn0 subpath mn v' ma dst ]
-                else
-                  if_ (eq (u16 (Uint16.of_int i)) label)
-                    ~then_:(ser1 sstate mn0 subpath mn v' ma dst)
-                    ~else_:(choose_cstr (i + 1)) in
-              choose_cstr 0)) in
-    Ser.sum_cls sstate mn0 path dst
+    let_ ~name:"label1" (label_of v) (fun label ->
+      let ssum_dst = Ser.sum_opn mns label sstate mn0 path dst in
+      let_ ~name:"ssum_dst" ssum_dst (fun dst ->
+        let rec choose_cstr i =
+          let subpath = Path.(append (CompTime i) path) in
+          assert (i <= max_lbl) ;
+          let field, mn = mns.(i) in
+          let v' = get_alt field v in
+          if i = max_lbl then
+            seq [
+              assert_ (eq label (u16 (Uint16.of_int max_lbl))) ;
+              ser1 sstate mn0 subpath mn v' ma dst ]
+          else
+            if_ (eq (u16 (Uint16.of_int i)) label)
+              ~then_:(ser1 sstate mn0 subpath mn v' ma dst)
+              ~else_:(choose_cstr (i + 1)) in
+        let dst = choose_cstr 0 in
+        Ser.sum_cls label sstate mn0 path dst))
 
   and svoid _ _ _ _ dst = dst
 

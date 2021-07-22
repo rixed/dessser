@@ -98,7 +98,8 @@ sig
   (* Returns the label as an u16 and the new pointer: *)
   val sum_opn : (string * T.mn) array ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (* u16*ptr *) E.t
-  val sum_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : (*u16*) E.t ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
@@ -174,7 +175,8 @@ sig
   (* Takes the label as an u16: *)
   val sum_opn : (string * T.mn) array -> (*u16*) E.t ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val sum_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val sum_cls : (*u16*) E.t ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
@@ -357,10 +359,11 @@ struct
                 ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0) in
+      let cstr = first cstr_src in
       E.with_sploded_pair "dssum3" src_dst (fun src dst ->
         make_pair
-          (Des.sum_cls dstate mn0 path src)
-          (Ser.sum_cls sstate mn0 path dst)))
+          (Des.sum_cls cstr dstate mn0 path src)
+          (Ser.sum_cls cstr sstate mn0 path dst)))
 
   and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in

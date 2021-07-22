@@ -311,7 +311,7 @@ struct
     let p = su16 conf mn0 path lbl p in
     sep conf p
 
-  let sum_cls _conf _ _ p = p
+  let sum_cls _lbl _conf _ _ p = p
 
   let write_quote conf p =
     match conf.quote with
@@ -608,7 +608,7 @@ struct
     E.with_sploded_pair "sum_opn" c_p (fun c p ->
       make_pair c (skip_sep conf p))
 
-  let sum_cls _conf _ _ p = p
+  let sum_cls _lbl _conf _ _ p = p
 
   let vec_opn _dim _t conf mn0 path p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then

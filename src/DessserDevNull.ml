@@ -50,7 +50,7 @@ struct
   let rec_cls () _ _ p = p
   let rec_sep () _ _ p = p
   let sum_opn _ _ () _ _ p = p
-  let sum_cls () _ _ p = p
+  let sum_cls _ () _ _ p = p
   let vec_opn _ _ () _ _ p = p
   let vec_cls () _ _ p = p
   let vec_sep () _ _ p = p

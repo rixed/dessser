@@ -56,8 +56,7 @@ let skip_blanks p =
 let skip_number p =
   skip_while p (is_byte_in_string "0123456789+-eE.")
 
-let skip_char p c =
-  let p = skip_blanks p in
+let skip_1_char p c =
   (* On debug_flag, check that the expected character is present: *)
   if debug_flag then
     let_ ~name:"skip_char_p" p (fun p ->
@@ -66,6 +65,10 @@ let skip_char p c =
         ptr_add p (size 1) ])
   else
     ptr_add p (size 1)
+
+let skip_char p c =
+  let p = skip_blanks p in
+  skip_1_char p c
 
 let skip_string p =
   (* The pointed byte is already known to be a double quote: *)
@@ -395,6 +398,19 @@ let parse_object mns p =
 
 (* Now deserializing become easy: *)
 
+(* Helper function to build the (constant) list of all constructors of a sum
+ * type that have no associated value: *)
+let no_value_cstrs mn0 path =
+  match (Path.type_of_path mn0 path |> T.develop1).T.typ with
+  | T.Sum mns ->
+      Array.enum mns |>
+      enum_filter_mapi (fun i (_n, mn) ->
+        if T.eq_mn mn T.void then Some (u16_of_int i) else None) |>
+      List.of_enum |>
+      make_arr T.u16
+  | _ ->
+      assert false
+
 type config = unit
 
 module Des : DES with type config = config =
@@ -573,13 +589,23 @@ struct
     let stk = secnd p_stk in
     frame_pop stk
 
-  (* Sum types are represented as single field object *)
+  (* Sum types are represented as single field object when the constructor
+   * has a value or a mere string otherwise: *)
   let sum_opn mns =
     with_p_stk (fun p stk ->
-      let p = comment "skip begin-object for sum" (skip_char p '{') in
       let p = skip_blanks p in
-      let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun cstr p ->
-        let p = skip_char p ':' in
+      (* A pair with both the string (as byte) of the label and the pointer: *)
+      let cstr_p =
+        if_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"'))
+          (* A string: that's our constructor *)
+          ~then_:(parse_bytes p)
+          ~else_:(
+            let p = comment "skip begin-object for sum" (skip_1_char p '{') in
+            let p = skip_blanks p in
+            let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun lbl p ->
+              let p = skip_char p ':' in
+              make_pair lbl p)) in
+      let_pair ~n1:"s" ~n2:"p" cstr_p (fun cstr p ->
         let i =
           Array.enum mns |>
           Enum.mapi (fun i (n, _) ->
@@ -591,7 +617,11 @@ struct
             let p_stk = make_pair p stk in
             make_pair i p_stk)))
 
-  let sum_cls = skip_1 '}'
+  let sum_cls lbl () mn0 path p_stk =
+    let no_value_cstrs = no_value_cstrs mn0 path in
+    if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
+      ~then_:p_stk
+      ~else_:(skip_1 '}' () mn0 path p_stk)
 
   let arr_opn () =
     UnknownSize (
@@ -824,7 +854,11 @@ struct
     let p = write_str p s in
     write_u8 p (u8_of_const_char ':')
 
-  let sum_cls = write_chr '}'
+  let sum_cls lbl () mn0 path p =
+    let no_value_cstrs = no_value_cstrs mn0 path in
+    if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
+      ~then_:p
+      ~else_:(write_u8 p (u8_of_const_char '}'))
 
   let vec_opn _dim _mns = write_opn_chr '['
 

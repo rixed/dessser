@@ -69,3 +69,4 @@ tests/json/string
 tests/json/set
 tests/json/cidr
 tests/json/cidr2
+tests/json/enum

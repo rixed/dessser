@@ -451,7 +451,7 @@ struct
       let p = align_const p 4 in
       make_pair p stk)
 
-  let sum_cls () _ _ p_stk =
+  let sum_cls _lbl () _ _ p_stk =
     leave_frame p_stk
 
   (* For vectors/lists, children know that if the item is not nullable then
@@ -838,7 +838,7 @@ struct
         let p = align_const p 4 in
         make_pair lbl (make_pair p stk)))
 
-  let sum_cls () _ _ p_stk =
+  let sum_cls _lbl () _ _ p_stk =
     leave_frame p_stk
 
   let arr_opn () = KnownSize

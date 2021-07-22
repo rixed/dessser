@@ -120,7 +120,7 @@ struct
     let p = su16 st mn0 path lbl p in
     tup_sep st mn0 path p
 
-  let sum_cls st mn0 path p =
+  let sum_cls _lbl st mn0 path p =
     tup_cls st mn0 path p
 
   let vec_opn _ _ () _ __ p = p
@@ -352,7 +352,7 @@ struct
       let p = tup_sep st mn0 path p in
       make_pair c p)
 
-  let sum_cls st mn0 path p =
+  let sum_cls _lbl st mn0 path p =
     tup_cls st mn0 path p
 
   (* Vectors: ClickHouse does not distinguish between vectors (of known

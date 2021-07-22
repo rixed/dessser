@@ -46,6 +46,10 @@ let array_for_alli f a =
   with Exit ->
     false
 
+let enum_filter_mapi f e =
+  Enum.mapi f e |>
+  Enum.filter_map identity
+
 let read_whole_file fname =
   File.with_file_in ~mode:[`text] fname IO.read_all
 
