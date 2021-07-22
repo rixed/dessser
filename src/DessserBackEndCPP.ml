@@ -277,9 +277,9 @@ struct
 
   let print_float_literal v oc =
     if v = infinity then
-      String.print oc "std::numeric_limits<double>::infinity"
+      String.print oc "std::numeric_limits<double>::infinity()"
     else if v = neg_infinity then
-      String.print oc "-std::numeric_limits<double>::infinity"
+      String.print oc "-std::numeric_limits<double>::infinity()"
     else
       Legacy.Printf.sprintf "%h" v |> String.print oc
 
