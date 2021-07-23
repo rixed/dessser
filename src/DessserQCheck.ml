@@ -895,7 +895,18 @@ let sexpr ?sexpr_config mn =
       Format.eprintf "@[<v>After peval:@,%a@." (E.pretty_print ?max_depth:None) e'
     ) ;
     let compunit = U.make () |> DessserJson.init in
-    make_converter ~dev_mode:true ~mn compunit be e
+    try
+      make_converter ~dev_mode:true ~mn compunit be e
+    with exn ->
+      let e' =
+        try DessserEval.peval E.no_env e
+        with _ -> E.Ops.string "Failure to peval" in
+      Format.eprintf
+        "@.ERROR %s while compiling expression@.%a@.optimized into:@a%a@."
+        (Printexc.to_string exn)
+        (E.pretty_print ?max_depth:None) e
+        (E.pretty_print ?max_depth:None) e' ;
+      raise exn
 
   let test_data_desser ?sexpr_config =
     test_desser ?sexpr_config (ptr_of_buffer (size 50_000))
