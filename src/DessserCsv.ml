@@ -611,7 +611,7 @@ struct
 
   let sum_opn _ conf mn0 path p =
     let c_p = du16 conf mn0 path p in
-    E.with_sploded_pair "sum_opn" c_p (fun c p ->
+    E.with_sploded_pair "sum_opn_csv" c_p (fun c p ->
       make_pair c (skip_sep conf p))
 
   let sum_cls _lbl _conf _ _ p = p

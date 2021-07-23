@@ -344,8 +344,8 @@ struct
     let max_lbl = Array.length mns - 1 in
     E.with_sploded_pair "dssum1" src_dst (fun src dst ->
       let cstr_src = Des.sum_opn mns dstate mn0 path src in
-      let src_dst =
-        E.with_sploded_pair "dssum2" cstr_src (fun cstr src ->
+      let_pair ~n1:"cstr" ~n2:"src" cstr_src (fun cstr src ->
+        let src_dst =
           let dst = Ser.sum_opn mns cstr sstate mn0 path dst in
           let src_dst = make_pair src dst in
           let rec choose_cstr i =
@@ -358,12 +358,11 @@ struct
               if_ (eq (u16 (Uint16.of_int i)) cstr)
                 ~then_:(desser_ transform sstate dstate mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
-          choose_cstr 0) in
-      let cstr = first cstr_src in
-      E.with_sploded_pair "dssum3" src_dst (fun src dst ->
-        make_pair
-          (Des.sum_cls cstr dstate mn0 path src)
-          (Ser.sum_cls cstr sstate mn0 path dst)))
+          choose_cstr 0 in
+        E.with_sploded_pair "dssum3" src_dst (fun src dst ->
+          make_pair
+            (Des.sum_cls cstr dstate mn0 path src)
+            (Ser.sum_cls cstr sstate mn0 path dst))))
 
   and dsvec dim mn transform sstate dstate mn0 path src_dst =
     let open E.Ops in

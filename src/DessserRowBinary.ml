@@ -348,7 +348,7 @@ struct
   let sum_opn mns st mn0 path p =
     let p = tup_opn mns st mn0 path p in
     let c_p = du16 st mn0 path p in
-    E.with_sploded_pair "sum_opn" c_p (fun c p ->
+    E.with_sploded_pair "row_bin_sum_opn" c_p (fun c p ->
       let p = tup_sep st mn0 path p in
       make_pair c p)
 
