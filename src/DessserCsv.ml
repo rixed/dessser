@@ -445,9 +445,10 @@ struct
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
     if debug then
-      seq [
-        StdLib.check_byte p b ;
-        skip 1 p ]
+      let_ ~name:"skip_byte_p" p (fun p ->
+        seq [
+          StdLib.check_byte p b ;
+          skip 1 p ])
     else
       skip 1 p
 
