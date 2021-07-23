@@ -51,9 +51,11 @@ let type_and_index_of_path t0 path =
         loop index { mn with typ = def } path
     | _, [] ->
         mn, index
-    | T.(Unknown | Base _ | Ext _ | Map _ |
-         Size |
-         Void | Ptr | Address | Bytes | Mask | Function _), _ ->
+    | T.(Unknown | Ext _ | Map _ |
+         Bool | Char | Float | String |
+         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+         I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+         Size | Void | Ptr | Address | Bytes | Mask | Function _), _ ->
         assert false
     (* CompTime *)
     | Vec (dim, mn), CompTime i :: path  ->
@@ -92,15 +94,15 @@ let type_of_parent mn path =
   open DessserTypes
   let test_t =
     required (Tup [|
-      required (Base U8) ;
-      optional (Base String) ;
-      optional (Vec (2, required (Base Char))) |])
+      required U8 ;
+      optional String ;
+      optional (Vec (2, required Char)) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_mn)
   test_t (type_of_path test_t [])
-  (required (Base U8)) (type_of_path test_t [CompTime 0])
-  (optional (Base String)) (type_of_path test_t [CompTime 1])
-  (optional (Vec (2, required (Base Char)))) (type_of_path test_t [CompTime 2])
-  (required (Base Char)) (type_of_path test_t [CompTime 2; CompTime 0])
+  (required U8) (type_of_path test_t [CompTime 0])
+  (optional String) (type_of_path test_t [CompTime 1])
+  (optional (Vec (2, required Char))) (type_of_path test_t [CompTime 2])
+  (required Char) (type_of_path test_t [CompTime 2; CompTime 0])
 *)

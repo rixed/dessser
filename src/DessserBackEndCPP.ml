@@ -172,28 +172,28 @@ struct
         let t = T.find_this n in
         type_identifier t ^"*"
     | Void -> "Void"
-    | Base Float -> "double"
-    | Base String -> "std::string"
-    | Base Bool -> "bool"
-    | Base Char -> "char"
-    | Base I8 -> "int8_t"
-    | Base U8 -> "uint8_t"
-    | Base I16 -> "int16_t"
-    | Base U16 -> "uint16_t"
-    | Base I24 -> "int32_t"
-    | Base U24 -> "uint32_t"
-    | Base I32 -> "int32_t"
-    | Base U32 -> "uint32_t"
-    | Base I40 -> "int64_t"
-    | Base U40 -> "uint64_t"
-    | Base I48 -> "int64_t"
-    | Base U48 -> "uint64_t"
-    | Base I56 -> "int64_t"
-    | Base U56 -> "uint64_t"
-    | Base I64 -> "int64_t"
-    | Base U64 -> "uint64_t"
-    | Base I128 -> "int128_t"
-    | Base U128 -> "uint128_t"
+    | Float -> "double"
+    | String -> "std::string"
+    | Bool -> "bool"
+    | Char -> "char"
+    | I8 -> "int8_t"
+    | U8 -> "uint8_t"
+    | I16 -> "int16_t"
+    | U16 -> "uint16_t"
+    | I24 -> "int32_t"
+    | U24 -> "uint32_t"
+    | I32 -> "int32_t"
+    | U32 -> "uint32_t"
+    | I40 -> "int64_t"
+    | U40 -> "uint64_t"
+    | I48 -> "int64_t"
+    | U48 -> "uint64_t"
+    | I56 -> "int64_t"
+    | U56 -> "uint64_t"
+    | I64 -> "int64_t"
+    | U64 -> "uint64_t"
+    | I128 -> "int128_t"
+    | U128 -> "uint128_t"
     | Usr mn -> type_identifier mn.def
     | Ext n ->
         P.get_external_type p n Cpp
@@ -441,9 +441,9 @@ struct
                  n1 n2
                  (if need_optional then "std::make_optional" else "")
                  n2 n1
-          | T.Lst _
-          | T.Base String
-          | T.Bytes ->
+          | Lst _
+          | String
+          | Bytes ->
               pp oc "%s < %s.length() ? \
                      %s(%s[%s]) : std::nullopt"
                  n1 n2
@@ -457,10 +457,10 @@ struct
         emit ?name p l e (fun oc ->
           match (E.type_of l e2 |> T.develop_mn).T.typ with
           | T.Vec _
-          | T.Arr _
-          | T.Lst _
-          | T.Base String
-          | T.Bytes ->
+          | Arr _
+          | Lst _
+          | String
+          | Bytes ->
               pp oc "%s[%s]" n2 n1
           | _ ->
               assert false)
@@ -565,14 +565,13 @@ struct
         let n1 = print p l e1
         and n2 = print p l e2 in
         (match E.type_of l e1 |> T.develop_mn with
-        | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                       |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-                   _ } ->
+        | { typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                  |I8|I16|I24|I32|I40|I48|I56|I64|I128) ; _ } ->
             let op_name = if op = Div then "/" else "%" in
             emit ?name p l e (fun oc ->
               pp oc "%s == 0 ? std::nullopt : std::make_optional(%s %s %s)"
                 n2 n1 op_name n2)
-        | { typ = Base Float ; _ } ->
+        | { typ = Float ; _ } ->
             if op = Div then
               binary_infix_op e1 "/" e2 |> null_of_nan
             else
@@ -583,12 +582,11 @@ struct
         let n1 = print p l e1
         and n2 = print p l e2 in
         (match E.type_of l e1 |> T.develop_mn with
-        | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                       |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-            _ } ->
+        | { typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                  |I8|I16|I24|I32|I40|I48|I56|I64|I128) ; _ } ->
             let op_name = if op = UnsafeDiv then "/" else "%" in
             emit ?name p l e (fun oc -> pp oc "%s %s %s" n1 op_name n2)
-        | { typ = Base Float ; _ } ->
+        | { typ = Float ; _ } ->
             if op = UnsafeDiv then
               binary_infix_op e1 "/" e2
             else
@@ -618,9 +616,9 @@ struct
     | E.E1 (StringOfInt, e1) ->
         let n1 = print p l e1 in
         (match E.type_of l e1 |> T.develop_mn with
-        | { typ = Base U128 ; _ } ->
+        | { typ = U128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_u128(%s)" n1)
-        | { typ = Base I128 ; _ } ->
+        | { typ = I128 ; _ } ->
             emit ?name p l e (fun oc -> pp oc "string_of_i128(%s)" n1)
         | _ ->
             emit ?name p l e (fun oc -> pp oc "std::to_string(%s)" n1))
@@ -631,12 +629,12 @@ struct
         ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
         let case_u mn n =
           match T.develop_mn mn with
-          | T.{ typ = Base U32 ; _ } ->
+          | T.{ typ = U32 ; _ } ->
               (* Make sure we can take the address of that thing: *)
               ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
-          | T.{ typ = Base U128 ; _ } ->
+          | T.{ typ = U128 ; _ } ->
               ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
               ppi p.P.def
                 "inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;

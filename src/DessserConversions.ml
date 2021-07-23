@@ -35,121 +35,121 @@ let rec conv ?(depth=0) ~from ~to_ e =
       e, false
   | from, Usr { def ; _ } when T.eq def from ->
       e, false
-  | T.Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
-    T.Base String -> string_of_int_ e, false
-  | T.Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
-    T.Base Float -> to_float e, false
-  | T.Base U8, T.Base Bool -> bool_of_u8 e, false
-  | T.Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-            U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    T.Base Bool ->
-        let e, nullable = conv ~depth:(depth+1) ~from ~to_:(T.Base U8) e in
+  | T.(I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+       U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
+    T.String -> string_of_int_ e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
+    T.Float -> to_float e, false
+  | U8, Bool -> bool_of_u8 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    Bool ->
+        let e, nullable = conv ~depth:(depth+1) ~from ~to_:T.U8 e in
         assert (not nullable) ;
         bool_of_u8 e, false
-  | Base String, Base Float -> float_of_string_ e, true
-  | Base String, Base Char -> nth (u8_of_int 0) e, true
-  | Base String, Base I8 -> i8_of_string e, true
-  | Base String, Base I16 -> i16_of_string e, true
-  | Base String, Base I24 -> i24_of_string e, true
-  | Base String, Base I32 -> i32_of_string e, true
-  | Base String, Base I40 -> i40_of_string e, true
-  | Base String, Base I48 -> i48_of_string e, true
-  | Base String, Base I56 -> i56_of_string e, true
-  | Base String, Base I64 -> i64_of_string e, true
-  | Base String, Base I128 -> i128_of_string e, true
-  | Base String, Base U8 -> u8_of_string e, true
-  | Base String, Base U16 -> u16_of_string e, true
-  | Base String, Base U24 -> u24_of_string e, true
-  | Base String, Base U32 -> u32_of_string e, true
-  | Base String, Base U40 -> u40_of_string e, true
-  | Base String, Base U48 -> u48_of_string e, true
-  | Base String, Base U56 -> u56_of_string e, true
-  | Base String, Base U64 -> u64_of_string e, true
-  | Base String, Base U128 -> u128_of_string e, true
-  | Base Float, Base String -> string_of_float_ e, false
-  | Base Char, Base U8 -> u8_of_char e, false
-  | Base U8, Base Char -> char_of_u8 e, false
-  | Base Char, Base String -> string_of_char e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I8 -> to_i8 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I16 -> to_i16 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I24 -> to_i24 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I32 -> to_i32 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I40 -> to_i40 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I48 -> to_i48 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I56 -> to_i56 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I64 -> to_i64 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base I128 -> to_i128 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U8 -> to_u8 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U16 -> to_u16 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U24 -> to_u24 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U32 -> to_u32 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U40 -> to_u40 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U48 -> to_u48 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+  | String, Float -> float_of_string_ e, true
+  | String, Char -> nth (u8_of_int 0) e, true
+  | String, I8 -> i8_of_string e, true
+  | String, I16 -> i16_of_string e, true
+  | String, I24 -> i24_of_string e, true
+  | String, I32 -> i32_of_string e, true
+  | String, I40 -> i40_of_string e, true
+  | String, I48 -> i48_of_string e, true
+  | String, I56 -> i56_of_string e, true
+  | String, I64 -> i64_of_string e, true
+  | String, I128 -> i128_of_string e, true
+  | String, U8 -> u8_of_string e, true
+  | String, U16 -> u16_of_string e, true
+  | String, U24 -> u24_of_string e, true
+  | String, U32 -> u32_of_string e, true
+  | String, U40 -> u40_of_string e, true
+  | String, U48 -> u48_of_string e, true
+  | String, U56 -> u56_of_string e, true
+  | String, U64 -> u64_of_string e, true
+  | String, U128 -> u128_of_string e, true
+  | Float, String -> string_of_float_ e, false
+  | Char, U8 -> u8_of_char e, false
+  | U8, Char -> char_of_u8 e, false
+  | Char, String -> string_of_char e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I8 -> to_i8 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I16 -> to_i16 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I24 -> to_i24 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I32 -> to_i32 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I40 -> to_i40 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I48 -> to_i48 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I56 -> to_i56 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I64 -> to_i64 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    I128 -> to_i128 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U8 -> to_u8 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U16 -> to_u16 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U24 -> to_u24 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U32 -> to_u32 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U40 -> to_u40 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U48 -> to_u48 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
     Usr { name = "Eth" ; _ } ->
       make_usr "Eth" [ to_u48 e ], false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U56 -> to_u56 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U64 -> to_u64 e, false
-  | Base (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Base U128 -> to_u128 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U56 -> to_u56 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U64 -> to_u64 e, false
+  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
+     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
+    U128 -> to_u128 e, false
   (* Bools can be (explicitly) converted into numbers: *)
-  | Base Bool, Base U8 -> u8_of_bool e, false
-  | Base Bool, Base U16 -> to_u16 (u8_of_bool e), false
-  | Base Bool, Base U24 -> to_u24 (u8_of_bool e), false
-  | Base Bool, Base U32 -> to_u32 (u8_of_bool e), false
-  | Base Bool, Base U40 -> to_u40 (u8_of_bool e), false
-  | Base Bool, Base U48 -> to_u48 (u8_of_bool e), false
-  | Base Bool, Base U56 -> to_u56 (u8_of_bool e), false
-  | Base Bool, Base U64 -> to_u64 (u8_of_bool e), false
-  | Base Bool, Base U128 -> to_u128 (u8_of_bool e), false
-  | Base Bool, Base I8 -> to_i8 (u8_of_bool e), false
-  | Base Bool, Base I16 -> to_i16 (u8_of_bool e), false
-  | Base Bool, Base I24 -> to_i24 (u8_of_bool e), false
-  | Base Bool, Base I32 -> to_i32 (u8_of_bool e), false
-  | Base Bool, Base I40 -> to_i40 (u8_of_bool e), false
-  | Base Bool, Base I48 -> to_i48 (u8_of_bool e), false
-  | Base Bool, Base I56 -> to_i56 (u8_of_bool e), false
-  | Base Bool, Base I64 -> to_i64 (u8_of_bool e), false
-  | Base Bool, Base I128 -> to_i128 (u8_of_bool e), false
-  | Base Bool, Base Float -> to_float (u8_of_bool e), false
+  | Bool, U8 -> u8_of_bool e, false
+  | Bool, U16 -> to_u16 (u8_of_bool e), false
+  | Bool, U24 -> to_u24 (u8_of_bool e), false
+  | Bool, U32 -> to_u32 (u8_of_bool e), false
+  | Bool, U40 -> to_u40 (u8_of_bool e), false
+  | Bool, U48 -> to_u48 (u8_of_bool e), false
+  | Bool, U56 -> to_u56 (u8_of_bool e), false
+  | Bool, U64 -> to_u64 (u8_of_bool e), false
+  | Bool, U128 -> to_u128 (u8_of_bool e), false
+  | Bool, I8 -> to_i8 (u8_of_bool e), false
+  | Bool, I16 -> to_i16 (u8_of_bool e), false
+  | Bool, I24 -> to_i24 (u8_of_bool e), false
+  | Bool, I32 -> to_i32 (u8_of_bool e), false
+  | Bool, I40 -> to_i40 (u8_of_bool e), false
+  | Bool, I48 -> to_i48 (u8_of_bool e), false
+  | Bool, I56 -> to_i56 (u8_of_bool e), false
+  | Bool, I64 -> to_i64 (u8_of_bool e), false
+  | Bool, I128 -> to_i128 (u8_of_bool e), false
+  | Bool, Float -> to_float (u8_of_bool e), false
   (* A vector of 1 t into t and the other way around: *)
   | Vec (1, { nullable = false ; typ = vt1 }), vt2
     when T.eq vt1 vt2 ->
@@ -162,13 +162,13 @@ let rec conv ?(depth=0) ~from ~to_ e =
       make_arr mn2 [ if nullable then not_null e else e ], false
   (* Specialized version for arr/vec of chars that return the
    * string composed of those chars rather than an enumeration: *)
-  | Vec (_, ({ typ = Base Char ; _ } as mn)), Base String
-  | Arr ({ typ = Base Char ; _ } as mn), Base String ->
+  | Vec (_, ({ typ = Char ; _ } as mn)), String
+  | Arr ({ typ = Char ; _ } as mn), String ->
       conv_charseq_to_string ~depth:(depth+1) ~from:mn (cardinality e) e, false
-  | Vec (_, mn), Base String
-  | Arr mn, Base String ->
+  | Vec (_, mn), String
+  | Arr mn, String ->
       conv_list_to_string ~depth:(depth+1) ~from:mn (cardinality e) e, false
-  | Tup mns, Base String ->
+  | Tup mns, String ->
       let rec loop s i =
         if i >= Array.length mns then
           append_string s (string ")")
@@ -177,19 +177,19 @@ let rec conv ?(depth=0) ~from ~to_ e =
           let s = if i > 0 then append_string s (string ";") else s in
           loop (append_string s s') (i + 1) in
       loop (string "(") 0, false
-  | Base Bool, Base String ->
+  | Bool, String ->
       if_ e ~then_:(string "true") ~else_:(string "false"), false
-  | Usr { name = ("Ip4" | "Ip6" | "Ip") ; _ }, Base String ->
+  | Usr { name = ("Ip4" | "Ip6" | "Ip") ; _ }, String ->
       string_of_ip e, false
-  | Base U32, Usr { name = "Ip4" ; _ } ->
+  | U32, Usr { name = "Ip4" ; _ } ->
       make_usr "Ip4" [ e ], false
   | Usr { name = ("Ip4" | "Ip6") ; _ }, Usr { name = "Ip" ; _ } ->
       make_usr "Ip" [ e ], false
-  | Base U32, Usr { name = "Ip" ; _ } ->
+  | U32, Usr { name = "Ip" ; _ } ->
       make_usr "Ip" [ make_usr "Ip4" [ e ] ], false
-  | Base U128, Usr { name = "Ip6" ; _ } ->
+  | U128, Usr { name = "Ip6" ; _ } ->
       make_usr "Ip6" [ e ], false
-  | Base U128, Usr { name = "Ip" ; _ } ->
+  | U128, Usr { name = "Ip" ; _ } ->
       make_usr "Ip" [ make_usr "Ip6" [ e ] ], false
   | Usr { name = ("Cidr4" | "Cidr6") ; _ }, Usr { name = "Cidr" ; _ } ->
       make_usr "Cidr" [ e ], false
@@ -231,8 +231,8 @@ let rec conv ?(depth=0) ~from ~to_ e =
   (* "globals_map" is an alias for the type used by CodeGenLib to set/get
    * to/from LMDB files: *)
   | Ext "globals_map",
-    Map ({ typ = Base String ; _ }, { typ = Base String ; _ })
-  | Map ({ typ = Base String ; _ }, { typ = Base String ; _ }),
+    Map ({ typ = String ; _ }, { typ = String ; _ })
+  | Map ({ typ = String ; _ }, { typ = String ; _ }),
     Ext "globals_map" ->
       e, false
   | _ ->
@@ -316,9 +316,9 @@ and conv_mn ?(depth=0) ~from ~to_ e =
       if nullable then force e else e
   | true, false ->
       (match to_.T.typ with
-      | T.(Base String) ->
+      | T.String ->
           my_if_null (string "NULL")
-      | T.(Base Char) ->
+      | T.Char ->
           my_if_null (char '?')
       | _ ->
           let e, nullable =

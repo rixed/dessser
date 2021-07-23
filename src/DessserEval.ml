@@ -91,7 +91,7 @@ let is_nan f =
   f <> f
 
 let nullable_of_nan f =
-  if is_nan f then null (Base Float) else not_null (float f)
+  if is_nan f then null Float else not_null (float f)
 
 let arith2' e1 e2 op_i128 cst =
   (* All but U128 ints can be safely converted into I128.
@@ -517,25 +517,25 @@ let rec peval l e =
       | StringOfIp, E0 (U32 n) -> string (DessserIpTools.V4.to_string n) |> repl1
       | StringOfIp, E0 (U128 n) -> string (DessserIpTools.V6.to_string n) |> repl1
       | StringOfChar, E0 (Char c) -> string (String.of_char c) |> repl1
-      | FloatOfString, E0 (String s) -> or_null_ (Base Float) float float_of_string s |> repl1
-      | U8OfString, E0 (String s) -> or_null_ (Base U8) u8 Uint8.of_string s |> repl1
-      | U16OfString, E0 (String s) -> or_null_ (Base U16) u16 Uint16.of_string s |> repl1
-      | U24OfString, E0 (String s) -> or_null_ (Base U24) u24 Uint24.of_string s |> repl1
-      | U32OfString, E0 (String s) -> or_null_ (Base U32) u32 Uint32.of_string s |> repl1
-      | U40OfString, E0 (String s) -> or_null_ (Base U40) u40 Uint40.of_string s |> repl1
-      | U48OfString, E0 (String s) -> or_null_ (Base U48) u48 Uint48.of_string s |> repl1
-      | U56OfString, E0 (String s) -> or_null_ (Base U56) u56 Uint56.of_string s |> repl1
-      | U64OfString, E0 (String s) -> or_null_ (Base U64) u64 Uint64.of_string s |> repl1
-      | U128OfString, E0 (String s) -> or_null_ (Base U128) u128 Uint128.of_string s |> repl1
-      | I8OfString, E0 (String s) -> or_null_ (Base I8) i8 Int8.of_string s |> repl1
-      | I16OfString, E0 (String s) -> or_null_ (Base I16) i16 Int16.of_string s |> repl1
-      | I24OfString, E0 (String s) -> or_null_ (Base I24) i24 Int24.of_string s |> repl1
-      | I32OfString, E0 (String s) -> or_null_ (Base I32) i32 Int32.of_string s |> repl1
-      | I40OfString, E0 (String s) -> or_null_ (Base I40) i40 Int40.of_string s |> repl1
-      | I48OfString, E0 (String s) -> or_null_ (Base I48) i48 Int48.of_string s |> repl1
-      | I56OfString, E0 (String s) -> or_null_ (Base I56) i56 Int56.of_string s |> repl1
-      | I64OfString, E0 (String s) -> or_null_ (Base I64) i64 Int64.of_string s |> repl1
-      | I128OfString, E0 (String s) -> or_null_ (Base I128) i128 Int128.of_string s |> repl1
+      | FloatOfString, E0 (String s) -> or_null_ Float float float_of_string s |> repl1
+      | U8OfString, E0 (String s) -> or_null_ U8 u8 Uint8.of_string s |> repl1
+      | U16OfString, E0 (String s) -> or_null_ U16 u16 Uint16.of_string s |> repl1
+      | U24OfString, E0 (String s) -> or_null_ U24 u24 Uint24.of_string s |> repl1
+      | U32OfString, E0 (String s) -> or_null_ U32 u32 Uint32.of_string s |> repl1
+      | U40OfString, E0 (String s) -> or_null_ U40 u40 Uint40.of_string s |> repl1
+      | U48OfString, E0 (String s) -> or_null_ U48 u48 Uint48.of_string s |> repl1
+      | U56OfString, E0 (String s) -> or_null_ U56 u56 Uint56.of_string s |> repl1
+      | U64OfString, E0 (String s) -> or_null_ U64 u64 Uint64.of_string s |> repl1
+      | U128OfString, E0 (String s) -> or_null_ U128 u128 Uint128.of_string s |> repl1
+      | I8OfString, E0 (String s) -> or_null_ I8 i8 Int8.of_string s |> repl1
+      | I16OfString, E0 (String s) -> or_null_ I16 i16 Int16.of_string s |> repl1
+      | I24OfString, E0 (String s) -> or_null_ I24 i24 Int24.of_string s |> repl1
+      | I32OfString, E0 (String s) -> or_null_ I32 i32 Int32.of_string s |> repl1
+      | I40OfString, E0 (String s) -> or_null_ I40 i40 Int40.of_string s |> repl1
+      | I48OfString, E0 (String s) -> or_null_ I48 i48 Int48.of_string s |> repl1
+      | I56OfString, E0 (String s) -> or_null_ I56 i56 Int56.of_string s |> repl1
+      | I64OfString, E0 (String s) -> or_null_ I64 i64 Int64.of_string s |> repl1
+      | I128OfString, E0 (String s) -> or_null_ I128 i128 Int128.of_string s |> repl1
       | BoolOfU8, E0 (U8 n) -> bool (Uint8.compare Uint8.zero n <> 0) |> repl1
       | BoolOfU8, E1 (U8OfBool, e) -> repl1 e
       | U8OfChar, E0 (Char c) -> u8 (Uint8.of_int (Char.code c)) |> repl1
@@ -942,14 +942,14 @@ let rec peval l e =
           p (* Will simplify further if e1 is known *)
       | Nth, idx, E0 (String s) ->
           let def = E.E2 (Nth, e1, e2) in
-          if String.length s = 0 then null (Base Char) |> repl12
+          if String.length s = 0 then null Char |> repl12
           else (match E.to_cst_int idx with
           | exception _ -> def
           | idx when idx < String.length s -> not_null (char s.[idx]) |> repl12
           | _ -> def)
       | Nth, idx, E0 (Bytes s) ->
           let def = E.E2 (Nth, e1, e2) in
-          if Bytes.length s = 0 then null (Base U8) |> repl12
+          if Bytes.length s = 0 then null U8 |> repl12
           else (match E.to_cst_int idx with
           | exception _ -> def
           | idx when idx < Bytes.length s ->
@@ -1023,7 +1023,7 @@ let rec peval l e =
           (try
             let v = if op = Div then a /. b else Stdlib.Float.rem a b in
             nullable_of_nan v
-          with Division_by_zero -> null (Base Float)) |> repl12
+          with Division_by_zero -> null Float) |> repl12
       | (Div | Rem as op), f1, f2 ->
           (match arith2 f1 f2
                         (if op = Div then (/.) else (mod_float))
@@ -1053,16 +1053,16 @@ let rec peval l e =
           nullable_of_nan (a ** b) |> repl12
       | Pow, E0 (I32 a), E0 (I32 b) ->
           (try not_null (i32 (BatInt32.pow a b))
-          with Invalid_argument _ -> null (Base I32)) |> repl12
+          with Invalid_argument _ -> null I32) |> repl12
       | Pow, E0 (I64 a), E0 (I64 b) ->
           (try not_null (i64 (BatInt64.pow a b))
-          with Invalid_argument _ -> null (Base I64)) |> repl12
+          with Invalid_argument _ -> null I64) |> repl12
       | Pow, f1, f2 ->
           (match float_of_num f1, float_of_num f2 with
           | exception _ ->
               E2 (Pow, e1, e2)
           | a, b ->
-              let from = T.(Base Float) in
+              let from = T.Float in
               let to_ = T.(E.type_of l f1).typ in
               (try not_null (fst (C.conv ~from ~to_ (float (a ** b))))
               with _ -> null to_ |> repl12))
@@ -1081,7 +1081,7 @@ let rec peval l e =
           | exception _ ->
               def
           | a, b ->
-              let from = T.(Base Float) in
+              let from = T.Float in
               let to_ = T.(E.type_of l f1).typ in
               (try fst (C.conv ~from ~to_ (float (a ** b))) |> repl12
               with _ -> def))
@@ -1112,7 +1112,7 @@ let rec peval l e =
           | exception _ -> E2 (LeftShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
-              let from = T.(Base I128) in
+              let from = T.I128 in
               let to_ = T.(E.type_of l e1).typ in
               fst (C.conv ~from ~to_ (i128 (Int128.shift_left x n))) |> repl12)
       | RightShift, E0 (U128 x), E0 (U8 n) ->
@@ -1123,7 +1123,7 @@ let rec peval l e =
           | exception _ -> E2 (RightShift, e1, e2)
           | x ->
               let n = Uint8.to_int n in
-              let from = T.(Base I128) in
+              let from = T.I128 in
               let to_ = T.(E.type_of l f1).typ in
               fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl12)
       | Join, E0 (String s1), E0S (MakeVec, ss) ->
@@ -1170,7 +1170,7 @@ let rec peval l e =
       | SplitBy, E0 (String s1), E0 (String s2) ->
           String.split_on_string s1 s2 |>
           List.map string |>
-          make_arr T.(required (Base String)) |>
+          make_arr T.(required String) |>
           repl12
       | SplitAt, f1, E0 (String s) ->
           let def = E.E2 (SplitAt, e1, e2) in
@@ -1238,7 +1238,7 @@ let rec peval l e =
           repl (replace_final_expression_anonymously e1)
       | Index, E0 (Char c), E0 (String s) ->
           (try not_null (u32_of_int (String.index s c))
-          with Not_found -> null (Base U32)) |>
+          with Not_found -> null U32) |>
           repl12
       | op, _, _ -> E.E2 (op, e1, e2))
   | E3 (op, e1, e2, e3) ->
@@ -1307,7 +1307,7 @@ let rec peval l e =
             replace_final_expression_anonymously e3 |>
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
-            null T.(Base U24) |> repl123)
+            null T.U24 |> repl123)
       | SetVec, f1, (E.E0S ((MakeVec | MakeArr _) as op, [ _ ])), _ ->
           let def = E.E3 (SetVec, e1, e2, e3) in
           (match E.to_cst_int f1 with

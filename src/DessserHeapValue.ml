@@ -213,47 +213,47 @@ struct
       | T.Named (n, _) ->
           (* assume this had been defined already with [make_des_for_subtypes]: *)
           dthis n
-      | T.This n -> dthis n
-      | T.Ext n -> dext n
-      | T.Void -> dvoid
-      | T.Base Float -> Des.dfloat
-      | T.Base String -> Des.dstring
-      | T.Base Bool -> Des.dbool
-      | T.Base Char -> Des.dchar
-      | T.Base I8 -> Des.di8
-      | T.Base I16 -> Des.di16
-      | T.Base I24 -> Des.di24
-      | T.Base I32 -> Des.di32
-      | T.Base I40 -> Des.di40
-      | T.Base I48 -> Des.di48
-      | T.Base I56 -> Des.di56
-      | T.Base I64 -> Des.di64
-      | T.Base I128 -> Des.di128
-      | T.Base U8 -> Des.du8
-      | T.Base U16 -> Des.du16
-      | T.Base U24 -> Des.du24
-      | T.Base U32 -> Des.du32
-      | T.Base U40 -> Des.du40
-      | T.Base U48 -> Des.du48
-      | T.Base U56 -> Des.du56
-      | T.Base U64 -> Des.du64
-      | T.Base U128 -> Des.du128
-      | T.Usr vt ->
+      | This n -> dthis n
+      | Ext n -> dext n
+      | Void -> dvoid
+      | Float -> Des.dfloat
+      | String -> Des.dstring
+      | Bool -> Des.dbool
+      | Char -> Des.dchar
+      | I8 -> Des.di8
+      | I16 -> Des.di16
+      | I24 -> Des.di24
+      | I32 -> Des.di32
+      | I40 -> Des.di40
+      | I48 -> Des.di48
+      | I56 -> Des.di56
+      | I64 -> Des.di64
+      | I128 -> Des.di128
+      | U8 -> Des.du8
+      | U16 -> Des.du16
+      | U24 -> Des.du24
+      | U32 -> Des.du32
+      | U40 -> Des.du40
+      | U48 -> Des.du48
+      | U56 -> Des.du56
+      | U64 -> Des.du64
+      | U128 -> Des.du128
+      | Usr vt ->
           (* Deserialize according to vt.def, then make a new user value to
            * keep the user type: *)
           fun state mn0 path ptr ->
             let v_src = des_of_vt vt.def state mn0 path ptr in
             E.with_sploded_pair "des_usr_type" v_src (fun v src ->
               make_pair (make_usr vt.name [ v ]) src)
-      | T.Tup mns -> dtup mns
-      | T.Rec mns -> drec mns
-      | T.Sum mns -> dsum mns
-      | T.Vec (dim, mn) -> dvec dim mn
-      | T.Arr mn -> darr mn
-      | T.Lst mn -> dlst mn
-      | T.Set (Simple, mn) -> dset mn
-      | T.Set _ -> todo "Materialization of non simple sets"
-      | T.Map _ -> assert false (* No value of map type *)
+      | Tup mns -> dtup mns
+      | Rec mns -> drec mns
+      | Sum mns -> dsum mns
+      | Vec (dim, mn) -> dvec dim mn
+      | Arr mn -> darr mn
+      | Lst mn -> dlst mn
+      | Set (Simple, mn) -> dset mn
+      | Set _ -> todo "Materialization of non simple sets"
+      | Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "make1"
     in
     let vt = mn.typ in
@@ -462,40 +462,40 @@ struct
       | T.Named (n, _) ->
           (* assume this had been defined already with [make_ser_for_subtypes]: *)
           sthis n ma
-      | T.This n -> sthis n ma
-      | T.Ext n -> sext n ma
-      | T.Void -> svoid
-      | T.Base Float -> Ser.sfloat
-      | T.Base String -> Ser.sstring
-      | T.Base Bool -> Ser.sbool
-      | T.Base Char -> Ser.schar
-      | T.Base I8 -> Ser.si8
-      | T.Base I16 -> Ser.si16
-      | T.Base I24 -> Ser.si24
-      | T.Base I32 -> Ser.si32
-      | T.Base I40 -> Ser.si40
-      | T.Base I48 -> Ser.si48
-      | T.Base I56 -> Ser.si56
-      | T.Base I64 -> Ser.si64
-      | T.Base I128 -> Ser.si128
-      | T.Base U8 -> Ser.su8
-      | T.Base U16 -> Ser.su16
-      | T.Base U24 -> Ser.su24
-      | T.Base U32 -> Ser.su32
-      | T.Base U40 -> Ser.su40
-      | T.Base U48 -> Ser.su48
-      | T.Base U56 -> Ser.su56
-      | T.Base U64 -> Ser.su64
-      | T.Base U128 -> Ser.su128
-      | T.Usr vt -> ser_of_vt vt.def
-      | T.Tup mns -> stup mns ma
-      | T.Rec mns -> srec mns ma
-      | T.Sum mns -> ssum mns ma
-      | T.Vec (dim, mn) -> svec dim mn ma
-      | T.Arr mn -> slst mn ma
-      | T.Lst mn -> slst mn ma
-      | T.Set (_, mn) -> slst mn ma
-      | T.Map _ -> assert false (* No value of map type *)
+      | This n -> sthis n ma
+      | Ext n -> sext n ma
+      | Void -> svoid
+      | Float -> Ser.sfloat
+      | String -> Ser.sstring
+      | Bool -> Ser.sbool
+      | Char -> Ser.schar
+      | I8 -> Ser.si8
+      | I16 -> Ser.si16
+      | I24 -> Ser.si24
+      | I32 -> Ser.si32
+      | I40 -> Ser.si40
+      | I48 -> Ser.si48
+      | I56 -> Ser.si56
+      | I64 -> Ser.si64
+      | I128 -> Ser.si128
+      | U8 -> Ser.su8
+      | U16 -> Ser.su16
+      | U24 -> Ser.su24
+      | U32 -> Ser.su32
+      | U40 -> Ser.su40
+      | U48 -> Ser.su48
+      | U56 -> Ser.su56
+      | U64 -> Ser.su64
+      | U128 -> Ser.su128
+      | Usr vt -> ser_of_vt vt.def
+      | Tup mns -> stup mns ma
+      | Rec mns -> srec mns ma
+      | Sum mns -> ssum mns ma
+      | Vec (dim, mn) -> svec dim mn ma
+      | Arr mn -> slst mn ma
+      | Lst mn -> slst mn ma
+      | Set (_, mn) -> slst mn ma
+      | Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "ser1" in
     let on_copy =
       (* Copy or Recurse are handled the same: *)
@@ -684,40 +684,40 @@ struct
       add sz (ssizer mn0 path v) in
     let rec ssz_of_vt = function
       | T.Named (n, _)
-      | T.This n -> cumul (ssthis n ma)
-      | T.Ext n -> cumul (ssext n ma)
-      | T.Void -> ssvoid
-      | T.Base Float -> cumul Ser.ssize_of_float
-      | T.Base String -> cumul Ser.ssize_of_string
-      | T.Base Bool -> cumul Ser.ssize_of_bool
-      | T.Base Char -> cumul Ser.ssize_of_char
-      | T.Base I8 -> cumul Ser.ssize_of_i8
-      | T.Base I16 -> cumul Ser.ssize_of_i16
-      | T.Base I24 -> cumul Ser.ssize_of_i24
-      | T.Base I32 -> cumul Ser.ssize_of_i32
-      | T.Base I40 -> cumul Ser.ssize_of_i40
-      | T.Base I48 -> cumul Ser.ssize_of_i48
-      | T.Base I56 -> cumul Ser.ssize_of_i56
-      | T.Base I64 -> cumul Ser.ssize_of_i64
-      | T.Base I128 -> cumul Ser.ssize_of_i128
-      | T.Base U8 -> cumul Ser.ssize_of_u8
-      | T.Base U16 -> cumul Ser.ssize_of_u16
-      | T.Base U24 -> cumul Ser.ssize_of_u24
-      | T.Base U32 -> cumul Ser.ssize_of_u32
-      | T.Base U40 -> cumul Ser.ssize_of_u40
-      | T.Base U48 -> cumul Ser.ssize_of_u48
-      | T.Base U56 -> cumul Ser.ssize_of_u56
-      | T.Base U64 -> cumul Ser.ssize_of_u64
-      | T.Base U128 -> cumul Ser.ssize_of_u128
-      | T.Usr vt -> ssz_of_vt vt.def
-      | T.Vec (dim, mn) -> ssvec dim mn ma
-      | T.Tup mns -> sstup mns ma
-      | T.Rec mns -> ssrec mns ma
-      | T.Sum mns -> sssum mns ma
-      | T.Arr mn -> sslst mn ma
-      | T.Lst mn -> sslst mn ma
-      | T.Set (_, mn) -> sslst mn ma
-      | T.Map _ -> assert false (* No value of map type *)
+      | This n -> cumul (ssthis n ma)
+      | Ext n -> cumul (ssext n ma)
+      | Void -> ssvoid
+      | Float -> cumul Ser.ssize_of_float
+      | String -> cumul Ser.ssize_of_string
+      | Bool -> cumul Ser.ssize_of_bool
+      | Char -> cumul Ser.ssize_of_char
+      | I8 -> cumul Ser.ssize_of_i8
+      | I16 -> cumul Ser.ssize_of_i16
+      | I24 -> cumul Ser.ssize_of_i24
+      | I32 -> cumul Ser.ssize_of_i32
+      | I40 -> cumul Ser.ssize_of_i40
+      | I48 -> cumul Ser.ssize_of_i48
+      | I56 -> cumul Ser.ssize_of_i56
+      | I64 -> cumul Ser.ssize_of_i64
+      | I128 -> cumul Ser.ssize_of_i128
+      | U8 -> cumul Ser.ssize_of_u8
+      | U16 -> cumul Ser.ssize_of_u16
+      | U24 -> cumul Ser.ssize_of_u24
+      | U32 -> cumul Ser.ssize_of_u32
+      | U40 -> cumul Ser.ssize_of_u40
+      | U48 -> cumul Ser.ssize_of_u48
+      | U56 -> cumul Ser.ssize_of_u56
+      | U64 -> cumul Ser.ssize_of_u64
+      | U128 -> cumul Ser.ssize_of_u128
+      | Usr vt -> ssz_of_vt vt.def
+      | Vec (dim, mn) -> ssvec dim mn ma
+      | Tup mns -> sstup mns ma
+      | Rec mns -> ssrec mns ma
+      | Sum mns -> sssum mns ma
+      | Arr mn -> sslst mn ma
+      | Lst mn -> sslst mn ma
+      | Set (_, mn) -> sslst mn ma
+      | Map _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "sersz1" in
     let on_copy =
       let vt = mn.typ in

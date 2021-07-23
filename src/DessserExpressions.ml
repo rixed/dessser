@@ -583,49 +583,49 @@ let rec default ?(allow_null=true) t =
       default t
   | Void ->
       E0S (Seq, [])
-  | Base Float ->
+  | Float ->
       E0 (Float 0.)
-  | Base String ->
+  | String ->
       E0 (String "")
-  | Base Bool ->
+  | Bool ->
       E0 (Bool false)
-  | Base Char ->
+  | Char ->
       E0 (Char '\000')
-  | Base I8 ->
+  | I8 ->
       E0 (I8 Int8.zero)
-  | Base I16 ->
+  | I16 ->
       E0 (I16 Int16.zero)
-  | Base I24 ->
+  | I24 ->
       E0 (I24 Int24.zero)
-  | Base I32 ->
+  | I32 ->
       E0 (I32 Int32.zero)
-  | Base I40 ->
+  | I40 ->
       E0 (I40 Int40.zero)
-  | Base I48 ->
+  | I48 ->
       E0 (I48 Int48.zero)
-  | Base I56 ->
+  | I56 ->
       E0 (I56 Int56.zero)
-  | Base I64 ->
+  | I64 ->
       E0 (I64 Int64.zero)
-  | Base I128 ->
+  | I128 ->
       E0 (I128 Int128.zero)
-  | Base U8 ->
+  | U8 ->
       E0 (U8 Uint8.zero)
-  | Base U16 ->
+  | U16 ->
       E0 (U16 Uint16.zero)
-  | Base U24 ->
+  | U24 ->
       E0 (U24 Uint24.zero)
-  | Base U32 ->
+  | U32 ->
       E0 (U32 Uint32.zero)
-  | Base U40 ->
+  | U40 ->
       E0 (U40 Uint40.zero)
-  | Base U48 ->
+  | U48 ->
       E0 (U48 Uint48.zero)
-  | Base U56 ->
+  | U56 ->
       E0 (U56 Uint56.zero)
-  | Base U64 ->
+  | U64 ->
       E0 (U64 Uint64.zero)
-  | Base U128 ->
+  | U128 ->
       E0 (U128 Uint128.zero)
   | Usr nn ->
       default_mn T.{ typ = nn.def ; nullable = false }
@@ -1636,7 +1636,7 @@ struct
     [ Ops.u8 (Uint8.of_int 42) ] (expr "(u8 42)")
     [ Ops.float 1. ] (expr "(float 1.0)")
     [ Ops.char '\019' ] (expr "(char \"\\019\")")
-    [ Ops.null T.(Base String) ] (expr "(null \"string\")")
+    [ Ops.null T.(String) ] (expr "(null \"string\")")
     [ Ops.i56 (Int56.of_string "-36028797018963967") ] (expr "(i56 -36028797018963967)")
     [ Ops.i128 (Int128.of_string "-1213949874624120272") ] \
       (expr "(i128 -1213949874624120272)")
@@ -2035,7 +2035,7 @@ and type_of l e0 =
       let t = get_memo_mn r l (E1 (Force "NullMap", e1)) in
       let l = add_local n t l in
       type_of l e2
-  | E2 (Index, _, _) -> T.optional (Base U32)
+  | E2 (Index, _, _) -> T.optional (U32)
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
       (match type_of l e |> T.develop1 with
@@ -2158,7 +2158,7 @@ and get_item_type_err ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
   | { typ = Arr mn ; nullable = false } when arr -> Ok mn
   | { typ = Set (_, mn) ; nullable = false } when set -> Ok mn
   | { typ = Lst mn ; nullable = false } when lst -> Ok mn
-  | { typ = Base String ; nullable = false } when str -> Ok T.char
+  | { typ = String ; nullable = false } when str -> Ok T.char
   | { typ = Bytes ; nullable = false } when bytes -> Ok T.u8
   | t -> Error t
 
@@ -3398,10 +3398,10 @@ end
 
 let () =
   let open Ops in
-  register_user_constructor "Date" (Base Float) [] ;
-  register_user_constructor "Eth" (Base U48) [] ;
-  register_user_constructor "Ip4" (Base U32) [] ;
-  register_user_constructor "Ip6" (Base U128) [] ;
+  register_user_constructor "Date" Float [] ;
+  register_user_constructor "Eth" U48 [] ;
+  register_user_constructor "Ip4" U32 [] ;
+  register_user_constructor "Ip6" U128 [] ;
   let ip4_t = T.required (T.get_user_type "Ip4")
   and ip6_t = T.required (T.get_user_type "Ip6") in
   let ip_mns = [| "v4", ip4_t ; "v6", ip6_t |] in
@@ -3409,11 +3409,11 @@ let () =
     [ func1 ip4_t (fun x -> construct ip_mns 0 x) ;
       func1 ip6_t (fun x -> construct ip_mns 1 x) ] ;
   register_user_constructor "Cidr4"
-    (Rec [| "ip", ip4_t ; "mask", T.required (Base U8) |])
+    (Rec [| "ip", ip4_t ; "mask", T.required U8 |])
     [ func2 ip4_t T.u8 (fun ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   register_user_constructor "Cidr6"
-    (Rec [| "ip", ip6_t ; "mask", T.required (Base U8) |])
+    (Rec [| "ip", ip6_t ; "mask", T.required U8 |])
     [ func2 ip6_t T.u8 (fun ip mask ->
         make_rec [ "ip", ip ; "mask", mask ]) ] ;
   let cidr4_t = T.required (T.get_user_type "Cidr4")

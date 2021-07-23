@@ -172,8 +172,8 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let mn = T.{ typ = Tup [| { typ = Base U8 ; nullable = false } ;
-                            { typ = Base Char ; nullable = false } |] ;
+  let mn = T.{ typ = Tup [| { typ = U8 ; nullable = false } ;
+                            { typ = Char ; nullable = false } |] ;
                nullable = false } in
   let src = ptr_of_string (string "\001X")
   and dst = ptr_of_string (string "_____") in

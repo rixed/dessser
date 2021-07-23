@@ -9,30 +9,10 @@ module P = Parsers.Make (PConfig)
 
 let pp = Printf.fprintf
 
-(* Basic types that can be used to define more specialized user types *)
-
-type base_type =
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
-
-(* User types are specialized types that can be build from basic or external
- * types and given their own name, pretty-printer and parser.
- * User expressions can restrict types to user types. Other than that,
- * every operation that applies to the implementation of a user type also
- * applies to the user type, and the other way around.
- * Unlike named types, user_types can be created only programmatically.
- * Unlike external types their implementation need not be supplied
- * externally though. *)
-
-and user_type =
-  { name : string ;
-    def : t }
-
 (* "Value" types are all the types describing values that can be (de)serialized.
  * All of them can possibly be nullable. *)
 
-and t =
+type t =
   | Unknown
   (* To christen the following type. Notice that name is valid both during the
    * definition of that child type but also after. Once a name is met it sticks
@@ -41,7 +21,10 @@ and t =
   | Named of string * t
   (* Refers to a type named during its definition. *)
   | This of string
-  | Base of base_type
+  (* Base types: *)
+  | Bool | Char | Float | String
+  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
+  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128
   (* Aliases with custom representations: *)
   | Usr of user_type
   (* External types are known only by name, and are converted to some verbatim
@@ -96,9 +79,25 @@ and t =
   | Lst of mn
   | Function of (* arguments: *) mn array * (* result: *) mn
 
+(* User types are specialized types that can be build from basic or external
+ * types and given their own name, pretty-printer and parser.
+ * User expressions can restrict types to user types. Other than that,
+ * every operation that applies to the implementation of a user type also
+ * applies to the user type, and the other way around.
+ * Unlike named types, user_types can be created only programmatically.
+ * Unlike external types their implementation need not be supplied
+ * externally though. *)
+
+and user_type =
+  { name : string ;
+    def : t }
+
 (* "mn" for "maybe nullable": *)
 and mn =
-  { typ : t ; nullable : bool }
+  { (* The underlying type: *)
+    typ : t ;
+    (* Whether that value can be NULL: *)
+    nullable : bool }
 
 (*
  * User-defined types
@@ -143,32 +142,6 @@ let string_of_set_type = function
   | Heap -> "heap"
   | Top -> "top"
 
-let print_base_type oc =
-  let sp = String.print oc in
-  function
-  | Float -> sp "FLOAT"
-  | String -> sp "STRING"
-  | Bool -> sp "BOOL"
-  | Char -> sp "CHAR"
-  | U8 -> sp "U8"
-  | U16 -> sp "U16"
-  | U24 -> sp "U24"
-  | U32 -> sp "U32"
-  | U40 -> sp "U40"
-  | U48 -> sp "U48"
-  | U56 -> sp "U56"
-  | U64 -> sp "U64"
-  | U128 -> sp "U128"
-  | I8 -> sp "I8"
-  | I16 -> sp "I16"
-  | I24 -> sp "I24"
-  | I32 -> sp "I32"
-  | I40 -> sp "I40"
-  | I48 -> sp "I48"
-  | I56 -> sp "I56"
-  | I64 -> sp "I64"
-  | I128 -> sp "I128"
-
 let rec print ?(sorted=false) oc =
   let print_mn = print_mn ~sorted in
   let sp = String.print oc in
@@ -182,8 +155,50 @@ let rec print ?(sorted=false) oc =
       sp "THIS"
   | This n ->
       sp n
-  | Base t ->
-      print_base_type oc t
+  | Float ->
+      sp "FLOAT"
+  | String ->
+      sp "STRING"
+  | Bool ->
+      sp "BOOL"
+  | Char ->
+      sp "CHAR"
+  | U8 ->
+      sp "U8"
+  | U16 ->
+      sp "U16"
+  | U24 ->
+      sp "U24"
+  | U32 ->
+      sp "U32"
+  | U40 ->
+      sp "U40"
+  | U48 ->
+      sp "U48"
+  | U56 ->
+      sp "U56"
+  | U64 ->
+      sp "U64"
+  | U128 ->
+      sp "U128"
+  | I8 ->
+      sp "I8"
+  | I16 ->
+      sp "I16"
+  | I24 ->
+      sp "I24"
+  | I32 ->
+      sp "I32"
+  | I40 ->
+      sp "I40"
+  | I48 ->
+      sp "I48"
+  | I56 ->
+      sp "I56"
+  | I64 ->
+      sp "I64"
+  | I128 ->
+      sp "I128"
   (* To having having to accept any valid identifiers as an external type when
    * parsing a type, we denote external types with a dollar sign, evicative of
    * some reference/placeholder. *)
@@ -226,12 +241,18 @@ let rec print ?(sorted=false) oc =
       pp oc "%a[%a]"
         print_mn v
         print_mn k
-  | Void -> sp "Void"
-  | Ptr -> sp "Ptr"
-  | Size -> sp "Size"
-  | Address -> sp "Address"
-  | Bytes -> sp "Bytes"
-  | Mask -> sp "Mask"
+  | Void ->
+      sp "Void"
+  | Ptr ->
+      sp "Ptr"
+  | Size ->
+      sp "Size"
+  | Address ->
+      sp "Address"
+  | Bytes ->
+      sp "Bytes"
+  | Mask ->
+      sp "Mask"
   | Lst mn ->
       pp oc "%a[[]]" print_mn mn
   | Function ([||], mn) ->
@@ -260,8 +281,6 @@ let to_string = IO.to_string print
 
 (* Need no environment since does not use This: *)
 let rec develop = function
-  | (Unknown | This _ | Base _ | Ext _) as t ->
-      t
   | Usr { def ; _ } ->
       develop def
   | Vec (d, mn) ->
@@ -410,8 +429,6 @@ and add_type_as n t =
  * Comparators
  *)
 
-and base_type_eq mt1 mt2 = mt1 = mt2
-
 and eq ?(opaque_user_type=false) t1 t2 =
   let eq = eq ~opaque_user_type
   and eq_mn = eq_mn ~opaque_user_type in
@@ -427,8 +444,6 @@ and eq ?(opaque_user_type=false) t1 t2 =
   | t, This r ->
       let t' = find_this r in
       eq t t'
-  | Base b1, Base b2 ->
-      base_type_eq b1 b2
   | Usr ut1, Usr ut2 when opaque_user_type ->
       ut1.name = ut2.name
   | Ext n1, Ext n2 ->
@@ -485,6 +500,7 @@ and eq_mn ?opaque_user_type mn1 mn2 =
 
 module Parser =
 struct
+  type t_ = t
   module ParseUsual = ParsersUsual.Make (P)
   include P
   include ParseUsual
@@ -546,10 +562,10 @@ struct
   let scalar_typ m =
     let m = "scalar type" :: m in
     let st n mtyp =
-      strinG n >>: fun () -> Base mtyp
+      strinG n >>: fun () -> mtyp
     in
     (
-      (st "float" Float) |<|
+      (st "float" (Float : t_)) |<|
       (st "string" String) |<|
       (st "bool" Bool) |<|
       (st "boolean" Bool) |<|
@@ -817,31 +833,31 @@ struct
   (*$inject
     let pmn = Parser.mn *)
   (*$= pmn & ~printer:(test_printer print_mn)
-    (Ok ((required (Base U8)), (2,[]))) \
+    (Ok ((required U8), (2,[]))) \
        (test_p pmn "u8")
-    (Ok ((optional (Base U8)), (3,[]))) \
+    (Ok ((optional U8), (3,[]))) \
        (test_p pmn "u8?")
-    (Ok ((required (Vec (3, (required (Base U8))))), (5,[]))) \
+    (Ok ((required (Vec (3, (required U8)))), (5,[]))) \
        (test_p pmn "u8[3]")
-    (Ok ((required (Vec (3, (optional (Base U8))))), (6,[]))) \
+    (Ok ((required (Vec (3, (optional U8)))), (6,[]))) \
        (test_p pmn "u8?[3]")
-    (Ok ((optional (Vec (3, (required (Base U8))))), (6,[]))) \
+    (Ok ((optional (Vec (3, (required U8)))), (6,[]))) \
        (test_p pmn "u8[3]?")
-    (Ok ((required (Vec (3, (optional (Arr (required (Base U8))))))), (8,[]))) \
+    (Ok ((required (Vec (3, (optional (Arr (required U8)))))), (8,[]))) \
        (test_p pmn "u8[]?[3]")
-    (Ok ((optional (Arr (required (Vec (3, (optional (Base U8))))))), (9,[]))) \
+    (Ok ((optional (Arr (required (Vec (3, (optional U8)))))), (9,[]))) \
        (test_p pmn "u8?[3][]?")
-    (Ok ((optional (Map ((required (Base String)), (required (Base U8))))), (11,[]))) \
+    (Ok ((optional (Map ((required String), (required U8)))), (11,[]))) \
        (test_p pmn "u8[string]?")
-    (Ok ((required (Map ((required (Map ((optional (Base U8)), (optional (Base String))))), (optional (Arr ((required (Tup [| (required (Base U8)) ; (required (Map ((required (Base String)), (required (Base Bool))))) |])))))))), (35,[]))) \
+    (Ok ((required (Map ((required (Map ((optional U8), (optional String)))), (optional (Arr ((required (Tup [| (required U8) ; (required (Map ((required String), (required Bool)))) |])))))))), (35,[]))) \
        (test_p pmn "(u8; bool[string])[]?[string?[u8?]]")
-    (Ok ((required (Rec [| "f1", required (Base Bool) ; "f2", optional (Base U8) |])), (19,[]))) \
+    (Ok ((required (Rec [| "f1", required Bool ; "f2", optional U8 |])), (19,[]))) \
       (test_p pmn "{f1: Bool; f2: U8?}")
-    (Ok ((required (Rec [| "f2", required (Base Bool) ; "f1", optional (Base U8) |])), (19,[]))) \
+    (Ok ((required (Rec [| "f2", required Bool ; "f1", optional U8 |])), (19,[]))) \
       (test_p pmn "{f2: Bool; f1: U8?}")
-    (Ok ((required (Sum [| "c1", required (Base Bool) ; "c2", optional (Base U8) |])), (18,[]))) \
+    (Ok ((required (Sum [| "c1", required Bool ; "c2", optional U8 |])), (18,[]))) \
       (test_p pmn "[c1 Bool | c2 U8?]")
-    (Ok ((required (Vec (1, required (Base Bool)))), (7,[]))) \
+    (Ok ((required (Vec (1, required Bool))), (7,[]))) \
       (test_p pmn "Bool[1]")
   *)
 
@@ -883,46 +899,46 @@ struct
       let m = "Type name" :: m in
       (
         (* Look only for simple types, starting with numerics: *)
-        (iD "UInt8" >>: fun () -> { nullable = false ; typ = Base U8 }) |<|
-        (iD "UInt16" >>: fun () -> { nullable = false ; typ = Base U16 }) |<|
-        (iD "UInt32" >>: fun () -> { nullable = false ; typ = Base U32 }) |<|
-        (iD "UInt64" >>: fun () -> { nullable = false ; typ = Base U64 }) |<|
+        (iD "UInt8" >>: fun () -> { nullable = false ; typ = U8 }) |<|
+        (iD "UInt16" >>: fun () -> { nullable = false ; typ = U16 }) |<|
+        (iD "UInt32" >>: fun () -> { nullable = false ; typ = U32 }) |<|
+        (iD "UInt64" >>: fun () -> { nullable = false ; typ = U64 }) |<|
         ((iD "Int8" |<| iD "TINYINT") >>:
-          fun () -> { nullable = false ; typ = Base I8 }) |<|
+          fun () -> { nullable = false ; typ = I8 }) |<|
         ((iD "Int16" |<| iD "SMALLINT") >>:
-          fun () -> { nullable = false ; typ = Base I16 }) |<|
+          fun () -> { nullable = false ; typ = I16 }) |<|
         ((iD "Int32" |<| iD "INTEGER" |<| iD "INT") >>:
-          fun () -> { nullable = false ; typ = Base I32 }) |<|
+          fun () -> { nullable = false ; typ = I32 }) |<|
         ((iD "Int64" |<| iD "BIGINT") >>:
-          fun () -> { nullable = false ; typ = Base I64 }) |<|
+          fun () -> { nullable = false ; typ = I64 }) |<|
         ((iD "Float32" |<| iD "Float64" |<|
           iD "FLOAT" |<| iD "DOUBLE") >>:
-          fun () -> { nullable = false ; typ = Base Float }) |<|
+          fun () -> { nullable = false ; typ = Float }) |<|
         (* Assuming UUIDs are just plain U128 with funny-printing: *)
-        (iD "UUID" >>: fun () -> { nullable = false ; typ = Base U128 }) |<|
+        (iD "UUID" >>: fun () -> { nullable = false ; typ = U128 }) |<|
         (* Decimals: for now forget about the size of the decimal part,
          * just map into corresponding int type*)
         (with_num_param "Decimal32" >>:
-          fun _p -> { nullable = false ; typ = Base I32 }) |<|
+          fun _p -> { nullable = false ; typ = I32 }) |<|
         (with_num_param "Decimal64" >>:
-          fun _p -> { nullable = false ; typ = Base I64 }) |<|
+          fun _p -> { nullable = false ; typ = I64 }) |<|
         (with_num_param "Decimal128" >>:
-          fun _p -> { nullable = false ; typ = Base I128 }) |<|
+          fun _p -> { nullable = false ; typ = I128 }) |<|
         (* TODO: actually do something with the size: *)
         ((with_2_num_params "Decimal" |<| with_2_num_params "DEC") >>:
-          fun (_n, _m)  -> { nullable = false ; typ = Base I128 }) |<|
+          fun (_n, _m)  -> { nullable = false ; typ = I128 }) |<|
         ((iD "DateTime" |<| iD "TIMESTAMP") >>:
-          fun () -> { nullable = false ; typ = Base U32 }) |<|
-        (iD "Date" >>: fun () -> { nullable = false ; typ = Base U16 }) |<|
+          fun () -> { nullable = false ; typ = U32 }) |<|
+        (iD "Date" >>: fun () -> { nullable = false ; typ = U16 }) |<|
         ((iD "String" |<| iD "CHAR" |<| iD "VARCHAR" |<|
           iD "TEXT" |<| iD "TINYTEXT" |<| iD "MEDIUMTEXT" |<|
           iD "LONGTEXT" |<| iD "BLOB" |<| iD "TINYBLOB" |<|
           iD "MEDIUMBLOB" |<| iD "LONGBLOB") >>:
-          fun () -> { nullable = false ; typ = Base String }) |<|
+          fun () -> { nullable = false ; typ = String }) |<|
         ((with_num_param "FixedString" |<| with_num_param "BINARY") >>:
           fun d -> { nullable = false ;
                      typ = Vec (d, { nullable = false ;
-                                       typ = Base Char }) }) |<|
+                                       typ = Char }) }) |<|
         (with_typ_param "Nullable" >>:
           fun mn -> { mn with nullable = true }) |<|
         (with_typ_param "Array" >>:
@@ -945,10 +961,10 @@ struct
     ) m
 
   (*$= clickhouse_names_and_types & ~printer:(test_printer print)
-    (Ok (Rec [| "thing", required (Base U16) |], (14,[]))) \
+    (Ok (Rec [| "thing", required U16 |], (14,[]))) \
        (test_p clickhouse_names_and_types "`thing` UInt16")
 
-    (Ok (Rec [| "thing", required (Arr (required (Base U16))) |], (21,[]))) \
+    (Ok (Rec [| "thing", required (Arr (required U16)) |], (21,[]))) \
        (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
   *)
 
@@ -970,15 +986,15 @@ let of_string ?(any_format=false) ?what =
   string_parser ~print ?what p
 
 (*$= of_string & ~printer:Batteries.dump
-  (Usr { name = "Ip4" ; def = Base U32 }) (of_string "Ip4")
+  (Usr { name = "Ip4" ; def = U32 }) (of_string "Ip4")
 
   (Lst { \
     typ = Sum [| "eugp", { typ = Usr { name = "Ip4" ; \
-                                       def = Base U32 } ; \
+                                       def = U32 } ; \
                            nullable = false }; \
-                 "jjbi", { typ = Base Bool ; nullable = false } ; \
-                 "bejlu", { typ = Base I24 ; nullable = true } ; \
-                 "bfid", { typ = Base Float ; nullable = false } |] ; \
+                 "jjbi", { typ = Bool ; nullable = false } ; \
+                 "bejlu", { typ = I24 ; nullable = true } ; \
+                 "bfid", { typ = Float ; nullable = false } |] ; \
     nullable = false }) \
   (of_string "[eugp Ip4 | jjbi BOOL | bejlu I24? | bfid FLOAT][[]]")
 *)
@@ -986,8 +1002,6 @@ let of_string ?(any_format=false) ?what =
 (*
  * Some functional constructors:
  *)
-
-let base x = Base x
 
 let usr x = Usr x
 
@@ -1045,51 +1059,51 @@ let ref_ mn = required (Vec (1, mn))
 
 (* Some short cuts for often used types: *)
 let void = required Void
-let bool = required (Base Bool)
-let char = required (Base Char)
-let string = required (Base String)
-let float = required (Base Float)
-let u8 = required (Base U8)
-let u16 = required (Base U16)
-let u24 = required (Base U24)
-let u32 = required (Base U32)
-let u40 = required (Base U40)
-let u48 = required (Base U48)
-let u56 = required (Base U56)
-let u64 = required (Base U64)
-let u128 = required (Base U128)
-let i8 = required (Base I8)
-let i16 = required (Base I16)
-let i24 = required (Base I24)
-let i32 = required (Base I32)
-let i40 = required (Base I40)
-let i48 = required (Base I48)
-let i56 = required (Base I56)
-let i64 = required (Base I64)
-let i128 = required (Base I128)
+let bool = required Bool
+let char = required Char
+let string = required String
+let float = required Float
+let u8 = required U8
+let u16 = required U16
+let u24 = required U24
+let u32 = required U32
+let u40 = required U40
+let u48 = required U48
+let u56 = required U56
+let u64 = required U64
+let u128 = required U128
+let i8 = required I8
+let i16 = required I16
+let i24 = required I24
+let i32 = required I32
+let i40 = required I40
+let i48 = required I48
+let i56 = required I56
+let i64 = required I64
+let i128 = required I128
 (* nullable counterparts: *)
-let nbool = optional (Base Bool)
-let nchar = optional (Base Char)
-let nstring = optional (Base String)
-let nfloat = optional (Base Float)
-let nu8 = optional (Base U8)
-let nu16 = optional (Base U16)
-let nu24 = optional (Base U24)
-let nu32 = optional (Base U32)
-let nu40 = optional (Base U40)
-let nu48 = optional (Base U48)
-let nu56 = optional (Base U56)
-let nu64 = optional (Base U64)
-let nu128 = optional (Base U128)
-let ni8 = optional (Base I8)
-let ni16 = optional (Base I16)
-let ni24 = optional (Base I24)
-let ni32 = optional (Base I32)
-let ni40 = optional (Base I40)
-let ni48 = optional (Base I48)
-let ni56 = optional (Base I56)
-let ni64 = optional (Base I64)
-let ni128 = optional (Base I128)
+let nbool = optional Bool
+let nchar = optional Char
+let nstring = optional String
+let nfloat = optional Float
+let nu8 = optional U8
+let nu16 = optional U16
+let nu24 = optional U24
+let nu32 = optional U32
+let nu40 = optional U40
+let nu48 = optional U48
+let nu56 = optional U56
+let nu64 = optional U64
+let nu128 = optional U128
+let ni8 = optional I8
+let ni16 = optional I16
+let ni24 = optional I24
+let ni32 = optional I32
+let ni40 = optional I40
+let ni48 = optional I48
+let ni56 = optional I56
+let ni64 = optional I64
+let ni128 = optional I128
 let nptr = optional Ptr
 
 let to_nullable mn =
@@ -1123,10 +1137,10 @@ let rec is_num ~accept_float t =
   | This n ->
       let t = find_this n in
       is_num t
-  | Base (U8|U16|U24|U32|U40|U48|U56|U64|U128|
-          I8|I16|I24|I32|I40|I48|I56|I64|I128) ->
+  | U8|U16|U24|U32|U40|U48|U56|U64|U128|
+    I8|I16|I24|I32|I40|I48|I56|I64|I128 ->
       true
-  | Base Float ->
+  | Float ->
       accept_float
   | Usr { def ; _ } ->
       is_num def
@@ -1170,32 +1184,32 @@ let rec depth ?(opaque_user_type=true) t =
   | _ -> 0
 
 (*$= depth & ~printer:string_of_int
-  0 (depth (Base U8))
-  2 (depth (Tup [| required (Base U8) ; required (Arr (required (Base U8))) |]))
+  0 (depth U8)
+  2 (depth (Tup [| required U8 ; required (Arr (required U8)) |]))
   7 (depth (\
     Arr (required (\
       Vec (4, (required (\
         Rec [| \
           "mgfhm", required (\
             Rec [| \
-              "ceci", optional (Base Char) ; \
+              "ceci", optional Char ; \
               "zauxs", required (\
                 Rec [| \
                   "gidf", required (\
                     Rec [| \
-                      "qskv", optional (Base Float) ; \
-                      "lefr", required (Base I16) ; \
+                      "qskv", optional Float ; \
+                      "lefr", required I16 ; \
                       "bdujmi", required (\
                         Vec (8, required (get_user_type "Cidr6"))) |]) ; \
-                  "cdwcv", required (Base U64) ; \
+                  "cdwcv", required U64 ; \
                   "jcdivs", required (\
                     Rec [| \
-                      "hgtixf", required (Arr (optional (Base I128))) ; \
-                      "yuetd", required (Base Char) ; \
-                      "bsbff", required (Base U16) |]) |]) |]) ; \
+                      "hgtixf", required (Arr (optional I128)) ; \
+                      "yuetd", required Char ; \
+                      "bsbff", required U16 |]) |]) |]) ; \
           "pudia", required (get_user_type "Cidr4") ; \
-          "qngl", required (Base Bool) ; \
-          "iajv", optional (Base I128) |])))))))
+          "qngl", required Bool ; \
+          "iajv", optional I128 |])))))))
 *)
 
 let uniq_id t =
@@ -1212,7 +1226,7 @@ let rec get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
   | Arr mn when arr -> mn
   | Set (_, mn) when set -> mn
   | Lst mn when lst -> mn
-  | Base String when str -> char
+  | String when str -> char
   | Bytes when bytes -> u8
   | t -> "get_item_type: "^ to_string t |> invalid_arg
 

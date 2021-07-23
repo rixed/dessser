@@ -169,7 +169,7 @@ let of_string = Parser.mask_of_string
     (of_string "(xxx)")
   (Recurse \
     [| Copy ; \
-       Recurse [| Skip ; Insert (E.(E0 (Null T.(Base U8)))) ; Copy |] |]) \
+       Recurse [| Skip ; Insert (E.(E0 (Null T.U8))) ; Copy |] |]) \
     (of_string "(X(_{(null \"u8\")}X))")
   (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
     (of_string "(X(_NX))")
@@ -246,8 +246,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_mn)
-  (T.optional (Base U8)) (* Do nothing case *) \
-    (project (T.optional (Base U8)) Copy)
+  (T.optional U8) (* Do nothing case *) \
+    (project (T.optional U8) Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \

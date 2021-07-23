@@ -474,40 +474,40 @@ struct
   (* TODO: Ext *)
   and desser_value = function
     | T.This _ -> assert false (* Because of Path.type_of_path *)
-    | T.Void ->
+    | Void ->
         fun _transform _sstate _dstate _mn0 _path src_dst -> src_dst
-    | T.Base Float -> dsfloat
-    | T.Base String -> dsstring
-    | T.Base Bool -> dsbool
-    | T.Base Char -> dschar
-    | T.Base I8 -> dsi8
-    | T.Base I16 -> dsi16
-    | T.Base I24 -> dsi24
-    | T.Base I32 -> dsi32
-    | T.Base I40 -> dsi40
-    | T.Base I48 -> dsi48
-    | T.Base I56 -> dsi56
-    | T.Base I64 -> dsi64
-    | T.Base I128 -> dsi128
-    | T.Base U8 -> dsu8
-    | T.Base U16 -> dsu16
-    | T.Base U24 -> dsu24
-    | T.Base U32 -> dsu32
-    | T.Base U40 -> dsu40
-    | T.Base U48 -> dsu48
-    | T.Base U56 -> dsu56
-    | T.Base U64 -> dsu64
-    | T.Base U128 -> dsu128
-    | T.Usr vt -> desser_value vt.def
-    | T.Tup mns -> dstup mns
-    | T.Rec mns -> dsrec mns
-    | T.Sum mns -> dssum mns
-    | T.Vec (dim, mn) -> dsvec dim mn
-    | T.Arr mn
+    | Float -> dsfloat
+    | String -> dsstring
+    | Bool -> dsbool
+    | Char -> dschar
+    | I8 -> dsi8
+    | I16 -> dsi16
+    | I24 -> dsi24
+    | I32 -> dsi32
+    | I40 -> dsi40
+    | I48 -> dsi48
+    | I56 -> dsi56
+    | I64 -> dsi64
+    | I128 -> dsi128
+    | U8 -> dsu8
+    | U16 -> dsu16
+    | U24 -> dsu24
+    | U32 -> dsu32
+    | U40 -> dsu40
+    | U48 -> dsu48
+    | U56 -> dsu56
+    | U64 -> dsu64
+    | U128 -> dsu128
+    | Usr vt -> desser_value vt.def
+    | Tup mns -> dstup mns
+    | Rec mns -> dsrec mns
+    | Sum mns -> dssum mns
+    | Vec (dim, mn) -> dsvec dim mn
+    | Arr mn
     (* Sets and Lsts are serialized like arrs (the last update is thus lost). *)
-    | T.Set (Simple, mn) | T.Lst mn -> dsarr mn
-    | T.Set _ -> todo "des/ser for non simple sets"
-    | T.Map _ -> assert false (* No value of map type *)
+    | Set (Simple, mn) | T.Lst mn -> dsarr mn
+    | Set _ -> todo "des/ser for non simple sets"
+    | Map _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"
 
   and desser_ transform sstate dstate mn0 path src_dst =

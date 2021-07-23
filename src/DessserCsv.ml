@@ -58,7 +58,9 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       (* If everything else is serializable then This is also serializable.
        * Or let any non-serializable field fails. *)
       true
-  | Base _ ->
+  | Bool | Char | Float | String
+  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
+  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
       true
   | Usr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with typ = def }
@@ -84,7 +86,9 @@ let rec is_serializable ?(to_first_concrete=false) mn =
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.typ with
-  | Base _ ->
+  | Bool | Char | Float | String
+  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
+  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
       false
   | Usr { def ; _ } ->
       nullable_at_first T.{ mn with typ = def }
@@ -115,7 +119,9 @@ let rec make_serializable mn =
   match mn.T.typ with
   | This _ ->
       todo "make_serializable for This"
-  | Base _ ->
+  | Bool | Char | Float | String
+  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
+  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
       mn
   | Usr { def ; _ } ->
       let mn' = T.{ mn with typ = def } in
@@ -165,7 +171,7 @@ let make_serializable =
  * the same) *)
 let is_fixed_string mn0 path =
   match Path.(type_of_path mn0 path).typ |> T.develop with
-  | Vec (_, { typ = Base Char ; nullable = false } ) ->
+  | Vec (_, { typ = Char ; nullable = false } ) ->
       true
   | _ ->
       false

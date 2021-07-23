@@ -21,8 +21,8 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = T.{ typ = Base x ; nullable = false }
-  and n x = T.{ typ = Base x ; nullable = true } in
+  let m x = T.{ typ = x ; nullable = false }
+  and n x = T.{ typ = x ; nullable = true } in
   let udp_typ =
     T.required (Tup [|
       m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;

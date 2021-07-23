@@ -294,28 +294,28 @@ struct
     | This n ->
         let t = T.find_this n in
         type_identifier t
-    | Base Char -> "char" |> declare_if_named
-    | Base String -> "string" |> declare_if_named
-    | Base Bool -> "bool" |> declare_if_named
-    | Base Float -> "float" |> declare_if_named
-    | Base U8 -> "Uint8.t" |> declare_if_named
-    | Base I8 -> "Int8.t" |> declare_if_named
-    | Base U16 -> "Uint16.t" |> declare_if_named
-    | Base I16 -> "Int16.t" |> declare_if_named
-    | Base U24 -> "Uint24.t" |> declare_if_named
-    | Base I24 -> "Int24.t" |> declare_if_named
-    | Base U32 -> "Uint32.t" |> declare_if_named
-    | Base I32 -> "Int32.t" |> declare_if_named
-    | Base U40 -> "Uint40.t" |> declare_if_named
-    | Base I40 -> "Int40.t" |> declare_if_named
-    | Base U48 -> "Uint48.t" |> declare_if_named
-    | Base I48 -> "Int48.t" |> declare_if_named
-    | Base U56 -> "Uint56.t" |> declare_if_named
-    | Base I56 -> "Int56.t" |> declare_if_named
-    | Base U64 -> "Uint64.t" |> declare_if_named
-    | Base I64 -> "Int64.t" |> declare_if_named
-    | Base U128 -> "Uint128.t" |> declare_if_named
-    | Base I128 -> "Int128.t" |> declare_if_named
+    | Char -> "char" |> declare_if_named
+    | String -> "string" |> declare_if_named
+    | Bool -> "bool" |> declare_if_named
+    | Float -> "float" |> declare_if_named
+    | U8 -> "Uint8.t" |> declare_if_named
+    | I8 -> "Int8.t" |> declare_if_named
+    | U16 -> "Uint16.t" |> declare_if_named
+    | I16 -> "Int16.t" |> declare_if_named
+    | U24 -> "Uint24.t" |> declare_if_named
+    | I24 -> "Int24.t" |> declare_if_named
+    | U32 -> "Uint32.t" |> declare_if_named
+    | I32 -> "Int32.t" |> declare_if_named
+    | U40 -> "Uint40.t" |> declare_if_named
+    | I40 -> "Int40.t" |> declare_if_named
+    | U48 -> "Uint48.t" |> declare_if_named
+    | I48 -> "Int48.t" |> declare_if_named
+    | U56 -> "Uint56.t" |> declare_if_named
+    | I56 -> "Int56.t" |> declare_if_named
+    | U64 -> "Uint64.t" |> declare_if_named
+    | I64 -> "Int64.t" |> declare_if_named
+    | U128 -> "Uint128.t" |> declare_if_named
+    | I128 -> "Int128.t" |> declare_if_named
     | Usr t ->
         type_identifier t.def |> declare_if_named
     | Ext n ->
@@ -356,28 +356,28 @@ struct
     | Mask -> "DessserMasks.t" |> declare_if_named
 
   let rec mod_name = function
-    | T.{ typ = Base Char ; nullable = false } -> "Char"
-    | { typ = Base String ; nullable = false } -> "String"
-    | { typ = Base Bool ; nullable = false } -> "Bool"
-    | { typ = Base Float ; nullable = false } -> "Float"
-    | { typ = Base U8 ; nullable = false } -> "Uint8"
-    | { typ = Base I8 ; nullable = false } -> "Int8"
-    | { typ = Base U16 ; nullable = false } -> "Uint16"
-    | { typ = Base I16 ; nullable = false } -> "Int16"
-    | { typ = Base U24 ; nullable = false } -> "Uint24"
-    | { typ = Base I24 ; nullable = false } -> "Int24"
-    | { typ = Base U32 ; nullable = false } -> "Uint32"
-    | { typ = Base I32 ; nullable = false } -> "Int32"
-    | { typ = Base U40 ; nullable = false } -> "Uint40"
-    | { typ = Base I40 ; nullable = false } -> "Int40"
-    | { typ = Base U48 ; nullable = false } -> "Uint48"
-    | { typ = Base I48 ; nullable = false } -> "Int48"
-    | { typ = Base U56 ; nullable = false } -> "Uint56"
-    | { typ = Base I56 ; nullable = false } -> "Int56"
-    | { typ = Base U64 ; nullable = false } -> "Uint64"
-    | { typ = Base I64 ; nullable = false } -> "Int64"
-    | { typ = Base U128 ; nullable = false } -> "Uint128"
-    | { typ = Base I128 ; nullable = false } -> "Int128"
+    | T.{ typ = Char ; nullable = false } -> "Char"
+    | { typ = String ; nullable = false } -> "String"
+    | { typ = Bool ; nullable = false } -> "Bool"
+    | { typ = Float ; nullable = false } -> "Float"
+    | { typ = U8 ; nullable = false } -> "Uint8"
+    | { typ = I8 ; nullable = false } -> "Int8"
+    | { typ = U16 ; nullable = false } -> "Uint16"
+    | { typ = I16 ; nullable = false } -> "Int16"
+    | { typ = U24 ; nullable = false } -> "Uint24"
+    | { typ = I24 ; nullable = false } -> "Int24"
+    | { typ = U32 ; nullable = false } -> "Uint32"
+    | { typ = I32 ; nullable = false } -> "Int32"
+    | { typ = U40 ; nullable = false } -> "Uint40"
+    | { typ = I40 ; nullable = false } -> "Int40"
+    | { typ = U48 ; nullable = false } -> "Uint48"
+    | { typ = I48 ; nullable = false } -> "Int48"
+    | { typ = U56 ; nullable = false } -> "Uint56"
+    | { typ = I56 ; nullable = false } -> "Int56"
+    | { typ = U64 ; nullable = false } -> "Uint64"
+    | { typ = I64 ; nullable = false } -> "Int64"
+    | { typ = U128 ; nullable = false } -> "Uint128"
+    | { typ = I128 ; nullable = false } -> "Int128"
     | { typ = Usr t ; nullable = false } ->
         mod_name { typ = t.def ; nullable = false }
     | { typ = Ptr ; nullable = false } -> "Pointer"
@@ -390,9 +390,9 @@ struct
         invalid_arg
 
   let rec num_name = function
-    | T.{ typ = (Base (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
-                       U40 | I40 | U48 | I48 | U56 | I56 | U64 | I64 |
-                       U128 | I128 | Float)) ;
+    | T.{ typ = (U8 | I8 | U16 | I16 | U24 | I24 | U32 | I32 |
+                 U40 | I40 | U48 | I48 | U56 | I56 | U64 | I64 |
+                 U128 | I128 | Float) ;
           nullable = false } as mn ->
         String.lowercase (mod_name mn)
     | T.{ typ = Usr t ; nullable = false } ->
@@ -651,9 +651,9 @@ struct
         let n = print p l e1 in
         pp p.P.def ("%s"^^
           (match E.type_of l e1 |> T.develop_mn with
-          | { typ = Base String ; nullable = false } ->
+          | { typ = String ; nullable = false } ->
               "print_string %s;"
-          | { typ = Base Char ; nullable = false } ->
+          | { typ = Char ; nullable = false } ->
               "print_char %s;"
           | _ ->
               "print_string (Batteries.dump %s);") ^^"\n")
@@ -673,11 +673,11 @@ struct
           (match mn2.typ with
           | T.(Vec _ | Arr _) ->
               Printf.fprintf oc "%s.(%s.to_int %s)" n2 m n1
-          | T.Lst _ ->
+          | Lst _ ->
               Printf.fprintf oc "List.nth %s (%s.to_int %s)" n2 m n1
-          | T.Base String ->
+          | String ->
               Printf.fprintf oc "%s.[%s.to_int %s]" n2 m n1
-          | T.Bytes ->
+          | Bytes ->
               Printf.fprintf oc "Uint8.of_int (Char.code \
                                  (Slice.get %s (%s.to_int %s)))" n2 m n1
           | _ ->
@@ -691,11 +691,11 @@ struct
           (match (E.type_of l e2 |> T.develop_mn).T.typ with
           | T.(Vec _ | Arr _) ->
               Printf.fprintf oc "Array.unsafe_get %s (%s.to_int %s)" n2 m n1
-          | T.Lst _ ->
+          | Lst _ ->
               Printf.fprintf oc "List.nth %s (%s.to_int %s)" n2 m n1
-          | T.Base String ->
+          | String ->
               Printf.fprintf oc "String.unsafe_get %s (%s.to_int %s)" n2 m n1
-          | T.Bytes ->
+          | Bytes ->
               Printf.fprintf oc "Uint8.of_int (Char.code \
                                  (Slice.unsafe_get %s (%s.to_int %s)))" n2 m n1
           | _ ->
@@ -797,13 +797,12 @@ struct
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_mn with
-          | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                         |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-              _ } as t ->
+          | { typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                    |I8|I16|I24|I32|I40|I48|I56|I64|I128) ; _ } as t ->
               let op_name = match op with Div -> "div" | _ -> "rem" in
               pp oc "try Some (%s.%s %s %s) with Division_by_zero -> None"
                 (mod_name t) op_name n1 n2
-          | { typ = Base Float ; _ } ->
+          | { typ = Float ; _ } ->
               let op_name = match op with Div -> "(/.)" | _ -> "Float.rem" in
               pp oc "nullable_of_nan (%s %s %s)" op_name n1 n2
           | _ ->
@@ -813,12 +812,11 @@ struct
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_mn with
-          | { typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                         |I8|I16|I24|I32|I40|I48|I56|I64|I128) ;
-              _ } as t ->
+          | { typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                    |I8|I16|I24|I32|I40|I48|I56|I64|I128) ; _ } as t ->
               let op_name = match op with UnsafeDiv -> "div" | _ -> "rem" in
               pp oc "%s.%s %s %s" (mod_name t) op_name n1 n2
-          | { typ = Base Float ; _ } ->
+          | { typ = Float ; _ } ->
               let op_name = match op with UnsafeDiv -> "(/.)" | _ -> "Float.rem" in
               pp oc "%s %s %s" op_name n1 n2
           | _ ->
@@ -828,15 +826,15 @@ struct
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_mn with
-          | { typ = Base Float ; _ } ->
+          | { typ = Float ; _ } ->
               pp oc "nullable_of_nan (%s ** %s)" n1 n2
-          | { typ = Base (I32 | I64) ; _ } as t ->
+          | { typ = (I32 | I64) ; _ } as t ->
               pp oc "try Some (Bat%s.pow %s %s) \
                      with Invalid_argument _ -> None"
                 (mod_name t) n1 n2
           | {
-              typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                          |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
+              typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                    |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
               (* For through floats *)
               let m = mod_name t in
               pp oc "nullable_map %s.of_float \
@@ -849,13 +847,13 @@ struct
         and n2 = print p l e2 in
         emit ?name p l e (fun oc ->
           match E.type_of l e1 |> T.develop_mn with
-          | { typ = Base Float ; _ } ->
+          | { typ = Float ; _ } ->
               pp oc "%s ** %s" n1 n2
-          | { typ = Base (I32 | I64) ; _ } as t ->
+          | { typ = (I32 | I64) ; _ } as t ->
               pp oc "Bat%s.pow %s %s" (mod_name t) n1 n2
           | {
-              typ = Base (U8|U16|U24|U32|U40|U48|U56|U64|U128
-                          |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
+              typ = (U8|U16|U24|U32|U40|U48|U56|U64|U128
+                    |I8|I16|I24|I40|I48|I56|I128) ; _ } as t ->
               (* For through floats *)
               let m = mod_name t in
               pp oc "%s.of_float (%s.to_float %s ** %s.to_float %s)"
@@ -881,9 +879,9 @@ struct
         let n1 = print p l e1 in
         let case_u mn n =
           match T.develop_mn mn with
-          | T.{ typ = Base U32 ; _ } ->
+          | T.{ typ = U32 ; _ } ->
               ppi p.P.def "DessserIpTools.V4.to_string %s" n
-          | T.{ typ = Base U128 ; _ } ->
+          | T.{ typ = U128 ; _ } ->
               ppi p.P.def "DessserIpTools.V6.to_string %s" n
           | _ ->
               assert false (* because of type checking *)
@@ -1521,7 +1519,7 @@ struct
               let body = print p l body in
               ppi p.P.def "%s" body) ;
             ppi p.P.def ") ;"
-        | Base String ->
+        | String ->
             iter "String"
         | Bytes ->
             iter "Slice"

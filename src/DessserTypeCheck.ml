@@ -24,11 +24,10 @@ let rec type_check l =
     let rec is_comparable = function
       | T.{
           typ =
-            (Size | Address | Mask | Bytes
-            | Base (
-                Float | String | Bool | Char |
-                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
+            (Size | Address | Mask | Bytes |
+             Float | String | Bool | Char |
+             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } ->
           true
       | { typ = Sum mns ; nullable = false } ->
@@ -46,24 +45,23 @@ let rec type_check l =
       | T.{ typ = Size | Address ;
           nullable = false } when not only_base ->
           ()
-      | { typ = Base (
-            Float |
-            U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-            I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+      | { typ =
+            (Float |
+             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match E.type_of l e |> T.develop1 with
       | T.{ typ =
-            (Size | Address
-            | Base (
-                U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-                I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128)) ;
+            (Size | Address |
+             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
+             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
           nullable = false } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
       | T.{ typ = (Size | Address |
-                   Base (U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128)) ;
+                   U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
             nullable = false } ->
           true
       | _ ->
@@ -115,7 +113,7 @@ let rec type_check l =
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
       match t |> T.develop1 with
-      | { typ = Base (U32 | U128) ; nullable = false } ->
+      | { typ = (U32 | U128) ; nullable = false } ->
           ()
       | { typ = Sum mns ; nullable = false } when rec_ = false ->
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l e mn) mns
@@ -459,7 +457,7 @@ let rec type_check l =
         | E2 (Join, e1, e2) ->
             check_eq l e1 T.string ;
             let item_t = E.get_item_type ~arr:true ~vec:true e0 l e2 in
-            if item_t <> T.(required (Base String)) then
+            if item_t <> T.(required String) then
               let msg = "be a list or vector of strings" in
               raise (E.Type_error (e0, e2, E.type_of l e2, msg))
         | E2 (AllocArr, e1, _) ->

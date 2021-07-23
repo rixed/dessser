@@ -68,7 +68,7 @@ let rec random_lst mn =
  * maybe-nullable type [mn]: *)
 and random mn =
   if mn.T.nullable then
-    if_ (random T.(required (Base Bool)))
+    if_ (random T.(required Bool))
       ~then_:(null mn.typ)
       ~else_:(not_null (random { mn with nullable = false }))
   else match mn.typ with
@@ -81,62 +81,62 @@ and random mn =
       random T.(required t)
   | Void ->
       void
-  | Base Float ->
+  | Float ->
       random_float
-  | Base Bool ->
+  | Bool ->
       eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
-  | Base String ->
+  | String ->
       (* Just 5 random letters for now: *)
       let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
         let s = get_ref s_ref in
         seq [
           repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
-              let c = random T.(required (Base Char)) in
+              let c = random T.(required Char) in
               let s' = append_string s (string_of_char_ c) in
               (set_ref s_ref s')) ;
           s ])
-  | Base Char ->
+  | Char ->
       (* Just a random lowercase letter for now *)
       (char_of_u8
         (add (u8_of_char (char 'a'))
              (force ~what:"random rem"
-                    (rem (random T.(required (Base U8)))
+                    (rem (random T.(required U8))
                          (u8_of_int 26)))))
-  | Base U8 ->
+  | U8 ->
       random_u8
-  | Base U16 ->
+  | U16 ->
       to_u16 random_u32
-  | Base U24 ->
+  | U24 ->
       to_u24 random_u32
-  | Base U32 ->
+  | U32 ->
       random_u32
-  | Base U40 ->
+  | U40 ->
       to_u40 random_u64
-  | Base U48 ->
+  | U48 ->
       to_u48 random_u64
-  | Base U56 ->
+  | U56 ->
       to_u56 random_u64
-  | Base U64 ->
+  | U64 ->
       random_u64
-  | Base U128 ->
+  | U128 ->
       random_u128
-  | Base I8 ->
+  | I8 ->
       to_i8 random_u8
-  | Base I16 ->
+  | I16 ->
       to_i16 random_u32
-  | Base I24 ->
+  | I24 ->
       to_i24 random_u32
-  | Base I32 ->
+  | I32 ->
       to_i32 random_u32
-  | Base I40 ->
+  | I40 ->
       to_i40 random_u64
-  | Base I48 ->
+  | I48 ->
       to_i48 random_u64
-  | Base I56 ->
+  | I56 ->
       to_i56 random_u64
-  | Base I64 ->
+  | I64 ->
       to_i64 random_u64
-  | Base I128 ->
+  | I128 ->
       to_i128 random_u128
   | Usr ut ->
       random T.(required ut.def)
@@ -258,12 +258,12 @@ let is_empty e e_t =
   let prop_null nullable e f =
     if nullable then
       if_null e
-        ~then_:(null T.(Base Bool))
+        ~then_:(null T.Bool)
         ~else_:(not_null (f (force e)))
     else
       f e in
   match e_t with
-  | T.{ typ = (Base String) ; nullable } ->
+  | T.{ typ = String ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
   | { typ = (Vec _ | Arr _ | Set _) ; nullable } ->
@@ -345,7 +345,7 @@ let rec is_in item item_t lst lst_t =
     let_ ~name:"item" item (fun item ->
       if lst_t.T.nullable then
         if_null lst
-          ~then_:(null T.(Base Bool))
+          ~then_:(null T.Bool)
           ~else_:(
             let lst = force ~what:"is_in(0)" lst
             and lst_t = { lst_t with nullable = false } in
@@ -363,7 +363,7 @@ let rec is_in item item_t lst lst_t =
           ~else_:(
             if item_t.T.nullable then
               if_null item
-                ~then_:(null T.(Base Bool))
+                ~then_:(null T.Bool)
                 ~else_:(
                   let item = force ~what:"is_in(1)" item
                   and item_t = { item_t with nullable = false } in
@@ -378,14 +378,14 @@ let rec is_in item item_t lst lst_t =
                * the actual question: *)
               match item_t.T.typ, lst_t.T.typ with
               (* Substring search: *)
-              | Base String, Base String ->
+              | String, String ->
                   not_ (is_null (find_substring (bool true) item lst))
               (* In all other cases where [item] and [lst] are of the same type
                * then [in_in item lst] is just a comparison: *)
               | _ when T.eq_mn item_t lst_t ->
                   eq item lst
               (* Otherwise [lst] must be some kind of set: *)
-              | Base Char, Base String ->
+              | Char, String ->
                   not_ (is_null (index item lst))
               | Usr { name = "Ip4" ; _ }, Usr { name = "Cidr4" ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
