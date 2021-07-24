@@ -2,8 +2,10 @@
 open Batteries
 open Stdint
 open QCheck
+
 open DessserTools
 open DessserFloatTools
+open DessserMiscTypes
 module T = DessserTypes
 
 (*$inject
@@ -66,28 +68,28 @@ let printable_no_escape =
 let mac_type_gen =
   Gen.sized (fun n _st ->
     match n mod 22 with
-    | 0 -> T.Float
-    | 1 -> T.String
-    | 2 -> T.Bool
-    | 3 -> T.Char
-    | 4 -> T.U8
-    | 5 -> T.U16
-    | 6 -> T.U24
-    | 7 -> T.U32
-    | 8 -> T.U40
-    | 9 -> T.U48
-    | 10 -> T.U56
-    | 11 -> T.U64
-    | 12 -> T.U128
-    | 13 -> T.I8
-    | 14 -> T.I16
-    | 15 -> T.I24
-    | 16 -> T.I32
-    | 17 -> T.I40
-    | 18 -> T.I48
-    | 19 -> T.I56
-    | 20 -> T.I64
-    | 21 -> T.I128
+    | 0 -> T.TFloat
+    | 1 -> T.TString
+    | 2 -> T.TBool
+    | 3 -> T.TChar
+    | 4 -> T.TU8
+    | 5 -> T.TU16
+    | 6 -> T.TU24
+    | 7 -> T.TU32
+    | 8 -> T.TU40
+    | 9 -> T.TU48
+    | 10 -> T.TU56
+    | 11 -> T.TU64
+    | 12 -> T.TU128
+    | 13 -> T.TI8
+    | 14 -> T.TI16
+    | 15 -> T.TI24
+    | 16 -> T.TI32
+    | 17 -> T.TI40
+    | 18 -> T.TI48
+    | 19 -> T.TI56
+    | 20 -> T.TI64
+    | 21 -> T.TI128
     | _ -> assert false)
 
 let user_type_gen =
@@ -104,17 +106,17 @@ let rec value_type_gen_of_depth depth =
   if depth = 0 then
     frequency
       (* User types are always considered opaque: *)
-      [ 1, map (fun ut -> T.Usr ut) user_type_gen ;
+      [ 1, map (fun ut -> T.TUsr ut) user_type_gen ;
         9, mac_type_gen ]
   else
     let mn_gen = maybe_nullable_gen_of_depth (depth - 1) in
     oneof
-      [ map2 (fun dim mn -> T.Vec (dim, mn)) (int_range 1 10) mn_gen ;
-        map (fun mn -> T.Arr mn) mn_gen ;
-        map (fun mn -> T.Set (Simple, mn)) mn_gen ;
-        map (fun mns -> T.Tup mns) (tiny_array mn_gen) ;
-        map (fun fs -> T.Rec fs) (tiny_array (pair field_name_gen mn_gen)) ;
-        map (fun fs -> T.Sum fs) (tiny_array (pair field_name_gen mn_gen)) ;
+      [ map2 (fun dim mn -> T.TVec (dim, mn)) (int_range 1 10) mn_gen ;
+        map (fun mn -> T.TArr mn) mn_gen ;
+        map (fun mn -> T.TSet (Simple, mn)) mn_gen ;
+        map (fun mns -> T.TTup mns) (tiny_array mn_gen) ;
+        map (fun fs -> T.TRec fs) (tiny_array (pair field_name_gen mn_gen)) ;
+        map (fun fs -> T.TSum fs) (tiny_array (pair field_name_gen mn_gen)) ;
         (* Avoid maps for now, as there is no manipulable values of that type:
         map2 (fun k v -> T.Map (k, v)) mn_gen mn_gen *) ]
 
@@ -145,19 +147,19 @@ let maybe_nullable_gen =
 
 let rec size_of_value_type = function
   (* Or the question has little practical interest: *)
-  | T.This _ -> 1
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 -> 1
-  | Usr _ -> 1
-  | Vec (_, mn) | T.Arr mn | T.Set (_, mn) -> 1 + size_of_mn mn
-  | Tup mns ->
+  | T.TThis _ -> 1
+  | TBool | TChar | TFloat | TString
+  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
+  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 -> 1
+  | TUsr _ -> 1
+  | TVec (_, mn) | TArr mn | TSet (_, mn) -> 1 + size_of_mn mn
+  | TTup mns ->
       Array.fold_left (fun s mn -> s + size_of_mn mn) 0 mns
-  | Rec mns ->
+  | TRec mns ->
       Array.fold_left (fun s (_, mn) -> s + size_of_mn mn) 0 mns
-  | Sum mns ->
+  | TSum mns ->
       Array.fold_left (fun s (_, mn) -> s + size_of_mn mn) 0 mns
-  | Map (k, v) ->
+  | TMap (k, v) ->
       size_of_mn k + size_of_mn v
   | _ -> invalid_arg "size_of_value_type"
 
@@ -166,9 +168,9 @@ and size_of_mn mn =
 
 let shrink_mac_type mt =
   let to_simplest =
-    T.[ String ; Float ;
-        I128 ; U128 ; I64 ; U64 ; I56 ; U56 ; I48 ; U48 ; I40 ; U40 ;
-        I32 ; U32 ; I24 ; U24 ; I16 ; U16 ; I8 ; U8 ; Char ; Bool ] in
+    T.[ TString ; TFloat ;
+        TI128 ; TU128 ; TI64 ; TU64 ; TI56 ; TU56 ; TI48 ; TU48 ; TI40 ; TU40 ;
+        TI32 ; TU32 ; TI24 ; TU24 ; TI16 ; TU16 ; TI8 ; TU8 ; TChar ; TBool ] in
   (* Keep only types that are simpler than [mt]: *)
   let rec loop = function
     | [] -> Iter.empty
@@ -184,37 +186,37 @@ let rec shrink_value_type =
   let shrink_fields f =
     (Shrink.pair Shrink.nil shrink_maybe_nullable) f in
   function
-  | T.Unknown | T.Ext _ | T.Usr _  | T.Void ->
+  | T.TUnknown | TExt _ | TUsr _  | TVoid ->
       empty
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 as mt ->
+  | TBool | TChar | TFloat | TString
+  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
+  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 as mt ->
       shrink_mac_type mt
-  | Vec (dim, mn) ->
+  | TVec (dim, mn) ->
       let smn = shrink_maybe_nullable mn in
       (smn >|= vt_of_mn) <+> (smn >|= T.vec dim)
-  | Arr mn ->
+  | TArr mn ->
       let smn = shrink_maybe_nullable mn in
       (smn >|= vt_of_mn) <+> (smn >|= T.arr)
-  | Set (st, mn) ->
+  | TSet (st, mn) ->
       let smn = shrink_maybe_nullable mn in
       (smn >|= vt_of_mn) <+> (smn >|= T.set st)
-  | Tup mns ->
+  | TTup mns ->
       (of_array mns >|= vt_of_mn)
        <+>
       (Shrink.array ~shrink:shrink_maybe_nullable mns |>
         filter (fun mns -> Array.length mns > 1) >|= T.tup)
-  | Rec mns ->
+  | TRec mns ->
       (of_array mns >|= vt_of_mn % snd)
        <+>
       (Shrink.array ~shrink:shrink_fields mns |>
         filter (fun mns -> Array.length mns > 1) >|= T.record)
-  | Sum mns ->
+  | TSum mns ->
       (of_array mns >|= vt_of_mn % snd)
        <+>
       (Shrink.array ~shrink:shrink_fields mns |>
         filter (fun mns -> Array.length mns > 1) >|= T.sum)
-  | Map (k, v) ->
+  | TMap (k, v) ->
       let sk = shrink_maybe_nullable k in
       let sv = shrink_maybe_nullable v in
       (sk >|= vt_of_mn) <+> (sv >|= vt_of_mn)
@@ -230,11 +232,12 @@ and shrink_maybe_nullable mn =
   if mn.nullable then
     (fun f ->
       shrink_value_type vt (fun typ ->
-        f { typ ; nullable = false } ;
-        f { typ ; nullable = true }))
+        f (T.required typ) ;
+        f (T.optional typ)))
   else
     (fun f ->
-      shrink_value_type vt (fun typ -> f { typ ; nullable = false }))
+      shrink_value_type vt (fun typ ->
+        f (T.required typ)))
 
 let value_type =
   let print = IO.to_string T.print
@@ -267,8 +270,8 @@ let map5 f v w x y z st = f (v st) (w st) (x st) (y st) (z st)
 
 let endianness_gen =
   Gen.(map (function
-    | true -> E.LittleEndian
-    | false -> E.BigEndian
+    | true -> LittleEndian
+    | false -> BigEndian
   ) bool)
 
 let path_gen =
@@ -277,7 +280,7 @@ let path_gen =
 (* Those constructors with no arguments only *)
 let e1_of_int n =
   let e1s =
-    E.[|
+    T.[|
       Dump ;
       Ignore ;
       IsNull ;
@@ -399,7 +402,7 @@ let e1_of_int n =
 
 let e2_of_int n =
   let e2s =
-    E.[|
+    T.[|
       Nth ;
       Gt ;
       Ge ;
@@ -457,7 +460,7 @@ let e2_of_int n =
 
 let e3_of_int n =
   let e3s =
-    E.[|
+    T.[|
       SetBit ;
       SetVec ;
       BlitByte ;
@@ -510,11 +513,11 @@ let rec e0_gen l depth =
     if depth > 0 then
       (1,
         pick_from_env l depth (function
-          | E.E0 (Identifier _) -> true
+          | T.E0 (Identifier _) -> true
           | _ -> false)) ::
       (1, (
         pick_from_env l depth (function
-          | E.E0 (Param _) -> true
+          | T.E0 (Param _) -> true
           | _ -> false))) ::
       lst
     else lst in
@@ -570,7 +573,7 @@ and e1_gen l depth =
         map (fun ts ->
           let l = E.enter_function ts l in
           map (fun e ->
-            E.E1 (Function ts, e)
+            T.E1 (Function ts, e)
           ) (expression_gen (l, depth - 1))
         ) (tiny_array maybe_nullable_gen)
       ) ;
@@ -583,7 +586,7 @@ and e1_gen l depth =
     1, map2 read_u64 endianness_gen expr ;
     1, map2 read_u128 endianness_gen expr ;
     1, map ptr_of_string expr ;
-    10, map2 (fun n e -> E.E1 (e1_of_int n, e)) nat expr ]
+    10, map2 (fun n e -> T.E1 (e1_of_int n, e)) nat expr ]
 
 and e1s_gen l depth =
   assert (depth > 0) ;
@@ -614,13 +617,13 @@ and e2_gen l depth =
     1, map3 write_u32 endianness_gen expr expr ;
     1, map3 write_u64 endianness_gen expr expr ;
     1, map3 write_u128 endianness_gen expr expr ;
-    10, map3 (fun n e1 e2 -> E.E2 (e2_of_int n, e1, e2)) nat expr expr ]
+    10, map3 (fun n e1 e2 -> T.E2 (e2_of_int n, e1, e2)) nat expr expr ]
 
 and e3_gen l depth =
   let expr = expression_gen (l, depth - 1) in
   let open Gen in
   map4 (fun n e1 e2 e3 ->
-    E.E3 (e3_of_int n, e1, e2, e3)
+    T.E3 (e3_of_int n, e1, e2, e3)
   ) nat expr expr expr
 
 and expression_gen (l, depth) =
@@ -754,76 +757,76 @@ let to_sexpr lst = "("^ String.join " " lst ^")"
 let rec sexpr_of_typ_gen ?sexpr_config typ =
   let open Gen in
   match typ with
-  | T.Named (_, t) ->
+  | T.TNamed (_, t) ->
       sexpr_of_typ_gen ?sexpr_config t
-  | This n ->
+  | TThis n ->
       let t = T.find_this n in
       sexpr_of_typ_gen ?sexpr_config t
-  | Void ->
+  | TVoid ->
       return "()"
-  | Float ->
+  | TFloat ->
       map hexstring_of_float float
-  | String ->
+  | TString ->
       (* FIXME: support escaping in quotes: *)
       map String.quote (string_size ~gen:printable_no_escape (int_range 3 15))
-  | Char ->
+  | TChar ->
       map String.quote (string_size ~gen:printable_no_escape (int_range 1 1))
-  | Bool ->
+  | TBool ->
       map (function true -> "T" | false -> "F") bool
-  | U8 ->
+  | TU8 ->
       int_string_gen 0L 255L
-  | U16 ->
+  | TU16 ->
       int_string_gen 0L 65535L
-  | U24 ->
+  | TU24 ->
       int_string_gen 0L 16777215L
-  | U32 ->
+  | TU32 ->
       int_string_gen 0L 4294967295L
-  | U40 ->
+  | TU40 ->
       int_string_gen 0L 1099511627775L
-  | U48 ->
+  | TU48 ->
       int_string_gen 0L 281474976710655L
-  | U56 ->
+  | TU56 ->
       int_string_gen 0L 72057594037927935L
-  | U64 ->
+  | TU64 ->
       map Uint64.(to_string % of_int64) ui64
-  | U128 ->
+  | TU128 ->
       map Uint128.to_string ui128_gen
-  | I8 ->
+  | TI8 ->
       int_string_gen (-128L) 127L
-  | I16 ->
+  | TI16 ->
       int_string_gen (-32768L) 32767L
-  | I24 ->
+  | TI24 ->
       int_string_gen (-8388608L) 8388607L
-  | I32 ->
+  | TI32 ->
       int_string_gen (-2147483648L) 2147483647L
-  | I40 ->
+  | TI40 ->
       int_string_gen (-549755813888L) 549755813887L
-  | I48 ->
+  | TI48 ->
       int_string_gen (-140737488355328L) 140737488355327L
-  | I56 ->
+  | TI56 ->
       int_string_gen (-36028797018963968L) 36028797018963967L
-  | I64 ->
+  | TI64 ->
       map (fun i -> Int64.(to_string (sub i 4611686018427387904L))) ui64
-  | I128 ->
+  | TI128 ->
       map Int128.to_string i128_gen
-  | Usr ut ->
+  | TUsr ut ->
       sexpr_of_typ_gen ?sexpr_config ut.def
-  | Vec (dim, mn) ->
+  | TVec (dim, mn) ->
       list_repeat dim (sexpr_of_mn_gen ?sexpr_config mn) |> map to_sexpr
-  | Arr mn ->
+  | TArr mn ->
       tiny_list (sexpr_of_mn_gen ?sexpr_config mn) |> map (fun lst ->
         (if DessserSExpr.((sexpr_config |? default_config).list_prefix_length)
         then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
         to_sexpr lst)
-  | Set (_, mn) ->
-      sexpr_of_typ_gen ?sexpr_config (Arr mn)
-  | Tup mns ->
+  | TSet (_, mn) ->
+      sexpr_of_typ_gen ?sexpr_config (TArr mn)
+  | TTup mns ->
       tup_gen ?sexpr_config mns
-  | Rec mns ->
+  | TRec mns ->
       tup_gen ?sexpr_config (Array.map snd mns)
-  | Sum mns ->
+  | TSum mns ->
       join (
         map (fun i ->
           let i = (Stdlib.abs i) mod (Array.length mns) in
@@ -831,9 +834,9 @@ let rec sexpr_of_typ_gen ?sexpr_config typ =
           map (fun se -> "("^ Stdlib.string_of_int i ^" "^ se ^")")
         ) int
       )
-  | Map (k, v) ->
+  | TMap (k, v) ->
       sexpr_of_typ_gen ?sexpr_config
-        (Arr { typ = Tup [| k ; v |] ; nullable = false })
+        (TArr { typ = TTup [| k ; v |] ; nullable = false ; default = None })
   | _ ->
       invalid_arg "sexpr_of_typ_gen"
 

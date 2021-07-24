@@ -27,148 +27,148 @@ let rec conv ?(depth=0) ~from ~to_ e =
   if T.eq from to_ then e, false else
   (* A null can be cast to whatever. Actually, type-checking will type nulls
    * arbitrarily. *)
-  if match e with E.E0 (Null _) -> true | _ -> false then null to_, false else
+  if match e with T.E0 (Null _) -> true | _ -> false then null to_, false else
   match from, to_ with
   (* Any cast from a user type to its implementation is a NOP, and the other
    * way around too: *)
-  | Usr { def ; _ }, to_ when T.eq def to_ ->
+  | TUsr { def ; _ }, to_ when T.eq def to_ ->
       e, false
-  | from, Usr { def ; _ } when T.eq def from ->
+  | from, TUsr { def ; _ } when T.eq def from ->
       e, false
-  | T.(I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-       U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
-    T.String -> string_of_int_ e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128),
-    T.Float -> to_float e, false
-  | U8, Bool -> bool_of_u8 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Bool ->
-        let e, nullable = conv ~depth:(depth+1) ~from ~to_:T.U8 e in
+  | T.(TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+       TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128),
+    T.TString -> string_of_int_ e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128),
+    T.TFloat -> to_float e, false
+  | TU8, TBool -> bool_of_u8 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TBool ->
+        let e, nullable = conv ~depth:(depth+1) ~from ~to_:T.TU8 e in
         assert (not nullable) ;
         bool_of_u8 e, false
-  | String, Float -> float_of_string_ e, true
-  | String, Char -> nth (u8_of_int 0) e, true
-  | String, I8 -> i8_of_string e, true
-  | String, I16 -> i16_of_string e, true
-  | String, I24 -> i24_of_string e, true
-  | String, I32 -> i32_of_string e, true
-  | String, I40 -> i40_of_string e, true
-  | String, I48 -> i48_of_string e, true
-  | String, I56 -> i56_of_string e, true
-  | String, I64 -> i64_of_string e, true
-  | String, I128 -> i128_of_string e, true
-  | String, U8 -> u8_of_string e, true
-  | String, U16 -> u16_of_string e, true
-  | String, U24 -> u24_of_string e, true
-  | String, U32 -> u32_of_string e, true
-  | String, U40 -> u40_of_string e, true
-  | String, U48 -> u48_of_string e, true
-  | String, U56 -> u56_of_string e, true
-  | String, U64 -> u64_of_string e, true
-  | String, U128 -> u128_of_string e, true
-  | Float, String -> string_of_float_ e, false
-  | Char, U8 -> u8_of_char e, false
-  | U8, Char -> char_of_u8 e, false
-  | Char, String -> string_of_char e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I8 -> to_i8 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I16 -> to_i16 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I24 -> to_i24 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I32 -> to_i32 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I40 -> to_i40 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I48 -> to_i48 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I56 -> to_i56 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I64 -> to_i64 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    I128 -> to_i128 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U8 -> to_u8 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U16 -> to_u16 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U24 -> to_u24 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U32 -> to_u32 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U40 -> to_u40 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U48 -> to_u48 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    Usr { name = "Eth" ; _ } ->
+  | TString, TFloat -> float_of_string_ e, true
+  | TString, TChar -> nth (u8_of_int 0) e, true
+  | TString, TI8 -> i8_of_string e, true
+  | TString, TI16 -> i16_of_string e, true
+  | TString, TI24 -> i24_of_string e, true
+  | TString, TI32 -> i32_of_string e, true
+  | TString, TI40 -> i40_of_string e, true
+  | TString, TI48 -> i48_of_string e, true
+  | TString, TI56 -> i56_of_string e, true
+  | TString, TI64 -> i64_of_string e, true
+  | TString, TI128 -> i128_of_string e, true
+  | TString, TU8 -> u8_of_string e, true
+  | TString, TU16 -> u16_of_string e, true
+  | TString, TU24 -> u24_of_string e, true
+  | TString, TU32 -> u32_of_string e, true
+  | TString, TU40 -> u40_of_string e, true
+  | TString, TU48 -> u48_of_string e, true
+  | TString, TU56 -> u56_of_string e, true
+  | TString, TU64 -> u64_of_string e, true
+  | TString, TU128 -> u128_of_string e, true
+  | TFloat, TString -> string_of_float_ e, false
+  | TChar, TU8 -> u8_of_char e, false
+  | TU8, TChar -> char_of_u8 e, false
+  | TChar, TString -> string_of_char e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI8 -> to_i8 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI16 -> to_i16 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI24 -> to_i24 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI32 -> to_i32 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI40 -> to_i40 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI48 -> to_i48 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI56 -> to_i56 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI64 -> to_i64 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TI128 -> to_i128 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU8 -> to_u8 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU16 -> to_u16 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU24 -> to_u24 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU32 -> to_u32 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU40 -> to_u40 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU48 -> to_u48 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TUsr { name = "Eth" ; _ } ->
       make_usr "Eth" [ to_u48 e ], false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U56 -> to_u56 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U64 -> to_u64 e, false
-  | (I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-     U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 | Float),
-    U128 -> to_u128 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU56 -> to_u56 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU64 -> to_u64 e, false
+  | (TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+     TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 | TFloat),
+    TU128 -> to_u128 e, false
   (* Bools can be (explicitly) converted into numbers: *)
-  | Bool, U8 -> u8_of_bool e, false
-  | Bool, U16 -> to_u16 (u8_of_bool e), false
-  | Bool, U24 -> to_u24 (u8_of_bool e), false
-  | Bool, U32 -> to_u32 (u8_of_bool e), false
-  | Bool, U40 -> to_u40 (u8_of_bool e), false
-  | Bool, U48 -> to_u48 (u8_of_bool e), false
-  | Bool, U56 -> to_u56 (u8_of_bool e), false
-  | Bool, U64 -> to_u64 (u8_of_bool e), false
-  | Bool, U128 -> to_u128 (u8_of_bool e), false
-  | Bool, I8 -> to_i8 (u8_of_bool e), false
-  | Bool, I16 -> to_i16 (u8_of_bool e), false
-  | Bool, I24 -> to_i24 (u8_of_bool e), false
-  | Bool, I32 -> to_i32 (u8_of_bool e), false
-  | Bool, I40 -> to_i40 (u8_of_bool e), false
-  | Bool, I48 -> to_i48 (u8_of_bool e), false
-  | Bool, I56 -> to_i56 (u8_of_bool e), false
-  | Bool, I64 -> to_i64 (u8_of_bool e), false
-  | Bool, I128 -> to_i128 (u8_of_bool e), false
-  | Bool, Float -> to_float (u8_of_bool e), false
+  | TBool, TU8 -> u8_of_bool e, false
+  | TBool, TU16 -> to_u16 (u8_of_bool e), false
+  | TBool, TU24 -> to_u24 (u8_of_bool e), false
+  | TBool, TU32 -> to_u32 (u8_of_bool e), false
+  | TBool, TU40 -> to_u40 (u8_of_bool e), false
+  | TBool, TU48 -> to_u48 (u8_of_bool e), false
+  | TBool, TU56 -> to_u56 (u8_of_bool e), false
+  | TBool, TU64 -> to_u64 (u8_of_bool e), false
+  | TBool, TU128 -> to_u128 (u8_of_bool e), false
+  | TBool, TI8 -> to_i8 (u8_of_bool e), false
+  | TBool, TI16 -> to_i16 (u8_of_bool e), false
+  | TBool, TI24 -> to_i24 (u8_of_bool e), false
+  | TBool, TI32 -> to_i32 (u8_of_bool e), false
+  | TBool, TI40 -> to_i40 (u8_of_bool e), false
+  | TBool, TI48 -> to_i48 (u8_of_bool e), false
+  | TBool, TI56 -> to_i56 (u8_of_bool e), false
+  | TBool, TI64 -> to_i64 (u8_of_bool e), false
+  | TBool, TI128 -> to_i128 (u8_of_bool e), false
+  | TBool, TFloat -> to_float (u8_of_bool e), false
   (* A vector of 1 t into t and the other way around: *)
-  | Vec (1, { nullable = false ; typ = vt1 }), vt2
+  | TVec (1, { nullable = false ; typ = vt1 }), vt2
     when T.eq vt1 vt2 ->
       unsafe_nth (u32_of_int 0) e, false
-  | vt1, Vec (1, { typ = vt2 ; nullable })
+  | vt1, TVec (1, { typ = vt2 ; nullable })
     when T.eq vt1 vt2 ->
       make_vec [ if nullable then not_null e else e ], false
-  | vt1, Arr ({ typ = vt2 ; nullable } as mn2)
+  | vt1, TArr ({ typ = vt2 ; nullable } as mn2)
     when T.eq vt1 vt2 ->
       make_arr mn2 [ if nullable then not_null e else e ], false
   (* Specialized version for arr/vec of chars that return the
    * string composed of those chars rather than an enumeration: *)
-  | Vec (_, ({ typ = Char ; _ } as mn)), String
-  | Arr ({ typ = Char ; _ } as mn), String ->
+  | TVec (_, ({ typ = TChar ; _ } as mn)), TString
+  | TArr ({ typ = TChar ; _ } as mn), TString ->
       conv_charseq_to_string ~depth:(depth+1) ~from:mn (cardinality e) e, false
-  | Vec (_, mn), String
-  | Arr mn, String ->
+  | TVec (_, mn), TString
+  | TArr mn, TString ->
       conv_list_to_string ~depth:(depth+1) ~from:mn (cardinality e) e, false
-  | Tup mns, String ->
+  | TTup mns, TString ->
       let rec loop s i =
         if i >= Array.length mns then
           append_string s (string ")")
@@ -177,50 +177,50 @@ let rec conv ?(depth=0) ~from ~to_ e =
           let s = if i > 0 then append_string s (string ";") else s in
           loop (append_string s s') (i + 1) in
       loop (string "(") 0, false
-  | Bool, String ->
+  | TBool, TString ->
       if_ e ~then_:(string "true") ~else_:(string "false"), false
-  | Usr { name = ("Ip4" | "Ip6" | "Ip") ; _ }, String ->
+  | TUsr { name = ("Ip4" | "Ip6" | "Ip") ; _ }, TString ->
       string_of_ip e, false
-  | U32, Usr { name = "Ip4" ; _ } ->
+  | TU32, TUsr { name = "Ip4" ; _ } ->
       make_usr "Ip4" [ e ], false
-  | Usr { name = ("Ip4" | "Ip6") ; _ }, Usr { name = "Ip" ; _ } ->
+  | TUsr { name = ("Ip4" | "Ip6") ; _ }, TUsr { name = "Ip" ; _ } ->
       make_usr "Ip" [ e ], false
-  | U32, Usr { name = "Ip" ; _ } ->
+  | TU32, TUsr { name = "Ip" ; _ } ->
       make_usr "Ip" [ make_usr "Ip4" [ e ] ], false
-  | U128, Usr { name = "Ip6" ; _ } ->
+  | TU128, TUsr { name = "Ip6" ; _ } ->
       make_usr "Ip6" [ e ], false
-  | U128, Usr { name = "Ip" ; _ } ->
+  | TU128, TUsr { name = "Ip" ; _ } ->
       make_usr "Ip" [ make_usr "Ip6" [ e ] ], false
-  | Usr { name = ("Cidr4" | "Cidr6") ; _ }, Usr { name = "Cidr" ; _ } ->
+  | TUsr { name = ("Cidr4" | "Cidr6") ; _ }, TUsr { name = "Cidr" ; _ } ->
       make_usr "Cidr" [ e ], false
-  | Vec (d1, mn1), Vec (d2, mn2) when d1 = d2 ->
+  | TVec (d1, mn1), TVec (d2, mn2) when d1 = d2 ->
       map_items e mn1 mn2, false
-  | Arr mn1, Arr mn2 ->
+  | TArr mn1, TArr mn2 ->
       map_items e mn1 mn2, false
   (* TODO: Also when d2 < d1, and d2 > d1 extending with null as long as mn2 is
    * nullable *)
-  | Vec (_, mn1), Arr mn2 ->
+  | TVec (_, mn1), TArr mn2 ->
       let e = arr_of_vec e in
       map_items e mn1 mn2, false
   (* Groups are typed as lists: *)
-  | Set (_, mn1), Arr mn2 ->
+  | TSet (_, mn1), TArr mn2 ->
       let e = arr_of_set e in
       map_items e mn1 mn2, false
-  | Tup mns1, Tup mns2 when Array.length mns1 = Array.length mns2 ->
+  | TTup mns1, TTup mns2 when Array.length mns1 = Array.length mns2 ->
       (* TODO: actually we could project away fields from t_from when t_to
        * is narrower, or inject NULLs in some cases. *)
       make_tup (
         List.init (Array.length mns1) (fun i ->
           conv_mn ~from:mns1.(i) ~to_:mns2.(i) (get_item i e))), false
-  | Tup mns1, Vec (dim, mn2) when Array.length mns1 = dim ->
+  | TTup mns1, TVec (dim, mn2) when Array.length mns1 = dim ->
       make_vec (
         List.init (Array.length mns1) (fun i ->
           conv_mn ~from:mns1.(i) ~to_:mn2 (get_item i e))), false
-  | Tup mns1, Arr mn2 ->
+  | TTup mns1, TArr mn2 ->
       make_arr mn2 (
         List.init (Array.length mns1) (fun i ->
           conv_mn ~from:mns1.(i) ~to_:mn2 (get_item i e))), false
-  | Rec mns1, Rec mns2 when fields_of_rec mns1 = fields_of_rec mns2 ->
+  | TRec mns1, TRec mns2 when fields_of_rec mns1 = fields_of_rec mns2 ->
       Array.fold_left (fun fields (n, mn) ->
         let from = array_assoc n mns1 in
         (n, conv_mn ~from ~to_:mn (get_field n e)) :: fields
@@ -230,10 +230,10 @@ let rec conv ?(depth=0) ~from ~to_ e =
   (* TODO: other types to string *)
   (* "globals_map" is an alias for the type used by CodeGenLib to set/get
    * to/from LMDB files: *)
-  | Ext "globals_map",
-    Map ({ typ = String ; _ }, { typ = String ; _ })
-  | Map ({ typ = String ; _ }, { typ = String ; _ }),
-    Ext "globals_map" ->
+  | TExt "globals_map",
+    TMap ({ typ = TString ; _ }, { typ = TString ; _ })
+  | TMap ({ typ = TString ; _ }, { typ = TString ; _ }),
+    TExt "globals_map" ->
       e, false
   | _ ->
       Printf.sprintf2 "Not implemented: Cast from %a to %a of expression %a"
@@ -296,7 +296,7 @@ and conv_mn ?(depth=0) ~from ~to_ e =
       (E.print ?max_depth:None) e) ;
   let conv = conv ~depth:(depth+1) ~from:from.T.typ ~to_:to_.T.typ in
   let is_const_null =
-    match e with E.E0 (Null _) -> true | _ -> false in
+    match e with T.E0 (Null _) -> true | _ -> false in
   let my_if_null def =
     if is_const_null then def else
     let_ ~name:"nullable_to_not_nullable_" e (fun e ->
@@ -316,9 +316,9 @@ and conv_mn ?(depth=0) ~from ~to_ e =
       if nullable then force e else e
   | true, false ->
       (match to_.T.typ with
-      | T.String ->
+      | T.TString ->
           my_if_null (string "NULL")
-      | T.Char ->
+      | T.TChar ->
           my_if_null (char '?')
       | _ ->
           let e, nullable =

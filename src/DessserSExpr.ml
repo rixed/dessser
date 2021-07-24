@@ -195,8 +195,8 @@ struct
   let ssize_of_tup mn path _ =
     let num_items =
       match (Path.type_of_path mn path).typ |> T.develop with
-      | Tup mns -> Array.length mns
-      | Rec mns -> Array.length mns
+      | TTup mns -> Array.length mns
+      | TRec mns -> Array.length mns
       | _ -> assert false in
     size (2 + num_items - 1)
 
@@ -205,7 +205,7 @@ struct
   let ssize_of_sum mn path _ =
     let max_label =
       match (Path.type_of_path mn path).typ |> T.develop with
-      | Sum mns ->
+      | TSum mns ->
           Array.fold_left (fun m (label, _) ->
             max m (String.length label)
           ) 0 mns
@@ -215,7 +215,7 @@ struct
   let ssize_of_vec mn path _ =
     let dim =
       match (Path.type_of_path mn path).typ |> T.develop with
-      | Vec (dim, _) -> dim
+      | TVec (dim, _) -> dim
       | _ -> assert false in
     size (2 + dim - 1)
 

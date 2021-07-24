@@ -17,7 +17,7 @@ type t =
     mutable external_types : (string * (t -> backend_id -> string)) list ;
     (* Copied from the compilation unit to help the printer to make more
      * educated guesses of type names: *)
-    mutable type_names : (T.t * string) list }
+    mutable type_names : (T.typ * string) list }
 
 let make ?(declared=Set.String.empty) ?(decls=[]) context type_names external_types =
   { context ;

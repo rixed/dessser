@@ -13,7 +13,7 @@ type t =
     verbatim_definitions : verbatim_definition list ;
     external_types : (string * (P.t -> backend_id -> string)) list ;
     (* User may prefer some specific name for some types: *)
-    type_names : (T.t * string) list }
+    type_names : (T.typ * string) list }
 
 and verbatim_definition =
   { name : string ; (* or empty string *)
@@ -113,7 +113,7 @@ let add_identifier_of_expression compunit ?name expr =
   let identifier = { public ; expr } in
   { compunit with
       identifiers = (name, identifier, t) :: compunit.identifiers },
-  E.E0 (Identifier name),
+  T.E0 (Identifier name),
   name
 
 let get_type_of_identifier compunit name =

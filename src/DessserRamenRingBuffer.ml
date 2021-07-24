@@ -185,17 +185,17 @@ struct
     if mn.T.nullable then n else u32_of_int 0
 
   let rec of_type = function
-    | T.Vec (dim, mn) ->
+    | T.TVec (dim, mn) ->
         vec_bits dim mn
-    | Arr _ ->
+    | TArr _ ->
         invalid_arg "NullMaskWidth.of_type for lists"
-    | Tup mns ->
+    | TTup mns ->
         tup_bits mns
-    | Rec mns ->
+    | TRec mns ->
         rec_bits mns
-    | Sum _ ->
+    | TSum _ ->
         true, 1 (* Although encoding also includes the label *)
-    | Usr { def ; _ } ->
+    | TUsr { def ; _ } ->
         of_type def
     | _ ->
         false, 0
@@ -514,7 +514,7 @@ struct
     and without_nullmask () =
       size word_size in
     match (Path.type_of_path mn0 path).typ |> T.develop with
-    | Arr mn ->
+    | TArr mn ->
         (* If the items are not nullable then there is no nullmask. *)
         if mn.nullable then
           with_nullmask ()

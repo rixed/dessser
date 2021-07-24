@@ -14,7 +14,7 @@ let rec type_check l =
   E.map_env l (fun l e0 ->
     let check_void l e =
       match E.type_of l e |> T.develop1 with
-      | T.{ typ = Void ; nullable = false } -> ()
+      | T.{ typ = TVoid ; nullable = false ; _ } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be Void")) in
     let check_nullable b l e =
       match E.type_of l e |> T.develop1 with
@@ -24,16 +24,16 @@ let rec type_check l =
     let rec is_comparable = function
       | T.{
           typ =
-            (Size | Address | Mask | Bytes |
-             Float | String | Bool | Char |
-             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
-          nullable = false } ->
+            (TSize | TAddress | TMask | TBytes |
+             TFloat | TString | TBool | TChar |
+             TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+             TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128) ;
+          nullable = false ; _ } ->
           true
-      | { typ = Sum mns ; nullable = false } ->
+      | { typ = TSum mns ; nullable = false ; _ } ->
           Array.for_all (fun (_, mn) -> is_comparable mn) mns
-      | { nullable = true ; typ } ->
-          is_comparable { nullable = false ; typ }
+      | { nullable = true ; typ ; _ } ->
+          is_comparable T.(required typ)
       | _ ->
           false in
     let check_comparable l e =
@@ -42,26 +42,26 @@ let rec type_check l =
         raise (E.Type_error (e0, e, t, "be comparable")) in
     let check_numeric ?(only_base=false) l e =
       match E.type_of l e |> T.develop1 with
-      | T.{ typ = Size | Address ;
-          nullable = false } when not only_base ->
+      | T.{ typ = TSize | TAddress ;
+          nullable = false ; _ } when not only_base ->
           ()
       | { typ =
-            (Float |
-             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+            (TFloat |
+             TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+             TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128) ;
           nullable = false } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be numeric")) in
     let check_integer l e =
       match E.type_of l e |> T.develop1 with
       | T.{ typ =
-            (Size | Address |
-             U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-             I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128) ;
+            (TSize | TAddress |
+             TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+             TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128) ;
           nullable = false } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be an integer")) in
     let is_unsigned = function
-      | T.{ typ = (Size | Address |
-                   U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128) ;
+      | T.{ typ = (TSize | TAddress |
+                   TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128) ;
             nullable = false } ->
           true
       | _ ->
@@ -96,15 +96,15 @@ let rec type_check l =
                               ~bytes:true e0 l e) in
     let check_lst l e =
       match E.type_of l e |> T.develop1 with
-      | T.{ typ = Lst _ ; nullable = false } -> ()
+      | T.{ typ = TLst _ ; nullable = false ; _ } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be a lst")) in
     let check_lst_same_type e1 l e =
       match E.type_of l e |> T.develop1 with
-      | T.{ typ = Lst mn ; nullable = false } -> check_eq l e1 mn
+      | T.{ typ = TLst mn ; nullable = false ; _ } -> check_eq l e1 mn
       | t -> raise (E.Type_error (e0, e, t, "be a lst")) in
     let check_sum l e =
       match E.type_of l e |> T.develop1 with
-      | { typ = Sum _ ; nullable = false } -> ()
+      | { typ = TSum _ ; nullable = false ; _ } -> ()
       | t -> raise (E.Type_error (e0, e, t, "be a union")) in
     (* Check that [f] signature correspond to the array of parameters *)
     let check_fun_sign = E.check_fun_sign e0 in
@@ -113,9 +113,9 @@ let rec type_check l =
        * but do not allow recursion in the sum type because code generator
        * won't deal with that. *)
       match t |> T.develop1 with
-      | { typ = (U32 | U128) ; nullable = false } ->
+      | { typ = (TU32 | TU128) ; nullable = false ; _ } ->
           ()
-      | { typ = Sum mns ; nullable = false } when rec_ = false ->
+      | { typ = TSum mns ; nullable = false ; _ } when rec_ = false ->
           Array.iter (fun (_, mn) -> check_ip ~rec_:true l e mn) mns
       | t -> raise (E.Type_error (e0, e, t, "be an ip")) in
     (* Convert and NullMap are the only operations that returns a different
@@ -135,9 +135,9 @@ let rec type_check l =
             let_ ~name:"null_map" x (fun x ->
               if_null x
                 ~then_:(null res_typ)
-                ~else_:(E.E2 (Let (n, r), force x, not_null body)))
+                ~else_:(T.E2 (Let (n, r), force x, not_null body)))
           else
-            E.E2 (Let (n, r), x, body) in
+            T.E2 (Let (n, r), x, body) in
         type_check l res
     | e0 ->
         (match e0 with
@@ -205,7 +205,8 @@ let rec type_check l =
             check_same_types l e1 e2
         | E2 (Member, e1, e2) ->
             (match E.type_of l e2 |> T.develop1 with
-            | { typ = (Vec (_, t) | Arr t | Set (_, t)) ; nullable = false } ->
+            | { typ = (TVec (_, t) | TArr t | TSet (_, t)) ;
+                nullable = false ; _ } ->
                 check_eq l e1 t
             | t ->
                 raise (E.Type_error (e0, e2, t, "be a vector, array or set")))
@@ -319,7 +320,8 @@ let rec type_check l =
         | E3 (SetVec, e1, e2, e3) ->
             check_integer l e1 ;
             (match E.type_of l e2 |> T.develop1 with
-            | { typ = (T.Vec (_, mn) | T.Arr mn) ; nullable = false } ->
+            | { typ = (T.TVec (_, mn) | T.TArr mn) ;
+                nullable = false ; _ } ->
                 check_eq l e3 mn
             | t ->
                 raise (E.Type_error (e0, e1, t, "be a vector")))
@@ -395,7 +397,8 @@ let rec type_check l =
             check_lst_same_type e1 l e2
         | E3 (Map, init, f, set) ->
             (match E.type_of l f |> T.develop1 with
-            | T.{ typ = Function ([| init_t ; item_t |], _) ; nullable = false }
+            | T.{ typ = TFunction ([| init_t ; item_t |], _) ;
+                  nullable = false ; _ }
               as f_t ->
                 check_eq l init init_t ;
                 let check_fun_type_with mn =
@@ -404,17 +407,17 @@ let rec type_check l =
                     let err = "be a function of "^ T.mn_to_string mn in
                     raise (E.Type_error (e0, f, f_t, err))) in
                 (match E.type_of l set |> T.develop1 with
-                | T.{ typ = Vec (_, mn) ; nullable = false } ->
+                | T.{ typ = TVec (_, mn) ; nullable = false } ->
                     check_fun_type_with mn
-                | T.{ typ = Arr mn ; nullable = false } ->
+                | T.{ typ = TArr mn ; nullable = false } ->
                     check_fun_type_with mn
-                | T.{ typ = Set (_, mn) ; nullable = false } ->
+                | T.{ typ = TSet (_, mn) ; nullable = false } ->
                     check_fun_type_with mn
-                | T.{ typ = Lst mn ; nullable = false } ->
+                | T.{ typ = TLst mn ; nullable = false } ->
                     check_fun_type_with mn
                 | t ->
                     raise (E.Type_error (e0, set, t, "be an iterable")))
-            | { typ = Function _ ; nullable = false } as f_t ->
+            | { typ = TFunction _ ; nullable = false } as f_t ->
                 raise (E.Type_error (e0, f, f_t, "be a function of one argument"))
             | t -> raise (E.Type_error (e0, f, t, "be a function")))
         | E3 (If, e1, e2, e3) ->
@@ -434,7 +437,7 @@ let rec type_check l =
             (* TODO: We could also accept a Null comparison function if the items
              * are readily comparable (as in [is_comparable]). *)
             (match cmp_t with
-            | T.{ typ = Function (ts, _) ; nullable = false } ->
+            | T.{ typ = TFunction (ts, _) ; nullable = false } ->
                 let ts_len = Array.length ts in
                 if ts_len <> 2 then
                   err "must have two parameters" ;
@@ -444,7 +447,7 @@ let rec type_check l =
                 err "must be a function")
         | E2 (Insert, set, x) ->
             (match E.type_of l set |> T.develop1 with
-            | { typ = T.Set (_, mn) ; nullable = false } ->
+            | { typ = T.TSet (_, mn) ; nullable = false } ->
                 check_eq l x mn
             | t ->
                 raise (E.Type_error (e0, set, t, "be a set")))
@@ -457,7 +460,7 @@ let rec type_check l =
         | E2 (Join, e1, e2) ->
             check_eq l e1 T.string ;
             let item_t = E.get_item_type ~arr:true ~vec:true e0 l e2 in
-            if item_t <> T.(required String) then
+            if item_t <> T.(required TString) then
               let msg = "be a list or vector of strings" in
               raise (E.Type_error (e0, e2, E.type_of l e2, msg))
         | E2 (AllocArr, e1, _) ->
@@ -480,7 +483,7 @@ let rec type_check l =
             check_numeric l sigmas
         | E3 (InsertWeighted, set, w, x) ->
             (match E.type_of l set |> T.develop1 with
-            | { typ = T.Set (_, mn) ; nullable = false } ->
+            | { typ = T.TSet (_, mn) ; nullable = false } ->
                 check_eq l w T.float ;
                 check_eq l x mn
             | t ->

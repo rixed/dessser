@@ -301,7 +301,7 @@ let parse_string bytes =
 
 (* Build a vector of pointers from an object value: *)
 let parse_object mns p =
-  let ptrs = alloc_arr (size (Array.length mns)) (null T.Ptr) in
+  let ptrs = alloc_arr (size (Array.length mns)) (null T.TPtr) in
   let_ ~name:"ptrs" ptrs (fun ptrs ->
     let p = comment "skip begin-object" (skip_char p '{') in
     let_ ~name:"p_ref" (make_ref p) (fun p_ref ->
@@ -388,7 +388,7 @@ let parse_object mns p =
  * type that have no associated value: *)
 let no_value_cstrs mn0 path =
   match (Path.type_of_path mn0 path |> T.develop1).T.typ with
-  | T.Sum mns ->
+  | T.TSum mns ->
       Array.enum mns |>
       enum_filter_mapi (fun i (_n, mn) ->
         if T.eq_mn mn T.void then Some (u16_of_int i) else None) |>
@@ -432,7 +432,7 @@ struct
     | exception Invalid_argument _ ->
         (* No parent, therefore cannot be in a record: *)
         not_null p
-    | T.{ typ = Rec mns ; _ } ->
+    | T.{ typ = TRec mns ; _ } ->
         let frame = frame_top stk in
         let ptrs = get_item 0 frame in
         (* Our index in the parent: *)
@@ -741,7 +741,7 @@ struct
     | exception Invalid_argument _ ->
         (* No parent, therefore cannot be in a record: *)
         p
-    | T.{ typ = Rec mns ; _ } ->
+    | T.{ typ = TRec mns ; _ } ->
         let p = write_u8 p (u8_of_const_char '"') in
         (* Our index in the parent: *)
         let p =
@@ -935,9 +935,9 @@ struct
   let ssize_of_array mn0 path v =
     let num_items =
       match (Path.type_of_path mn0 path |> T.develop1).typ with
-      | Tup mns -> u32_of_int (Array.length mns)
-      | (Arr _ | Set _ | Lst _) -> cardinality v
-      | Vec (d, _) -> u32_of_int d
+      | TTup mns -> u32_of_int (Array.length mns)
+      | (TArr _ | TSet _ | TLst _) -> cardinality v
+      | TVec (d, _) -> u32_of_int d
       | _ -> assert false in
     size_of_u32 (add (u32_of_int 2) (sub num_items (u32_of_int 1)))
 
@@ -948,7 +948,7 @@ struct
   let ssize_of_sum mn0 path v =
     StdLib.cases (
       match (Path.type_of_path mn0 path |> T.develop1).typ with
-      | Sum mns ->
+      | TSum mns ->
           Array.enum mns |>
           Enum.mapi (fun i (n, _) ->
             eq (u16_of_int i) (label_of v), size (String.length n + 2)) |>
@@ -959,7 +959,7 @@ struct
 
   let ssize_of_rec mn0 path _v =
     match (Path.type_of_path mn0 path |> T.develop1).typ with
-    | Rec mns ->
+    | TRec mns ->
         Array.fold_left (fun e (n, _) ->
           add e (add (size 1 (* sep *)) (const_string_size n))
         ) (size 2 (* braces *)) mns

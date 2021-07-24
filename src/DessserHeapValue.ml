@@ -8,6 +8,7 @@ open Batteries
 open Stdint
 open Dessser
 open DessserTools
+open DessserMiscTypes
 module E = DessserExpressions
 module Mask = DessserMasks
 module StdLib = DessserStdLib
@@ -51,7 +52,7 @@ struct
   module Des = Des
 
   let local_des_for n =
-    n ^"-"^ E.string_of_type_method (DesNoMask Des.id)
+    n ^"-"^ string_of_type_method (DesNoMask Des.id)
 
   let rec dvec dim mn dstate mn0 path src =
     let src = Des.vec_opn dim mn dstate mn0 path src in
@@ -199,7 +200,7 @@ struct
 
   and dext name =
     Des.dext (fun src ->
-      apply (type_method name (E.DesNoMask Des.id)) [ src ])
+      apply (type_method name (DesNoMask Des.id)) [ src ])
 
   (* Call the decoder for type name [n]: *)
   and dthis n _dstate mn0 _path src =
@@ -210,50 +211,50 @@ struct
 
   and make1 dstate mn0 path mn src =
     let rec des_of_vt = function
-      | T.Named (n, _) ->
+      | T.TNamed (n, _) ->
           (* assume this had been defined already with [make_des_for_subtypes]: *)
           dthis n
-      | This n -> dthis n
-      | Ext n -> dext n
-      | Void -> dvoid
-      | Float -> Des.dfloat
-      | String -> Des.dstring
-      | Bool -> Des.dbool
-      | Char -> Des.dchar
-      | I8 -> Des.di8
-      | I16 -> Des.di16
-      | I24 -> Des.di24
-      | I32 -> Des.di32
-      | I40 -> Des.di40
-      | I48 -> Des.di48
-      | I56 -> Des.di56
-      | I64 -> Des.di64
-      | I128 -> Des.di128
-      | U8 -> Des.du8
-      | U16 -> Des.du16
-      | U24 -> Des.du24
-      | U32 -> Des.du32
-      | U40 -> Des.du40
-      | U48 -> Des.du48
-      | U56 -> Des.du56
-      | U64 -> Des.du64
-      | U128 -> Des.du128
-      | Usr vt ->
+      | TThis n -> dthis n
+      | TExt n -> dext n
+      | TVoid -> dvoid
+      | TFloat -> Des.dfloat
+      | TString -> Des.dstring
+      | TBool -> Des.dbool
+      | TChar -> Des.dchar
+      | TI8 -> Des.di8
+      | TI16 -> Des.di16
+      | TI24 -> Des.di24
+      | TI32 -> Des.di32
+      | TI40 -> Des.di40
+      | TI48 -> Des.di48
+      | TI56 -> Des.di56
+      | TI64 -> Des.di64
+      | TI128 -> Des.di128
+      | TU8 -> Des.du8
+      | TU16 -> Des.du16
+      | TU24 -> Des.du24
+      | TU32 -> Des.du32
+      | TU40 -> Des.du40
+      | TU48 -> Des.du48
+      | TU56 -> Des.du56
+      | TU64 -> Des.du64
+      | TU128 -> Des.du128
+      | TUsr vt ->
           (* Deserialize according to vt.def, then make a new user value to
            * keep the user type: *)
           fun state mn0 path ptr ->
             let v_src = des_of_vt vt.def state mn0 path ptr in
             E.with_sploded_pair "des_usr_type" v_src (fun v src ->
               make_pair (make_usr vt.name [ v ]) src)
-      | Tup mns -> dtup mns
-      | Rec mns -> drec mns
-      | Sum mns -> dsum mns
-      | Vec (dim, mn) -> dvec dim mn
-      | Arr mn -> darr mn
-      | Lst mn -> dlst mn
-      | Set (Simple, mn) -> dset mn
-      | Set _ -> todo "Materialization of non simple sets"
-      | Map _ -> assert false (* No value of map type *)
+      | TTup mns -> dtup mns
+      | TRec mns -> drec mns
+      | TSum mns -> dsum mns
+      | TVec (dim, mn) -> dvec dim mn
+      | TArr mn -> darr mn
+      | TLst mn -> dlst mn
+      | TSet (Simple, mn) -> dset mn
+      | TSet _ -> todo "Materialization of non simple sets"
+      | TMap _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "make1"
     in
     let vt = mn.typ in
@@ -282,7 +283,7 @@ struct
         make_pair v (Des.stop dstate src)))
 
   and make_des_for_subtypes ?config compunit = function
-    | T.Named (n, t) ->
+    | T.TNamed (n, t) ->
         let compunit, _, _ =
           let compunit, e = make ?config T.(required t) compunit
           and name = local_des_for n in
@@ -290,19 +291,19 @@ struct
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
-    | Usr { def ; _ } ->
+    | TUsr { def ; _ } ->
         make_des_for_subtypes ?config compunit def
-    | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
+    | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
         make_des_for_subtypes ?config compunit mn.T.typ
-    | Tup mns ->
+    | TTup mns ->
         Array.fold (fun compunit mn ->
           make_des_for_subtypes ?config compunit mn.T.typ
         ) compunit mns
-    | Rec mns | Sum mns ->
+    | TRec mns | TSum mns ->
         Array.fold (fun compunit (_, mn) ->
           make_des_for_subtypes ?config compunit mn.T.typ
         ) compunit mns
-    | Map (kt, vt) ->
+    | TMap (kt, vt) ->
         let compunit = make_des_for_subtypes ?config compunit kt.T.typ in
         make_des_for_subtypes ?config compunit vt.T.typ
     | _ ->
@@ -338,7 +339,7 @@ struct
   module Ser = Ser
 
   let local_ser_for ~with_fieldmask n =
-    n ^"-"^ E.string_of_type_method
+    n ^"-"^ string_of_type_method
       (if with_fieldmask then SerWithMask Ser.id else SerNoMask Ser.id)
 
   let rec svec dim mn ma sstate mn0 path v dst =
@@ -442,9 +443,9 @@ struct
     Ser.sext (fun v dst ->
       match ma with
       | RunTimeMask ma ->
-          apply (type_method name (E.SerWithMask Ser.id)) [ ma ; v ; dst ]
+          apply (type_method name (SerWithMask Ser.id)) [ ma ; v ; dst ]
       | CompTimeMask ->
-          apply (type_method name (E.SerNoMask Ser.id)) [ v ; dst ])
+          apply (type_method name (SerNoMask Ser.id)) [ v ; dst ])
 
   and sthis n ma _sstate _mn0 _path v dst =
     let f =
@@ -459,43 +460,43 @@ struct
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
-      | T.Named (n, _) ->
+      | T.TNamed (n, _) ->
           (* assume this had been defined already with [make_ser_for_subtypes]: *)
           sthis n ma
-      | This n -> sthis n ma
-      | Ext n -> sext n ma
-      | Void -> svoid
-      | Float -> Ser.sfloat
-      | String -> Ser.sstring
-      | Bool -> Ser.sbool
-      | Char -> Ser.schar
-      | I8 -> Ser.si8
-      | I16 -> Ser.si16
-      | I24 -> Ser.si24
-      | I32 -> Ser.si32
-      | I40 -> Ser.si40
-      | I48 -> Ser.si48
-      | I56 -> Ser.si56
-      | I64 -> Ser.si64
-      | I128 -> Ser.si128
-      | U8 -> Ser.su8
-      | U16 -> Ser.su16
-      | U24 -> Ser.su24
-      | U32 -> Ser.su32
-      | U40 -> Ser.su40
-      | U48 -> Ser.su48
-      | U56 -> Ser.su56
-      | U64 -> Ser.su64
-      | U128 -> Ser.su128
-      | Usr vt -> ser_of_vt vt.def
-      | Tup mns -> stup mns ma
-      | Rec mns -> srec mns ma
-      | Sum mns -> ssum mns ma
-      | Vec (dim, mn) -> svec dim mn ma
-      | Arr mn -> slst mn ma
-      | Lst mn -> slst mn ma
-      | Set (_, mn) -> slst mn ma
-      | Map _ -> assert false (* No value of map type *)
+      | TThis n -> sthis n ma
+      | TExt n -> sext n ma
+      | TVoid -> svoid
+      | TFloat -> Ser.sfloat
+      | TString -> Ser.sstring
+      | TBool -> Ser.sbool
+      | TChar -> Ser.schar
+      | TI8 -> Ser.si8
+      | TI16 -> Ser.si16
+      | TI24 -> Ser.si24
+      | TI32 -> Ser.si32
+      | TI40 -> Ser.si40
+      | TI48 -> Ser.si48
+      | TI56 -> Ser.si56
+      | TI64 -> Ser.si64
+      | TI128 -> Ser.si128
+      | TU8 -> Ser.su8
+      | TU16 -> Ser.su16
+      | TU24 -> Ser.su24
+      | TU32 -> Ser.su32
+      | TU40 -> Ser.su40
+      | TU48 -> Ser.su48
+      | TU56 -> Ser.su56
+      | TU64 -> Ser.su64
+      | TU128 -> Ser.su128
+      | TUsr vt -> ser_of_vt vt.def
+      | TTup mns -> stup mns ma
+      | TRec mns -> srec mns ma
+      | TSum mns -> ssum mns ma
+      | TVec (dim, mn) -> svec dim mn ma
+      | TArr mn -> slst mn ma
+      | TLst mn -> slst mn ma
+      | TSet (_, mn) -> slst mn ma
+      | TMap _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "ser1" in
     let on_copy =
       (* Copy or Recurse are handled the same: *)
@@ -548,7 +549,7 @@ struct
     let make_ser_for_subtypes = make_ser_for_subtypes ?config ~with_fieldmask
     and serialize = serialize ?config ~with_fieldmask in
     function
-    | T.Named (n, t) ->
+    | T.TNamed (n, t) ->
         let compunit, _, _ =
           let compunit, e = serialize T.(required t) compunit
           and name = local_ser_for ~with_fieldmask n in
@@ -556,19 +557,19 @@ struct
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
-    | Usr { def ; _ } ->
+    | TUsr { def ; _ } ->
         make_ser_for_subtypes compunit def
-    | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
+    | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
         make_ser_for_subtypes compunit mn.T.typ
-    | Tup mns ->
+    | TTup mns ->
         Array.fold (fun compunit mn ->
           make_ser_for_subtypes compunit mn.T.typ
         ) compunit mns
-    | Rec mns | Sum mns ->
+    | TRec mns | TSum mns ->
         Array.fold (fun compunit (_, mn) ->
           make_ser_for_subtypes compunit mn.T.typ
         ) compunit mns
-    | Map (kt, vt) ->
+    | TMap (kt, vt) ->
         let compunit = make_ser_for_subtypes compunit kt.T.typ in
         make_ser_for_subtypes compunit vt.T.typ
     | _ ->
@@ -579,7 +580,7 @@ struct
    *)
 
   let local_ssize_for ~with_fieldmask n =
-    n ^"-"^ E.string_of_type_method
+    n ^"-"^ string_of_type_method
       (if with_fieldmask then SSizeWithMask Ser.id else SSizeNoMask Ser.id)
 
   let rec ssvec dim mn ma mn0 path v sz =
@@ -665,9 +666,9 @@ struct
   and ssext name ma _ _ v =
     match ma with
     | RunTimeMask ma ->
-        apply (type_method name (E.SSizeWithMask Ser.id)) [ ma ; v ]
+        apply (type_method name (SSizeWithMask Ser.id)) [ ma ; v ]
     | CompTimeMask ->
-        apply (type_method name (E.SSizeNoMask Ser.id)) [ v ]
+        apply (type_method name (SSizeNoMask Ser.id)) [ v ]
 
   and ssthis n ma _mn0 _path v =
     let f =
@@ -683,41 +684,41 @@ struct
     let cumul ssizer mn0 path v sz =
       add sz (ssizer mn0 path v) in
     let rec ssz_of_vt = function
-      | T.Named (n, _)
-      | This n -> cumul (ssthis n ma)
-      | Ext n -> cumul (ssext n ma)
-      | Void -> ssvoid
-      | Float -> cumul Ser.ssize_of_float
-      | String -> cumul Ser.ssize_of_string
-      | Bool -> cumul Ser.ssize_of_bool
-      | Char -> cumul Ser.ssize_of_char
-      | I8 -> cumul Ser.ssize_of_i8
-      | I16 -> cumul Ser.ssize_of_i16
-      | I24 -> cumul Ser.ssize_of_i24
-      | I32 -> cumul Ser.ssize_of_i32
-      | I40 -> cumul Ser.ssize_of_i40
-      | I48 -> cumul Ser.ssize_of_i48
-      | I56 -> cumul Ser.ssize_of_i56
-      | I64 -> cumul Ser.ssize_of_i64
-      | I128 -> cumul Ser.ssize_of_i128
-      | U8 -> cumul Ser.ssize_of_u8
-      | U16 -> cumul Ser.ssize_of_u16
-      | U24 -> cumul Ser.ssize_of_u24
-      | U32 -> cumul Ser.ssize_of_u32
-      | U40 -> cumul Ser.ssize_of_u40
-      | U48 -> cumul Ser.ssize_of_u48
-      | U56 -> cumul Ser.ssize_of_u56
-      | U64 -> cumul Ser.ssize_of_u64
-      | U128 -> cumul Ser.ssize_of_u128
-      | Usr vt -> ssz_of_vt vt.def
-      | Vec (dim, mn) -> ssvec dim mn ma
-      | Tup mns -> sstup mns ma
-      | Rec mns -> ssrec mns ma
-      | Sum mns -> sssum mns ma
-      | Arr mn -> sslst mn ma
-      | Lst mn -> sslst mn ma
-      | Set (_, mn) -> sslst mn ma
-      | Map _ -> assert false (* No value of map type *)
+      | T.TNamed (n, _)
+      | TThis n -> cumul (ssthis n ma)
+      | TExt n -> cumul (ssext n ma)
+      | TVoid -> ssvoid
+      | TFloat -> cumul Ser.ssize_of_float
+      | TString -> cumul Ser.ssize_of_string
+      | TBool -> cumul Ser.ssize_of_bool
+      | TChar -> cumul Ser.ssize_of_char
+      | TI8 -> cumul Ser.ssize_of_i8
+      | TI16 -> cumul Ser.ssize_of_i16
+      | TI24 -> cumul Ser.ssize_of_i24
+      | TI32 -> cumul Ser.ssize_of_i32
+      | TI40 -> cumul Ser.ssize_of_i40
+      | TI48 -> cumul Ser.ssize_of_i48
+      | TI56 -> cumul Ser.ssize_of_i56
+      | TI64 -> cumul Ser.ssize_of_i64
+      | TI128 -> cumul Ser.ssize_of_i128
+      | TU8 -> cumul Ser.ssize_of_u8
+      | TU16 -> cumul Ser.ssize_of_u16
+      | TU24 -> cumul Ser.ssize_of_u24
+      | TU32 -> cumul Ser.ssize_of_u32
+      | TU40 -> cumul Ser.ssize_of_u40
+      | TU48 -> cumul Ser.ssize_of_u48
+      | TU56 -> cumul Ser.ssize_of_u56
+      | TU64 -> cumul Ser.ssize_of_u64
+      | TU128 -> cumul Ser.ssize_of_u128
+      | TUsr vt -> ssz_of_vt vt.def
+      | TVec (dim, mn) -> ssvec dim mn ma
+      | TTup mns -> sstup mns ma
+      | TRec mns -> ssrec mns ma
+      | TSum mns -> sssum mns ma
+      | TArr mn -> sslst mn ma
+      | TLst mn -> sslst mn ma
+      | TSet (_, mn) -> sslst mn ma
+      | TMap _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "sersz1" in
     let on_copy =
       let vt = mn.typ in
@@ -761,7 +762,7 @@ struct
     let make_ssize_for_subtypes = make_ssize_for_subtypes ?config ~with_fieldmask
     and sersize = sersize ?config ~with_fieldmask in
     function
-    | T.Named (n, t) ->
+    | T.TNamed (n, t) ->
         let compunit, _, _ =
           let compunit, e = sersize T.(required t) compunit
           and name = local_ssize_for ~with_fieldmask n in
@@ -769,19 +770,19 @@ struct
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
-    | Usr { def ; _ } ->
+    | TUsr { def ; _ } ->
         make_ssize_for_subtypes compunit def
-    | Vec (_, mn) | Arr mn | Set (_, mn) | Lst mn ->
+    | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
         make_ssize_for_subtypes compunit mn.T.typ
-    | Tup mns ->
+    | TTup mns ->
         Array.fold (fun compunit mn ->
           make_ssize_for_subtypes compunit mn.T.typ
         ) compunit mns
-    | Rec mns | Sum mns ->
+    | TRec mns | TSum mns ->
         Array.fold (fun compunit (_, mn) ->
           make_ssize_for_subtypes compunit mn.T.typ
         ) compunit mns
-    | Map (kt, vt) ->
+    | TMap (kt, vt) ->
         let compunit = make_ssize_for_subtypes compunit kt.T.typ in
         make_ssize_for_subtypes compunit vt.T.typ
     | _ ->

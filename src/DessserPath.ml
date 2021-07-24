@@ -41,44 +41,43 @@ let type_and_index_of_path t0 path =
   let no_index = ~-7 in
   let rec loop index mn path =
     match mn.T.typ, path with
-    | Named (_, t), _ ->
+    | TNamed (_, t), _ ->
         loop index { mn with typ = t } path
     (* Handle This before the end of path so we do not end on a "this": *)
-    | This n, _ ->
+    | TThis n, _ ->
         let t = T.find_this n in
         loop index { mn with typ = t } path
-    | Usr { def ; _ }, _ ->
+    | TUsr { def ; _ }, _ ->
         loop index { mn with typ = def } path
     | _, [] ->
         mn, index
-    | T.(Unknown | Ext _ | Map _ |
-         Bool | Char | Float | String |
-         U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128 |
-         I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 |
-         Size | Void | Ptr | Address | Bytes | Mask | Function _), _ ->
+    | (TUnknown | TExt _ | TMap _ | TBool | TChar | TFloat | TString |
+       TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128 |
+       TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 |
+       TSize | TVoid | TPtr | TAddress | TBytes | TMask | TFunction _), _ ->
         assert false
     (* CompTime *)
-    | Vec (dim, mn), CompTime i :: path  ->
+    | TVec (dim, mn), CompTime i :: path  ->
         assert (i < dim) ;
         loop i mn path
-    | (Arr mn | Lst mn | Set (_, mn)), CompTime i :: path  ->
+    | (TArr mn | TLst mn | TSet (_, mn)), CompTime i :: path  ->
         loop i mn path
-    | Tup mns, CompTime i :: path  ->
+    | TTup mns, CompTime i :: path  ->
         assert (i < Array.length mns) ;
         loop i mns.(i) path
-    | Rec mns, CompTime i :: path  ->
+    | TRec mns, CompTime i :: path  ->
         assert (i < Array.length mns) ;
         loop i (snd mns.(i)) path
-    | Sum cs, CompTime i :: path  ->
+    | TSum cs, CompTime i :: path  ->
         assert (i < Array.length cs) ;
         loop i (snd cs.(i)) path
     (* RunTime *)
     (* For some of those types we can compute the subtype but not the
      * associated field index, which therefore must not be used.
      * Here it's given a characteristic value for debugging purposes only: *)
-    | (Vec (_, mn) | Arr mn | Lst mn | Set (_, mn)), RunTime _ :: path ->
+    | (TVec (_, mn) | TArr mn | TLst mn | TSet (_, mn)), RunTime _ :: path ->
         loop no_index mn path
-    | (Tup _ | Rec _ | Sum _), RunTime _ :: _ ->
+    | (TTup _ | TRec _ | TSum _), RunTime _ :: _ ->
         invalid_arg "type_and_index_of_path on tup/rec/sum + runtime path"
   in
   loop no_index t0 path
@@ -93,16 +92,16 @@ let type_of_parent mn path =
 (*$inject
   open DessserTypes
   let test_t =
-    required (Tup [|
-      required U8 ;
-      optional String ;
-      optional (Vec (2, required Char)) |])
+    required (tup [|
+      u8 ;
+      nstring ;
+      optional (vec 2 char) |])
 *)
 
 (*$= type_of_path & ~printer:(BatIO.to_string print_mn)
   test_t (type_of_path test_t [])
-  (required U8) (type_of_path test_t [CompTime 0])
-  (optional String) (type_of_path test_t [CompTime 1])
-  (optional (Vec (2, required Char))) (type_of_path test_t [CompTime 2])
-  (required Char) (type_of_path test_t [CompTime 2; CompTime 0])
+  u8 (type_of_path test_t [CompTime 0])
+  nstring (type_of_path test_t [CompTime 1])
+  (optional (vec 2 char)) (type_of_path test_t [CompTime 2])
+  char (type_of_path test_t [CompTime 2; CompTime 0])
 *)

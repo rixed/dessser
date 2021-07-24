@@ -85,7 +85,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
    * than those we are generating for this type: *)
   let compunit =
     T.fold_mn compunit (fun compunit -> function
-      | T.Ext name ->
+      | T.TExt name ->
           U.register_external_type compunit name (fun _p -> function
             | DIL ->
                 Printf.sprintf "%S" ("$" ^ name)
@@ -105,7 +105,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     let compunit, des = ToValue.make schema compunit in
     if !debug then ignore(TC.type_check E.no_env des) ;
     let compunit, _, _ =
-      let name = E.string_of_type_method (E.DesNoMask encoding_in) in
+      let name = string_of_type_method (DesNoMask encoding_in) in
       U.add_identifier_of_expression compunit ~name des in
     compunit
   and add_encoder compunit encoding_out =
@@ -122,15 +122,15 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       ignore (TC.type_check E.no_env ser)) ;
     let compunit, _, _ =
       let name =
-        (if with_fieldmask then E.SSizeWithMask encoding_out
-                           else E.SSizeNoMask encoding_out) |>
-        E.string_of_type_method in
+        (if with_fieldmask then SSizeWithMask encoding_out
+                           else SSizeNoMask encoding_out) |>
+        string_of_type_method in
       U.add_identifier_of_expression compunit ~name sersize in
     let compunit, _, _ =
       let name =
-        (if with_fieldmask then E.SerWithMask encoding_out
-                           else E.SerNoMask encoding_out) |>
-        E.string_of_type_method in
+        (if with_fieldmask then SerWithMask encoding_out
+                           else SerNoMask encoding_out) |>
+        string_of_type_method in
       U.add_identifier_of_expression compunit ~name ser in
     compunit
   and add_converter compunit (encoding_in, encoding_out) =
@@ -145,7 +145,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     if !debug then ignore (TC.type_check E.no_env convert) ;
     let compunit, _, _ =
       let name =
-        E.string_of_type_method (E.Convert (encoding_in, encoding_out)) in
+        string_of_type_method (Convert (encoding_in, encoding_out)) in
       U.add_identifier_of_expression compunit ~name convert in
     compunit in
   let compunit = List.fold_left add_decoder compunit encodings_in in
@@ -204,7 +204,7 @@ let converter
   if not !quiet then Printf.printf "executable in %S\n" dest_fname
 
 let destruct_pair = function
-  | T.{ typ = Tup [| k ; v |] ; _ } ->
+  | T.{ typ = TTup [| k ; v |] ; _ } ->
       k, v
   | t ->
       Printf.sprintf2 "Not a pair: %a" T.print_mn t |>
@@ -223,8 +223,8 @@ let lmdb main
   let module Des = (val (des_of_encoding encoding_in) : DES) in
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module DS = DesSer (Des) (Ser) in
-  init_backend backend T.(required (Rec [| "key", key_schema ;
-                                           "value", val_schema |])) ;
+  init_backend backend T.(required (TRec [| "key", key_schema ;
+                                            "value", val_schema |])) ;
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
     func2 T.ptr T.ptr (DS.desser key_schema) in
@@ -314,7 +314,7 @@ let aggregator
   if !debug then ignore (TC.type_check E.no_env finalize_expr) ;
   let output_t =
     match E.type_of E.no_env finalize_expr with
-    | T.{ typ = Function ([| a1 |], mn) ; nullable = false }
+    | T.{ typ = TFunction ([| a1 |], mn) ; nullable = false }
       when T.eq_mn a1 state_t -> mn
     | mn ->
         Printf.sprintf2 "Aggregation finalizer must be a function of the \
@@ -416,7 +416,7 @@ let docv_of_enum l =
   ) l
 
 let known_inputs =
-  T.[ RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
+  [ RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
   List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_in =
@@ -432,7 +432,7 @@ let encodings_in =
   Arg.(opt_all (enum known_inputs) [] i)
 
 let known_outputs =
-  T.[ Null ; RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
+  [ Null ; RingBuff ; RowBinary ; SExpr ; CSV ; JSON ] |>
   List.map (fun enc -> string_of_encoding enc, enc)
 
 let encoding_out =

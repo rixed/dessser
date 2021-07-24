@@ -54,23 +54,23 @@ let rec is_serializable ?(to_first_concrete=false) mn =
         is_serializable ~to_first_concrete:to_first_concrete' fst &&
         Enum.for_all (is_serializable ~to_first_concrete:false) mns in
   match mn.T.typ with
-  | This _ ->
+  | TThis _ ->
       (* If everything else is serializable then This is also serializable.
        * Or let any non-serializable field fails. *)
       true
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
+  | TBool | TChar | TFloat | TString
+  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
+  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 ->
       true
-  | Usr { def ; _ } ->
+  | TUsr { def ; _ } ->
       is_serializable ~to_first_concrete T.{ mn with typ = def }
-  | Vec (_, mn') | Arr mn' | Set (_, mn') ->
+  | TVec (_, mn') | TArr mn' | TSet (_, mn') ->
       is_serializable ~to_first_concrete:to_first_concrete' mn'
-  | Tup mns ->
+  | TTup mns ->
       are_serializable (Array.enum mns)
-  | Rec mns ->
+  | TRec mns ->
       are_serializable (Array.enum mns |> Enum.map snd)
-  | Sum mns ->
+  | TSum mns ->
       (* Each alternative must be serializable independently: *)
       Array.for_all (fun (_, mn') ->
         is_serializable ~to_first_concrete:to_first_concrete' mn'
@@ -86,19 +86,19 @@ let rec is_serializable ?(to_first_concrete=false) mn =
 let rec nullable_at_first mn =
   mn.T.nullable ||
   match mn.typ with
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
+  | TBool | TChar | TFloat | TString
+  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
+  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 ->
       false
-  | Usr { def ; _ } ->
+  | TUsr { def ; _ } ->
       nullable_at_first T.{ mn with typ = def }
-  | Vec (_, mn') | Arr mn' | Set (_, mn') ->
+  | TVec (_, mn') | TArr mn' | TSet (_, mn') ->
       nullable_at_first mn'
-  | Tup mns ->
+  | TTup mns ->
       nullable_at_first mns.(0)
-  | Rec mns ->
+  | TRec mns ->
       nullable_at_first (snd mns.(0))
-  | Sum mns ->
+  | TSum mns ->
       Array.exists (fun (_, mn) ->
         nullable_at_first mn
       ) mns
@@ -115,44 +115,46 @@ let rec nullable_at_first mn =
 
 (* Take a maybe-nullable and make it serializable by making some compound
  * types non nullable: *)
+(* FIXME: try harder to keep user provided mn (with its default...) if it
+ * is serialiable *)
 let rec make_serializable mn =
   match mn.T.typ with
-  | This _ ->
+  | TThis _ ->
       todo "make_serializable for This"
-  | Bool | Char | Float | String
-  | U8 | U16 | U24 | U32 | U40 | U48 | U56 | U64 | U128
-  | I8 | I16 | I24 | I32 | I40 | I48 | I56 | I64 | I128 ->
+  | TBool | TChar | TFloat | TString
+  | TU8 | TU16 | TU24 | TU32 | TU40 | TU48 | TU56 | TU64 | TU128
+  | TI8 | TI16 | TI24 | TI32 | TI40 | TI48 | TI56 | TI64 | TI128 ->
       mn
-  | Usr { def ; _ } ->
+  | TUsr { def ; _ } ->
       let mn' = T.{ mn with typ = def } in
       if is_serializable mn' then mn else make_serializable mn'
-  | Vec (d, mn') ->
+  | TVec (d, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        typ = Vec (d, mn') }
-  | Arr mn' ->
+        typ = TVec (d, mn') ; default = None }
+  | TArr mn' ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        typ = Arr mn' }
-  | Set (_, mn') ->
+        typ = TArr mn' ; default = None }
+  | TSet (_, mn') ->
       let mn' = make_serializable mn' in
       { nullable = if nullable_at_first mn' then false else mn.nullable ;
-        typ = Arr mn' }
-  | Tup mns ->
+        typ = TArr mn' ; default = None }
+  | TTup mns ->
       let mns = Array.map make_serializable mns in
       { nullable = if nullable_at_first mns.(0) then false else mn.nullable ;
-        typ = Tup mns }
-  | Rec mns ->
+        typ = TTup mns ; default = None }
+  | TRec mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if nullable_at_first (snd mns.(0)) then false else mn.nullable ;
-        typ = Rec mns }
-  | Sum mns ->
+        typ = TRec mns ; default = None }
+  | TSum mns ->
       let mns = Array.map (fun (n, mn) -> n, make_serializable mn) mns in
       { nullable =
           if Array.exists (fun (_, mn) -> nullable_at_first mn) mns then false
           else mn.nullable ;
-        typ = Sum mns }
+        typ = TSum mns ; default = None }
   | _ ->
       invalid_arg "make_serializable"
 
@@ -171,7 +173,7 @@ let make_serializable =
  * the same) *)
 let is_fixed_string mn0 path =
   match Path.(type_of_path mn0 path).typ |> T.develop with
-  | Vec (_, { typ = Char ; nullable = false } ) ->
+  | TVec (_, { typ = TChar ; nullable = false } ) ->
       true
   | _ ->
       false
@@ -186,7 +188,7 @@ let is_in_fixed_string mn0 path =
 
 let is_list mn0 path =
   match Path.(type_of_path mn0 path).typ |> T.develop with
-  | Vec _ | Arr _ ->
+  | TVec _ | TArr _ ->
       true
   | _ ->
       false

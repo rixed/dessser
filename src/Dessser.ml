@@ -109,9 +109,9 @@ sig
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_null : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*bool*) E.t
-  val dnull : T.t ->
+  val dnull : T.typ ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val dnotnull : T.t ->
+  val dnotnull : T.typ ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 end
 
@@ -187,9 +187,9 @@ sig
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val nullable : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val snull : T.t ->
+  val snull : T.typ ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val snotnull : T.t ->
+  val snotnull : T.typ ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   (* Sometimes, we'd like to know in advance how large a serialized value is
@@ -472,41 +472,41 @@ struct
 
   (* TODO: Ext *)
   and desser_value = function
-    | T.This _ -> assert false (* Because of Path.type_of_path *)
-    | Void ->
+    | T.TThis _ -> assert false (* Because of Path.type_of_path *)
+    | TVoid ->
         fun _transform _sstate _dstate _mn0 _path src_dst -> src_dst
-    | Float -> dsfloat
-    | String -> dsstring
-    | Bool -> dsbool
-    | Char -> dschar
-    | I8 -> dsi8
-    | I16 -> dsi16
-    | I24 -> dsi24
-    | I32 -> dsi32
-    | I40 -> dsi40
-    | I48 -> dsi48
-    | I56 -> dsi56
-    | I64 -> dsi64
-    | I128 -> dsi128
-    | U8 -> dsu8
-    | U16 -> dsu16
-    | U24 -> dsu24
-    | U32 -> dsu32
-    | U40 -> dsu40
-    | U48 -> dsu48
-    | U56 -> dsu56
-    | U64 -> dsu64
-    | U128 -> dsu128
-    | Usr vt -> desser_value vt.def
-    | Tup mns -> dstup mns
-    | Rec mns -> dsrec mns
-    | Sum mns -> dssum mns
-    | Vec (dim, mn) -> dsvec dim mn
-    | Arr mn
+    | TFloat -> dsfloat
+    | TString -> dsstring
+    | TBool -> dsbool
+    | TChar -> dschar
+    | TI8 -> dsi8
+    | TI16 -> dsi16
+    | TI24 -> dsi24
+    | TI32 -> dsi32
+    | TI40 -> dsi40
+    | TI48 -> dsi48
+    | TI56 -> dsi56
+    | TI64 -> dsi64
+    | TI128 -> dsi128
+    | TU8 -> dsu8
+    | TU16 -> dsu16
+    | TU24 -> dsu24
+    | TU32 -> dsu32
+    | TU40 -> dsu40
+    | TU48 -> dsu48
+    | TU56 -> dsu56
+    | TU64 -> dsu64
+    | TU128 -> dsu128
+    | TUsr vt -> desser_value vt.def
+    | TTup mns -> dstup mns
+    | TRec mns -> dsrec mns
+    | TSum mns -> dssum mns
+    | TVec (dim, mn) -> dsvec dim mn
+    | TArr mn
     (* Sets and Lsts are serialized like arrs (the last update is thus lost). *)
-    | Set (Simple, mn) | T.Lst mn -> dsarr mn
-    | Set _ -> todo "des/ser for non simple sets"
-    | Map _ -> assert false (* No value of map type *)
+    | TSet (Simple, mn) | TLst mn -> dsarr mn
+    | TSet _ -> todo "des/ser for non simple sets"
+    | TMap _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"
 
   and desser_ transform sstate dstate mn0 path src_dst =
@@ -568,6 +568,6 @@ sig
   val preferred_decl_extension : string
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
-  val type_identifier : Printer.t -> T.t -> string
+  val type_identifier : Printer.t -> T.typ -> string
   val type_identifier_mn : Printer.t -> T.mn -> string
 end

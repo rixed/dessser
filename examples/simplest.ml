@@ -172,9 +172,7 @@ end
 module TestDesSer = DesSer (TestDes) (TestSer)
 
 let test_desser () =
-  let mn = T.{ typ = Tup [| { typ = U8 ; nullable = false } ;
-                            { typ = Char ; nullable = false } |] ;
-               nullable = false } in
+  let mn = T.(required (tup [| u8 ; char |])) in
   let src = ptr_of_string (string "\001X")
   and dst = ptr_of_string (string "_____") in
   E.Ops.let_ (TestDesSer.desser mn src dst) (fun e ->

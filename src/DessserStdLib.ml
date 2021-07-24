@@ -68,106 +68,106 @@ let rec random_lst mn =
  * maybe-nullable type [mn]: *)
 and random mn =
   if mn.T.nullable then
-    if_ (random T.(required Bool))
+    if_ (random T.bool)
       ~then_:(null mn.typ)
       ~else_:(not_null (random { mn with nullable = false }))
   else match mn.typ with
-  | T.Unknown ->
+  | T.TUnknown ->
       invalid_arg "random for unknown type"
-  | Named (_, t) ->
+  | TNamed (_, t) ->
       random T.(required t)
-  | This n ->
+  | TThis n ->
       let t = T.find_this n in
       random T.(required t)
-  | Void ->
+  | TVoid ->
       void
-  | Float ->
+  | TFloat ->
       random_float
-  | Bool ->
+  | TBool ->
       eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
-  | String ->
+  | TString ->
       (* Just 5 random letters for now: *)
       let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
         let s = get_ref s_ref in
         seq [
           repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
-              let c = random T.(required Char) in
+              let c = random T.char in
               let s' = append_string s (string_of_char_ c) in
               (set_ref s_ref s')) ;
           s ])
-  | Char ->
+  | TChar ->
       (* Just a random lowercase letter for now *)
       (char_of_u8
         (add (u8_of_char (char 'a'))
              (force ~what:"random rem"
-                    (rem (random T.(required U8))
+                    (rem (random T.u8)
                          (u8_of_int 26)))))
-  | U8 ->
+  | TU8 ->
       random_u8
-  | U16 ->
+  | TU16 ->
       to_u16 random_u32
-  | U24 ->
+  | TU24 ->
       to_u24 random_u32
-  | U32 ->
+  | TU32 ->
       random_u32
-  | U40 ->
+  | TU40 ->
       to_u40 random_u64
-  | U48 ->
+  | TU48 ->
       to_u48 random_u64
-  | U56 ->
+  | TU56 ->
       to_u56 random_u64
-  | U64 ->
+  | TU64 ->
       random_u64
-  | U128 ->
+  | TU128 ->
       random_u128
-  | I8 ->
+  | TI8 ->
       to_i8 random_u8
-  | I16 ->
+  | TI16 ->
       to_i16 random_u32
-  | I24 ->
+  | TI24 ->
       to_i24 random_u32
-  | I32 ->
+  | TI32 ->
       to_i32 random_u32
-  | I40 ->
+  | TI40 ->
       to_i40 random_u64
-  | I48 ->
+  | TI48 ->
       to_i48 random_u64
-  | I56 ->
+  | TI56 ->
       to_i56 random_u64
-  | I64 ->
+  | TI64 ->
       to_i64 random_u64
-  | I128 ->
+  | TI128 ->
       to_i128 random_u128
-  | Usr ut ->
+  | TUsr ut ->
       random T.(required ut.def)
-  | Ext n ->
+  | TExt n ->
       invalid_arg ("random for Ext type "^ n)
-  | Vec (dim, mn) ->
+  | TVec (dim, mn) ->
       List.init dim (fun _ -> random mn) |>
       make_vec
-  | Arr mn ->
+  | TArr mn ->
       random_lst mn |>
       arr_of_lst
-  | Set (Simple, mn) ->
+  | TSet (Simple, mn) ->
       random_lst mn |>
       set_of_lst
-  | Set _ ->
+  | TSet _ ->
       todo "random for non simple sets"
-  | Tup mns ->
+  | TTup mns ->
       Array.map random mns |>
       Array.to_list |>
       make_tup
-  | Rec mns ->
+  | TRec mns ->
       Array.map (fun (name, mn) -> name, random mn) mns |>
       Array.to_list |>
       make_rec
-  | Sum _mns ->
+  | TSum _mns ->
       todo "random for sum types"
-  | Map _ ->
+  | TMap _ ->
       invalid_arg "random for Map type"
-  | Size | Ptr | Address | Bytes | Mask | Lst _ ->
+  | TSize | TPtr | TAddress | TBytes | TMask | TLst _ ->
       todo "random"
-  | Function _ ->
+  | TFunction _ ->
       todo "randomfunctions"
 
 (*
@@ -258,31 +258,31 @@ let is_empty e e_t =
   let prop_null nullable e f =
     if nullable then
       if_null e
-        ~then_:(null T.Bool)
+        ~then_:(null T.TBool)
         ~else_:(not_null (f (force e)))
     else
       f e in
   match e_t with
-  | T.{ typ = String ; nullable } ->
+  | T.{ typ = TString ; nullable ; _ } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (string_length e))
-  | { typ = (Vec _ | Arr _ | Set _) ; nullable } ->
+  | { typ = (TVec _ | TArr _ | TSet _) ; nullable } ->
       prop_null nullable e (fun e ->
         eq (u32_of_int 0) (cardinality e))
-  | { typ = Usr { name = "Cidr4" ; _ } ; nullable } ->
+  | { typ = TUsr { name = "Cidr4" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 32))
-  | { typ = Usr { name = "Cidr6" ; _ } ; nullable } ->
+  | { typ = TUsr { name = "Cidr6" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         lt (get_field "mask" e) (u8_of_int 128))
-  | { typ = Usr { name = "Cidr" ; _ } ; nullable } ->
+  | { typ = TUsr { name = "Cidr" ; _ } ; nullable } ->
       prop_null nullable e (fun e ->
         if_ (eq (label_of e) (u16_of_int 0))
           ~then_:(lt (get_field "mask" (get_alt "v4" e)) (u8_of_int 32))
           ~else_:(lt (get_field "mask" (get_alt "v6" e)) (u8_of_int 128)))
-  | { typ = Ptr ; nullable } ->
+  | { typ = TPtr ; nullable } ->
       prop_null nullable e (fun e -> eq (size 0) (rem_size e))
-  | { typ = Lst mn ; nullable } ->
+  | { typ = TLst mn ; nullable } ->
       prop_null nullable e (fun e -> eq e (eol mn))
   | mn ->
       BatPrintf.sprintf2 "is_empty for %a" T.print_mn mn |>
@@ -345,7 +345,7 @@ let rec is_in item item_t lst lst_t =
     let_ ~name:"item" item (fun item ->
       if lst_t.T.nullable then
         if_null lst
-          ~then_:(null T.Bool)
+          ~then_:(null T.TBool)
           ~else_:(
             let lst = force ~what:"is_in(0)" lst
             and lst_t = { lst_t with nullable = false } in
@@ -363,7 +363,7 @@ let rec is_in item item_t lst lst_t =
           ~else_:(
             if item_t.T.nullable then
               if_null item
-                ~then_:(null T.Bool)
+                ~then_:(null T.TBool)
                 ~else_:(
                   let item = force ~what:"is_in(1)" item
                   and item_t = { item_t with nullable = false } in
@@ -378,22 +378,22 @@ let rec is_in item item_t lst lst_t =
                * the actual question: *)
               match item_t.T.typ, lst_t.T.typ with
               (* Substring search: *)
-              | String, String ->
+              | TString, TString ->
                   not_ (is_null (find_substring (bool true) item lst))
               (* In all other cases where [item] and [lst] are of the same type
                * then [in_in item lst] is just a comparison: *)
               | _ when T.eq_mn item_t lst_t ->
                   eq item lst
               (* Otherwise [lst] must be some kind of set: *)
-              | Char, String ->
+              | TChar, TString ->
                   not_ (is_null (index item lst))
-              | Usr { name = "Ip4" ; _ }, Usr { name = "Cidr4" ; _ } ->
+              | TUsr { name = "Ip4" ; _ }, TUsr { name = "Cidr4" ; _ } ->
                   and_ (ge item (first_ip_of_cidr4 lst))
                        (le item (last_ip_of_cidr4 lst))
-              | Usr { name = "Ip6" ; _ }, Usr { name = "Cidr6" ; _ } ->
+              | TUsr { name = "Ip6" ; _ }, TUsr { name = "Cidr6" ; _ } ->
                   and_ (ge item (first_ip_of_cidr6 lst))
                        (le item (last_ip_of_cidr6 lst))
-              | Usr { name = "Ip" ; _ }, Usr { name = "Cidr" ; _ } ->
+              | TUsr { name = "Ip" ; _ }, TUsr { name = "Cidr" ; _ } ->
                   if_ (eq (label_of item) (label_of lst))
                     ~then_:(
                       if_ (eq (label_of item) (u16_of_int 0))
@@ -410,8 +410,8 @@ let rec is_in item item_t lst lst_t =
                               and cidr_t = T.(required (get_user_type "Cidr6")) in
                               is_in ip ip_t cidr cidr_t))))
                     ~else_:(bool false)
-              | item_typ, (Vec (_, { typ = lst_typ ; nullable }) |
-                           Arr { typ = lst_typ ; nullable }) ->
+              | item_typ, (TVec (_, { typ = lst_typ ; nullable }) |
+                           TArr { typ = lst_typ ; nullable }) ->
                   (* If the set item type is the same as item type then perform
                    * direct comparisons with [eq], otherwise call [is_in]
                    * recursively.

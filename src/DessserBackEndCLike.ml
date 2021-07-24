@@ -53,7 +53,7 @@ sig
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
 
-  val type_identifier : P.t -> T.t -> string
+  val type_identifier : P.t -> T.typ -> string
 
   val type_identifier_mn : P.t -> T.mn -> string
 
@@ -133,7 +133,7 @@ struct
    * Arithmetic operators that fail with null are not inlinable (in C++)
    * but none of them count as cheap anyway. *)
   let can_inline = function
-    | E.E0 (
+    | T.E0 (
         Param _ | Null _ |
         EndOfList _ | Float _ | String _ | Bool _ | Bytes _ |
         Identifier _ | ExtIdentifier _ |

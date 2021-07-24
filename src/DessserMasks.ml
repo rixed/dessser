@@ -169,14 +169,14 @@ let of_string = Parser.mask_of_string
     (of_string "(xxx)")
   (Recurse \
     [| Copy ; \
-       Recurse [| Skip ; Insert (E.(E0 (Null T.U8))) ; Copy |] |]) \
+       Recurse [| Skip ; Insert (E.(E0 (Null T.TU8))) ; Copy |] |]) \
     (of_string "(X(_{(null \"u8\")}X))")
   (Recurse [| Copy ; Recurse [| Skip ; SetNull ; Copy |] |]) \
     (of_string "(X(_NX))")
 *)
 
 exception Types_do_not_match of { mask : T.mn ; expr : T.mn }
-exception Invalid_type_for_mask of T.t
+exception Invalid_type_for_mask of T.typ
 exception Mask_too_long_for_type of T.mn * t
 exception Not_a_recursive_type of T.mn
 exception Cannot_skip_that
@@ -220,18 +220,18 @@ let rec project mn ma =
         raise (Cannot_set_null mn)
   | Recurse mas ->
       (match mn.T.typ with
-      | T.Tup mns ->
+      | T.TTup mns ->
           (match recurse_tuple mn mns mas with
           | [||] -> raise Cannot_skip_that
           (* No tuples of 1 items: *)
           | [| mn |] -> mn
-          | mns -> { mn with typ = T.Tup mns })
-      | T.Rec mns ->
+          | mns -> { mn with typ = T.TTup mns })
+      | TRec mns ->
           (match recurse_record mn mns mas with
           | [||] -> raise Cannot_skip_that
           | mns ->
               (* A record of one field is OK: *)
-              { mn with typ = T.Rec mns })
+              { mn with typ = T.TRec mns })
       | _ ->
           raise (Not_a_recursive_type mn))
   | Replace e ->
@@ -246,8 +246,8 @@ let rec project mn ma =
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_mn)
-  (T.optional U8) (* Do nothing case *) \
-    (project (T.optional U8) Copy)
+  (T.nu8) (* Do nothing case *) \
+    (project T.nu8 Copy)
   (s2t "u8?") (* Same as above but using the textual representation *) \
     (project (s2t "u8?") (s2a "X"))
   (s2t "u8?") (* Not "(u8?)"! *) \

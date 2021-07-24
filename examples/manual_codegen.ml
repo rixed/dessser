@@ -21,34 +21,32 @@ let run_cmd cmd =
       failwith
 
 let () =
-  let m x = T.{ typ = x ; nullable = false }
-  and n x = T.{ typ = x ; nullable = true } in
   let udp_typ =
-    T.required (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ; n U32 ;
-      n U32 ; m U64 ; m U64 ; m U32 ; m U32 ; n U32 ; n String ; n U32 ;
-      n String ; n U32 ; n String ; m U16 ; m U16 ; m U8 ; m U8 ; n U32 ;
-      n U32 ; m U32 ; m String ; m U64 ; m U64 ; m U64 ; (* Should be U32 *)
-      m U64 ; (* Should be U32 *) m U64 ; m U64 ; n String
-    |])
+    T.(required (tup [|
+      string ; u64 ; u64 ; u8 ; string ; u8 ; string ; nu32 ;
+      nu32 ; u64 ; u64 ; u32 ; u32 ; nu32 ; nstring ; nu32 ;
+      nstring ; nu32 ; nstring ; u16 ; u16 ; u8 ; u8 ; nu32 ;
+      nu32 ; u32 ; string ; u64 ; u64 ; u64 ; (* Should be U32 *)
+      u64 ; (* Should be U32 *) u64 ; u64 ; nstring
+    |]))
   and _http_typ =
-    T.required (Tup [|
-      m String ; m U64 ; m U64 ; m U8 ; m String ; m U8 ; m String ;
-      n U32 ; n U32 ; m U64 ; m U64 ; m U32 ; m U32 ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      m U16 ; m U16 ; m U128 ; m U128 ; m U128 ; n U128 ;
-      m U8 ; m U8 ; m U8 ; n String ; n String ;
-      n String (* url *) ; n String ; m U8 ; m U8 ; m U8 ;
-      n U32 ; T.optional (Vec (16, m Char)) ;
-      m U8 ; m U8 ; m U64 ; m U64 ; m U8 ; m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      n U64 ; n U64 ; n U32 ;
-      m U32 ; m U32 ; m U32 ;
-      n String ; m U32 ; m U8 ; n String ;
-      m U32 ; m U32 ; m U16 ; m U16 ; m U16 ;
-      m U64 ; m U64 ; m U64 ; m Float ; m U8 ; m I64 ; m Float ;
-      m I64 ; m Float ; m I64 ; m Float ; m U32 |]) in
+    T.(required (tup [|
+      string ; u64 ; u64 ; u8 ; string ; u8 ; string ;
+      nu32 ; nu32 ; u64 ; u64 ; u32 ; u32 ;
+      nu32 ; optional (vec 16 char) ;
+      nu32 ; optional (vec 16 char) ;
+      u16 ; u16 ; u128 ; u128 ; u128 ; nu128 ;
+      u8 ; u8 ; u8 ; nstring ; nstring ;
+      nstring (* url *) ; nstring ; u8 ; u8 ; u8 ;
+      nu32 ; optional (vec 16 char) ;
+      u8 ; u8 ; u64 ; u64 ; u8 ; u32 ; u32 ; u32 ;
+      nstring ; u32 ; u8 ; nstring ;
+      nu64 ; nu64 ; nu32 ;
+      u32 ; u32 ; u32 ;
+      nstring ; u32 ; u8 ; nstring ;
+      u32 ; u32 ; u16 ; u16 ; u16 ;
+      u64 ; u64 ; u64 ; float ; u8 ; i64 ; float ;
+      i64 ; float ; i64 ; float ; u32 |])) in
   let typ = udp_typ in
   let backend, exe_ext =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
