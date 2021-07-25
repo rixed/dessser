@@ -427,7 +427,7 @@ struct
       let end_p = secnd (frame_top stk) in
       make_pair end_p (tail stk))
 
-  let locate_p_opt mn0 path p stk =
+  let locate_p mn0 path p stk =
     match Path.type_of_parent mn0 path with
     | exception Invalid_argument _ ->
         (* No parent, therefore cannot be in a record: *)
@@ -450,11 +450,6 @@ struct
     | _ ->
         not_null p
 
-  (* This will only ever be called on non-null values (either not nullable
-   * or nullable but present and set: *)
-  let locate_p mn0 path p stk =
-    force ~what:"locate_p" (locate_p_opt mn0 path p stk)
-
   let ptr _vtyp = T.(pair ptr (required (lst frame_t)))
 
   (* Pass the compunit to this function, so it can register its own stuff,
@@ -474,7 +469,8 @@ struct
       (* If we are currently decoding an object, the given [p] is not
        * where the value is. Instead, it is one of the already located
        * object value, to be found in the top frame: *)
-      let p = locate_p mn0 path p stk in
+      let p_opt = locate_p mn0 path p stk in
+      let p = force ~what:"locate_p" p_opt in
       let p = skip_blanks p in
       let_ ~name:"p" p (fun p -> f p stk))
 
@@ -626,7 +622,7 @@ struct
 
   let is_null () mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
-      let_ ~name:"p_opt" (locate_p_opt mn0 path p stk) (fun p_opt ->
+      let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
         let res =
           or_ (is_null p_opt)
               (let_ ~name:"p" (force ~what:"is_null" p_opt) (fun p ->
@@ -641,7 +637,7 @@ struct
 
   let dnull _t () mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
-      let_ ~name:"p_opt" (locate_p_opt mn0 path p stk) (fun p_opt ->
+      let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
         (* If the field is not even present, just do nothing: *)
         if_null p_opt
           ~then_:p_stk
@@ -968,5 +964,4 @@ struct
 
   let ssize_of_null _mn0 _path =
     size 4
-
 end
