@@ -7,6 +7,7 @@ module T = DessserTypes
 
 (*$inject
   open Stdint
+  module P = DessserParser
   module T = DessserTypes *)
 
 (* [l] is the stack of expr * type *)
@@ -498,7 +499,7 @@ let rec type_check l =
 
 (*$inject
   let pass_type_check s =
-    let e = Parser.expr s |> List.hd in
+    let e = P.expr s |> List.hd in
     try ignore (type_check no_env e) ; true
     with _ -> false
 

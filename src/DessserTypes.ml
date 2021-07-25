@@ -4,9 +4,6 @@ open Stdint
 open DessserMiscTypes
 open DessserTools
 
-module PConfig = ParsersPositions.LineCol (Parsers.SimpleConfig (Char))
-module P = Parsers.Make (PConfig)
-
 let pp = Printf.fprintf
 
 (* "Value" types are all the types describing values that can be (de)serialized.
@@ -485,22 +482,17 @@ and expr =
  * User-defined types
  *)
 
-type user_type_def =
-  { usr_typ : user_type ;
-    print : 'a. 'a IO.output -> unit ;
-    mutable parse : typ P.t }
-
-let user_types : (string, user_type_def) Hashtbl.t = Hashtbl.create 50
+let user_types : (string, user_type) Hashtbl.t = Hashtbl.create 50
 
 type gen_printer = { f : 'a. 'a IO.output -> unit }
 
-let default_user_type_printer ut oc =
+let print_user_type oc ut =
   String.print oc ut.name
 
 let get_user_type n =
-  TUsr (Hashtbl.find user_types n).usr_typ
+  TUsr (Hashtbl.find user_types n)
 
-(* See below after Parser definition for [register_user_type] and examples *)
+(* See below for [register_user_type] and examples *)
 
 (*
  * Printers
@@ -578,11 +570,7 @@ let rec print ?(sorted=false) oc =
   | TExt n ->
       pp oc "$%s" n
   | TUsr t ->
-      (match Hashtbl.find user_types t.name with
-      | exception Not_found ->
-          default_user_type_printer t oc
-      | def ->
-          def.print oc)
+      print_user_type oc t
   | TVec (dim, mn) ->
       pp oc "%a[%d]" print_mn mn dim
   | TArr mn ->
@@ -868,520 +856,6 @@ and eq_mn ?opaque_user_type mn1 mn2 =
 *)
 
 (*
- * Parsers
- *)
-
-module Parser =
-struct
-  module ParseUsual = ParsersUsual.Make (P)
-  include P
-  include ParseUsual
-
-  let comment =
-    ref (
-      let all_but_newline =
-        cond "anything until newline" (fun c -> c <> '\n' && c <> '\r') '_'
-      in
-      fun m ->
-        let m = "comment" :: m in
-        (
-          char '/' -- char '/' --
-          repeat_greedy ~sep:none ~what:"comment" all_but_newline
-        ) m
-    )
-
-  let blanks =
-    ref (
-      let blank = ParseUsual.blank >>: ignore
-      and newline = ParseUsual.newline >>: ignore in
-      fun m ->
-        let m = "blanks" :: m in
-        (
-        repeat_greedy ~min:1 ~sep:none ~what:"whitespaces"
-          (blank ||| newline ||| !comment) >>: ignore
-        ) m
-    )
-
-  let opt_blanks =
-    optional_greedy ~def:() !blanks
-
-  let allow_surrounding_blanks p =
-    opt_blanks -+ p +- opt_blanks +- eof
-
-  let opt_question_mark =
-    optional ~def:false (char '?' >>: fun _ -> true)
-
-  let pos_integer what m =
-    let m = what :: m in
-    (
-      decimal_number >>: fun n ->
-        let i = Num.to_int n in
-        if i < 0 then raise (Reject "must be positive")
-        else i
-    ) m
-
-  (* strinG will match the given string regardless of the case and
-   * regardless of the surrounding (ie even if followed by other letters). *)
-  let strinG s =
-    dismiss_error_if (parsed_fewer_than (String.length s / 2))
-      (ParseUsual.string ~case_sensitive:false s)
-
-  let tup_sep =
-    opt_blanks -- char ';' -- opt_blanks
-
-  let user_type = ref fail
-
-  let scalar_typ m =
-    let m = "scalar type" :: m in
-    let st n mtyp =
-      strinG n >>: fun () -> mtyp
-    in
-    (
-      (st "float" TFloat) |<|
-      (st "string" TString) |<|
-      (st "bool" TBool) |<|
-      (st "boolean" TBool) |<|
-      (st "char" TChar) |<|
-      (st "u8" TU8) |<|
-      (st "u16" TU16) |<|
-      (st "u24" TU24) |<|
-      (st "u32" TU32) |<|
-      (st "u40" TU40) |<|
-      (st "u48" TU48) |<|
-      (st "u56" TU56) |<|
-      (st "u64" TU64) |<|
-      (st "u128" TU128) |<|
-      (st "i8" TI8) |<|
-      (st "i16" TI16) |<|
-      (st "i24" TI24) |<|
-      (st "i32" TI32) |<|
-      (st "i40" TI40) |<|
-      (st "i48" TI48) |<|
-      (st "i56" TI56) |<|
-      (st "i64" TI64) |<|
-      (st "i128" TI128)
-    ) m
-
-  let identifier =
-    let what = "identifier" in
-    let first_char = letter ||| underscore ||| char '-' in
-    let any_char = first_char ||| decimal_digit in
-    first_char ++ repeat_greedy ~sep:none ~what any_char >>: fun (c, s) ->
-      (* TODO: exclude keywords *)
-      String.of_list (c :: s)
-
-  let ext_typ m =
-    let m = "external type" :: m in
-    (
-      char '$' -+ identifier >>: fun n -> TExt n
-    ) m
-
-  let this m =
-    let m = "this" :: m in
-    (
-      strinG "this" -+
-      optional ~def:"" (!blanks -+ identifier) >>: fun s -> TThis s
-    ) m
-
-  type key_type =
-    VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | LstDim
-
-  let rec reduce_dims typ =
-    let default = None in (* TODO *)
-    function
-    | [] -> typ
-    | (nullable, VecDim d) :: rest ->
-        reduce_dims (TVec (d, { nullable ; typ ; default })) rest
-    | (nullable, ArrDim) :: rest ->
-        reduce_dims (TArr { nullable ; typ ; default }) rest
-    | (nullable, SetDim st) :: rest ->
-        reduce_dims (TSet (st, { nullable ; typ ; default })) rest
-    | (nullable, MapKey k) :: rest ->
-        reduce_dims (TMap (k, { nullable ; typ ; default })) rest
-    | (nullable, LstDim) :: rest ->
-        reduce_dims (TLst { nullable ; typ ; default }) rest
-
-  let rec key_type m =
-    let vec_dim m =
-      let m = "vector dimension" :: m in
-      (
-        opt_question_mark +-
-        char '[' +- opt_blanks ++
-        pos_integer "vector dimensions" +-
-        opt_blanks +- char ']' >>: fun (n, d) ->
-          if d <= 0 then
-            raise (Reject "Vector must have strictly positive dimension") ;
-          n, VecDim d
-      ) m in
-    let arr_dim m =
-      let m = "arr type" :: m in
-      (
-        opt_question_mark +-
-        char '[' +- opt_blanks +- char ']' >>: fun n -> n, ArrDim
-      ) m in
-    let lst_dim m =
-      let m = "lst type" :: m in
-      (
-        opt_question_mark +-
-        char '[' +- char '[' +- opt_blanks +- char ']' +- char ']' >>:
-          fun n -> n, LstDim
-      ) m in
-    let set_type m =
-      let m = "set type" :: m in
-      (
-        (strinG "simple" >>: fun () -> Simple) |<|
-        (strinG "sliding" >>: fun () -> Sliding) |<|
-        (strinG "tumbling" >>: fun () -> Tumbling) |<|
-        (strinG "sampling" >>: fun () -> DessserMiscTypes.Sampling) |<|
-        (strinG "hashtable" >>: fun () -> DessserMiscTypes.HashTable) |<|
-        (strinG "heap" >>: fun () -> DessserMiscTypes.Heap) |<|
-        (strinG "top" >>: fun () -> DessserMiscTypes.Top)
-      ) m in
-    let set_dim m =
-      let m = "set type" :: m in
-      (
-        opt_question_mark +-
-        char '{' +-
-          opt_blanks ++ optional ~def:Simple set_type +- opt_blanks +-
-        char '}' >>: fun (n, st) -> n, SetDim st
-      ) m in
-    let map_key m =
-      let m = "map key" :: m in
-      (
-        opt_question_mark +-
-        char '[' +- opt_blanks ++
-          mn +- opt_blanks +- char ']' >>: fun (n, k) -> n, MapKey k
-      ) m
-    in
-    (
-      vec_dim |<| arr_dim |<| set_dim |<| map_key |<| lst_dim
-    ) m
-
-  and mn m =
-    let m = "maybe nullable" :: m in
-    (
-      typ ++ opt_question_mark >>:
-        fun (typ, nullable) -> { typ ; nullable ; default = None (* TODO *) }
-    ) m
-
-  and typ m =
-    let m = "type" :: m in
-    let anonymous =
-      (
-        scalar_typ |<|
-        tuple_typ |<|
-        record_typ |<|
-        sum_typ |<|
-        ext_typ |<|
-        !user_type |<|
-        this |<|
-        (strinG "void" >>: fun () -> TVoid) |<|
-        (strinG "ptr" >>: fun () -> TPtr) |<|
-        (strinG "size" >>: fun () -> TSize) |<|
-        (strinG "address" >>: fun () -> TAddress) |<|
-        (strinG "bytes" >>: fun () -> TBytes) |<|
-        (strinG "mask" >>: fun () -> TMask) |<|
-        (
-          let sep = opt_blanks -- char '-' -- char '>' -- opt_blanks in
-          char '(' -+
-            repeat ~sep mn +- sep ++ mn +- opt_blanks +-
-          char ')' >>: fun (ptyps, rtyp) ->
-            TFunction (Array.of_list ptyps, rtyp)
-        ) |<| (
-          char '&' -- opt_blanks -+ mn >>: fun mn -> TVec (1, mn)
-        )
-      ) ++
-      repeat ~sep:opt_blanks (key_type) >>: fun (t, dims) ->
-        reduce_dims t dims in
-    (
-      (identifier +- opt_blanks +- string "as" +- opt_blanks ++ anonymous >>:
-        fun (n, t) -> TNamed (n, t)) |<|
-      anonymous
-    ) m
-
-  and tuple_typ m =
-    let m = "tuple type" :: m in
-    (
-      char '(' -- opt_blanks -+
-        several ~sep:tup_sep mn
-      +- opt_blanks +- char ')' >>: fun ts ->
-        TTup (Array.of_list ts)
-    ) m
-
-  and record_typ m =
-    let m = "record type" :: m in
-    let field_typ =
-      identifier +- opt_blanks +- char ':' +- opt_blanks ++ mn in
-    (
-      char '{' -- opt_blanks -+
-        several ~sep:tup_sep field_typ +-
-        opt_blanks +- optional ~def:() (char ';' -- opt_blanks) +-
-      char '}' >>: fun ts ->
-        (* TODO: check that all field names are distinct *)
-        TRec (Array.of_list ts)
-    ) m
-
-  and sum_typ m =
-    let m = "sum type" :: m in
-    let constructor m =
-      let m = "constructor" :: m in
-      (
-        identifier ++
-        optional ~def:{ nullable = false ; typ = TVoid ; default = None }
-          (!blanks -+ mn)
-      ) m
-    and sep =
-      opt_blanks -- char '|' -- opt_blanks in
-    (
-      char '[' -- opt_blanks -+
-      several ~sep constructor +-
-      opt_blanks +- char ']' >>: fun ts ->
-          (* TODO: check that all constructors are case insensitively distinct *)
-          TSum (Array.of_list ts)
-    ) m
-
-  let string_parser ?what ~print p =
-    let what =
-      match what with None -> [] | Some w -> [w] in
-    let p = allow_surrounding_blanks p in
-    fun s ->
-      let stream = stream_of_string s in
-      let parse_with_err_budget e =
-        let c = ParsersBoundedSet.make e in
-        p what None c stream |> to_result in
-      let err_out e =
-        Printf.sprintf2 "Parse error: %a"
-          (print_bad_result print) e |>
-        failwith
-      in
-      let try_fix_typos = true in
-      match parse_with_err_budget 0 with
-      | Error e ->
-          if try_fix_typos then
-            (* Try again with some error correction activated, in order to
-             * get a better error message: *)
-            match parse_with_err_budget 1 with
-            | Error e -> err_out e
-            | _ -> assert false
-          else
-            err_out e
-      | Ok (res, _) ->
-          res
-
-  (*$< Parser *)
-  (*$inject
-    open Batteries
-
-    let test_printer res_printer = function
-      | Ok (res, (_, [])) ->
-        Printf.sprintf "%s" (IO.to_string res_printer res)
-      | Ok (res, (len, rest)) ->
-        Printf.sprintf "%S, parsed_len=%d, rest=%s"
-          (IO.to_string res_printer res) len
-          (IO.to_string (List.print Char.print) rest)
-      | Error (Approximation _) ->
-        "Approximation"
-      | Error (NoSolution e) ->
-        Printf.sprintf "No solution (%s)" (IO.to_string print_error e)
-      | Error (Ambiguous lst) ->
-        Printf.sprintf "%d solutions: %s"
-          (List.length lst)
-          (IO.to_string
-            (List.print (fun oc (res, _corr, (_stream, pos)) ->
-              Printf.fprintf oc "res=%a, pos=%d,%d"
-                res_printer res
-                pos.ParsersPositions.line pos.column)) lst)
-
-    let strip_linecol = function
-      | Ok (res, (x, _pos)) -> Ok (res, x)
-      | Error _ as e -> e
-
-    let test_p ?(postproc=identity) p s =
-      (p +- eof) [] None Parsers.no_error_correction (PConfig.stream_of_string s) |>
-      to_result |>
-      strip_linecol |>
-      Result.map (fun (r, rest) -> postproc r, rest)
-
-    open DessserTypes
-  *)
-
-  (*$inject
-    let pmn = Parser.mn *)
-  (*$= pmn & ~printer:(test_printer print_mn)
-    (Ok ((required TU8), (2,[]))) \
-       (test_p pmn "u8")
-    (Ok ((optional TU8), (3,[]))) \
-       (test_p pmn "u8?")
-    (Ok ((required (TVec (3, (required TU8)))), (5,[]))) \
-       (test_p pmn "u8[3]")
-    (Ok ((required (TVec (3, (optional TU8)))), (6,[]))) \
-       (test_p pmn "u8?[3]")
-    (Ok ((optional (TVec (3, (required TU8)))), (6,[]))) \
-       (test_p pmn "u8[3]?")
-    (Ok ((required (TVec (3, (optional (TArr (required TU8)))))), (8,[]))) \
-       (test_p pmn "u8[]?[3]")
-    (Ok ((optional (TArr (required (TVec (3, (optional TU8)))))), (9,[]))) \
-       (test_p pmn "u8?[3][]?")
-    (Ok ((optional (TMap ((required TString), (required TU8)))), (11,[]))) \
-       (test_p pmn "u8[string]?")
-    (Ok ((required (TMap ((required (TMap (nu8, nstring))), (optional (TArr ((required (TTup [| (required TU8) ; (required (TMap ((required TString), (required TBool)))) |])))))))), (35,[]))) \
-       (test_p pmn "(u8; bool[string])[]?[string?[u8?]]")
-    (Ok ((required (TRec [| "f1", required TBool ; "f2", optional TU8 |])), (19,[]))) \
-      (test_p pmn "{f1: Bool; f2: U8?}")
-    (Ok ((required (TRec [| "f2", required TBool ; "f1", optional TU8 |])), (19,[]))) \
-      (test_p pmn "{f2: Bool; f1: U8?}")
-    (Ok ((required (TSum [| "c1", required TBool ; "c2", optional TU8 |])), (18,[]))) \
-      (test_p pmn "[c1 Bool | c2 U8?]")
-    (Ok ((required (TVec (1, required TBool))), (7,[]))) \
-      (test_p pmn "Bool[1]")
-  *)
-
-  (* In addition to native dessser format for type specification, we
-   * can also make sense of ClickHouse "NamesAndTypes" somewhat informal
-   * specifications: *)
-  let clickhouse_names_and_types m =
-    let m = "ClickHouse NameAndTypes format" :: m in
-    let backquoted_string_with_sql_style m =
-      let m = "Backquoted field name" :: m in
-      (
-        char '`' -+
-        repeat_greedy ~sep:none (
-          cond "field name" ((<>) '`') 'x') +-
-        char '`' >>: String.of_list
-      ) m in
-    let rec ptype m =
-      let with_param np ap =
-        np -- opt_blanks -- char '(' -+ ap +- char ')' in
-      let with_2_params np p1 p2 =
-        let ap = p1 -+ opt_blanks +- char ',' +- opt_blanks ++ p2 in
-        with_param np ap in
-      let unsigned =
-        integer >>: fun n ->
-          let i = Num.to_int n in
-          if i < 0 then raise (Reject "Type parameter must be >0") ;
-          i in
-      let with_num_param s =
-        with_param (strinG s) unsigned in
-      let with_2_num_params s =
-        with_2_params (strinG s) number number in
-      let with_typ_param s =
-        with_param (strinG s) ptype in
-      let legit_identifier_chars =
-        letter |<| underscore |<| decimal_digit in
-      let iD s =
-        ParseUsual.string ~case_sensitive:false s --
-        nay legit_identifier_chars in
-      let m = "Type name" :: m
-      and default = None in
-      (
-        (* Look only for simple types, starting with numerics: *)
-        (iD "UInt8" >>:
-          fun () -> { nullable = false ; typ = TU8 ; default }) |<|
-        (iD "UInt16" >>:
-          fun () -> { nullable = false ; typ = TU16 ; default }) |<|
-        (iD "UInt32" >>:
-          fun () -> { nullable = false ; typ = TU32 ; default }) |<|
-        (iD "UInt64" >>:
-          fun () -> { nullable = false ; typ = TU64 ; default }) |<|
-        ((iD "Int8" |<| iD "TINYINT") >>:
-          fun () -> { nullable = false ; typ = TI8 ; default }) |<|
-        ((iD "Int16" |<| iD "SMALLINT") >>:
-          fun () -> { nullable = false ; typ = TI16 ; default }) |<|
-        ((iD "Int32" |<| iD "INTEGER" |<| iD "INT") >>:
-          fun () -> { nullable = false ; typ = TI32 ; default }) |<|
-        ((iD "Int64" |<| iD "BIGINT") >>:
-          fun () -> { nullable = false ; typ = TI64 ; default }) |<|
-        ((iD "Float32" |<| iD "Float64" |<|
-          iD "FLOAT" |<| iD "DOUBLE") >>:
-          fun () -> { nullable = false ; typ = TFloat ; default }) |<|
-        (* Assuming UUIDs are just plain U128 with funny-printing: *)
-        (iD "UUID" >>:
-          fun () -> { nullable = false ; typ = TU128 ; default }) |<|
-        (* Decimals: for now forget about the size of the decimal part,
-         * just map into corresponding int type*)
-        (with_num_param "Decimal32" >>:
-          fun _p -> { nullable = false ; typ = TI32 ; default }) |<|
-        (with_num_param "Decimal64" >>:
-          fun _p -> { nullable = false ; typ = TI64 ; default }) |<|
-        (with_num_param "Decimal128" >>:
-          fun _p -> { nullable = false ; typ = TI128 ; default }) |<|
-        (* TODO: actually do something with the size: *)
-        ((with_2_num_params "Decimal" |<| with_2_num_params "DEC") >>:
-          fun (_n, _m)  -> { nullable = false ; typ = TI128 ; default }) |<|
-        ((iD "DateTime" |<| iD "TIMESTAMP") >>:
-          fun () -> { nullable = false ; typ = TU32 ; default }) |<|
-        (iD "Date" >>:
-          fun () -> { nullable = false ; typ = TU16 ; default }) |<|
-        ((iD "String" |<| iD "CHAR" |<| iD "VARCHAR" |<|
-          iD "TEXT" |<| iD "TINYTEXT" |<| iD "MEDIUMTEXT" |<|
-          iD "LONGTEXT" |<| iD "BLOB" |<| iD "TINYBLOB" |<|
-          iD "MEDIUMBLOB" |<| iD "LONGBLOB") >>:
-          fun () -> { nullable = false ; typ = TString ; default }) |<|
-        ((with_num_param "FixedString" |<| with_num_param "BINARY") >>:
-          fun d -> { nullable = false ; default ;
-                     typ = TVec (d, { nullable = false ;
-                                      typ = TChar ; default }) }) |<|
-        (with_typ_param "Nullable" >>:
-          fun mn -> { mn with nullable = true }) |<|
-        (with_typ_param "Array" >>:
-          fun mn -> { nullable = false ; typ = TArr mn ; default }) |<|
-        (* Just ignore those ones (for now): *)
-        (with_typ_param "LowCardinality")
-        (* Etc... *)
-      ) m
-    in
-    (
-      optional ~def:() (
-        string "columns format version: " -- number -- !blanks) --
-      optional ~def:() (
-        number -- !blanks -- string "columns:" -- !blanks) -+
-      several ~sep:!blanks (
-        backquoted_string_with_sql_style +- !blanks ++ ptype)
-      >>: fun mns ->
-        let mns = Array.of_list mns in
-        TRec mns
-    ) m
-
-  (*$= clickhouse_names_and_types & ~printer:(test_printer print)
-    (Ok (TRec [| "thing", required TU16 |], (14,[]))) \
-       (test_p clickhouse_names_and_types "`thing` UInt16")
-
-    (Ok (TRec [| "thing", required (TArr (required TU16)) |], (21,[]))) \
-       (test_p clickhouse_names_and_types "`thing` Array(UInt16)")
-  *)
-
-  (*$>*)
-end
-
-let mn_of_string ?what =
-  let print = print_mn in
-  Parser.(string_parser ~print ?what mn)
-
-(* If [any_format] then any known format to specify types will be tried.
- * If not then only dessser own format will be tried (faster, esp when
- * parsing DIL s-expressions) *)
-let of_string ?(any_format=false) ?what =
-  let open Parser in
-  let p =
-    if any_format then typ |<| clickhouse_names_and_types
-    else typ in
-  string_parser ~print ?what p
-
-(*$= of_string & ~printer:Batteries.dump
-  (TUsr { name = "Ip4" ; def = TU32 }) (of_string "Ip4")
-
-  (TLst { \
-    typ = TSum [| "eugp", { typ = TUsr { name = "Ip4" ; \
-                                         def = TU32 } ; \
-                            nullable = false ; default = None }; \
-                  "jjbi", { typ = TBool ; nullable = false ; default = None } ; \
-                  "bejlu", { typ = TI24 ; nullable = true ; default = None } ; \
-                  "bfid", { typ = TFloat ; nullable = false ; default = None } |] ; \
-    nullable = false ; default = None }) \
-  (of_string "[eugp Ip4 | jjbi BOOL | bejlu I24? | bfid FLOAT][[]]")
-*)
-
-(*
  * Some functional constructors:
  *)
 
@@ -1536,6 +1010,38 @@ let is_numeric t =
   is_num ~accept_float:true t
 
 (*
+ * User-types registration
+ *
+ * Note that to actually create values of that type the constructor must
+ * be registered also (see DessserExpressions.register_user_constructor).
+ *)
+
+let check t =
+  iter (function
+    (* TODO: also field names in a record *)
+    | TSum mns ->
+        Array.fold_left (fun s (n, _) ->
+          if Set.String.mem n s then
+            failwith "Constructor names not unique" ;
+          Set.String.add n s
+        ) Set.String.empty mns |>
+        ignore
+    | _ -> ()
+  ) t
+
+let register_user_type name def =
+  if not (is_defined def) then invalid_arg "register_user_type" ;
+  check def ;
+  Hashtbl.modify_opt name (function
+    | None -> Some { name ; def }
+    | Some _ -> invalid_arg "register_user_type"
+  ) user_types
+
+let is_user_type_registered n =
+  try ignore (get_user_type n) ; true
+  with Not_found -> false
+
+(*
  * Tools
  *)
 
@@ -1611,51 +1117,3 @@ let rec get_item_type ?(vec=false) ?(arr=false) ?(set=false) ?(lst=false)
   | TString when str -> char
   | TBytes when bytes -> u8
   | t -> "get_item_type: "^ to_string t |> invalid_arg
-
-(*
- * Registering User Types.
- *
- * Note that to actually create values of that type the constructor must
- * be registered also (see DessserExpressions.register_user_constructor).
- *)
-
-let check t =
-  iter (function
-    (* TODO: also field names in a record *)
-    | TSum mns ->
-        Array.fold_left (fun s (n, _) ->
-          if Set.String.mem n s then
-            failwith "Constructor names not unique" ;
-          Set.String.add n s
-        ) Set.String.empty mns |>
-        ignore
-    | _ -> ()
-  ) t
-
-let register_user_type
-    name ?(print : gen_printer option) ?(parse : typ P.t option) def =
-  if not (is_defined def) then invalid_arg "register_user_type" ;
-  check def ;
-  Hashtbl.modify_opt name (function
-    | None ->
-        let ut = { name ; def } in
-        let print = match print with
-          | Some printer ->
-              printer.f
-          | None ->
-              fun oc ->
-                default_user_type_printer ut oc in
-        let def = { usr_typ = ut ; print ; parse = P.fail } in
-        let parse = match parse with
-          | Some p -> p
-          | None -> Parser.(strinG name >>: fun () -> TUsr ut) in
-        def.parse <- parse ;
-        Parser.user_type := Parser.(oneof !user_type parse) ;
-        Some def
-    | Some _ ->
-        invalid_arg "register_user_type"
-  ) user_types
-
-let is_user_type_registered n =
-  try ignore (get_user_type n) ; true
-  with Not_found -> false

@@ -11,6 +11,7 @@ module T = DessserTypes
 (*$inject
   open Batteries
   module E = DessserExpressions
+  module P = DessserParser
   module T = DessserTypes
   module TC = DessserTypeCheck
   module U = DessserCompilationUnit
@@ -98,7 +99,7 @@ let user_type_gen =
   let user_type_keys = Hashtbl.keys T.user_types |> Array.of_enum in
   Gen.(sized (fun n _st ->
     let k = user_type_keys.(n mod Array.length user_type_keys) in
-    (Hashtbl.find T.user_types k).usr_typ))
+    Hashtbl.find T.user_types k))
 
 let rec value_type_gen_of_depth depth =
   let open Gen in
@@ -254,7 +255,7 @@ let maybe_nullable =
 (*$Q maybe_nullable & ~count:20
   maybe_nullable (fun mn -> \
     let str = IO.to_string T.print_mn mn in \
-    let mn' = T.mn_of_string str in \
+    let mn' = P.mn_of_string str in \
     T.eq_mn mn' mn)
 *)
 
@@ -659,7 +660,7 @@ let expression =
 (*$Q expression & ~count:20
   expression (fun e -> \
     let str = E.to_string e in \
-    match E.Parser.expr str with \
+    match P.expr str with \
     | [ e' ] -> E.eq e' e \
     | _ -> false)
 *)
@@ -706,7 +707,7 @@ let expression =
 (* Non regression tests: *)
 (*$inject
   let compile_check s =
-    let e = E.Parser.expr s |> List.hd in
+    let e = P.expr s |> List.hd in
     can_be_compiled e
 *)
 (*$T compile_check
@@ -1022,31 +1023,31 @@ let sexpr ?sexpr_config mn =
  * back-end: *)
 (*$inject
   let check_sexpr be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let exe = sexpr_to_sexpr be mn in
     let rs = run_converter ~timeout:2 exe vs in
     if dbg then Printf.eprintf "\ncheck_sexpr: %S vs %S\n%!" rs vs ;
     String.trim rs = vs
   let check_rowbinary be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let des = (module DessserRowBinary.Des : DES)
     and ser = (module DessserRowBinary.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_ringbuffer be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let des = (module DessserRamenRingBuffer.Des : DES)
     and ser = (module DessserRamenRingBuffer.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_csv be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let des = (module DessserCsv.Des : DES)
     and ser = (module DessserCsv.Ser : SER) in
     let exe = test_data_desser be mn des ser in
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let compunit = U.make () in
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
@@ -1112,7 +1113,7 @@ let sexpr ?sexpr_config mn =
   let sexpr_des = (module DessserSExpr.Des : DES)
 
   let check_ser ser be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let module Ser = (val ser : SER) in
     let module DS = DesSer (DessserSExpr.Des) (Ser) in
     let exe =
@@ -1127,7 +1128,7 @@ let sexpr ?sexpr_config mn =
     hexify_string
 
   let check_des des be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let module Des = (val des : DES) in
     let module DS = DesSer (Des) (DessserSExpr.Ser) in
     let exe =
@@ -1165,7 +1166,7 @@ let sexpr ?sexpr_config mn =
 (* Special version of check_des with a custom CSV configuration: *)
 (*$inject
   let check_des_csv ?config be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let ser_config =
       DessserSExpr.{ default_config with list_prefix_length = false } in
@@ -1180,7 +1181,7 @@ let sexpr ?sexpr_config mn =
     String.trim (run_converter ~timeout:2 exe vs)
 
   let check_ser_csv ?config be ts vs =
-    let mn = T.mn_of_string ts in
+    let mn = P.mn_of_string ts in
     let module DS = DesSer (DessserSExpr.Des) (DessserCsv.Ser) in
     let exe =
       let e =

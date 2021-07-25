@@ -1442,10 +1442,12 @@ let rec peval l e =
       | op, _, _, _ -> E3 (op, e1, e2, e3))
 
 (*$inject
+  module P = DessserParser
+
   let test_peval opt_lvl s =
     let lvl = !inline_level in
     inline_level := opt_lvl ;
-    let e = peval E.no_env (E.of_string s) |> E.to_string ?max_depth:None in
+    let e = peval E.no_env (P.expr_of_string s) |> E.to_string ?max_depth:None in
     inline_level := lvl ;
     e
 *)

@@ -4,6 +4,18 @@ module String = BatString
 
 type backend_id = DIL | OCaml | Cpp
 
+let string_of_backend = function
+  | DIL -> "DIL"
+  | OCaml -> "OCaml"
+  | Cpp -> "C++"
+
+let backend_of_string s =
+  match String.lowercase s with
+  | "dil" -> DIL
+  | "ocaml" -> OCaml
+  | "c++" -> Cpp
+  | _ -> invalid_arg ("backend_of_string: "^ s)
+
 (* Identifies the supported encodings: *)
 
 type encoding_id = User of string | RingBuff | RowBinary | SExpr | CSV | JSON | Null

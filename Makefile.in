@@ -110,6 +110,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserCompilConfig.ml \
 	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
+	src/DessserParser.ml \
 	src/DessserExpressions.ml \
 	src/DessserConversions.ml \
 	src/DessserTypeCheck.ml \
@@ -237,6 +238,7 @@ QUICK_TESTABLE_SOURCES = \
 	src/DessserTools.ml \
 	src/DessserIpTools.ml \
 	src/DessserTypes.ml \
+	src/DessserParser.ml \
 	src/DessserExpressions.ml \
 	src/DessserTypeCheck.ml \
 	src/DessserPath.ml \
@@ -259,6 +261,7 @@ LINKED_FOR_TESTS = \
 	src/DessserIpTools.ml \
 	src/DessserMiscTypes.ml \
 	src/DessserTypes.ml \
+	src/DessserParser.ml \
 	src/DessserExpressions.ml \
 	src/DessserConversions.ml \
 	src/DessserTypeCheck.ml \

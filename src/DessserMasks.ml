@@ -35,9 +35,11 @@
  *   compile time.
  *)
 open Batteries
+
 open DessserTools
-module T = DessserTypes
 module E = DessserExpressions
+module P = DessserParser
+module T = DessserTypes
 open E.Ops
 
 type t =
@@ -106,7 +108,7 @@ struct
           loop (a :: prev) i
     in
     let e_of_toks toks =
-      match E.Parser.expr_of_toks toks str with
+      match P.expr_of_toks toks str with
       | [ e ] -> e
       | _ -> raise (Invalid_expression i)
     in
@@ -124,13 +126,13 @@ struct
         else Recurse ms
       ), i + 1
     else if c = '[' then
-      let toks, i = E.Parser.tok str [] (i + 1) in
+      let toks, i = P.tok str [] (i + 1) in
       if i >= String.length str || str.[i] <> ']' then
         raise (Missing_end_of_replace i)
       else
         Replace (e_of_toks toks), i + 1
     else if c = '{' then
-      let toks, i = E.Parser.tok str [] (i + 1) in
+      let toks, i = P.tok str [] (i + 1) in
       if i >= String.length str || str.[i] <> '}' then
         raise (Missing_end_of_insert i)
       else
@@ -242,7 +244,9 @@ let rec project mn ma =
       raise Cannot_insert_into_that
 
 (*$inject
-  let s2t = T.mn_of_string
+  module P = DessserParser
+
+  let s2t = P.mn_of_string
   let s2a = Parser.action_of_string *)
 
 (*$= project & ~printer:(BatIO.to_string T.print_mn)

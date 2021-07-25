@@ -8,6 +8,7 @@ open DessserMiscTypes
 open DessserTools
 module E = DessserExpressions
 module M = DessserMasks
+module P = DessserParser
 module T = DessserTypes
 module TC = DessserTypeCheck
 open E.Ops
@@ -391,7 +392,7 @@ let maybe_nullable =
           read_whole_file filename
         else
           s in
-      Stdlib.Ok (T.mn_of_string ~what:"schema" s)
+      Stdlib.Ok (P.mn_of_string ~what:"schema" s)
     ) with e ->
       Stdlib.Error (`Msg (Printexc.to_string e))
   and print fmt mn =
@@ -488,7 +489,7 @@ let with_fieldmask =
   Arg.flag i
 
 let parse_expression s =
-  match E.Parser.expr s with
+  match P.expr s with
   | exception e ->
       Stdlib.Error (`Msg (Printexc.to_string e))
   | [ e ] ->

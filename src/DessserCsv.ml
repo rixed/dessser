@@ -11,6 +11,7 @@ open E.Ops
 
 (*$inject
   open Batteries
+  module P = DessserParser
   module T = DessserTypes
 *)
 
@@ -79,7 +80,7 @@ let rec is_serializable ?(to_first_concrete=false) mn =
       false
 
 (*$T is_serializable
-  is_serializable (T.mn_of_string "Ip6?")
+  is_serializable (P.mn_of_string "Ip6?")
 *)
 
 (* Tells if the given type's first item is nullable *)
@@ -106,11 +107,11 @@ let rec nullable_at_first mn =
       invalid_arg "nullable_at_first"
 
 (*$T nullable_at_first
-  nullable_at_first (T.mn_of_string "[a BOOL? | b BOOL]")
-  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?]")
-  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?][]")
-  nullable_at_first (T.mn_of_string "[a BOOL | b BOOL?][1]")
-  not (nullable_at_first (T.mn_of_string "[a BOOL | b BOOL]"))
+  nullable_at_first (P.mn_of_string "[a BOOL? | b BOOL]")
+  nullable_at_first (P.mn_of_string "[a BOOL | b BOOL?]")
+  nullable_at_first (P.mn_of_string "[a BOOL | b BOOL?][]")
+  nullable_at_first (P.mn_of_string "[a BOOL | b BOOL?][1]")
+  not (nullable_at_first (P.mn_of_string "[a BOOL | b BOOL]"))
 *)
 
 (* Take a maybe-nullable and make it serializable by making some compound
@@ -205,7 +206,7 @@ let is_in_list mn0 path =
   let make_serializable_str =
     T.mn_to_string %
     make_serializable %
-    T.mn_of_string
+    P.mn_of_string
 *)
 (*$= make_serializable_str & ~printer:identity
   "BOOL?[4][5]" ("BOOL?[4][5]?" |> make_serializable_str)
