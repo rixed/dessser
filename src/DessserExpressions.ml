@@ -650,8 +650,8 @@ let to_cst_int =
  * Notice that since there are no closures, the local environment is emptied
  * at function entry. *)
 type env =
-  { global : (t * T.mn) list ;
-    local : (t * T.mn) list ;
+  { global : (t * T.expr option * T.mn) list ;
+    local : (t * T.expr option * T.mn) list ;
     (* Name of the current function, so backends can implement "Myself" to emit
      * a recursive call: *)
     name : string option }
@@ -673,42 +673,55 @@ let field_name_of_expr = function
   | T.E0 (String s) -> s
   | e -> raise (Struct_error (e, "record names must be constant strings"))
 
-let enter_function ?name ts l =
-  { l with local = Array.fold_lefti (fun l i t ->
-                     (T.E0 (Param i), t) :: l
-                   ) [] ts ;
-           name }
-
 let defined n l =
   let def =
     List.exists (function
-      | T.E0 (Identifier n' | ExtIdentifier (Verbatim n')), _ when n' = n -> true
-      | _ -> false) in
+      | T.E0 (Identifier n' | ExtIdentifier (Verbatim n')), _, _
+        when n' = n ->
+          true
+      | _ ->
+          false) in
   def l.local || def l.global
 
-let find_identifier l e =
-  try List.assoc e l.local
-  with Not_found ->
-    try List.assoc e l.global
-    with Not_found ->
-      raise (Unbound_identifier (e, l))
-
 let print_environment oc l =
-  let p oc (e, mn) =
+  let p oc (id, _, mn) =
     Printf.fprintf oc "%a:%a"
-      (print ~max_depth:2) e
+      (print ~max_depth:2) id
       T.print_mn mn in
   pretty_list_print p oc (l.global @ l.local)
 
-let rec add_local n t l =
+let rec enter_function ?name ?ts ?es l =
+  if ts = None && es = None then invalid_arg "enter_function" ;
+  let ts =
+    match ts with
+    | Some ts -> ts
+    | None -> List.enum (Option.get es) /@ type_of l |> Array.of_enum in
+  { l with local = Array.fold_lefti (fun l i t ->
+                     (T.E0 (Param i),
+                      Option.map (fun es -> List.nth es i) es,
+                      t) :: l
+                   ) [] ts ;
+           name }
+
+and add_local n ?e t l =
   (* Make sure there is no shadowing: *)
   if defined n l then raise (Redefinition n) ;
-  { l with local = (E0 (Identifier n), t) :: l.local }
+  { l with local = (E0 (Identifier n), e, t) :: l.local }
 
 (* Returns the type of [e0]. [l] is the environment.
  * Will try hard to find a type, even in the presence of unbound identifiers.
  * This is how recursive functions are typed. *)
 and type_of l e0 =
+  let find_id l e =
+    List.find_map (fun (id, _, mn) ->
+      if eq id e then Some mn else None
+    ) l in
+  let find_id_type l e =
+    try find_id l.local e
+    with Not_found ->
+      try find_id l.global e
+      with Not_found ->
+        raise (Unbound_identifier (e, l)) in
   let check_get_item n max_n =
     if n < 0 || n >= max_n then
       raise (Struct_error (e0, "no item #"^ string_of_int n ^" (only "^
@@ -727,12 +740,12 @@ and type_of l e0 =
   | T.E0 (Null typ) -> T.(optional typ)
   | E0 (Myself out) ->
       let num_params =
-        List.fold_left (fun n (e, _) ->
+        List.fold_left (fun n (e, _, _) ->
           match e with T.E0 (Param _) -> n + 1 | _ -> n
         ) 0 l.local in
       let ins = Array.make num_params T.void in
       List.iter (function
-        | T.E0 (Param n), mn -> ins.(n) <- mn
+        | T.E0 (Param n), _, mn -> ins.(n) <- mn
         | _ -> ()
       ) l.local ;
       T.(required (TFunction (ins, out)))
@@ -1051,7 +1064,7 @@ and type_of l e0 =
       either e1 e2
   | E2 (Member, _, _) -> T.bool
   | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
-      find_identifier l e
+      find_id_type l e
   | E0 (ExtIdentifier (Method { typ ; meth = SerWithMask _ })) ->
       T.func3 T.mask T.(required (ext typ)) T.ptr T.ptr
   | E0 (ExtIdentifier (Method { typ ; meth = SerNoMask _ })) ->
@@ -1077,10 +1090,10 @@ and type_of l e0 =
               add_local n2 t2 in
       type_of l e2
   | E1 (Function ts, e) ->
-      let l = enter_function ts l in
+      let l = enter_function ~ts l in
       T.func ts (type_of l e)
   | E0 (Param p) as e ->
-      (try List.assoc e l.local
+      (try find_id l.local e
       with Not_found ->
         raise (Unbound_parameter (e0, p, l)))
   | E3 (If, _, e1, e2) ->
@@ -1331,7 +1344,7 @@ let rec fold_env u l f e =
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
   | E1 (Function ts, e1) ->
-      let l = enter_function ts l in
+      let l = enter_function ~ts l in
       fold_env u l f e1
   | E1 (_, e1) ->
       fold_env u l f e1
@@ -1416,7 +1429,7 @@ let rec map_env l f e =
       let es = List.map (map_env l f) es in
       f l (E0S (op, es))
   | E1 (Function ts, e1) ->
-      let l' = enter_function ts l in
+      let l' = enter_function ~ts l in
       let e1 = map_env l' f e1 in
       f l (E1 (Function ts, e1))
   | E1 (op, e1) ->

@@ -1452,7 +1452,7 @@ struct
             oc ts ;
           (* Pick the name here so we can add it to the environment, where it
            * can later be found by Myself: *)
-          let l = E.enter_function ~name ts l in
+          let l = E.enter_function ~name ~ts l in
           P.indent_more p (fun () ->
             let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))

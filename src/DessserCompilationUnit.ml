@@ -8,7 +8,7 @@ let debug = false
 
 type t =
   (* FIXME: maps not lists *)
-  { identifiers : (string * identifier * T.mn) list ;
+  { identifiers : (string * identifier * T.mn) list ; (* TODO: add definition *)
     external_identifiers : (string * T.mn) list ;
     verbatim_definitions : verbatim_definition list ;
     external_types : (string * (P.t -> backend_id -> string)) list ;
@@ -53,12 +53,12 @@ let environment compunit =
   (* Start with external identifiers: *)
   let g =
     List.map (fun (name, typ) ->
-      E.Ops.ext_identifier name, typ
+      E.Ops.ext_identifier name, None, typ
     ) compunit.external_identifiers in
   (* Then already defined identifiers: *)
   let g =
     List.fold_left (fun g (name, _, t) ->
-      (E.Ops.identifier name, t) :: g
+      (E.Ops.identifier name, None, t) :: g
     ) g compunit.identifiers in
   (* Finally, we also want to be able to access verbatim identifiers: *)
   let g =
@@ -68,7 +68,7 @@ let environment compunit =
        * everywhere (ie. including those already defined for Bottom location).
        *)
       if verb.name = "" then g else
-        (E.Ops.identifier verb.name, verb.typ) :: g
+        (E.Ops.identifier verb.name, None, verb.typ) :: g
     ) g compunit.verbatim_definitions in
   E.{ global = g ; local = [] ; name = None }
 

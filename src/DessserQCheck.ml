@@ -555,7 +555,7 @@ and e0s_gen l depth =
 and pick_from_env l depth f =
   let open Gen in
   let es =
-    List.filter_map (fun (e, _t) ->
+    List.filter_map (fun (e, _, _) ->
       if f e then Some e else None
     ) (List.rev_append l.E.local l.E.global) in
   if es <> [] then
@@ -572,7 +572,7 @@ and e1_gen l depth =
     1,
       join (
         map (fun ts ->
-          let l = E.enter_function ts l in
+          let l = E.enter_function ~ts l in
           map (fun e ->
             T.E1 (Function ts, e)
           ) (expression_gen (l, depth - 1))

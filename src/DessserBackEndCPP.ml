@@ -1122,7 +1122,7 @@ struct
               (if is_mutable t then "&" else "")
               (param i))
             oc ts ;
-          let l = E.enter_function ~name ts l in
+          let l = E.enter_function ~name ~ts l in
           P.indent_more p (fun () ->
             let n = print p l e1 in
             print_return n p) ;

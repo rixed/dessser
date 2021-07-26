@@ -428,7 +428,7 @@ let rec peval l e =
               def)
       | op, es -> E0S (op, es))
   | E1 (Function ts, body) ->
-      let l = E.enter_function ts l in
+      let l = E.enter_function ~ts l in
       E1 (Function ts, peval l body)
   | E1 (Convert _, _) ->
       assert false (* Because of type_checking *)
