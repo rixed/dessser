@@ -1182,7 +1182,7 @@ let rec peval l e =
               with _ -> null to_ |> repl12))
       | UnsafePow, E0 (Float a), E0 (Float b) ->
           let v = a ** b in
-          if is_nan v then T.E2 (UnsafePow, e1, e2) else repl12 (float a)
+          if is_nan v then T.E2 (UnsafePow, e1, e2) else repl12 (float v)
       | UnsafePow, E0 (I32 a), E0 (I32 b) ->
           (try i32 (BatInt32.pow a b) |> repl12
           with Invalid_argument _ -> E2 (UnsafePow, e1, e2))
