@@ -372,6 +372,8 @@ struct
   let arr_cls () _ _ p = p
   let arr_sep () _ _ p = p
 
+  let is_present () _ _ _ = true_
+
   (* "For NULL support, an additional byte containing 1 or 0 is added before
    * each nullable value. If 1, then the value is NULL and this byte is
    * interpreted as a separate value. If 0, the value after the byte is not

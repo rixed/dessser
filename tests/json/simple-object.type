@@ -1,7 +1,7 @@
 {
-  foo: float;
+  foo: float default (float 3.14);
   bar: {
-    baz: i32?[]?;
+    baz: i32?[] default (make-arr "i32?");
     glop: bool;
   }?;
   zap: i8[2][[]]?;  // list of vectors

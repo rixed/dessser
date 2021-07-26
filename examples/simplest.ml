@@ -71,6 +71,7 @@ struct
         make_pair (to_u32 b) src))
   let arr_cls () _ _ src = src
   let arr_sep () _ _ src = src
+  let is_present () _ _ _ = true_
   let is_null () _ _ src =
     bool_of_u8 (peek_u8 src (size 0))
   let dnull _t () _ _ src = ptr_add src (size 1)

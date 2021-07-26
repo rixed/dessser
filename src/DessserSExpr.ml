@@ -371,6 +371,8 @@ struct
 
   let arr_sep _conf _ _ p = skip1 p
 
+  let is_present _conf _ _ _p = true_
+
   let is_null _conf _ _ p =
     (* null *)
     and_ (and_ (eq (peek_u8 p (size 0)) (u8_of_int 0x6e))

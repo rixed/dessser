@@ -854,6 +854,8 @@ struct
 
   let arr_sep () _ _ p_stk = p_stk
 
+  let is_present () _ _ _ = true_
+
   (* Called only on nullable value, so there necessarily is a nullbit: *)
   let is_null () _ path p_stk =
     assert (path <> []) ;
