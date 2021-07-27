@@ -364,6 +364,7 @@ let rec replace_final_expression_anonymously e e' =
       e'
 
 let rec peval l e =
+  let is_small = E.is_smaller_than 200 in
   (* For when some operations are invalid on floats: *)
   let no_floats _ _ = assert false in
   let no_float _ = assert false in
@@ -393,12 +394,16 @@ let rec peval l e =
                 (* Last item might not be void: *)
                 let es =
                   if T.eq_mn (E.type_of l e) T.void &&
-                     not (E.has_side_effect e)
+                     is_small e &&
+                     not (E.for_any E.has_side_effect e)
                   then es else e :: es in
                 loop es []
             | e :: rest ->
                 (* Non last items have type Void if they type check: *)
-                let es = if not (E.has_side_effect e) then es else e :: es in
+                let es =
+                  if is_small e &&
+                     not (E.for_any E.has_side_effect e)
+                  then es else e :: es in
                 loop es rest in
           (match loop [] es with
           | [ e ] -> e
@@ -476,7 +481,7 @@ let rec peval l e =
           (* In theory any expression of type Void and with no side effect should
            * be disposed of. Ignore is the only way to build such an expression,
            * though, so it is enough to test this case only: *)
-          else if not (E.has_side_effect e1) then nop
+          else if not (E.for_any E.has_side_effect e1) then nop
           else E1 (op, e1)
       | IsNull, E0 (Null _) -> repl1 true_
       | IsNull, E1 (NotNull, _) -> repl1 false_
@@ -797,7 +802,8 @@ let rec peval l e =
           string (String.uppercase_ascii s) |> repl1
       | StringLength, E0 (String s) ->
           u32_of_int (String.length s) |> repl1
-      | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
+      | StringLength, E1 (StringOfChar, e)
+        when not (E.for_any E.has_side_effect e) ->
           u32_of_int 1 |> repl1
       | Cardinality, E0R ((MakeVec | MakeArr _), es) ->
           u32_of_int (Array.length es) |> repl1
@@ -888,14 +894,16 @@ let rec peval l e =
               | E0 (Identifier n) when n = name -> c + 1
               | _ -> c
             ) body in
+          let value_has_effects = E.for_any E.has_side_effect value
+          and body_has_effects = E.for_any E.has_side_effect body in
           if use_count = 0 then
-            if not (E.has_side_effect value) then body
+            if not value_has_effects then body
             else p (seq [ ignore_ value ; body ])
-          else if E.has_side_effect value && E.depends_on_side_effect body ||
-                  E.has_side_effect body && E.depends_on_side_effect value then
+          else if value_has_effects && E.for_any E.depends_on_side_effect body ||
+                  body_has_effects && E.for_any E.depends_on_side_effect value then
             def
           else if use_count = 1 ||
-                  E.can_duplicate value &&
+                  is_small value && E.for_all E.can_duplicate value &&
                   (use_count - 1) * E.size value <= max_inline_size ()
                then
             E.map (function
@@ -1010,7 +1018,7 @@ let rec peval l e =
       | E1 (AllocVec 1, item) ->
           E2 (Let (name, item_r), replace_final_expression lst item, body)
       | _ ->
-          T.E2 (ForEach(name, item_r), lst, body)
+          T.E2 (ForEach (name, item_r), lst, body)
       (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *))
   | E2 (NullMap _, _, _) ->
       assert false (* Because of type_checking *)
@@ -1310,20 +1318,21 @@ let rec peval l e =
       | EndsWith, E0 (String s1), E0 (String s2) ->
           bool (String.ends_with s1 s2) |> repl12
       | Cons, E1 (Head, l1), E1 (Tail, l2)
-        when E.eq l1 l2 && not (E.has_side_effect l1) ->
+        when E.eq l1 l2 && not (E.for_any E.has_side_effect l1) ->
           repl12 l1
       (* Cannot be truncated further: *)
-      | ChopBegin, E0R (MakeArr _, [||]), _ -> keep1 ()
+      | ChopBegin, E0R (MakeArr _, [||]), _ ->
+          keep1 ()
       | ChopBegin, E0R (MakeArr mn, items), n ->
           (match E.to_cst_int n with
           | exception _ ->
               T.E2 (ChopBegin, e1, e2)
           | n ->
-              let l = Array.length items in
-              (if n >= l then
+              let len = Array.length items in
+              (if n >= len then
                 T.E0R (MakeArr mn, [||]) |> repl12
               else
-                T.E0R (MakeArr mn, Array.sub items n (l - n)) |>
+                T.E0R (MakeArr mn, Array.sub items n (len - n)) |>
                 replace_final_expression e1 |>
                 repl (replace_final_expression_anonymously e2)))
       | ChopBegin, _, n ->
@@ -1340,11 +1349,11 @@ let rec peval l e =
           (match E.to_cst_int n with
           | exception _ -> def
           | n ->
-              let l = Array.length items in
-              (if n >= l then
+              let len = Array.length items in
+              (if n >= len then
                 T.E0R (MakeArr mn, [||]) |> repl12
               else
-                T.E0R (MakeArr mn, Array.sub items 0 (l - n)) |>
+                T.E0R (MakeArr mn, Array.sub items 0 (len - n)) |>
                 replace_final_expression e1 |>
                 repl (replace_final_expression_anonymously e2)))
       | ChopEnd, _, n ->
@@ -1381,9 +1390,9 @@ let rec peval l e =
           p (E3 (If, repl1 e, e3, e2))
       | If, _ , then_, else_
         when E.eq then_ else_ &&
-             not (E.has_side_effect e1) &&
-             not (E.has_side_effect e2) &&
-             not (E.has_side_effect e3) ->
+             not (E.for_any E.has_side_effect e1) &&
+             not (E.for_any E.has_side_effect e2) &&
+             not (E.for_any E.has_side_effect e3) ->
           (* Then we ever need to execute one of the alternative: *)
           e2
       (* Propagate knowledge about truthness of an If condition in its

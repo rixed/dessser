@@ -663,12 +663,128 @@ let to_cst_int =
   | E0 (Address n) when Uint64.(compare n (of_int m) <= 0) -> Uint64.to_int n
   | _ -> invalid_arg "to_cst_int"
 
+let has_side_effect = function
+  | T.E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
+  | E1 ((Dump | ReadU8 | ReadU16 _ |
+         ReadU32 _ | ReadU64 _ |ReadU128 _ | Assert |
+         FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
+         U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
+         U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
+         I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
+         I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr |
+         AllocVec _), _)
+  | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
+  | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
+         WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
+         Insert | DelMin | AllocArr | PartialSort), _, _)
+  | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
+      true
+  | _ ->
+      false
+
+(* Some expressions that have no side effect still depends on side effects,
+ * sur as when reading a container that can be modified. those should not be
+ * reordered with side effectful operations.
+ * The simplifying assumption is made that every side effectful operation also
+ * depends on side effects. *)
+let depends_on_side_effect e =
+  has_side_effect e ||
+  match e with
+  | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
+      (* Because those are mutable: *)
+      true
+  | E2 ((Nth | UnsafeNth), _, _) (* Only GetVec really (FIXME) *)
+  | E2 ((PeekU8 | PeekU16 _ | PeekU32 _ | PeekU64 _ | PeekU128 _), _, _) ->
+      true
+  | _ ->
+      false
+
+let can_duplicate e =
+  not (has_side_effect e) &&
+  match e with
+  (* Although not exactly a side effect, those functions produce a copy of
+   * a given pointer that are then mutable and which address is used in
+   * comparisons (exception: empty things are not mutable): *)
+  | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
+      false
+  | E0S ((MakeTup | MakeRec | MakeUsr _), _::_)
+  | E1 ((PtrOfString | PtrOfBuffer), _)
+  | E2 (PtrOfAddress, _, _)
+  | E3 (PtrOfPtr, _, _, _)
+  (* Similarly, sets and vec are mutable: *)
+  | E0 (EmptySet _)
+  | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
+         Heap | DecimalStringOfFloat), _)
+  | E3 (Top _, _, _, _)
+  (* Expensive: *)
+  | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
+  | E2 ((While | ForEach _), _, _)
+  | E3 ((FindSubstring | SubString), _, _, _) ->
+      false
+  | _ ->
+      true
+
+(* depth last, pass the list of bound identifiers along the way: *)
+let rec fold u f e =
+  let u = f u e in
+  match e with
+  | T.E0 _ ->
+      u
+  | E0S (_, es) ->
+      List.fold_left (fun u e1 -> fold u f e1) u es
+  | E0R (_, es) ->
+      Array.fold_left (fun u e1 -> fold u f e1) u es
+  | E1 (_, e1) ->
+      fold u f e1
+  | E1S (_, e1, es) ->
+      let u = fold u f e1 in
+      List.fold_left (fun u e1 -> fold u f e1) u es
+  | E2 (_, e1, e2) ->
+      fold (fold u f e1) f e2
+  | E3 (_, e1, e2, e3) ->
+      fold (fold (fold u f e1) f e2) f e3
+
+let iter f e =
+  fold () (fun () e -> f e) e
+
+let size e =
+  fold 0 (fun c _ -> c + 1) e
+
+let is_smaller_than n e =
+  try
+    fold 0 (fun c _ ->
+      if c >= n then raise Exit
+      else c + 1
+    ) e |> ignore ;
+    true
+  with Exit ->
+    false
+
+let for_any p e =
+  try
+    iter (fun e ->
+      if p e then raise Exit
+    ) e ;
+    false
+  with Exit ->
+    true
+
+let for_all p e =
+  not (for_any (not % p) e)
+
 (* Global and local environment. Variables of that type are usually called "l".
  * Notice that since there are no closures, the local environment is emptied
  * at function entry. *)
+type binding =
+  { def : T.expr option ;
+    mn : T.mn }
+
+let make_binding def mn =
+  { def ; mn }
+
 type env =
-  { global : (t * T.expr option * T.mn) list ;
-    local : (t * T.expr option * T.mn) list ;
+  { global : (t * binding) list ;
+    local : (t * binding) list ;
     (* Name of the current function, so backends can implement "Myself" to emit
      * a recursive call: *)
     name : string option }
@@ -693,7 +809,7 @@ let field_name_of_expr = function
 let defined n l =
   let def =
     List.exists (function
-      | T.E0 (Identifier n' | ExtIdentifier (Verbatim n')), _, _
+      | T.E0 (Identifier n' | ExtIdentifier (Verbatim n')), _
         when n' = n ->
           true
       | _ ->
@@ -701,10 +817,10 @@ let defined n l =
   def l.local || def l.global
 
 let print_environment oc l =
-  let p oc (id, _, mn) =
+  let p oc (id, binding) =
     Printf.fprintf oc "%a:%a"
       (print ~max_depth:2) id
-      T.print_mn mn in
+      T.print_mn binding.mn in
   pretty_list_print p oc (l.global @ l.local)
 
 let rec enter_function ?name ?ts ?es l =
@@ -713,25 +829,26 @@ let rec enter_function ?name ?ts ?es l =
     match ts with
     | Some ts -> ts
     | None -> List.enum (Option.get es) /@ type_of l |> Array.of_enum in
-  { l with local = Array.fold_lefti (fun l i t ->
-                     (T.E0 (Param i),
-                      Option.map (fun es -> List.nth es i) es,
-                      t) :: l
+  { l with local = Array.fold_lefti (fun l i mn ->
+                     (
+                       T.E0 (Param i),
+                       make_binding (Option.map (fun es -> List.nth es i) es) mn
+                     ) :: l
                    ) [] ts ;
            name }
 
-and add_local n ?e t l =
+and add_local n ?e mn l =
   (* Make sure there is no shadowing: *)
   if defined n l then raise (Redefinition n) ;
-  { l with local = (E0 (Identifier n), e, t) :: l.local }
+  { l with local = (E0 (Identifier n), make_binding e mn) :: l.local }
 
 (* Returns the type of [e0]. [l] is the environment.
  * Will try hard to find a type, even in the presence of unbound identifiers.
  * This is how recursive functions are typed. *)
 and type_of l e0 =
   let find_id l e =
-    List.find_map (fun (id, _, mn) ->
-      if eq id e then Some mn else None
+    List.find_map (fun (id, binding) ->
+      if eq id e then Some binding.mn else None
     ) l in
   let find_id_type l e =
     try find_id l.local e
@@ -757,12 +874,12 @@ and type_of l e0 =
   | T.E0 (Null typ) -> T.(optional typ)
   | E0 (Myself out) ->
       let num_params =
-        List.fold_left (fun n (e, _, _) ->
+        List.fold_left (fun n (e, _) ->
           match e with T.E0 (Param _) -> n + 1 | _ -> n
         ) 0 l.local in
       let ins = Array.make num_params T.void in
       List.iter (function
-        | T.E0 (Param n), _, mn -> ins.(n) <- mn
+        | T.E0 (Param n), binding -> ins.(n) <- binding.mn
         | _ -> ()
       ) l.local ;
       T.(required (TFunction (ins, out)))
@@ -1333,26 +1450,6 @@ let expand_verbatim backend_id temps ins =
         String.nreplace ~str:s ~sub ~by:in_
       ) temp ins
 
-(* depth last, pass the list of bound identifiers along the way: *)
-let rec fold u f e =
-  let u = f u e in
-  match e with
-  | T.E0 _ ->
-      u
-  | E0S (_, es) ->
-      List.fold_left (fun u e1 -> fold u f e1) u es
-  | E0R (_, es) ->
-      Array.fold_left (fun u e1 -> fold u f e1) u es
-  | E1 (_, e1) ->
-      fold u f e1
-  | E1S (_, e1, es) ->
-      let u = fold u f e1 in
-      List.fold_left (fun u e1 -> fold u f e1) u es
-  | E2 (_, e1, e2) ->
-      fold (fold u f e1) f e2
-  | E3 (_, e1, e2, e3) ->
-      fold (fold (fold u f e1) f e2) f e3
-
 (* Top to bottom: *)
 (* Folding a tree of 100M nodes takes ~30s :-< *)
 let rec fold_env u l f e =
@@ -1395,14 +1492,8 @@ let rec fold_env u l f e =
   | E3 (_, e1, e2, e3) ->
       fold_env (fold_env (fold_env u l f e1) l f e2) l f e3
 
-let iter f e =
-  fold () (fun () e -> f e) e
-
 let iter_env l f e =
   fold_env () l (fun () l e -> f l e) e
-
-let size e =
-  fold 0 (fun c _ -> c + 1) e
 
 (* Depth first expression transformation.
  * It is important that when [f] returns the same [e] then the expression
@@ -1502,82 +1593,6 @@ let rec map_env l f e =
       and e2 = map_env l f e2
       and e3 = map_env l f e3 in
       f l (E3 (op, e1, e2, e3))
-
-let has_side_effect e =
-  try
-    iter (function
-      | T.E0 (RandomFloat | RandomU8 | RandomU32 | RandomU64 | RandomU128)
-      | E1 ((Dump | ReadU8 | ReadU16 _ |
-             ReadU32 _ | ReadU64 _ |ReadU128 _ | Assert |
-             FloatOfPtr | CharOfPtr | U8OfPtr | U16OfPtr |
-             U24OfPtr | U32OfPtr | U40OfPtr | U48OfPtr |
-             U56OfPtr | U64OfPtr | U128OfPtr | I8OfPtr |
-             I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
-             I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr |
-             AllocVec _), _)
-      | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
-      | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
-             WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
-             Insert | DelMin | AllocArr | PartialSort), _, _)
-      | E3 ((SetBit | SetVec | BlitByte | InsertWeighted), _, _, _) ->
-          raise Exit
-      | _ ->
-          ()
-    ) e ;
-    false
-  with Exit ->
-    true
-
-(* Some expressions that have no side effect still depends on side effects,
- * sur as when reading a container that can be modified. those should not be
- * reordered with side effectful operations.
- * The simplifying assumption is made that every side effectful operation also
- * depends on side effects. *)
-let depends_on_side_effect e =
-  has_side_effect e ||
-  try
-    iter (function
-      | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
-          (* Because those are mutable: *)
-          raise Exit
-      | E2 ((Nth | UnsafeNth), _, _) (* Only GetVec really (FIXME) *)
-      | E2 ((PeekU8 | PeekU16 _ | PeekU32 _ | PeekU64 _ | PeekU128 _), _, _) ->
-          raise Exit
-      | _ ->
-          ()
-    ) e ;
-    false
-  with Exit ->
-    true
-
-let can_duplicate e =
-  not (has_side_effect e) &&
-  try
-    iter (function
-      (* Although not exactly a side effect, those functions produce a copy of
-       * a given pointer that are then mutable and which address is used in
-       * comparisons (exception: empty things are not mutable): *)
-      | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
-          raise Exit
-      | E0S ((MakeTup | MakeRec | MakeUsr _), _::_)
-      | E1 ((PtrOfString | PtrOfBuffer), _)
-      | E2 (PtrOfAddress, _, _)
-      | E3 (PtrOfPtr, _, _, _)
-      (* Similarly, sets and vec are mutable: *)
-      | E0 (EmptySet _)
-      | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ | HashTable _ |
-             Heap | DecimalStringOfFloat), _)
-      | E3 (Top _, _, _, _)
-      (* Expensive: *)
-      | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
-      | E2 ((While | ForEach _), _, _)
-      | E3 ((FindSubstring | SubString), _, _, _) ->
-          raise Exit
-      | _ -> ()
-    ) e ;
-    true
-  with Exit ->
-    false
 
 let size_of_expr e =
   fold 0 (fun n _e0 -> n + 1) e

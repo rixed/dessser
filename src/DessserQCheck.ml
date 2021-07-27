@@ -555,7 +555,7 @@ and e0s_gen l depth =
 and pick_from_env l depth f =
   let open Gen in
   let es =
-    List.filter_map (fun (e, _, _) ->
+    List.filter_map (fun (e, _) ->
       if f e then Some e else None
     ) (List.rev_append l.E.local l.E.global) in
   if es <> [] then

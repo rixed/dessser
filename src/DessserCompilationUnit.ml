@@ -53,12 +53,12 @@ let environment compunit =
   (* Start with external identifiers: *)
   let g =
     List.map (fun (name, typ) ->
-      E.Ops.ext_identifier name, None, typ
+      E.Ops.ext_identifier name, E.make_binding None typ
     ) compunit.external_identifiers in
   (* Then already defined identifiers: *)
   let g =
     List.fold_left (fun g (name, _, t) ->
-      (E.Ops.identifier name, None, t) :: g
+      (E.Ops.identifier name, E.make_binding None t) :: g
     ) g compunit.identifiers in
   (* Finally, we also want to be able to access verbatim identifiers: *)
   let g =
@@ -68,7 +68,7 @@ let environment compunit =
        * everywhere (ie. including those already defined for Bottom location).
        *)
       if verb.name = "" then g else
-        (E.Ops.identifier verb.name, None, verb.typ) :: g
+        (E.Ops.identifier verb.name, E.make_binding None verb.typ) :: g
     ) g compunit.verbatim_definitions in
   E.{ global = g ; local = [] ; name = None }
 

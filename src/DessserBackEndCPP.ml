@@ -48,7 +48,7 @@ struct
 
   let is_mutable t =
     match T.develop_mn t with
-    | T.{ typ = (TBytes | TVec _) ; _ } ->
+    | T.{ typ = (TBytes | TVec _ | TArr _) ; _ } ->
         true
     | _ ->
         false

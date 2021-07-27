@@ -116,7 +116,7 @@ struct
           assert (s <> "") ;
           if List.mem_assoc e ext (* already defined externally *) ||
              List.mem s lst (* already known to be undefined *) ||
-             not (List.exists (fun (e', _, _) -> E.eq e e') init_l.E.global) (* identifier defined in [e] itself *)
+             not (List.exists (fun (e', _) -> E.eq e e') init_l.E.global) (* identifier defined in [e] itself *)
           then (
             lst
           ) else (
