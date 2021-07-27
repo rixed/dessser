@@ -477,7 +477,7 @@ let rec peval l e =
         when i < Array.length mns && fst mns.(i) = n ->
           repl1 e
       | Ignore, f1 ->
-          if T.eq_mn (E.type_of l f1) T.void then repl1 f1
+          if T.eq_mn (E.type_of l e1) T.void then repl1 f1
           (* In theory any expression of type Void and with no side effect should
            * be disposed of. Ignore is the only way to build such an expression,
            * though, so it is enough to test this case only: *)
@@ -1156,7 +1156,7 @@ let rec peval l e =
               T.E2 (op, e1, e2)
           | exception Division_by_zero ->
               (* Tried to compute, but could not: *)
-              null (E.type_of l f1).T.typ |> repl12
+              null (E.type_of l e1).T.typ |> repl12
           | e ->
               (* Did replace by the result, make it nullable: *)
               not_null e |> repl12)
@@ -1186,7 +1186,7 @@ let rec peval l e =
               E2 (Pow, e1, e2)
           | a, b ->
               let from = T.TFloat in
-              let to_ = T.(E.type_of l f1).typ in
+              let to_ = T.(E.type_of l e1).typ in
               (try not_null (fst (C.conv ~from ~to_ (float (a ** b))))
               with _ -> null to_ |> repl12))
       | UnsafePow, E0 (Float a), E0 (Float b) ->
@@ -1205,7 +1205,7 @@ let rec peval l e =
               def
           | a, b ->
               let from = T.TFloat in
-              let to_ = T.(E.type_of l f1).typ in
+              let to_ = T.(E.type_of l e1).typ in
               (try fst (C.conv ~from ~to_ (float (a ** b))) |> repl12
               with _ -> def))
       | PtrAdd, E2 (PtrAdd, e1_1, e1_2), _ ->
@@ -1247,7 +1247,7 @@ let rec peval l e =
           | x ->
               let n = Uint8.to_int n in
               let from = T.TI128 in
-              let to_ = T.(E.type_of l f1).typ in
+              let to_ = T.(E.type_of l e1).typ in
               fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl12)
       | Join, E0 (String s1), E0R (MakeVec, ss) ->
           (try
@@ -1275,9 +1275,9 @@ let rec peval l e =
       | Member, _, E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _
                        | HashTable _ | Heap), _) ->
           bool false |> repl12
-      | AllocArr, f1, f2 ->
+      | AllocArr, f1, _ ->
           let def = T.E2 (AllocArr, e1, e2) in
-          let mn = E.type_of l f2 in
+          let mn = E.type_of l e2 in
           (match E.to_cst_int f1 with
           | exception _ ->
               def
