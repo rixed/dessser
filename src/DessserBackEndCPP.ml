@@ -270,8 +270,6 @@ struct
     else
       pp oc "%s(%t)" tn f
 
-  let print_inline = print_cast
-
   let print_comment oc fmt =
     pp oc ("/* "^^ fmt ^^" */\n")
 

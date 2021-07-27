@@ -60,9 +60,6 @@ sig
   val print_binding :
     P.t -> T.mn -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
-  val print_inline :
-    P.t -> T.mn -> (string IO.output -> unit) -> string IO.output -> unit
-
   val print_binding_toplevel :
     emitter -> string -> P.t -> E.env -> E.t -> unit
 
@@ -127,54 +124,14 @@ struct
       | _ -> lst
     ) e
 
-  (* As inlined expressions may be reordered, those must all be stateless.
-   * Include in here all operations that are cheap enough that it's OK to
-   * compute them several times if required.
-   * Arithmetic operators that fail with null are not inlinable (in C++)
-   * but none of them count as cheap anyway. *)
-  let can_inline = function
-    | T.E0 (
-        Param _ | Null _ |
-        EndOfList _ | Float _ | String _ | Bool _ | Bytes _ |
-        Identifier _ | ExtIdentifier _ |
-        Char _ | Size _ |
-        U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _ |
-        I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _ |
-        CopyField | SkipField | SetFieldNull)
-    | E1 ((
-        GetItem _ | GetField _ | GetAlt _ | IsNull | NotNull | Force _ | ToFloat |
-        ToU8 | ToU16 | ToU24 | ToU32 | ToU40 | ToU48 | ToU56 | ToU64 | ToU128 |
-        ToI8 | ToI16 | ToI24 | ToI32 | ToI40 | ToI48 | ToI56 | ToI64 | ToI128 |
-        CharOfPtr | FloatOfPtr | U8OfPtr | I8OfPtr | U16OfPtr | I16OfPtr |
-        U24OfPtr | I24OfPtr | U32OfPtr | I32OfPtr | U40OfPtr | I40OfPtr |
-        U48OfPtr | I48OfPtr | U56OfPtr | I56OfPtr | U64OfPtr | I64OfPtr |
-        U128OfPtr | I128OfPtr | FloatOfU64 | U64OfFloat | U8OfChar |
-        CharOfU8 | SizeOfU32 | U32OfSize | AddressOfU64 | U64OfAddress |
-        U8OfBool | BoolOfU8 |
-        BitNot | StringLength | BytesLength | RemSize | Not | Abs | Neg |
-        Head | Tail | Ignore | Identity), _)
-    | E2 ((
-        Nth | Gt | Ge | Eq | Add | Sub | Mul | Min | Max |
-        BitAnd | BitOr | BitXor | LeftShift | RightShift | GetBit), _, _) ->
-        true
-    (* And and Or can not be inlined because all or part of their argument
-     * may not be inlinable and would then escape the scope of the And/Or,
-     * thus defeating any shortcutting that should take place. *)
-    | _ ->
-        false
-
   let emit ?name p l e f =
     let t = E.type_of l e in
-    if name = None && can_inline e then (
-      Printf.sprintf2 "%t" (C.print_inline p t f)
-    ) else (
-      let n =
-        match name with
-        | Some n -> n
-        | None -> U.gen_sym "id_" |> valid_identifier in
-      pp p.def "%s%t\n" p.indent (C.print_binding p t n f) ;
-      n
-    )
+    let n =
+      match name with
+      | Some n -> n
+      | None -> U.gen_sym "id_" |> valid_identifier in
+    pp p.P.def "%s%t\n" p.indent (C.print_binding p t n f) ;
+    n
 
   let define name p l e =
     C.print_comment p.P.def "%s" (E.to_pretty_string ?max_depth:None e) ;

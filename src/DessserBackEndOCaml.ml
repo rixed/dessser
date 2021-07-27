@@ -415,10 +415,6 @@ struct
     pp oc "let %s%s : %s = %t in"
       (if need_rec then "rec " else "") n tn f
 
-  let print_inline p mn f oc =
-    let tn = type_identifier_mn p mn in
-    pp oc "(%t : %s)" f tn
-
   let print_comment oc fmt =
     pp oc ("(* " ^^ fmt ^^ " *)\n")
 
