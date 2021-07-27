@@ -827,7 +827,9 @@ struct
         let op = match op with StartsWith -> "starts_with" | _ -> "ends_with" in
         method_call e1 op [ e2 ]
     | E1 (StringLength, e1) ->
-        method_call e1 "size" []
+        let n1 = print p l e1 in
+        emit ?name p l e (fun oc ->
+          pp oc "(uint32_t)%s.size()" n1)
     | E1 (BytesLength, e1) ->
         method_call e1 "length" []
     | E1 (Cardinality, e1) ->
