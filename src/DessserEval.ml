@@ -860,7 +860,7 @@ let rec peval l e =
   | E2 (Let (name, value_r), value, body) ->
       let value = p value in
       let value_t = E.get_memo_mn value_r l value in
-      let l' = E.add_local name value_t l in
+      let l' = E.add_local name ~e:value value_t l in
       let body = peval l' body in
       let def = T.E2 (Let (name, value_r), value, body) in
       (* The identifier is useless in that case: *)
@@ -941,10 +941,12 @@ let rec peval l e =
               def))
   | E2 (LetPair (n1, r1, n2, r2), value, body) ->
       let value = p value in
-      let mn1 = E.get_memo_mn r1 l (first value)
-      and mn2 = E.get_memo_mn r2 l (secnd value) in
-      let l = E.add_local n1 mn1 l |>
-              E.add_local n2 mn2 in
+      let v1 = first value
+      and v2 = secnd value in
+      let mn1 = E.get_memo_mn r1 l v1
+      and mn2 = E.get_memo_mn r2 l v2 in
+      let l = E.add_local n1 ~e:v1 mn1 l |>
+              E.add_local n2 ~e:v2 mn2 in
       let body = peval l body in
       let def = T.E2 (LetPair (n1, r1, n2, r2), value, body) in
       let fst_count, snd_count =
@@ -1005,6 +1007,7 @@ let rec peval l e =
       let item_t = E.get_memo_item_mn item_r l lst in
       let l' = E.add_local name item_t l in
       let body = peval l' body in
+      let def = T.E2 (ForEach (name, item_r), lst, body) in
       (match final_expression lst with
       (* Loop over empty lst: that's a nop,  but for the side effect of lst: *)
       | E0R ((MakeVec | MakeArr _), [||])
@@ -1018,8 +1021,8 @@ let rec peval l e =
       | E1 (AllocVec 1, item) ->
           E2 (Let (name, item_r), replace_final_expression lst item, body)
       | _ ->
-          T.E2 (ForEach (name, item_r), lst, body)
-      (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *))
+          def)
+      (* TODO: ForEach of AllocVec/AllocArr not building the vector/array *)
   | E2 (NullMap _, _, _) ->
       assert false (* Because of type_checking *)
   | E2 (op, e1, e2) ->

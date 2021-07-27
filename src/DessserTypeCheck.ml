@@ -304,6 +304,7 @@ let rec type_check l =
         | E1 (StringOfBytes, e) ->
             check_eq l e T.bytes
         | E1 (Cardinality, e) ->
+            (* TODO: also for strings and bytes? *)
             check_any_lst l e
         | E2 (GetBit, e1, e2) ->
             check_eq l e1 T.ptr ;
