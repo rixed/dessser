@@ -206,6 +206,9 @@ let rec conv ?(depth=0) ~from ~to_ e =
   | TSet (_, mn1), TArr mn2 ->
       let e = arr_of_set e in
       map_items e mn1 mn2, false
+  | TLst mn1, TArr mn2 ->
+      let e = arr_of_lst e in
+      map_items e mn1 mn2, false
   | TTup mns1, TTup mns2 when Array.length mns1 = Array.length mns2 ->
       (* TODO: actually we could project away fields from t_from when t_to
        * is narrower, or inject NULLs in some cases. *)
