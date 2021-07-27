@@ -374,7 +374,7 @@ let rec peval l e =
    * simplification happens before extraction of the final expression) has
    * to be put back in place with no modification (ie. no need for another
    * simplification pass). If that's a new expression that must be simplified
-   * then it cannot be simplified befire being replaced in its context (for
+   * then it cannot be simplified before being replaced in its context (for
    * unbound identifiers) and will probably not be simplified by this
    * function so it has to be simplified explicitly after replacement. *)
   let repl f e =
@@ -810,8 +810,7 @@ let rec peval l e =
           repl1 nop
       | BitNot, f1 ->
           (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl1
-          with Invalid_argument _ ->
-          T.E1 (BitNot, e1))
+          with Invalid_argument _ -> T.E1 (BitNot, e1))
       | AllocVec 1, _ ->
           make_vec [ e1 ] |> p
       | op, _ ->
