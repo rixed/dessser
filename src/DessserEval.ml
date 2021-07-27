@@ -1428,17 +1428,6 @@ let rec peval l e =
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
             null T.TU24 |> repl123)
-      | SetVec, f1, (T.E0R ((MakeVec | MakeArr _) as op, [| _ |])), _ ->
-          let def = T.E3 (SetVec, e1, e2, e3) in
-          (match E.to_cst_int f1 with
-          | exception _ ->
-              def
-          | 0 ->
-              T.E0S (op, [ e3 ]) |>
-              replace_final_expression_anonymously e2 |>
-              p
-          | _ ->
-              def)
       | SetVec, _, (T.E0R ((MakeVec | MakeArr _), _) |
                     T.E1 (AllocVec _, _) |
                     T.E2 (AllocArr, _, _)), _ ->
