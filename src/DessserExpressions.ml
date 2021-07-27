@@ -31,6 +31,8 @@ let rec e0_eq e1 e2 =
 
 and e0s_eq e1 e2 = e1 = e2
 
+and e0r_eq e1 e2 = e1 = e2
+
 and e1_eq e1 e2 =
   match e1, e2 with
   | T.Function typ1, T.Function typ2 ->
@@ -55,6 +57,10 @@ and eq e1 e2 =
   | E0S (op1, e1s), E0S (op2, e2s) ->
       e0s_eq op1 op2 &&
       (try List.for_all2 (eq) e1s e2s
+      with Invalid_argument _ -> false)
+  | E0R (op1, e1s), E0R (op2, e2s) ->
+      e0r_eq op1 op2 &&
+      (try Array.for_all2 (eq) e1s e2s
       with Invalid_argument _ -> false)
   | E1 (op1, e11), E1 (op2, e21) ->
       e1_eq op1 op2 && eq e11 e21
@@ -87,6 +93,8 @@ let rec can_precompute ?(has_function_body=false) i = function
       List.mem n i
   | E0S (_, es) ->
       List.for_all (can_precompute ~has_function_body i) es
+  | E0R (_, es) ->
+      Array.for_all (can_precompute ~has_function_body i) es
   | E1 (Function _, body) ->
       can_precompute ~has_function_body i body
   | E1 ((Dump | Assert | MaskGet _), _) ->
@@ -209,11 +217,11 @@ let rec default ?(allow_null=true) t =
         Construct (mns, 0),
         default_mn (snd mns.(0)))
   | TVec (dim, mn) ->
-      T.E0S (
+      T.E0R (
         MakeVec,
-        List.init dim (fun _ -> default_mn mn))
+        Array.init dim (fun _ -> default_mn mn))
   | TArr mn ->
-      T.E0S (MakeArr mn, [])
+      T.E0R (MakeArr mn, [||])
   | TSet (Simple, mn) ->
       T.E0 (EmptySet mn)
   | TSet (Sliding, mn) ->
@@ -296,8 +304,6 @@ let string_of_e0 = function
 
 let string_of_e0s = function
   | T.Seq -> "seq"
-  | MakeVec -> "make-vec"
-  | MakeArr mn -> "make-arr "^ String.quote (T.mn_to_string mn)
   | MakeTup -> "make-tup"
   | MakeRec -> "make-rec"
   | MakeUsr n -> "make-usr "^ String.quote n
@@ -307,6 +313,10 @@ let string_of_e0s = function
         (List.print ~first:"(" ~sep:" " ~last:")" (fun oc (id, temp) ->
           Printf.fprintf oc "(%s %S)" (string_of_backend id) temp)) temps
         (T.mn_to_string mn)
+
+let string_of_e0r = function
+  | T.MakeVec -> "make-vec"
+  | MakeArr mn -> "make-arr "^ String.quote (T.mn_to_string mn)
 
 let string_of_e1s = function
   | T.Apply -> "apply"
@@ -569,6 +579,11 @@ let rec print ?max_depth oc e =
           (string_of_e0s op)
           (if es = [] then "" else " ")
           (List.print ~first:"" ~last:"" ~sep:" " p) es
+    | E0R (op, es) ->
+        pp oc "(%s%s%a)"
+          (string_of_e0r op)
+          (if es = [||] then "" else " ")
+          (Array.print ~first:"" ~last:"" ~sep:" " p) es
     | E1 (op, e1) ->
         pp oc "(%s %a)" (string_of_e1 op) p e1
     | E1S (op, e1, es) ->
@@ -603,6 +618,8 @@ let rec pretty_print ?max_depth fmt e =
         p "nop" []
     | E0S (op, es) ->
         p (string_of_e0s op) es
+    | E0R (op, es) ->
+        p (string_of_e0r op) (Array.to_list es)
     | E1 (op, e1) ->
         p (string_of_e1 op) [ e1 ]
     | E1S (op, e1, es) ->
@@ -787,11 +804,11 @@ and type_of l e0 =
       T.void
   | E0S (Seq, es) ->
       type_of l (List.last es)
-  | E0S (MakeVec, []) ->
+  | E0R (MakeVec, [||]) ->
       raise (Struct_error (e0, "vector dimension must be > 1"))
-  | E0S (MakeVec, (e0::_ as es)) ->
-      T.required (TVec (List.length es, type_of l e0))
-  | E0S (MakeArr mn, _) ->
+  | E0R (MakeVec, es) ->
+      T.required (TVec (Array.length es, type_of l es.(0)))
+  | E0R (MakeArr mn, _) ->
       T.required (TArr mn)
   | E0S (MakeTup, es) ->
       T.required (TTup (List.enum es /@ type_of l |> Array.of_enum))
@@ -1324,6 +1341,8 @@ let rec fold u f e =
       u
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold u f e1) u es
+  | E0R (_, es) ->
+      Array.fold_left (fun u e1 -> fold u f e1) u es
   | E1 (_, e1) ->
       fold u f e1
   | E1S (_, e1, es) ->
@@ -1343,6 +1362,8 @@ let rec fold_env u l f e =
       u
   | E0S (_, es) ->
       List.fold_left (fun u e1 -> fold_env u l f e1) u es
+  | E0R (_, es) ->
+      Array.fold_left (fun u e1 -> fold_env u l f e1) u es
   | E1 (Function ts, e1) ->
       let l = enter_function ~ts l in
       fold_env u l f e1
@@ -1396,6 +1417,10 @@ let rec map ?(enter_functions=true) f e =
       let es' = List.map (map f) es in
       if same es' es then f e else
       f (E0S (op, es'))
+  | E0R (op, es) ->
+      let es' = Array.map (map f) es in
+      if Array.for_all2 (==) es' es then f e else
+      f (E0R (op, es'))
   | E1 (Function _, _) when not enter_functions ->
       f e
   | E1 (op, e1) ->
@@ -1428,6 +1453,9 @@ let rec map_env l f e =
   | E0S (op, es) ->
       let es = List.map (map_env l f) es in
       f l (E0S (op, es))
+  | E0R (op, es) ->
+      let es = Array.map (map_env l f) es in
+      f l (E0R (op, es))
   | E1 (Function ts, e1) ->
       let l' = enter_function ~ts l in
       let e1 = map_env l' f e1 in
@@ -1509,7 +1537,9 @@ let depends_on_side_effect e =
   has_side_effect e ||
   try
     iter (function
-      | T.E0S ((MakeVec | MakeArr _), _::_) (* Because those are mutable: *)
+      | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
+          (* Because those are mutable: *)
+          raise Exit
       | E2 ((Nth | UnsafeNth), _, _) (* Only GetVec really (FIXME) *)
       | E2 ((PeekU8 | PeekU16 _ | PeekU32 _ | PeekU64 _ | PeekU128 _), _, _) ->
           raise Exit
@@ -1527,7 +1557,9 @@ let can_duplicate e =
       (* Although not exactly a side effect, those functions produce a copy of
        * a given pointer that are then mutable and which address is used in
        * comparisons (exception: empty things are not mutable): *)
-      | T.E0S ((MakeVec | MakeArr _ | MakeTup | MakeRec | MakeUsr _), _::_)
+      | T.E0R ((MakeVec | MakeArr _), es) when Array.length es > 0 ->
+          raise Exit
+      | E0S ((MakeTup | MakeRec | MakeUsr _), _::_)
       | E1 ((PtrOfString | PtrOfBuffer), _)
       | E2 (PtrOfAddress, _, _)
       | E3 (PtrOfPtr, _, _, _)
@@ -2297,7 +2329,7 @@ struct
 
   let member e1 e2 = T.E2 (Member, e1, e2)
 
-  let make_vec es = T.E0S (MakeVec, es)
+  let make_vec es = T.E0R (MakeVec, Array.of_list es)
 
   let alloc_vec d init =
     assert (d >= 0) ;
@@ -2309,7 +2341,7 @@ struct
 
   let make_arr mn es =
     let mn = T.shrink_mn mn in
-    T.E0S (MakeArr mn, es)
+    T.E0R (MakeArr mn, Array.of_list es)
 
   let alloc_arr len init = T.E2 (AllocArr, len, init)
 
@@ -2380,7 +2412,7 @@ struct
 
   let string_of_char_ e = T.E1 (StringOfChar, e)
 
-  let make_ref e = T.E0S (MakeVec, [ e ])
+  let make_ref e = T.E0R (MakeVec, [| e |])
 
   let get_ref e = unsafe_nth (u8_of_int 0) e
 

@@ -79,8 +79,8 @@ let rec type_check l =
     let check_same_types l e1 e2 =
       let t1 = E.type_of l e1 in
       check_eq l e2 t1 in
-    let check_all_same_types l e1 e2s =
-      List.iter (check_same_types l e1) e2s in
+    let check_all_same_types l es =
+      Array.iter (check_same_types l es.(0)) es in
     let check_vector l e =
       ignore (E.get_item_type ~vec:true e0 l e) in
     let check_set l e =
@@ -166,12 +166,12 @@ let rec type_check l =
               | [] | [_] -> ()
               | e::es -> check_void l e ; loop es in
             loop es
-        | E0S (MakeVec, []) ->
+        | E0R (MakeVec, [||]) ->
             raise (E.Struct_error (e0, "vector dimension must be > 0"))
-        | E0S (MakeVec, e1 :: e2s) ->
-            check_all_same_types l e1 e2s
-        | E0S (MakeArr mn, e1s) ->
-            List.iter (fun e1 -> check_eq l e1 mn) e1s
+        | E0R (MakeVec, e1s) ->
+            check_all_same_types l e1s
+        | E0R (MakeArr mn, e1s) ->
+            Array.iter (fun e1 -> check_eq l e1 mn) e1s
         | E0S (MakeTup, es) ->
             if List.compare_length_with es 2 < 0 then
               raise (E.Struct_error (e0, "tuple dimension must be ≥ 2"))

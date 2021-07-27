@@ -46,6 +46,21 @@ let array_for_alli f a =
   with Exit ->
     false
 
+let array_find_map f a =
+  let res = ref None in
+  try
+    for i = 0 to Array.length a - 1 do
+      match f a.(i) with
+      | Some x ->
+          res := Some x ;
+          raise Exit
+      | None ->
+          ()
+    done ;
+    raise Not_found
+  with Exit ->
+    Option.get !res
+
 let enum_filter_mapi f e =
   Enum.mapi f e |>
   Enum.filter_map identity

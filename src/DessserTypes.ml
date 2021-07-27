@@ -155,8 +155,6 @@ and e0 =
 and e0s =
   | Seq
   (* Data constructors: *)
-  | MakeVec
-  | MakeArr of mn
   | MakeTup
   (* For convenience, MakeRec is handled like an E0S but it is constrained to
    * have an even number of arguments, the field names being forced to be
@@ -167,6 +165,10 @@ and e0s =
   (* The Dessser equivalent of the `asm` directive.
    * The templates may use %1, %2 etc where the arguments should go. *)
   | Verbatim of ((backend_id * string) list * (* output type: *) mn)
+
+and e0r =
+  | MakeVec
+  | MakeArr of mn
 
 and e1 =
   | Function of (*args*) mn array
@@ -473,6 +475,8 @@ and e3 =
 and expr =
   | E0 of e0
   | E0S of e0s * expr list
+  (* Those are mutable: *)
+  | E0R of e0r * expr array
   | E1 of e1 * expr
   | E1S of e1s * expr * expr list
   | E2 of e2 * expr * expr

@@ -745,9 +745,10 @@ and e = function
   | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
   | Lst [] -> E0S (Seq, [])
   | Sym "nop" -> E0S (Seq, [])
-  | Lst (Sym "make-vec" :: xs) -> E0S (MakeVec, List.map e xs)
+  | Lst (Sym "make-vec" :: xs) ->
+      E0R (MakeVec, List.enum xs /@ e |> Array.of_enum)
   | Lst (Sym "make-arr" :: Str mn :: xs) as s ->
-      E0S (MakeArr (mn_of_str s mn), List.map e xs)
+      E0R (MakeArr (mn_of_str s mn), List.enum xs /@ e |> Array.of_enum)
   | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
   | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
   | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)

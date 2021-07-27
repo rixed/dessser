@@ -427,6 +427,8 @@ let rec peval l e =
           | _ ->
               def)
       | op, es -> E0S (op, es))
+  | E0R (op, es) ->
+      E0R (op, Array.map p es)
   | E1 (Function ts, body) ->
       let l = E.enter_function ~ts l in
       E1 (Function ts, peval l body)
@@ -797,8 +799,8 @@ let rec peval l e =
           u32_of_int (String.length s) |> repl1
       | StringLength, E1 (StringOfChar, e) when not (E.has_side_effect e) ->
           u32_of_int 1 |> repl1
-      | Cardinality, E0S ((MakeVec | MakeArr _), es) ->
-          u32_of_int (List.length es) |> repl1
+      | Cardinality, E0R ((MakeVec | MakeArr _), es) ->
+          u32_of_int (Array.length es) |> repl1
       | Cardinality, E1 (AllocVec d, _) ->
           u32_of_int d
       | Cardinality, E0 (EndOfList _ | EmptySet _)
@@ -997,14 +999,14 @@ let rec peval l e =
       let body = peval l' body in
       (match final_expression lst with
       (* Loop over empty lst: that's a nop,  but for the side effect of lst: *)
-      | E0S ((MakeVec | MakeArr _), [])
+      | E0R ((MakeVec | MakeArr _), [||])
       | E1 (AllocVec 0, _)
       | E1 ((SlidingWindow _ | TumblingWindow _ | Sampling _ |
              HashTable _ | Heap), _)
       | E3 (Top _, _, _, _) ->
           replace_final_expression_anonymously lst nop
       (* Loop over a single item: no need for the loop *)
-      | E0S ((MakeVec | MakeArr _), [ item ])
+      | E0R ((MakeVec | MakeArr _), [| item |])
       | E1 (AllocVec 1, item) ->
           E2 (Let (name, item_r), replace_final_expression lst item, body)
       | _ ->
@@ -1026,13 +1028,13 @@ let rec peval l e =
         repl (replace_final_expression_anonymously e1 %
               replace_final_expression_anonymously e2) in
       (match op, final_expression e1, final_expression e2 with
-      | Nth, f1, E0S ((MakeVec | MakeArr _), es) ->
+      | Nth, f1, E0R ((MakeVec | MakeArr _), es) ->
           let def = T.E2 (Nth, e1, e2) in
           (match E.to_cst_int f1 with
           | exception _ ->
               def
-          | idx when idx < List.length es ->
-              List.at es idx |>
+          | idx when idx < Array.length es ->
+              es.(idx) |>
               (* Identifiers may be needed in [es], ie [e2] *)
               replace_final_expression e2 |>
               replace_final_expression_anonymously e1 |>
@@ -1239,13 +1241,14 @@ let rec peval l e =
               let from = T.TI128 in
               let to_ = T.(E.type_of l f1).typ in
               fst (C.conv ~from ~to_ (i128 (Int128.shift_right x n))) |> repl12)
-      | Join, E0 (String s1), E0S (MakeVec, ss) ->
+      | Join, E0 (String s1), E0R (MakeVec, ss) ->
           (try
             (* TODO: we could join only some of the strings *)
-            List.map (function
+            Array.enum ss /@
+            (function
               | T.E0 (String s) -> s
-              | _ -> raise Exit
-            ) ss |>
+              | _ -> raise Exit) |>
+            List.of_enum |>
             String.join s1 |>
             string |> repl12
           with Exit ->
@@ -1276,9 +1279,9 @@ let rec peval l e =
               make_arr mn [ e2 ] |> repl (replace_final_expression_anonymously e1) *)
           | _ ->
               def)
-      | PartialSort, _, E0S ((MakeVec | MakeArr _), []) ->
+      | PartialSort, _, E0R ((MakeVec | MakeArr _), [||]) ->
           keep1 () (* result is the original, already "sorted" array *)
-      | PartialSort, E0S ((MakeVec | MakeArr _), []), _ ->
+      | PartialSort, E0R ((MakeVec | MakeArr _), [||]), _ ->
           keep1 () (* result is the original empty array *)
       | SplitBy, E0 (String s1), E0 (String s2) ->
           String.split_on_string s1 s2 |>
@@ -1310,15 +1313,19 @@ let rec peval l e =
         when E.eq l1 l2 && not (E.has_side_effect l1) ->
           repl12 l1
       (* Cannot be truncated further: *)
-      | ChopBegin, E0S (MakeArr _, []), _ -> keep1 ()
-      | ChopBegin, E0S (MakeArr mn, items), n ->
+      | ChopBegin, E0R (MakeArr _, [||]), _ -> keep1 ()
+      | ChopBegin, E0R (MakeArr mn, items), n ->
           (match E.to_cst_int n with
           | exception _ ->
               T.E2 (ChopBegin, e1, e2)
           | n ->
-              T.E0S (MakeArr mn, List.drop n items) |>
-              replace_final_expression e1 |>
-              repl (replace_final_expression_anonymously e2))
+              let l = Array.length items in
+              (if n >= l then
+                T.E0R (MakeArr mn, [||]) |> repl12
+              else
+                T.E0R (MakeArr mn, Array.sub items n (l - n)) |>
+                replace_final_expression e1 |>
+                repl (replace_final_expression_anonymously e2)))
       | ChopBegin, _, n ->
           let def = T.E2 (ChopBegin, e1, e2) in
           (match E.to_cst_int n with
@@ -1326,20 +1333,20 @@ let rec peval l e =
           | 0 -> keep1 ()
           | _ -> def)
       (* Cannot be truncated further: *)
-      | ChopEnd, E0S (MakeArr _, []), _ ->
+      | ChopEnd, E0R (MakeArr _, [||]), _ ->
           keep1 ()
-      | ChopEnd, E0S (MakeArr mn, items), n ->
+      | ChopEnd, E0R (MakeArr mn, items), n ->
           let def = T.E2 (ChopEnd, e1, e2) in
           (match E.to_cst_int n with
           | exception _ -> def
           | n ->
-              let l = List.length items in
+              let l = Array.length items in
               (if n >= l then
-                T.E0S (MakeArr mn, []) |> repl12
+                T.E0R (MakeArr mn, [||]) |> repl12
               else
-                T.E0S (MakeArr mn, List.take (l - n) items)) |>
+                T.E0R (MakeArr mn, Array.sub items 0 (l - n)) |>
                 replace_final_expression e1 |>
-                repl (replace_final_expression_anonymously e2))
+                repl (replace_final_expression_anonymously e2)))
       | ChopEnd, _, n ->
           let def = T.E2 (ChopEnd, e1, e2) in
           (match E.to_cst_int n with
@@ -1396,7 +1403,7 @@ let rec peval l e =
                           replace_final_expression e3 f3') |> p
       | Map, _, f, lst ->
           (match lst with
-          | E0S (MakeVec, [ e ]) ->
+          | E0R (MakeVec, [| e |]) ->
               (* Unearthing the MakeVec might makes further optimisations
                * possible: *)
               make_vec [ apply e2 [ e1 ; repl3 e ] ] |> p
@@ -1421,7 +1428,7 @@ let rec peval l e =
             replace_final_expression_anonymously e2 |> p
           with Not_found ->
             null T.TU24 |> repl123)
-      | SetVec, f1, (T.E0S ((MakeVec | MakeArr _) as op, [ _ ])), _ ->
+      | SetVec, f1, (T.E0R ((MakeVec | MakeArr _) as op, [| _ |])), _ ->
           let def = T.E3 (SetVec, e1, e2, e3) in
           (match E.to_cst_int f1 with
           | exception _ ->
@@ -1432,7 +1439,7 @@ let rec peval l e =
               p
           | _ ->
               def)
-      | SetVec, _, (T.E0S ((MakeVec | MakeArr _), _) |
+      | SetVec, _, (T.E0R ((MakeVec | MakeArr _), _) |
                     T.E1 (AllocVec _, _) |
                     T.E2 (AllocArr, _, _)), _ ->
           Printf.eprintf "Warning: vector is lost after modification in:%s"

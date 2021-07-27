@@ -390,10 +390,14 @@ struct
         "VOID"
     | E0S (Seq, es) ->
         List.fold_left (fun _ e -> print p l e) "VOID" es
-    | E0S ((MakeVec | MakeArr _ | MakeTup), es) ->
+    | E0S (MakeTup, es) ->
         let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
           List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
+    | E0R ((MakeVec | MakeArr _), es) ->
+        let inits = Array.map (print p l) es in
+        emit ?name p l e (fun oc ->
+          Array.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
     | E0S (MakeRec, es) ->
         let _, inits =
           List.fold_left (fun (prev_name, inits) e ->

@@ -603,10 +603,10 @@ struct
         print ?name p l e1
     | E0S (Seq, es) ->
         List.fold_left (fun _ e -> print p l e) "()" es
-    | E0S ((MakeVec | MakeArr _), es) ->
-        let inits = List.map (print p l) es in
+    | E0R ((MakeVec | MakeArr _), es) ->
+        let inits = Array.map (print p l) es in
         emit ?name p l e (fun oc ->
-          List.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
+          Array.print ~first:"[| " ~last:" |]" ~sep:"; " String.print oc inits)
     | E0S (MakeTup, es) ->
         let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
@@ -1349,10 +1349,10 @@ struct
          * then the result is NULL unless the set is empty: "NULL in [1; 2]" is
          * NULL, but "NULL in []" is false. *)
         (match e2 with
-        | E0S ((MakeVec | MakeArr _), []) ->
+        | E0R ((MakeVec | MakeArr _), [||]) ->
             "false"
-        | E0S ((MakeVec | MakeArr _), es) ->
-            let csts, non_csts = split_csts [] [] es in
+        | E0R ((MakeVec | MakeArr _), es) ->
+            let csts, non_csts = split_csts [] [] (Array.to_list es) in
             (* Given a list of constant expressions, build a function that check
              * membership in this set: *)
             let check_csts_n =
