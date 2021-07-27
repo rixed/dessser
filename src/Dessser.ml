@@ -247,13 +247,14 @@ struct
    * point to the next value to read/write.
    * [mn] denotes the maybe_nullable of the current subfields, whereas
    * [mn0] denotes the maybe_nullable of the whole value. *)
-  let ds ser des what v_opt transform sstate dstate mn0 path src_dst =
+  let ds ser des what is_present def transform
+         sstate dstate mn0 path src_dst =
     let open E.Ops in
     E.with_sploded_pair "ds1" src_dst (fun src dst ->
       let v_src =
-        match v_opt with
-        | None -> des dstate mn0 path src
-        | Some v -> make_pair v src in
+        if_ is_present
+          ~then_:(des dstate mn0 path src)
+          ~else_:(make_pair def src) in
       E.with_sploded_pair "ds2" v_src (fun v src ->
         let v = transform mn0 path v in
         (* dessser handle nulls itself, so that DES/SER implementations
@@ -285,93 +286,103 @@ struct
   let dsu64 = ds Ser.su64 Des.du64 "u64"
   let dsu128 = ds Ser.su128 Des.du128 "u128"
 
-  let dsnull v_opt t sstate dstate mn0 path src dst =
+  let dsnull is_present t sstate dstate mn0 path src dst =
     let open E.Ops in
     make_pair
-      (if v_opt = None then
-        (comment "Desserialize NULL" (Des.dnull t dstate mn0 path src))
-      else src)
+      (if_ is_present
+        ~then_:(comment "Desserialize NULL" (Des.dnull t dstate mn0 path src))
+        ~else_:src)
       (comment "Serialize NULL" (Ser.snull t sstate mn0 path dst))
 
-  let dsnotnull v_opt t sstate dstate mn0 path src dst =
+  let dsnotnull is_present t sstate dstate mn0 path src dst =
     let open E.Ops in
     make_pair
-      (if v_opt = None then
-        (comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path src))
-      else src)
+      (if_ is_present
+        ~then_:(comment "Desserialize NonNull" (Des.dnotnull t dstate mn0 path src))
+        ~else_:src)
       (comment "Serialize NonNull" (Ser.snotnull t sstate mn0 path dst))
 
   (* transform is applied to leaf values only, as compound values are not
    * reified during a dessser operation *)
-  let rec dstup mns v_opt transform sstate dstate mn0 path src_dst =
+  let rec dstup mns is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst = comment "Convert a Tuple"
       (E.with_sploded_pair "dstup1" src_dst (fun src dst ->
         make_pair
-          (if v_opt = None then Des.tup_opn mns dstate mn0 path src
-           else src)
+          (if_ is_present
+            ~then_:(Des.tup_opn mns dstate mn0 path src)
+            ~else_:src)
           (Ser.tup_opn mns sstate mn0 path dst))) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i _mn ->
         comment ("Convert tuple field "^ Stdlib.string_of_int i)
           (let subpath = Path.(append (CompTime i) path) in
-          let v_opt = Option.map (get_item i) v_opt in
+          let def = get_item i def in
           if i = 0 then
-            desser_ v_opt transform sstate dstate mn0 subpath src_dst
+            desser_ is_present def transform sstate dstate mn0 subpath src_dst
           else
             let src_dst =
               E.with_sploded_pair "dstup2" src_dst (fun src dst ->
                 make_pair
-                  (if v_opt = None then Des.tup_sep dstate mn0 path src
-                   else src)
+                  (if_ is_present
+                    ~then_:(Des.tup_sep dstate mn0 path src)
+                    ~else_:src)
                   (Ser.tup_sep sstate mn0 path dst)) in
-            desser_ v_opt transform sstate dstate mn0 subpath src_dst)
+            desser_ is_present def transform sstate dstate
+                    mn0 subpath src_dst)
       ) src_dst mns in
     E.with_sploded_pair "dstup3" src_dst (fun src dst ->
       make_pair
-        (if v_opt = None then Des.tup_cls dstate mn0 path src
-         else src)
+        (if_ is_present
+          ~then_:(Des.tup_cls dstate mn0 path src)
+          ~else_:src)
         (Ser.tup_cls sstate mn0 path dst))
 
-  and dsrec mns v_opt transform sstate dstate mn0 path src_dst =
+  and dsrec mns is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst =
       E.with_sploded_pair "dsrec1" src_dst (fun src dst ->
         make_pair
-          (if v_opt = None then Des.rec_opn mns dstate mn0 path src
-           else src)
+          (if_ is_present
+            ~then_:(Des.rec_opn mns dstate mn0 path src)
+            ~else_:src)
           (Ser.rec_opn mns sstate mn0 path dst)) in
     let src_dst =
       BatArray.fold_lefti (fun src_dst i (name, _mn) ->
           comment ("Convert record field "^ name)
             (let subpath = Path.(append (CompTime i) path) in
-            let v_opt = Option.map (get_field name) v_opt in
+            let def = get_field name def in
             if i = 0 then
-              desser_ v_opt transform sstate dstate mn0 subpath src_dst
+              desser_ is_present def transform sstate dstate mn0 subpath src_dst
             else
               let src_dst =
                 E.with_sploded_pair "dsrec2" src_dst (fun src dst ->
                   make_pair
-                    (if v_opt = None then Des.rec_sep dstate mn0 path src
-                     else src)
+                    (if_ is_present
+                      ~then_:(Des.rec_sep dstate mn0 path src)
+                      ~else_:src)
                     (Ser.rec_sep sstate mn0 path dst)) in
-              desser_ v_opt transform sstate dstate mn0 subpath src_dst)
+              desser_ is_present def transform sstate dstate mn0 subpath src_dst)
       ) src_dst mns in
     let src_dst = comment "Convert a Record" src_dst in
     E.with_sploded_pair "dsrec3" src_dst (fun src dst ->
       make_pair
-        (if v_opt = None then Des.rec_cls dstate mn0 path src
-         else src)
+        (if_ is_present
+          ~then_:(Des.rec_cls dstate mn0 path src)
+          ~else_:src)
         (Ser.rec_cls sstate mn0 path dst))
 
-  and dssum mns v_opt transform sstate dstate mn0 path src_dst =
+  and dssum mns is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let max_lbl = Array.length mns - 1 in
     E.with_sploded_pair "dssum1" src_dst (fun src dst ->
+      (* FIXME: if not is_present have a more straightforward:
+       *   if_ is_present then ...as usual...
+       *   else serialize only the label of the default value *)
       let cstr_src =
-        match v_opt with
-        | None -> Des.sum_opn mns dstate mn0 path src
-        | Some v -> make_pair (label_of v) src in
+        if_ is_present
+          ~then_:(Des.sum_opn mns dstate mn0 path src)
+          ~else_:(make_pair (label_of def) src) in
       let_pair ~n1:"cstr" ~n2:"src" cstr_src (fun cstr src ->
         let src_dst =
           let dst = Ser.sum_opn mns cstr sstate mn0 path dst in
@@ -379,29 +390,33 @@ struct
           let rec choose_cstr i =
             let subpath = Path.(append (CompTime i) path) in
             let name, _ = mns.(i) in
-            let v_opt = Option.map (E.Ops.get_alt name) v_opt in
+            let def = get_alt name def in
             if i >= max_lbl then
               seq [
                 assert_ (eq cstr (u16 (Uint16.of_int max_lbl))) ;
-                desser_ v_opt transform sstate dstate mn0 subpath src_dst ]
+                desser_ is_present def transform sstate dstate
+                        mn0 subpath src_dst ]
             else
               if_ (eq (u16 (Uint16.of_int i)) cstr)
-                ~then_:(desser_ v_opt transform sstate dstate mn0 subpath src_dst)
+                ~then_:(desser_ is_present def transform sstate dstate
+                                mn0 subpath src_dst)
                 ~else_:(choose_cstr (i + 1)) in
           choose_cstr 0 in
         E.with_sploded_pair "dssum3" src_dst (fun src dst ->
           make_pair
-            (if v_opt = None then Des.sum_cls cstr dstate mn0 path src
-             else src)
+            (if_ is_present
+              ~then_:(Des.sum_cls cstr dstate mn0 path src)
+              ~else_:src)
             (Ser.sum_cls cstr sstate mn0 path dst))))
 
-  and dsvec dim mn v_opt transform sstate dstate mn0 path src_dst =
+  and dsvec dim mn is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let src_dst =
       E.with_sploded_pair "dsvec1" src_dst (fun src dst ->
         make_pair
-          (if v_opt = None then Des.vec_opn dim mn dstate mn0 path src
-           else src)
+          (if_ is_present
+            ~then_:(Des.vec_opn dim mn dstate mn0 path src)
+            ~else_:src)
           (Ser.vec_opn dim mn sstate mn0 path dst)) in
     let src_dst =
       let_ ~name:"src_dst_ref" (make_ref src_dst) (fun src_dst_ref ->
@@ -410,27 +425,29 @@ struct
           StdLib.repeat ~from:(i32 0l) ~to_:(i32_of_int dim) (fun n ->
             (comment "Convert vector item"
               (let subpath = Path.(append (RunTime (to_u32 n)) path) in
-              let v_opt = Option.map (unsafe_nth (to_u32 n)) v_opt in
+              let def = unsafe_nth (to_u32 n) def in
               let src_dst =
                 if_ (eq n (i32 0l))
                   ~then_:src_dst
                   ~else_:(
                     E.with_sploded_pair "dsvec2" src_dst (fun src dst ->
                       make_pair
-                        (if v_opt = None then Des.vec_sep dstate mn0 subpath src
-                         else src)
+                        (if_ is_present
+                          ~then_:(Des.vec_sep dstate mn0 subpath src)
+                          ~else_:src)
                         (Ser.vec_sep sstate mn0 subpath dst))) in
-              desser_ v_opt transform sstate dstate mn0 subpath src_dst |>
+              desser_ is_present def transform sstate dstate mn0 subpath src_dst |>
               set_ref src_dst_ref))) ;
           src_dst ])
     in
     E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
       make_pair
-        (if v_opt = None then Des.vec_cls dstate mn0 path src
-         else src)
+        (if_ is_present
+          ~then_:(Des.vec_cls dstate mn0 path src)
+          ~else_:src)
         (Ser.vec_cls sstate mn0 path dst))
 
-  and dsarr mn v_opt transform sstate dstate mn0 path src_dst =
+  and dsarr mn is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     (* Pretend we visit only the index 0, which is enough to determine
      * subtypes: *)
@@ -444,99 +461,109 @@ struct
          * then SEpxr would merely return a very large number of entries
          * (better than to return a single condition in arr_opn for non
          * functional backends such as, eventually, C?) *)
-        match v_opt with
-        | None ->
-            (match Des.arr_opn dstate with
-            | KnownSize arr_opn ->
-                let src_dst =
-                  let dim_src = arr_opn mn mn0 path src in
-                  E.with_sploded_pair "dsarr2" dim_src (fun dim src ->
-                    let dst = Ser.arr_opn mn (Some dim) sstate mn0 path dst in
-                    let src_dst_ref = make_ref (make_pair src dst) in
-                    let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
-                      let src_dst = get_ref src_dst_ref in
-                      seq [
-                        StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
-                          (comment "Convert a arr item"
-                            (let subpath = Path.(append (RunTime (to_u32 n)) path) in
-                            let src_dst =
-                              if_ (eq n (i32 0l))
-                                ~then_:src_dst
-                                ~else_:(
-                                  E.with_sploded_pair "dsarr3" src_dst
-                                    (fun psrc pdst ->
-                                    make_pair
-                                      (Des.arr_sep dstate mn0 subpath psrc)
-                                      (Ser.arr_sep sstate mn0 subpath pdst))
-                                ) in
-                            desser_ v_opt transform sstate dstate mn0 subpath
-                                    src_dst |>
-                            set_ref src_dst_ref))) ;
-                        src_dst ])) in
-                let_pair ~n1:"src" ~n2:"dst" src_dst (fun src dst ->
-                  make_pair
-                    (Des.arr_cls dstate mn0 path src)
-                    (Ser.arr_cls sstate mn0 path dst))
-            | UnknownSize (arr_opn, end_of_arr) ->
-                let src = arr_opn mn mn0 path src in
-                let dst = Ser.arr_opn mn None sstate mn0 path dst in
-                let src_dst_ref = make_ref (make_pair src dst) in
-                let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
-                  let src = first (get_ref src_dst_ref) in
-                  let dst = secnd (get_ref src_dst_ref) in
-                  let_ ~name:"n_ref" (make_ref (u32_of_int 0)) (fun n_ref ->
-                    let n = get_ref n_ref in
+        let not_default () =
+          match Des.arr_opn dstate with
+          | KnownSize arr_opn ->
+              let src_dst =
+                let dim_src = arr_opn mn mn0 path src in
+                E.with_sploded_pair "dsarr2" dim_src (fun dim src ->
+                  let dst = Ser.arr_opn mn (Some dim) sstate mn0 path dst in
+                  let src_dst_ref = make_ref (make_pair src dst) in
+                  let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
+                    let src_dst = get_ref src_dst_ref in
                     seq [
-                      while_
-                        (comment "Test end of arr"
-                          (not_ (end_of_arr mn0 path src)))
-                        (comment "Convert an array item"
-                          (let subpath = Path.(append (RunTime n) path) in
-                          seq [
-                            if_ (eq n (u32_of_int 0))
-                              ~then_:nop
+                      StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
+                        (comment "Convert a arr item"
+                          (let subpath = Path.(append (RunTime (to_u32 n)) path) in
+                          let def = unsafe_nth (to_u32 n) def in
+                          let src_dst =
+                            if_ (eq n (i32 0l))
+                              ~then_:src_dst
                               ~else_:(
-                                set_ref src_dst_ref
-                                  (make_pair
-                                    (Des.arr_sep dstate mn0 subpath src)
-                                    (Ser.arr_sep sstate mn0 subpath dst))) ;
-                            set_ref n_ref (add n (u32_of_int 1)) ;
-                            set_ref src_dst_ref
-                              (desser_ v_opt transform sstate dstate mn0 subpath
-                                       (get_ref src_dst_ref)) ])) ;
-                      make_pair
-                        (Des.arr_cls dstate mn0 path src)
-                        (Ser.arr_cls sstate mn0 path dst) ])))
-        | Some v ->
-            (* Similar than KnownSize, with fixed src: *)
-            let dim = cardinality v in
-            let_ ~name:"dim" dim (fun dim ->
-              let dst = Ser.arr_opn mn (Some dim) sstate mn0 path dst in
-              let dst_ref = make_ref dst in
-              let_ ~name:"dst_ref" dst_ref (fun dst_ref ->
-                let dst = get_ref dst_ref in
-                seq [
-                  StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
-                    (comment "Convert a arr item"
-                      (let subpath = Path.(append (RunTime (to_u32 n)) path) in
-                      let v_opt = Some (unsafe_nth (to_u32 n) v) in
-                      let dst =
-                        if_ (eq n (i32 0l))
-                          ~then_:dst
-                          ~else_:(Ser.arr_sep sstate mn0 subpath dst) in
-                      let src_dst =
-                        make_pair src dst |>
-                        desser_ v_opt transform sstate dstate mn0 subpath in
-                      set_ref dst_ref (secnd src_dst)))) ;
-                  make_pair
-                    src
-                    (Ser.arr_cls sstate mn0 path dst) ]))))
+                                E.with_sploded_pair "dsarr3" src_dst
+                                  (fun psrc pdst ->
+                                  make_pair
+                                    (Des.arr_sep dstate mn0 subpath psrc)
+                                    (Ser.arr_sep sstate mn0 subpath pdst))
+                              ) in
+                          desser_ is_present def transform sstate dstate
+                                  mn0 subpath src_dst |>
+                          set_ref src_dst_ref))) ;
+                      src_dst ])) in
+              let_pair ~n1:"src" ~n2:"dst" src_dst (fun src dst ->
+                make_pair
+                  (Des.arr_cls dstate mn0 path src)
+                  (Ser.arr_cls sstate mn0 path dst))
+          | UnknownSize (arr_opn, end_of_arr) ->
+              let src = arr_opn mn mn0 path src in
+              let dst = Ser.arr_opn mn None sstate mn0 path dst in
+              let src_dst_ref = make_ref (make_pair src dst) in
+              let_ ~name:"src_dst_ref" src_dst_ref (fun src_dst_ref ->
+                let src = first (get_ref src_dst_ref) in
+                let dst = secnd (get_ref src_dst_ref) in
+                let_ ~name:"n_ref" (make_ref (u32_of_int 0)) (fun n_ref ->
+                  let n = get_ref n_ref in
+                  seq [
+                    while_
+                      (comment "Test end of arr"
+                        (not_ (end_of_arr mn0 path src)))
+                      (comment "Convert an array item"
+                        (let subpath = Path.(append (RunTime n) path) in
+                        let def = unsafe_nth (to_u32 n) def in
+                        seq [
+                          if_ (eq n (u32_of_int 0))
+                            ~then_:nop
+                            ~else_:(
+                              set_ref src_dst_ref
+                                (make_pair
+                                  (Des.arr_sep dstate mn0 subpath src)
+                                  (Ser.arr_sep sstate mn0 subpath dst))) ;
+                          set_ref n_ref (add n (u32_of_int 1)) ;
+                          set_ref src_dst_ref
+                            (desser_ is_present def transform sstate dstate
+                                     mn0 subpath (get_ref src_dst_ref)) ])) ;
+                    make_pair
+                      (Des.arr_cls dstate mn0 path src)
+                      (Ser.arr_cls sstate mn0 path dst) ])) in
+        let use_default () =
+          (* Similar than KnownSize, with fixed src: *)
+          let dim = cardinality def in
+          let_ ~name:"dim" dim (fun dim ->
+            let dst = Ser.arr_opn mn (Some dim) sstate mn0 path dst in
+            let dst_ref = make_ref dst in
+            let_ ~name:"dst_ref" dst_ref (fun dst_ref ->
+              let dst = get_ref dst_ref in
+              seq [
+                StdLib.repeat ~from:(i32 0l) ~to_:(to_i32 dim) (fun n ->
+                  (comment "Convert a arr item"
+                    (let subpath = Path.(append (RunTime (to_u32 n)) path) in
+                    let def = unsafe_nth (to_u32 n) def in
+                    let dst =
+                      if_ (eq n (i32 0l))
+                        ~then_:dst
+                        ~else_:(Ser.arr_sep sstate mn0 subpath dst) in
+                    let src_dst =
+                      make_pair src dst |>
+                      desser_ is_present def transform sstate dstate
+                              mn0 subpath in
+                    set_ref dst_ref (secnd src_dst)))) ;
+                make_pair
+                  src
+                  (Ser.arr_cls sstate mn0 path dst) ])) in
+        if_ is_present ~then_:(not_default ())
+                       ~else_:(use_default ())))
+
+  and dsarr_like t mn is_present def transform sstate dstate mn0 path src_dst =
+    let open E.Ops in
+    let def, _ = DessserConversions.conv ~from:t ~to_:T.(TArr mn) def in
+    dsarr mn is_present def transform sstate dstate mn0 path src_dst
 
   (* TODO: Ext *)
   and desser_value = function
     | T.TThis _ -> assert false (* Because of Path.type_of_path *)
     | TVoid ->
-        fun _v_opt _transform _sstate _dstate _mn0 _path src_dst -> src_dst
+        fun _is_present _def _transform _sstate _dstate
+            _mn0 _path src_dst -> src_dst
     | TFloat -> dsfloat
     | TString -> dsstring
     | TBool -> dsbool
@@ -564,14 +591,16 @@ struct
     | TRec mns -> dsrec mns
     | TSum mns -> dssum mns
     | TVec (dim, mn) -> dsvec dim mn
-    | TArr mn
-    (* Sets and Lsts are serialized like arrs (the last update is thus lost). *)
-    | TSet (Simple, mn) | TLst mn -> dsarr mn
+    | TArr mn -> dsarr mn
+    (* Sets and Lsts are serialized like arrs (the last update is thus lost).
+     * The provided default value, if any, must therefore be converted into
+     * an array. *)
+    | TSet (Simple, mn) | TLst mn as t -> dsarr_like t mn
     | TSet _ -> todo "des/ser for non simple sets"
     | TMap _ -> assert false (* No value of map type *)
     | _ -> invalid_arg "desser_value"
 
-  and desser_mn mn v_opt transform sstate dstate mn0 path src_dst =
+  and desser_mn mn is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     if mn.T.nullable then (
       E.with_sploded_pair "desser_" src_dst (fun src dst ->
@@ -582,29 +611,41 @@ struct
          * if any of dnull/snull/snotnull/etc update the state, they will
          * do so in both branches of this alternative. *)
         let cond =
-          match v_opt with
-          | None -> Des.is_null dstate mn0 path src
-          | Some v -> is_null v in
-        let v_opt = Option.map (force ~what:"desser_mn") v_opt in
+          or_ (and_ is_present (Des.is_null dstate mn0 path src))
+              (and_ (not_ is_present) (is_null def)) in
+        let def = force ~what:"desser_mn" def in
         if_ cond
-          ~then_:(dsnull v_opt mn.typ sstate dstate mn0 path src dst)
-          ~else_:(dsnotnull v_opt mn.typ sstate dstate mn0 path src dst |>
-                  desser_value mn.typ v_opt transform sstate dstate mn0 path))
+          ~then_:(dsnull is_present mn.typ
+                         sstate dstate mn0 path src dst)
+          ~else_:(dsnotnull is_present mn.typ
+                            sstate dstate mn0 path src dst |>
+                  desser_value mn.typ is_present def transform
+                               sstate dstate mn0 path))
     ) else (
-      desser_value mn.typ v_opt transform sstate dstate mn0 path src_dst
+      desser_value mn.typ is_present def transform
+                   sstate dstate mn0 path src_dst
     )
 
-  and desser_ v_opt transform sstate dstate mn0 path src_dst =
+  and desser_ is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let mn = Path.type_of_path mn0 path in
-    match v_opt, mn.T.default with
-    | None, (Some _ as def) ->
+    match mn.T.default with
+    | None ->
+        desser_mn mn is_present def transform sstate dstate mn0 path src_dst
+    | Some new_def ->
         let_ ~name:"src_dst" src_dst (fun src_dst ->
-          if_ (Des.is_present dstate mn0 path (first src_dst))
-            ~then_:(desser_mn mn None transform sstate dstate mn0 path src_dst)
-            ~else_:(desser_mn mn def transform sstate dstate mn0 path src_dst))
-    | v_opt, _ ->
-        desser_mn mn v_opt transform sstate dstate mn0 path src_dst
+          let_pair ~n1:"is_present" ~n2:"def"
+            (if_ is_present
+              (* We were not using the default [def]: *)
+              ~then_:(
+                make_pair
+                  (Des.is_present dstate mn0 path (first src_dst))
+                  new_def)
+              (* We are currently using the default [def]:*)
+              ~else_:(make_pair true_ def))
+            (fun is_present def ->
+              desser_mn mn is_present def transform sstate dstate
+                        mn0 path src_dst))
 
   let desser ?ser_config ?des_config mn0 ?transform src dst =
     let no_transform _mn0 _path v = v in
@@ -613,7 +654,8 @@ struct
     let sstate, dst = Ser.start mn0 ?config:ser_config dst
     and dstate, src = Des.start mn0 ?config:des_config src in
     let src_dst = make_pair src dst in
-    let src_dst = desser_ None transform sstate dstate mn0 [] src_dst in
+    let def = E.default_mn mn0 in
+    let src_dst = desser_ true_ def transform sstate dstate mn0 [] src_dst in
     E.with_sploded_pair "desser" src_dst (fun src dst ->
       make_pair
         (Des.stop dstate src)
