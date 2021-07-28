@@ -465,7 +465,7 @@ and sum_typ m =
       let m = "s-expr-symbol" :: m in
       (
         several_greedy ~sep:none (cond "symb" (fun c ->
-          c <> ' ' && c <> '\t' && c <> '\r' && c <> 'n' &&
+          c <> ' ' && c <> '\t' && c <> '\r' && c <> '\n' &&
           c <> '"' && c <> '(' && c <> ')' && c <> ';') 'x') >>: String.of_list
       ) m in
     (* [n] is how many parentheses are yet to be closed: *)
@@ -535,11 +535,15 @@ and sum_typ m =
     (test_p s_expr "(foo \"bar\" \"ba \\\"zz\\\"\")")
   (Ok (Lst [ Sym "foo" ; Lst [ Str "bar" ; Str "ba \"zz\"" ] ], (25,[]))) \
     (test_p s_expr "(foo (\"bar\" \"ba \\\"zz\\\"\"))")
+  (Ok (Lst [ Sym "null" ; Str "u8" ], (11,[]))) \
+    (test_p s_expr "(null \"u8\")")
 *)
 
 (*$= mn & ~printer:(test_printer print_mn)
   (Ok ((required TU8), (2,[]))) \
      (test_p mn "u8")
+  (Ok ((optional ~default:(E.Ops.null TU8) TU8), (23,[]))) \
+     (test_p mn "u8? default (null \"u8\")")
   (Ok ((required ~default:(E.Ops.u8_of_int 42) TU8), (18,[]))) \
      (test_p mn "u8 default (u8 42)")
   (Ok ((optional TU8), (3,[]))) \
