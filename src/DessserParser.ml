@@ -465,7 +465,7 @@ and sum_typ m =
       (
         several_greedy ~sep:none (cond "symb" (fun c ->
           c <> ' ' && c <> '\t' && c <> '\r' && c <> 'n' &&
-          c <> '"' && c <> '(' && c <> ')') 'x') >>: String.of_list
+          c <> '"' && c <> '(' && c <> ')' && c <> ';') 'x') >>: String.of_list
       ) m in
     let word m =
       let m = "s-expr-word" :: m in
