@@ -2,6 +2,7 @@
 #define LST_H_200208
 #include <cassert>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include "dessser/typedefs.h"
 #include "dessser/Arr.h"
@@ -16,7 +17,7 @@ struct Lst {
   struct Cell {
     T val;
     Lst<T> next;
-    Cell(T v, Lst<T> n) : val(v), next(n) {}
+    Cell(T v, Lst<T> n = Lst<T>()) : val(v), next(n) {}
   };
 
   std::shared_ptr<Cell> cells;
@@ -34,10 +35,17 @@ struct Lst {
 
   // Mapped from another Lst:
   template<class TInit, class T2>
-  Lst(TInit const init, std::function<T(TInit, T2)> f, Lst<T2> const that)
+  Lst(TInit init, std::function<T(TInit, T2)> f, Lst<T2> that)
   {
-    // TODO
-    assert(false);
+    // last will always point to the final null_ptr cells:
+    std::shared_ptr<Cell> *last { &cells };
+
+    for (T2 const &x2 : that) {
+      T x { f(init, x2) };
+      // Append at last:
+      *last = std::make_shared<Cell>(x);
+      last = &(*last)->next.cells;
+    }
   }
 
   bool empty() const { return !cells; }
@@ -93,6 +101,52 @@ struct Lst {
     }
     return s;
   }
+
+  // Range based loops:
+
+  struct Iterator {
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::size_t;
+    using value_type = T;
+    using pointer = T*;
+    using reference = T&;
+
+    std::shared_ptr<Cell> cells;
+
+    Iterator(std::shared_ptr<Cell> cells_) : cells(cells_) {}
+
+    reference operator*() const {
+      return cells->val;
+    }
+
+    pointer operator->() {
+      return &cells->val;
+    }
+
+    Iterator &operator++() {
+      cells = cells->next.cells;
+      return *this;
+    }
+
+    Iterator operator++(int) {
+      Iterator tmp { cells };
+      ++(*this);
+      return tmp;
+    }
+
+    inline bool operator==(Iterator const &o)
+    {
+      return cells.get() == o.cells.get();
+    }
+
+    inline bool operator!=(Iterator const &o)
+    {
+      return !operator==(o);
+    }
+  };
+
+  Iterator begin() { return Iterator(cells); }
+  Iterator end() { return Iterator(std::shared_ptr<Cell>()); }
 };
 
 template<class T>
@@ -104,6 +158,23 @@ static inline std::ostream &operator<<(std::ostream &os, Lst<T> const &l)
     os << '{' << l.head() << ',' << l.tail() << '}';
   }
   return os;
+}
+
+template<class T>
+inline bool operator==(Lst<T> const &lhs, Lst<T> const &rhs)
+{
+  //if (lhs.length() != rhs.length()) return false;  Once length is made O(1)
+  if (lhs.cells.get() == rhs.cells.get()) return true;
+  if (!lhs.cells || !rhs.cells) return false;
+  return
+    lhs.cells->val == rhs.cells->val &&
+    lhs.cells->next == rhs.cells->next;
+}
+
+template<class T>
+inline bool operator!=(Lst<T> const &lhs, Lst<T> const &rhs)
+{
+  return !(lhs == rhs);
 }
 
 };

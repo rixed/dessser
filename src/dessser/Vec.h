@@ -23,9 +23,12 @@ struct Vec : public std::vector<T> {
 
   // Mapped from another Vec:
   template<class TInit, class T2>
-  Vec(TInit const init, std::function<T(TInit, T2)> f, Vec<DIM, T2> const that)
+  Vec(TInit init, std::function<T(TInit, T2)> f, Vec<DIM, T2> that)
   {
-    // TODO
+    this->reserve(DIM);
+    for (T2 const &x2 : that) {
+      this->push_back(f(init, x2));
+    }
   }
 };
 

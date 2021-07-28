@@ -61,7 +61,7 @@ int main(int numArgs, char **args)
   while (src.rem() > 0) {
     Pointer dst { %d };
 
-    std::tuple<Pointer, Pointer> ptrs = %s(src, dst);
+    std::tuple<Pointer, Pointer> ptrs = dessser_gen::%s(src, dst);
 
     // Print serialized:
     dst = std::get<1>(ptrs);

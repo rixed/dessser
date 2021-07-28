@@ -49,13 +49,16 @@ struct Arr : public std::vector<T> {
 
   // Mapped from another Arr:
   template<class TInit, class T2>
-  Arr(TInit const init, std::function<T(TInit, T2)> f, Arr<T2> const that)
+  Arr(TInit init, std::function<T(TInit, T2)> f, Arr<T2> that)
   {
-    // TODO
+    this->reserve(that.size());
+    for (T2 const &x2 : that) {
+      this->push_back(f(init, x2));
+    }
   }
 
   /* Overwrite size to return an uint32_t as specified in E.type_of */
-  uint32_t size()
+  uint32_t size() const
   {
     return std::vector<T>::size();
   }
