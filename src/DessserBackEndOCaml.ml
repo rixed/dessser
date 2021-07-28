@@ -11,7 +11,7 @@ module P = DessserPrinter
 
 let debug = false
 
-let valid_identifier ?(force_capitalize=true) s =
+let valid_identifier =
   let keywords =
     [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ;
       "do" ; "done" ; "downto" ; "else" ; "end" ; "exception" ; "external" ;
@@ -20,12 +20,14 @@ let valid_identifier ?(force_capitalize=true) s =
       "lor" ; "lsl" ; "lsr" ; "lxor" ; "match" ; "method" ; "mod" ; "module" ;
       "mutable" ; "new" ; "nonrec" ; "object" ; "of" ; "open" ; "or" ;
       "private" ; "rec" ; "sig" ; "struct" ; "then" ; "to" ; "true" ; "try" ;
-      "type" ; "val" ; "virtual" ; "when" ; "while" ; "with" ] in
-  if s = "" then "v" else
-  if s.[0] = '!' then s else
-  if List.mem s keywords then s ^ "_" else
-  let s = DessserBackEndCLike.valid_identifier s in
-  if force_capitalize then String.uncapitalize_ascii s else s
+      "type" ; "val" ; "virtual" ; "when" ; "while" ; "with" ] |>
+    Set.String.of_list in
+  fun ?(force_capitalize=true) s ->
+    if s = "" then "v" else
+    if s.[0] = '!' then s else
+    if Set.String.mem s keywords then s ^ "_" else
+    let s = DessserBackEndCLike.valid_identifier s in
+    if force_capitalize then String.uncapitalize_ascii s else s
 
 let valid_upper_identifier s =
   valid_identifier ~force_capitalize:false s |> String.capitalize
