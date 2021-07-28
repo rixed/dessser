@@ -441,7 +441,7 @@ let rec is_in item item_t lst lst_t =
                       eq item' lst)))))
 
 let rec cases ~else_ = function
-  | [] -> invalid_arg "cases"
+  | [] -> else_
   | [ c, t ] -> if_ c ~then_:t ~else_
   | (c, t) :: rest -> if_ c ~then_:t ~else_:(cases ~else_ rest)
 
