@@ -1,0 +1,9 @@
+{
+  int: i8 default 42;
+  float: float default 3.14;
+  string: string default "foo";
+  list: i24[[]] default [[]]; // only for empty lists for now
+  vector: i8[3] default (make-vec 1 2 3);
+  array: bool[] default []; // only for empty arrays for now
+  bool: bool default true;
+}

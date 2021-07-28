@@ -5,6 +5,7 @@ open Stdint
 open DessserTypes
 open DessserMiscTypes
 
+module FloatTools = DessserFloatTools
 module PConfig = ParsersPositions.LineCol (Parsers.SimpleConfig (Char))
 module P = Parsers.Make (PConfig)
 
@@ -467,19 +468,14 @@ and sum_typ m =
           c <> ' ' && c <> '\t' && c <> '\r' && c <> 'n' &&
           c <> '"' && c <> '(' && c <> ')' && c <> ';') 'x') >>: String.of_list
       ) m in
-    let word m =
-      let m = "s-expr-word" :: m in
-      (
-        (quoted_string >>: fun s -> Str s) |<|
-        (symbol >>: fun s -> Sym s)
-      ) m in
     (* [n] is how many parentheses are yet to be closed: *)
     let rec at_depth n m =
       let m = ("s-expr-"^ string_of_int n) :: m in
       (
         opt_blanks -+
         several ~sep:!blanks (
-          word |<|
+          (quoted_string >>: fun s -> Str s) |<|
+          (symbol >>: fun s -> Sym s) |<|
           (char '(' -+ at_depth (n + 1) +- char ')' >>: fun l -> Lst l))
       ) m in
     (
@@ -525,6 +521,12 @@ and sum_typ m =
 *)
 
 (*$= s_expr & ~printer:(test_printer print_sexpr)
+  (Ok (Sym "[]", (2,[]))) \
+    (test_p s_expr "[]")
+  (Ok (Sym "3.14", (4,[]))) \
+    (test_p s_expr "3.14")
+  (Ok (Str "", (2,[]))) \
+    (test_p s_expr "\"\"")
   (Ok (Sym "1", (1,[]))) \
     (test_p s_expr "1")
   (Ok (Lst [ Sym "foo" ; Sym "1" ; Sym "2" ], (9,[]))) \
@@ -688,7 +690,12 @@ and mn_of_str s d =
   try mn_of_string d
   with _ -> raise (Must_be_quoted_type s)
 
-and e = function
+and e =
+  let is_int32 n =
+    try ignore (Int32.of_string n) ; true with _ -> false
+  and is_float f =
+    try ignore (FloatTools.float_of_anystring f) ; true with _ -> false in
+  function
   (* e0 *)
   | Lst [ Sym "param" ; Sym n ] as s ->
       E0 (Param (int_of_symbol s n))
@@ -698,6 +705,9 @@ and e = function
       E0 (Null (typ_of_string t))
   | Lst [ Sym ("end-of-list" | "eol") ; Str mn ] as s ->
       E0 (EndOfList (mn_of_str s mn))
+  | Sym "[[]]" ->
+      (* Taking advantage of universal convertibility of strings: *)
+      E0 (EndOfList DessserTypes.string)
   | Lst [ Sym "empty-set" ; Str mn ] as s ->
       E0 (EmptySet (mn_of_str s mn))
   | Lst [ Sym "now" ] -> E0 Now
@@ -707,10 +717,13 @@ and e = function
   | Lst [ Sym "random-u64" ] -> E0 RandomU64
   | Lst [ Sym "random-u128" ] -> E0 RandomU128
   | Lst [ Sym "float" ; Sym f ] ->
-      E0 (Float (DessserFloatTools.float_of_anystring f))
+      E0 (Float (FloatTools.float_of_anystring f))
   | Lst [ Sym "string" ; Str s ] -> E0 (String s)
+  | Str s -> E0 (String s)
   | Lst [ Sym "bool" ; Sym b ] -> E0 (Bool (Bool.of_string b))
-  | Lst [ Sym "char" ; Str c ] -> assert (String.length c = 1) ; E0 (Char c.[0])
+  | Sym "false" -> E0 (Bool false)
+  | Sym "true" -> E0 (Bool true)
+  | Lst [ Sym "char" ; Str c ] when String.length c = 1 -> E0 (Char c.[0])
   | Lst [ Sym "u8" ; Sym n ] -> E0 (U8 (Uint8.of_string n))
   | Lst [ Sym "u16" ; Sym n ] -> E0 (U16 (Uint16.of_string n))
   | Lst [ Sym "u24" ; Sym n ] -> E0 (U24 (Uint24.of_string n))
@@ -724,6 +737,8 @@ and e = function
   | Lst [ Sym "i16" ; Sym n ] -> E0 (I16 (Int16.of_string n))
   | Lst [ Sym "i24" ; Sym n ] -> E0 (I24 (Int24.of_string n))
   | Lst [ Sym "i32" ; Sym n ] -> E0 (I32 (Int32.of_string n))
+  | Sym n when is_int32 n -> E0 (I32 (Int32.of_string n))
+  | Sym f when is_float f -> E0 (Float (FloatTools.float_of_anystring f))
   | Lst [ Sym "i40" ; Sym n ] -> E0 (I40 (Int40.of_string n))
   | Lst [ Sym "i48" ; Sym n ] -> E0 (I48 (Int48.of_string n))
   | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int56.of_string n))
@@ -751,6 +766,12 @@ and e = function
   | Lst (Sym "make-arr" :: Str mn :: xs) as s ->
       E0R (MakeArr (mn_of_str s mn),
            List.enum xs /@ e |> Array.of_enum)
+  | Sym "[]" ->
+      (* Taking advantage of universal convertibility of strings: *)
+      E0R (MakeArr DessserTypes.string, [||])
+  | Sym "null" ->
+      (* Also taking advantage of universal convertibility of NULLs: *)
+      E0 (Null TString)
   | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
   | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
   | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
