@@ -389,7 +389,8 @@ struct
       ppi p.P.def "std::optional<%s> %s;" tn res ;
       ppi p.P.def "std::size_t %s;" pos ;
       ppi p.P.def "try {" ;
-      ppi p.P.def "  %s const v_ { std::%s(%s, &%s) };" tn cpp_op n1 pos ;
+      ppi p.P.def "  %s const v_ { (%s)std::%s(%s, &%s) };"
+        tn tn cpp_op n1 pos ;
       ppi p.P.def "  if (%s == %s.length()) %s = v_;" pos n1 res ;
       ppi p.P.def "} catch (const std::exception&) {}" ;
       res
