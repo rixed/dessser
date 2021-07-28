@@ -640,7 +640,7 @@ struct
               ~then_:(
                 make_pair
                   (Des.is_present dstate mn0 path (first src_dst))
-                  new_def)
+                  (convert mn new_def))
               (* We are currently using the default [def]:*)
               ~else_:(make_pair true_ def))
             (fun is_present def ->
