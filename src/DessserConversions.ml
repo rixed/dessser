@@ -68,6 +68,7 @@ let rec conv ?(depth=0) ~from ~to_ e =
   | TString, TU56 -> u56_of_string e, true
   | TString, TU64 -> u64_of_string e, true
   | TString, TU128 -> u128_of_string e, true
+  | TString, TBool -> gt (string_length e) (u32_of_int 0), false
   | TFloat, TString -> string_of_float_ e, false
   | TChar, TU8 -> u8_of_char e, false
   | TU8, TChar -> char_of_u8 e, false
@@ -196,6 +197,8 @@ let rec conv ?(depth=0) ~from ~to_ e =
   | TVec (d1, mn1), TVec (d2, mn2) when d1 = d2 ->
       map_items e mn1 mn2, false
   | TArr mn1, TArr mn2 ->
+      map_items e mn1 mn2, false
+  | TLst mn1, TLst mn2 ->
       map_items e mn1 mn2, false
   (* TODO: Also when d2 < d1, and d2 > d1 extending with null as long as mn2 is
    * nullable *)

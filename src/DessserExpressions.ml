@@ -243,8 +243,14 @@ let rec default ?(allow_null=true) t =
       T.E3 (Top mn, size, max_size, sigmas)
   | TMap _ ->
       assert false (* no value of map type *)
-  | TBytes | TMask | TLst _ | TSize ->
-      todo "default"
+  | TBytes ->
+      E0 (Bytes (Bytes.create 0))
+  | TMask ->
+      E0 SkipField
+  | TLst mn ->
+      E0 (EndOfList mn)
+  | TSize ->
+      E0 (Size 0)
   | TFunction _ ->
       todo "default functions"
 
