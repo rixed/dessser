@@ -209,7 +209,7 @@ struct
       else identifier (local_des_for n) in
     apply f [ src ]
 
-  and make1 dstate mn0 path mn src =
+  and make_mn dstate mn0 path mn src =
     let rec des_of_vt = function
       | T.TNamed (n, _) ->
           (* assume this had been defined already with [make_des_for_subtypes]: *)
@@ -257,7 +257,7 @@ struct
       | TMap _ -> assert false (* No value of map type *)
       | _ -> invalid_arg "make1"
     in
-    let vt = mn.typ in
+    let vt = mn.T.typ in
     if mn.nullable then (
       if_ (Des.is_null dstate mn0 path src)
         ~then_:(make_pair (null vt) (Des.dnull vt dstate mn0 path src))
@@ -271,6 +271,15 @@ struct
       let des = des_of_vt vt in
       des dstate mn0 path src
     )
+
+  and make1 dstate mn0 path mn src =
+    match mn.default with
+    | Some def ->
+        if_ (Des.is_present dstate mn0 path src)
+          ~then_:(make_mn dstate mn0 path mn src)
+          ~else_:(make_pair (convert mn def) src)
+    | None ->
+        make_mn dstate mn0 path mn src
 
   let rec make ?config mn0 compunit =
     (* Start by defining all required deserializers for subtypes: *)
