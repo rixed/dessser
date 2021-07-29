@@ -502,17 +502,321 @@ let get_user_type n =
  * Printers
  *)
 
+let rec string_of_e0 = function
+  | Param n -> "param "^ string_of_int n
+  | Myself mn -> "myself "^ String.quote (mn_to_string mn)
+  | Null t -> "null "^ String.quote (to_string t)
+  | EndOfList mn -> "end-of-list "^ String.quote (mn_to_string mn)
+  | EmptySet mn -> "empty-set "^ String.quote (mn_to_string mn)
+  | Now -> "now"
+  | RandomFloat -> "random-float"
+  | RandomU8 -> "random-u8"
+  | RandomU32 -> "random-u32"
+  | RandomU64 -> "random-u64"
+  | RandomU128 -> "random-u128"
+
+  | Float f -> "float "^ DessserFloatTools.hexstring_of_float f
+  | String s -> "string "^ String.quote s
+  | Bool b -> "bool "^ Bool.to_string b
+  | Char c -> "char "^ String.quote (String.of_char c)
+  | U8 n -> "u8 "^ Uint8.to_string n
+  | U16 n -> "u16 "^ Uint16.to_string n
+  | U24 n -> "u24 "^ Uint24.to_string n
+  | U32 n -> "u32 "^ Uint32.to_string n
+  | U40 n -> "u40 "^ Uint40.to_string n
+  | U48 n -> "u48 "^ Uint48.to_string n
+  | U56 n -> "u56 "^ Uint56.to_string n
+  | U64 n -> "u64 "^ Uint64.to_string n
+  | U128 n -> "u128 "^ Uint128.to_string n
+  | I8 n -> "i8 "^ Int8.to_string n
+  | I16 n -> "i16 "^ Int16.to_string n
+  | I24 n -> "i24 "^ Int24.to_string n
+  | I32 n -> "i32 "^ Int32.to_string n
+  | I40 n -> "i40 "^ Int40.to_string n
+  | I48 n -> "i48 "^ Int48.to_string n
+  | I56 n -> "i56 "^ Int56.to_string n
+  | I64 n -> "i64 "^ Int64.to_string n
+  | I128 n -> "i128 "^ Int128.to_string n
+  | Size n -> "size "^ string_of_int n
+  | Address n -> "address "^ Uint64.to_string n
+  | Bytes s -> "bytes "^ String.quote (Bytes.to_string s)
+  | Identifier s -> "identifier "^ String.quote s
+  | ExtIdentifier (Verbatim s) -> "ext-identifier "^ String.quote s
+  | ExtIdentifier (Method { typ ; meth }) ->
+      "ext-identifier "^ typ ^" "^ string_of_type_method meth
+  | CopyField -> "copy-field"
+  | SkipField -> "skip-field"
+  | SetFieldNull -> "set-field-null"
+
+and string_of_e0s = function
+  | Seq -> "seq"
+  | MakeTup -> "make-tup"
+  | MakeRec -> "make-rec"
+  | MakeUsr n -> "make-usr "^ String.quote n
+  (* Of course the actual definition cannot be expressed in DIL: *)
+  | Verbatim (temps, mn) ->
+      Printf.sprintf2 "verbatim %a %S"
+        (List.print ~first:"(" ~sep:" " ~last:")" (fun oc (id, temp) ->
+          Printf.fprintf oc "(%s %S)" (string_of_backend id) temp)) temps
+        (mn_to_string mn)
+
+and string_of_e0r = function
+  | MakeVec -> "make-vec"
+  | MakeArr mn -> "make-arr "^ String.quote (mn_to_string mn)
+
+and string_of_e1s = function
+  | Apply -> "apply"
+
+and string_of_e1 = function
+  | Function typs ->
+      "fun "^
+      (if typs = [||] then "" else
+       Printf.sprintf2 "%a" (Array.print ~first:"(" ~sep:" " ~last:")" (fun oc t ->
+         Printf.fprintf oc "%S" (mn_to_string t))) typs)
+  | Comment s -> "comment "^ String.quote s
+  | GetItem n -> "get-item "^ string_of_int n
+  | GetField s -> "get-field "^ String.quote s
+  | GetAlt s -> "get-alt "^ String.quote s
+  | Construct (mns, i) ->
+      "construct "^ String.quote (to_string (TSum mns))
+                  ^" "^ string_of_int i
+  | Dump -> "dump"
+  | Identity -> "identity"
+  | Ignore -> "ignore"
+  | IsNull -> "is-null"
+  | NotNull -> "not-null"
+  | Force "" -> "force"
+  | Force what -> "force "^ String.quote what
+  | StringOfFloat -> "string-of-float"
+  | DecimalStringOfFloat -> "decimal-string-of-float"
+  | StringOfChar -> "string-of-char"
+  | StringOfInt -> "string-of-int"
+  | StringOfIp -> "string-of-ip"
+  | FloatOfString -> "float-of-string"
+  | U8OfString -> "u8-of-string"
+  | U16OfString -> "u16-of-string"
+  | U24OfString -> "u24-of-string"
+  | U32OfString -> "u32-of-string"
+  | U40OfString -> "u40-of-string"
+  | U48OfString -> "u48-of-string"
+  | U56OfString -> "u56-of-string"
+  | U64OfString -> "u64-of-string"
+  | U128OfString -> "u128-of-string"
+  | I8OfString -> "i8-of-string"
+  | I16OfString -> "i16-of-string"
+  | I24OfString -> "i24-of-string"
+  | I32OfString -> "i32-of-string"
+  | I40OfString -> "i40-of-string"
+  | I48OfString -> "i48-of-string"
+  | I56OfString -> "i56-of-string"
+  | I64OfString -> "i64-of-string"
+  | I128OfString -> "i128-of-string"
+  | FloatOfPtr -> "float-of-ptr"
+  | CharOfPtr -> "char-of-ptr"
+  | U8OfPtr -> "u8-of-ptr"
+  | U16OfPtr -> "u16-of-ptr"
+  | U24OfPtr -> "u24-of-ptr"
+  | U32OfPtr -> "u32-of-ptr"
+  | U40OfPtr -> "u40-of-ptr"
+  | U48OfPtr -> "u48-of-ptr"
+  | U56OfPtr -> "u56-of-ptr"
+  | U64OfPtr -> "u64-of-ptr"
+  | U128OfPtr -> "u128-of-ptr"
+  | I8OfPtr -> "i8-of-ptr"
+  | I16OfPtr -> "i16-of-ptr"
+  | I24OfPtr -> "i24-of-ptr"
+  | I32OfPtr -> "i32-of-ptr"
+  | I40OfPtr -> "i40-of-ptr"
+  | I48OfPtr -> "i48-of-ptr"
+  | I56OfPtr -> "i56-of-ptr"
+  | I64OfPtr -> "i64-of-ptr"
+  | I128OfPtr -> "i128-of-ptr"
+  | ToU8 -> "to-u8"
+  | ToU16 -> "to-u16"
+  | ToU24 -> "to-u24"
+  | ToU32 -> "to-u32"
+  | ToU40 -> "to-u40"
+  | ToU48 -> "to-u48"
+  | ToU56 -> "to-u56"
+  | ToU64 -> "to-u64"
+  | ToU128 -> "to-u128"
+  | ToI8 -> "to-i8"
+  | ToI16 -> "to-i16"
+  | ToI24 -> "to-i24"
+  | ToI32 -> "to-i32"
+  | ToI40 -> "to-i40"
+  | ToI48 -> "to-i48"
+  | ToI56 -> "to-i56"
+  | ToI64 -> "to-i64"
+  | ToI128 -> "to-i128"
+  | ToFloat -> "to-float"
+  | BitNot -> "bit-not"
+  | FloatOfU64 -> "float-of-u64"
+  | U64OfFloat -> "u64-of-float"
+  | U8OfChar -> "u8-of-char"
+  | CharOfU8 -> "char-of-u8"
+  | SizeOfU32 -> "size-of-u32"
+  | U32OfSize -> "u32-of-size"
+  | AddressOfU64 -> "address-of-u64"
+  | U64OfAddress -> "u64-of-address"
+  | ArrOfLst -> "arr-of-lst"
+  | ArrOfLstRev -> "arr-of-lst-rev"
+  | SetOfLst -> "set-of-lst"
+  | ArrOfVec -> "arr-of-vec"
+  | ArrOfSet -> "arr-of-set"
+  | U8OfBool -> "u8-of-bool"
+  | BoolOfU8 -> "bool-of-u8"
+  | StringLength -> "string-length"
+  | BytesLength -> "bytes-length"
+  | StringOfBytes -> "string-of-bytes"
+  | BytesOfString -> "bytes-of-string"
+  | Cardinality -> "cardinality"
+  | ReadU8 -> "read-u8"
+  | RemSize -> "rem-size"
+  | Offset -> "offset"
+  | Not -> "not"
+  | Abs -> "abs"
+  | Neg -> "neg"
+  | Exp -> "exp"
+  | Log -> "log"
+  | UnsafeLog -> "unsafe-log"
+  | Log10 -> "log10"
+  | UnsafeLog10 -> "unsafe-log10"
+  | Sqrt -> "sqrt"
+  | UnsafeSqrt -> "unsafe-sqrt"
+  | Ceil -> "ceil"
+  | Floor -> "floor"
+  | Round -> "round"
+  | Cos -> "cos"
+  | Sin -> "sin"
+  | Tan -> "tan"
+  | ACos -> "acos"
+  | ASin -> "asin"
+  | ATan -> "atan"
+  | CosH -> "cosh"
+  | SinH -> "sinh"
+  | TanH -> "tanh"
+  | Lower -> "lower"
+  | Upper -> "upper"
+  | Hash -> "hash"
+  | Head -> "head"
+  | Tail -> "tail"
+  | ReadU16 en -> "read-u16 "^ string_of_endianness en
+  | ReadU32 en -> "read-u32 "^ string_of_endianness en
+  | ReadU64 en -> "read-u64 "^ string_of_endianness en
+  | ReadU128 en -> "read-u128 "^ string_of_endianness en
+  | Assert -> "assert"
+  | MaskGet d -> "mask-get "^ string_of_int d
+  | LabelOf -> "label-of"
+  | SlidingWindow mn ->
+      "sliding-window "^ String.quote (mn_to_string mn)
+  | TumblingWindow mn ->
+      "tumbling-window "^ String.quote (mn_to_string mn)
+  | Sampling mn ->
+      "sampling "^ String.quote (mn_to_string mn)
+  | HashTable mn ->
+      "hash-table "^ String.quote (mn_to_string mn)
+  | Heap ->
+      "heap"
+  | PtrOfString -> "ptr-of-string"
+  | PtrOfBuffer -> "ptr-of-buffer"
+  | GetEnv -> "getenv"
+  | GetMin -> "get-min"
+  | AllocVec d -> "alloc-vec "^ string_of_int d
+  | Convert mn -> "convert "^ String.quote (mn_to_string mn)
+
+and string_of_e2 = function
+  | Let (n, _) ->
+      "let "^ String.quote n
+  | LetPair (n1, _, n2, _) ->
+      "let-pair "^ String.quote n1 ^" "^ String.quote n2
+  | Nth -> "nth"
+  | UnsafeNth -> "unsafe-nth"
+  | Gt -> "gt"
+  | Ge -> "ge"
+  | Eq -> "eq"
+  | Add -> "add"
+  | Sub -> "sub"
+  | Mul -> "mul"
+  | Div -> "div"
+  | UnsafeDiv -> "unsafe-div"
+  | Rem -> "rem"
+  | UnsafeRem -> "unsafe-rem"
+  | Pow -> "pow"
+  | UnsafePow -> "unsafe-pow"
+  | BitAnd -> "bit-and"
+  | BitOr -> "bit-or"
+  | BitXor -> "bit-xor"
+  | LeftShift -> "left-shift"
+  | RightShift -> "right-shift"
+  | AppendByte -> "append-byte"
+  | AppendBytes -> "append-bytes"
+  | AppendString -> "append-string"
+  | StartsWith -> "starts-with"
+  | EndsWith -> "ends-with"
+  | GetBit -> "get-bit"
+  | ReadBytes -> "read-bytes"
+  | PeekU8 -> "peek-u8"
+  | WriteU8 -> "write-u8"
+  | WriteBytes -> "write-bytes"
+  | PokeU8 -> "poke-u8"
+  | PtrAdd -> "ptr-add"
+  | PtrSub -> "ptr-sub"
+  | Rewind -> "rewind"
+  | And -> "and"
+  | Or -> "or"
+  | Cons -> "cons"
+  | Min -> "min"
+  | Max -> "max"
+  | Member -> "mem"
+  | PeekU16 en -> "peek-u16 "^ string_of_endianness en
+  | PeekU32 en -> "peek-u32 "^ string_of_endianness en
+  | PeekU64 en -> "peek-u64 "^ string_of_endianness en
+  | PeekU128 en -> "peek-u128 "^ string_of_endianness en
+  | WriteU16 en -> "write-u16 "^ string_of_endianness en
+  | WriteU32 en -> "write-u32 "^ string_of_endianness en
+  | WriteU64 en -> "write-u64 "^ string_of_endianness en
+  | WriteU128 en -> "write-u128 "^ string_of_endianness en
+  | Insert -> "insert"
+  | DelMin -> "del-min"
+  | SplitBy -> "split-on"
+  | SplitAt -> "split-at"
+  | Join -> "join"
+  | AllocArr -> "alloc-arr"
+  | PartialSort -> "partial-sort"
+  | ChopBegin -> "chop-begin"
+  | ChopEnd -> "chop-end"
+  | ScaleWeights -> "scale-weights"
+  | Strftime -> "strftime"
+  | PtrOfAddress -> "ptr-of-address"
+  | While -> "while"
+  | ForEach (n, _) -> "for-each "^ String.quote n
+  | NullMap (n, _) -> "null-map "^ String.quote n
+  | Index -> "index"
+
+and string_of_e3 = function
+  | SetBit -> "set-bit"
+  | SetVec -> "set-vec"
+  | BlitByte -> "blit-byte"
+  | If -> "if"
+  | Map -> "map"
+  | PtrOfPtr -> "ptr-of-ptr"
+  | FindSubstring -> "find-substring"
+  | Top mn -> "top "^ String.quote (mn_to_string mn)
+  | InsertWeighted -> "insert-weighted"
+  | SubString -> "substring"
+
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
-let sorted_rec fields =
+and sorted_rec fields =
   let cmp_nv (n1, _) (n2, _) =
     String.compare n1 n2 in
   let fields = Array.copy fields in
   Array.sort cmp_nv fields ;
   fields
 
-let rec print ?(sorted=false) oc =
-  let print_mn = print_mn ~sorted in
+and print ?(sorted=false) ?with_defaults oc =
+  let print_mn = print_mn ~sorted ?with_defaults in
   let sp = String.print oc in
   function
   | TUnknown ->
@@ -627,18 +931,61 @@ let rec print ?(sorted=false) oc =
         (Array.print ~first:"" ~last:"" ~sep:" -> " print_mn) mns
         print_mn mn2
 
-and print_mn ?sorted oc mn =
+and print_mn ?sorted ?(with_defaults=false) oc mn =
   pp oc "%a%s"
-    (print ?sorted) mn.typ
-    (if mn.nullable then "?" else "")
+    (print ?sorted ~with_defaults) mn.typ
+    (if mn.nullable then "?" else "") ;
+  if with_defaults then
+    match mn.default with
+    | None -> ()
+    | Some def ->
+        Printf.fprintf oc " default %a"
+          (print_expr ?max_depth:None) def
+
+and print_expr ?max_depth oc e =
+  if Option.map_default (fun m -> m <= 0) false max_depth then
+    pp oc "…"
+  else
+    let max_depth = Option.map pred max_depth in
+    let p = print_expr ?max_depth in
+    match e with
+    | E0 op ->
+        pp oc "(%s)" (string_of_e0 op)
+    | E0S (Seq, []) ->
+        pp oc "nop"
+    | E0S (op, es) ->
+        pp oc "(%s%s%a)"
+          (string_of_e0s op)
+          (if es = [] then "" else " ")
+          (List.print ~first:"" ~last:"" ~sep:" " p) es
+    | E0R (op, es) ->
+        pp oc "(%s%s%a)"
+          (string_of_e0r op)
+          (if es = [||] then "" else " ")
+          (Array.print ~first:"" ~last:"" ~sep:" " p) es
+    | E1 (op, e1) ->
+        pp oc "(%s %a)" (string_of_e1 op) p e1
+    | E1S (op, e1, es) ->
+        pp oc "(%s %a%s%a)"
+          (string_of_e1s op)
+          p e1
+          (if es = [] then "" else " ")
+          (List.print ~first:"" ~last:"" ~sep:" " p) es
+    | E2 (op, e1, e2) ->
+        pp oc "(%s %a %a)" (string_of_e2 op) p e1 p e2
+    | E3 (op, e1, e2, e3) ->
+        pp oc "(%s %a %a %a)" (string_of_e3 op) p e1 p e2 p e3
+
+and mn_to_string mn =
+  Printf.sprintf2 "%a" (print_mn ~sorted:false ~with_defaults:false) mn
+
+and to_string t =
+  Printf.sprintf2 "%a" (print ~sorted:false ~with_defaults:false) t
 
 let print_sorted oc = print ~sorted:true oc
-let print oc = print ~sorted:false oc
-let print_mn_sorted oc = print_mn ~sorted:true oc
-let print_mn oc = print_mn ~sorted:false oc
-
-let mn_to_string = IO.to_string print_mn
-let to_string = IO.to_string print
+let print oc = print ~sorted:false ~with_defaults:true oc
+let print_mn_sorted oc = print_mn ~sorted:true ~with_defaults:false oc
+let print_mn oc = print_mn ~sorted:false ~with_defaults:true oc
 
 (*
  * Iterators
