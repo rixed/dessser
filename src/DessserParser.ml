@@ -710,8 +710,8 @@ and e =
   | Lst [ Sym ("end-of-list" | "eol") ; Str mn ] as s ->
       E0 (EndOfList (mn_of_str s mn))
   | Sym "[[]]" ->
-      (* Taking advantage of universal convertibility of strings: *)
-      E0 (EndOfList DessserTypes.string)
+      (* Taking advantage of universal convertibility of empty lists: *)
+      E0 (EndOfList void)
   | Lst [ Sym "empty-set" ; Str mn ] as s ->
       E0 (EmptySet (mn_of_str s mn))
   | Lst [ Sym "now" ] -> E0 Now
@@ -771,11 +771,14 @@ and e =
       E0R (MakeArr (mn_of_str s mn),
            List.enum xs /@ e |> Array.of_enum)
   | Sym "[]" ->
-      (* Taking advantage of universal convertibility of strings: *)
-      E0R (MakeArr DessserTypes.string, [||])
+      (* Taking advantage of universal convertibility of empty arrays: *)
+      E0R (MakeArr void, [||])
+  | Sym "{}" ->
+      (* Taking advantage of universal convertibility of empty sets: *)
+      E0 (EmptySet void)
   | Sym "null" ->
       (* Also taking advantage of universal convertibility of NULLs: *)
-      E0 (Null TString)
+      E0 (Null TVoid)
   | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
   | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
   | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
