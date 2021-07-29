@@ -470,7 +470,8 @@ struct
        * where the value is. Instead, it is one of the already located
        * object value, to be found in the top frame: *)
       let p_opt = locate_p mn0 path p stk in
-      let p = force ~what:"locate_p" p_opt in
+      let what = "locate_p("^ Path.field_name mn0 path ^")" in
+      let p = force ~what p_opt in
       let p = skip_blanks p in
       let_ ~name:"p" p (fun p -> f p stk))
 
