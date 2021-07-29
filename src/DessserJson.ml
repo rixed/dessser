@@ -480,6 +480,10 @@ struct
       let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
         make_pair (parse_string b) (make_pair p stk)))
 
+  let dbytes () mn0 path p_stk =
+    let_pair ~n1:"v" ~n2:"p" (dstring () mn0 path p_stk) (fun v p ->
+      make_pair (bytes_of_string v) p)
+
   let dbool : des =
     with_p_stk (fun p stk ->
       let_ ~name:"c" (peek_u8 p (size 0)) (fun c ->
@@ -779,6 +783,9 @@ struct
     let p = write_field mn0 path p in
     write_str p v
 
+  let sbytes () mn0 path v p =
+    sstring () mn0 path (string_of_bytes v) p
+
   let sbool =
     write_bytes_of
       (fun v ->
@@ -887,18 +894,21 @@ struct
   let const_string_size s =
     size (String.length (json_string s))
 
-  let ssize_of_str v =
+  let ssize_of_str len =
     (* Assuming only non ascii chars (and no utf8 support): *)
-    size_of_u32 (add (mul (u32_of_int 5) (string_length v)) (u32_of_int 2))
+    size_of_u32 (add (mul (u32_of_int 5) len) (u32_of_int 2))
 
   let ssize_of_string _mn0 _path v =
-    ssize_of_str v
+    ssize_of_str (string_length v)
+
+  let ssize_of_bytes _mn0 _path v =
+    ssize_of_str (u32_of_size (bytes_length v))
 
   let ssize_of_bool _mn0 _path v =
     if_ v ~then_:(size 4) ~else_:(size 5)
 
-  let ssize_of_char _mn0 _path v =
-    ssize_of_str (string_of_char v)
+  let ssize_of_char _mn0 _path _v =
+    ssize_of_str (u32_of_int 1)
 
   let ssize_of_i8 _mn0 _path _v = size 4
 

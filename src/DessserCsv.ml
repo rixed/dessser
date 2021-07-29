@@ -251,13 +251,15 @@ struct
     let p = write_bytes p v in
     write_u8 p quote_byte
 
-  let sbytes _conf v p =
+  let sbytes_not_quoted _conf v p =
     (* FIXME: escape separator/newline: *)
     write_bytes p v
 
-  let sstring conf _ _ v p =
-    (if conf.quote = None then sbytes else sbytes_quoted)
-      conf (bytes_of_string v) p
+  let sbytes conf _ _ v p =
+    (if conf.quote = None then sbytes_not_quoted else sbytes_quoted) conf v p
+
+  let sstring conf mn0 path v p =
+    sbytes conf mn0 path (bytes_of_string v) p
 
   (* Individual chars are represented as single char strings, but for
    * the special case of vectors of chars, in which case we want the
@@ -267,8 +269,7 @@ struct
       comment "char in a FixedString"
         (write_u8 p (u8_of_char v))
     else
-      (if conf.quote = None then sbytes else sbytes_quoted)
-        conf (bytes_of_string (string_of_char v)) p
+      sbytes conf mn0 path (bytes_of_string (string_of_char v)) p
 
   (* TODO: make true/false values optional *)
   let sbool conf _ _ v p =
@@ -395,6 +396,7 @@ struct
   let todo_ssize () = failwith "TODO: ssize for CSV"
   let ssize_of_float _ _ _ = todo_ssize ()
   let ssize_of_string _ _ _ = todo_ssize ()
+  let ssize_of_bytes _ _ _ = todo_ssize ()
   let ssize_of_bool _ _ _ = todo_ssize ()
   let ssize_of_char _ _ _ = todo_ssize ()
   let ssize_of_i8 _ _ _ = todo_ssize ()
@@ -504,7 +506,7 @@ struct
       e
 
   (* Read a string of bytes and process them through [conv]: *)
-  let dbytes_quoted op conf mn0 path p =
+  let dbytes_quoted conf mn0 path p =
     (* Skip the double-quote: *)
     let quote_byte = u8_of_const_char (Option.get conf.quote) in
     let_ ~name:"had_quote"
@@ -539,9 +541,9 @@ struct
                 (set_ref sz_ref (add sz (size 1))) ;
               (* Skip the initial double-quote: *)
               let bytes_p = read_bytes init_p sz in
-              make_pair (op (first bytes_p)) p ])))
+              make_pair (first bytes_p) p ])))
 
-  let dbytes op conf mn0 path p =
+  let dbytes_not_quoted conf mn0 path p =
     let init_p = p in
     let_ ~name:"p_ref" (make_ref init_p) (fun p_ref ->
       let p = get_ref p_ref in
@@ -559,12 +561,15 @@ struct
                     ~else_:nop ;
                   continue ])))
             (set_ref sz_ref (add sz (size 1))) ;
-          let bytes_p = read_bytes init_p sz in
-          make_pair (op (first bytes_p)) (secnd bytes_p) ]))
+          read_bytes init_p sz ]))
+
+  let dbytes conf mn0 path p =
+    (if conf.quote = None then dbytes_not_quoted else dbytes_quoted)
+      conf mn0 path p
 
   let dstring conf mn0 path p =
-    (if conf.quote = None then dbytes else dbytes_quoted)
-      string_of_bytes conf mn0 path p
+    let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
+      make_pair (string_of_bytes v) p)
 
   (* Chars are encoded as single char strings (unless part of a FixedString) *)
   let dchar conf mn0 path p =
@@ -572,10 +577,8 @@ struct
       E.with_sploded_pair "dchar" (read_u8 p) (fun b p ->
         make_pair (char_of_u8 b) p)
     else
-      (if conf.quote = None then dbytes else dbytes_quoted)
-        (fun e ->
-          char_of_u8 (unsafe_nth (u8_of_int 0) e)
-        ) conf mn0 path p
+      let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
+        make_pair (char_of_u8 (unsafe_nth (u8_of_int 0) v)) p)
 
   let di8 _conf _ _ p = i8_of_ptr p
   let du8 _conf _ _ p = u8_of_ptr p

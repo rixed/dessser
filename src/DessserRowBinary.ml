@@ -48,6 +48,10 @@ struct
     let p = write_leb128 p (string_length v) in
     write_bytes p (bytes_of_string v)
 
+  let sbytes () _ _ v p =
+    let p = write_leb128 p (u32_of_size (bytes_length v)) in
+    write_bytes p v
+
   let sbool () _ _ v p =
     write_u8 p (u8_of_bool v)
 
@@ -198,6 +202,10 @@ struct
     let_ ~name:"wlen" (string_length v) (fun wlen ->
       add (ssize_of_leb128 wlen) (size_of_u32 wlen))
 
+  let ssize_of_bytes _ _ v =
+    let_ ~name:"wlen" (bytes_length v) (fun wlen ->
+      add (ssize_of_leb128 (u32_of_size wlen)) wlen)
+
   let ssize_start ?(config=()) _ =
     ignore config ;
     size 0
@@ -251,6 +259,10 @@ struct
     E.with_sploded_pair "dstring1" (read_leb128 p) (fun len p ->
       E.with_sploded_pair "dstring2" (read_bytes p len) (fun bs p ->
         make_pair (string_of_bytes bs) p))
+
+  let dbytes () _ _ p =
+    E.with_sploded_pair "dbytes1" (read_leb128 p) (fun len p ->
+      read_bytes p len)
 
   let dbool () _ _ p =
     E.with_sploded_pair "dbool" (read_u8 p) (fun b p ->

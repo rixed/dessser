@@ -293,19 +293,22 @@ struct
       with_debug p "float"
         (write_u64 LittleEndian p (u64_of_float v)))
 
-  let sstring () mn0 path v p_stk =
+  let sbytes () mn0 path v p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      let len = string_length v in
+      let len = bytes_length v in
       let p =
-        seq [ debug (string "ser a string at ") ;
+        seq [ debug (string "ser bytes at ") ;
               debug (string_of_int_ (offset p)) ;
               debug (string " of length ") ;
               debug (string_of_int_ len) ;
               debug (char '\n') ;
-              write_u32 LittleEndian p len ] in
-      let bytes = bytes_of_string v in
-      let p = write_bytes p bytes in
-      align_dyn p (size_of_u32 len))
+              write_u32 LittleEndian p (u32_of_size len) ] in
+      let p = write_bytes p v in
+      align_dyn p len)
+
+  let sstring () mn0 path v p_stk =
+    let v = bytes_of_string v in
+    sbytes () mn0 path v p_stk
 
   let sbool () mn0 path v p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
@@ -501,6 +504,11 @@ struct
     let headsz = size word_size in
     add headsz (round_up_dyn_bytes sz)
 
+  let ssize_of_bytes _mn0 _path id =
+    let sz = bytes_length id in
+    let headsz = size word_size in
+    add headsz (round_up_dyn_bytes sz)
+
   (* SerSize of the list header: *)
   let ssize_of_arr mn0 path id =
     let with_nullmask () =
@@ -676,15 +684,19 @@ struct
             E.with_sploded_pair "dfloat" (read_u64 LittleEndian p) (fun w p ->
               make_pair (float_of_u64 w) p) ])
 
-  let dstring () mn0 path p_stk =
+  let dbytes () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->
-      seq [ debug (string "deser a string from ") ;
+      seq [ debug (string "deser bytes from ") ;
             debug (string_of_int_ (offset p)) ;
             debug (char '\n') ;
-            E.with_sploded_pair "dstring1" (read_u32 LittleEndian p) (fun len p ->
+            E.with_sploded_pair "dbytes1" (read_u32 LittleEndian p) (fun len p ->
               let len = size_of_u32 len in
-              E.with_sploded_pair "dstring2" (read_bytes p len) (fun bs p ->
-                make_pair (string_of_bytes bs) (align_dyn p len))) ])
+              E.with_sploded_pair "dbytes2" (read_bytes p len) (fun v p ->
+                make_pair v (align_dyn p len))) ])
+
+  let dstring () mn0 path p_stk =
+    let_pair ~n1:"v" ~n2:"p" (dbytes () mn0 path p_stk) (fun v p ->
+      make_pair (string_of_bytes v) p)
 
   let dbool () mn0 path p_stk =
     with_nullbit_done mn0 path p_stk (fun p ->

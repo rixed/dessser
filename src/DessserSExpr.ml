@@ -44,15 +44,18 @@ struct
   let sfloat _conf _ _ v p =
     write_bytes p (bytes_of_string (string_of_float_ v))
 
-  let sbytes v p =
+  let sbytes _conf _mn0 _path v p =
     let quo = u8_of_const_char '"' in
     let p = write_u8 p quo in
     (* FIXME: escape double quotes: *)
     let p = write_bytes p v in
     write_u8 p quo
 
-  let sstring _conf _ _ v p = sbytes (bytes_of_string v) p
-  let schar _conf _ _ v p = sbytes (bytes_of_string (string_of_char v)) p
+  let sstring conf mn0 path v p =
+    sbytes conf mn0 path (bytes_of_string v) p
+
+  let schar conf mn0 path v p =
+    sbytes conf mn0 path (bytes_of_string (string_of_char v)) p
 
   let sbool _conf _ _ v p =
     write_u8 p (if_ v (u8_of_const_char 'T') (u8_of_const_char 'F'))
@@ -151,6 +154,9 @@ struct
 
   let ssize_of_string _ _ v =
     size_of_u32 (add (string_length v) (u32_of_int 2))
+
+  let ssize_of_bytes _ _ v =
+    add (bytes_length v) (size 2)
 
   let ssize_of_bool _ _ _ = size 1
 
@@ -275,8 +281,7 @@ struct
     E.with_sploded_pair "dbool" (read_u8 p) (fun b p ->
       make_pair (eq b (u8_of_const_char 'T')) p)
 
-  (* Read a string of bytes and process them through [conv]: *)
-  let dbytes conv p =
+  let dbytes _conf _mn0 _path p =
     (* Skip the double-quote: *)
     let p = skip1 p in
     (* Read up to next double-quote: *)
@@ -296,14 +301,16 @@ struct
                   set_ref b_ref b' ;
                   ne b' (u8_of_const_char '"') ]))
               (set_ref str_ref (append_byte str b)) ;
-            make_pair (conv str) p ])))
+            make_pair str p ])))
 
-  let dstring _conf _ _ p = dbytes string_of_bytes p
+  let dstring conf mn0 path p =
+    let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
+      make_pair (string_of_bytes v) p)
+
   (* Chars are encoded as single char strings *)
-  let dchar _conf _ _ p =
-    dbytes (fun e ->
-      char_of_u8 (unsafe_nth (u8_of_int 0) e)
-    ) p
+  let dchar conf mn0 path p =
+    let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
+      make_pair (char_of_u8 (unsafe_nth (u8_of_int 0) v)) p)
 
   let di8 _conf _ _ p = i8_of_ptr p
   let du8 _conf _ _ p = u8_of_ptr p

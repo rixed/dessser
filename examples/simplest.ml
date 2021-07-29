@@ -31,6 +31,8 @@ struct
 
   let dfloat () = from_byte (float 1.) (float 0.)
   let dstring () = from_byte (string "x") (string "")
+  let dbytes () = from_byte (bytes (Bytes.of_string "x"))
+                            (bytes (Bytes.of_string ""))
   let dbool () = from_byte true_ false_
   let dchar () _ _ src =
     E.with_sploded_pair "dchar" (read_u8 src) (fun b src ->
@@ -95,6 +97,7 @@ struct
   let from_eq v1 v = from_bool (eq v1 v)
   let sfloat () _ _ = from_eq (float 1.)
   let sstring () _ _ v = from_bool (ge (string_length v) (u32 Uint32.zero))
+  let sbytes () _ _ v = from_bool (ge (bytes_length v) (size 0))
   let sbool () _ _ = from_bool
 
   let schar () _ _ b dst = write_u8 dst (u8_of_char b)
@@ -138,6 +141,7 @@ struct
   type ssizer = T.mn -> Path.t -> (*valueptr*) E.t -> E.t
   let ssize_of_float _ _ _ = size 1
   let ssize_of_string _ _ _ = size 1
+  let ssize_of_bytes _ _ _ = size 1
   let ssize_of_bool _ _ _ = size 1
   let ssize_of_char _ _ _ = size 1
   let ssize_of_i8 _ _ _ = size 1

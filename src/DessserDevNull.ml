@@ -22,6 +22,7 @@ struct
 
   let sfloat () _ _ _v p = p
   let sstring () _ _ _v p = p
+  let sbytes () _ _ _v p = p
   let sbool () _ _ _v p = p
   let si8 () _ _ _v p = p
   let su8 () _ _ _v p = p
@@ -64,6 +65,7 @@ struct
   type ssizer = T.mn -> Path.t -> E.t -> E.t
   let ssize_of_float _ _ _ = size 0
   let ssize_of_string _ _ _ = size 0
+  let ssize_of_bytes _ _ _ = size 0
   let ssize_of_bool _ _ _ = size 0
   let ssize_of_char _ _ _ = size 0
   let ssize_of_i8 _ _ _ = size 0

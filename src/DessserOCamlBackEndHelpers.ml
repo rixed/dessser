@@ -318,6 +318,8 @@ struct
       poke16_le : int -> Uint128.t -> unit ;
       poke16_be : int -> Uint128.t -> unit ;
       poken : int -> Slice.t -> unit ;
+      (* Convert the whole underlying buffer as fast as possible with
+       * no regard for offset/length: *)
       to_string : unit -> string }
 
   type t = ptr * int (* offset *)

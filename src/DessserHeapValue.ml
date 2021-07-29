@@ -219,6 +219,7 @@ struct
       | TVoid -> dvoid
       | TFloat -> Des.dfloat
       | TString -> Des.dstring
+      | TBytes -> Des.dbytes
       | TBool -> Des.dbool
       | TChar -> Des.dchar
       | TI8 -> Des.di8
@@ -477,6 +478,7 @@ struct
       | TVoid -> svoid
       | TFloat -> Ser.sfloat
       | TString -> Ser.sstring
+      | TBytes -> Ser.sbytes
       | TBool -> Ser.sbool
       | TChar -> Ser.schar
       | TI8 -> Ser.si8
@@ -699,6 +701,7 @@ struct
       | TVoid -> ssvoid
       | TFloat -> cumul Ser.ssize_of_float
       | TString -> cumul Ser.ssize_of_string
+      | TBytes -> cumul Ser.ssize_of_bytes
       | TBool -> cumul Ser.ssize_of_bool
       | TChar -> cumul Ser.ssize_of_char
       | TI8 -> cumul Ser.ssize_of_i8

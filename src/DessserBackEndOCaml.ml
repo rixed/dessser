@@ -491,7 +491,7 @@ struct
     else (
       let bytes = Bytes.create 16 in
       Uint128.to_bytes_little_endian v bytes 0 ;
-      pp oc "Uint128.of_bytes_little_endian (Bytes.of_string %S) 0"
+      pp oc "Uint128.of_bytes_little_endian (Bytes.unsafe_of_string %S) 0"
         (Bytes.to_string bytes))
 
   let lift_i128 oc v =
@@ -501,7 +501,7 @@ struct
     else (
       let bytes = Bytes.create 16 in
       Int128.to_bytes_little_endian v bytes 0 ;
-      pp oc "Int128.of_bytes_little_endian (Bytes.of_string %S) 0"
+      pp oc "Int128.of_bytes_little_endian (Bytes.unsafe_of_string %S) 0"
         (Bytes.to_string bytes))
 
   let rec print emit ?name p l e =

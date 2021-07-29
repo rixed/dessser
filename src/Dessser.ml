@@ -57,6 +57,7 @@ sig
 
   val dfloat : des
   val dstring : des
+  val dbytes : des
   val dbool : des
   val dchar : des
   val di8 : des
@@ -142,6 +143,7 @@ sig
 
   val sfloat : ser
   val sstring : ser
+  val sbytes : ser
   val sbool : ser
   val schar : ser
   val si8 : ser
@@ -207,6 +209,7 @@ sig
   type ssizer = T.mn -> Path.t -> (*value*) E.t -> E.t (*size*)
   val ssize_of_float : ssizer
   val ssize_of_string : ssizer
+  val ssize_of_bytes : ssizer
   val ssize_of_bool : ssizer
   val ssize_of_char : ssizer
   val ssize_of_i8 : ssizer
@@ -265,6 +268,7 @@ struct
 
   let dsfloat = ds Ser.sfloat Des.dfloat "float"
   let dsstring = ds Ser.sstring Des.dstring "string"
+  let dsbytes = ds Ser.sbytes Des.dbytes "bytes"
   let dsbool = ds Ser.sbool Des.dbool "bool"
   let dschar = ds Ser.schar Des.dchar "char"
   let dsi8 = ds Ser.si8 Des.di8 "i8"
@@ -566,6 +570,7 @@ struct
             _mn0 _path src_dst -> src_dst
     | TFloat -> dsfloat
     | TString -> dsstring
+    | TBytes -> dsbytes
     | TBool -> dsbool
     | TChar -> dschar
     | TI8 -> dsi8
