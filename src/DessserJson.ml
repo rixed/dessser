@@ -227,10 +227,10 @@ let init compunit =
 (* Return both the string and the advanced pointer: *)
 let parse_bytes p =
   let_ ~name:"p" p (fun p ->
-    let p' = skip_string p in
-    let len = sub (ptr_sub p' p) (size 2) in
-    let s = first (read_bytes (ptr_add p (size 1)) len) in
-    make_tup [ s ; p' ])
+    let_ ~name:"p2" (skip_string p) (fun p' ->
+      let len = sub (ptr_sub p' p) (size 2) in
+      let s = first (read_bytes (ptr_add p (size 1)) len) in
+      make_tup [ s ; p' ]))
 
 (* Convert the passed json string (as bytes) into a proper string.
  * The string is computed into an array of bytes (which are mutable), that is
@@ -307,33 +307,34 @@ let parse_object mns p =
     let_ ~name:"p_ref" (make_ref p) (fun p_ref ->
       seq [
         while_ (
-          let p = skip_blanks (get_ref p_ref) in
-          if_ (eq (peek_u8 p (size 0)) (u8_of_const_char '}'))
-            ~then_:(
-              seq [
-                set_ref p_ref (ptr_add p (size 1)) ;
-                false_ ])
-            ~else_:(
-              let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun s p ->
-                let p = comment "skip name-separator" (skip_char p ':') in
-                (* Which field is that? *)
-                let idx =
-                  List.init (Array.length mns - 1) (fun i ->
-                    let n, _ = mns.(i) in
-                    eq (bytes_of_string (string n)) s,
-                    u32_of_int i) |>
-                  StdLib.cases ~else_:(u32_of_int (Array.length mns - 1)) in
+          let_ ~name:"p" (skip_blanks (get_ref p_ref)) (fun p ->
+            if_ (eq (peek_u8 p (size 0)) (u8_of_const_char '}'))
+              ~then_:(
                 seq [
-                  set_vec idx ptrs (not_null p) ;
-                  (let p = apply (identifier "json_skip") [ p ] |>
-                           skip_blanks in
+                  set_ref p_ref (ptr_add p (size 1)) ;
+                  false_ ])
+              ~else_:(
+                let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun s p ->
+                  let p = comment "skip name-separator" (skip_char p ':') in
                   let_ ~name:"p" p (fun p ->
-                    let p =
-                      if_ (eq (peek_u8 p (size 0)) (u8_of_const_char ','))
-                        ~then_:(ptr_add p (size 1))
-                        ~else_:p in
-                    set_ref p_ref p)) ;
-                  true_ ])))
+                    (* Which field is that? *)
+                    let idx =
+                      List.init (Array.length mns - 1) (fun i ->
+                        let n, _ = mns.(i) in
+                        eq (bytes_of_string (string n)) s,
+                        u32_of_int i) |>
+                      StdLib.cases ~else_:(u32_of_int (Array.length mns - 1)) in
+                    seq [
+                      set_vec idx ptrs (not_null p) ;
+                      (let p = apply (identifier "json_skip") [ p ] |>
+                               skip_blanks in
+                      let_ ~name:"p" p (fun p ->
+                        let p =
+                          if_ (eq (peek_u8 p (size 0)) (u8_of_const_char ','))
+                            ~then_:(ptr_add p (size 1))
+                            ~else_:p in
+                        set_ref p_ref p)) ;
+                      true_ ])))))
           ~do_:nop ;
         make_pair ptrs (get_ref p_ref) ]))
 
@@ -439,12 +440,12 @@ struct
         (match List.last path with
         | Path.CompTime i ->
             assert (i >= 0 && i < Array.length mns) ;
-            let p_opt = nth (u32_of_int i) ptrs in
-            seq [
-              debug (string ("Reading field #"^ string_of_int i ^"@")) ;
-              debug (if_null p_opt ~then_:(string "NULL") ~else_:(string_of_int_ (offset (force p_opt)))) ;
-              debug (char '\n') ;
-              p_opt ]
+            let_ ~name:"p_opt" (nth (u32_of_int i) ptrs) (fun p_opt ->
+              seq [
+                debug (string ("Reading field #"^ string_of_int i ^"@")) ;
+                debug (if_null p_opt ~then_:(string "NULL") ~else_:(string_of_int_ (offset (force p_opt)))) ;
+                debug (char '\n') ;
+                p_opt ])
         | Path.RunTime i ->
             nth i ptrs)
     | _ ->
@@ -477,8 +478,8 @@ struct
 
   let dstring : des =
     with_p_stk (fun p stk ->
-      let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun b p ->
-        make_pair (parse_string b) (make_pair p stk)))
+      let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun bytes p ->
+        make_pair (parse_string bytes) (make_pair p stk)))
 
   let dbytes () mn0 path p_stk =
     let_pair ~n1:"v" ~n2:"p" (dstring () mn0 path p_stk) (fun v p ->
@@ -583,35 +584,36 @@ struct
    * has a value or a mere string otherwise: *)
   let sum_opn mns =
     with_p_stk (fun p stk ->
-      let p = skip_blanks p in
-      (* A pair with both the string (as byte) of the label and the pointer: *)
-      let cstr_p =
-        if_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"'))
-          (* A string: that's our constructor *)
-          ~then_:(parse_bytes p)
-          ~else_:(
-            let p = comment "skip begin-object for sum" (skip_1_char p '{') in
-            let p = skip_blanks p in
-            let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun lbl p ->
-              let p = skip_char p ':' in
-              make_pair lbl p)) in
-      let_pair ~n1:"s" ~n2:"p" cstr_p (fun cstr p ->
-        let i =
-          Array.enum mns |>
-          Enum.mapi (fun i (n, _) ->
-            eq cstr (bytes_of_string (string n)),
-            u16_of_int i) |>
-          List.of_enum |>
-          StdLib.cases ~else_:(seq [ assert_ false_ ; u16_of_int 0 ]) in
-        let_ ~name:"cstr" i (fun i ->
-            let p_stk = make_pair p stk in
-            make_pair i p_stk)))
+      let_ ~name:"p" (skip_blanks p) (fun p ->
+        (* A pair with both the string (as byte) of the label and the pointer: *)
+        let cstr_p =
+          if_ (eq (peek_u8 p (size 0)) (u8_of_const_char '"'))
+            (* A string: that's our constructor *)
+            ~then_:(parse_bytes p)
+            ~else_:(
+              let p = comment "skip begin-object for sum" (skip_1_char p '{') in
+              let p = skip_blanks p in
+              let_pair ~n1:"s" ~n2:"p" (parse_bytes p) (fun lbl p ->
+                let p = skip_char p ':' in
+                make_pair lbl p)) in
+        let_pair ~n1:"s" ~n2:"p" cstr_p (fun cstr p ->
+          let i =
+            Array.enum mns |>
+            Enum.mapi (fun i (n, _) ->
+              eq cstr (bytes_of_string (string n)),
+              u16_of_int i) |>
+            List.of_enum |>
+            StdLib.cases ~else_:(seq [ assert_ false_ ; u16_of_int 0 ]) in
+          let_ ~name:"cstr" i (fun i ->
+              let p_stk = make_pair p stk in
+              make_pair i p_stk))))
 
   let sum_cls lbl () mn0 path p_stk =
-    let no_value_cstrs = no_value_cstrs mn0 path in
-    if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
-      ~then_:p_stk
-      ~else_:(skip_1 '}' () mn0 path p_stk)
+    let_ ~name:"p_stk" p_stk (fun p_stk ->
+      let no_value_cstrs = no_value_cstrs mn0 path in
+      if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
+        ~then_:p_stk
+        ~else_:(skip_1 '}' () mn0 path p_stk))
 
   let arr_opn () =
     UnknownSize (
@@ -638,10 +640,10 @@ struct
         let res =
           or_ (is_null p_opt)
               (let_ ~name:"p" (force ~what:"is_null" p_opt) (fun p ->
-                let p = skip_blanks p in
-                and_ (ge (rem_size p) (size 4))
-                     (eq (peek_u32 BigEndian p (size 0))
-                         (u32_of_int 0x6e756c6c)) (* "null" *))) in
+                let_ ~name:"p" (skip_blanks p) (fun p ->
+                  and_ (ge (rem_size p) (size 4))
+                       (eq (peek_u32 BigEndian p (size 0))
+                           (u32_of_int 0x6e756c6c)) (* "null" *)))) in
         let_ ~name:"is_null" res (fun res ->
           seq [
             debug (string "is_null: ") ; debug res ; debug (char '\n') ;
@@ -655,12 +657,12 @@ struct
           ~then_:p_stk
           ~else_:(
             (* If there is an explicit "null", read it *)
-            let p = force ~what:"dnull" (force p_opt) in
-            seq [
-              debug (string "dnull@") ; debug (offset p) ; debug (char '\n') ;
-              let p = skip_blanks p in
-              let p = ptr_add p (size 4) in
-              make_pair p stk ])))
+            let_ ~name:"p" (force ~what:"dnull" p_opt) (fun p ->
+              seq [
+                debug (string "dnull@") ; debug (offset p) ; debug (char '\n') ;
+                let p = skip_blanks p in
+                let p = ptr_add p (size 4) in
+                make_pair p stk ]))))
 
   let dnotnull _t () _mn0 _path p_stk =
     p_stk
