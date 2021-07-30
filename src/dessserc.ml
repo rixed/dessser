@@ -22,6 +22,9 @@ let quiet = ref false
 
 type backends = DIL | Cpp | OCaml
 
+type fieldmask_options =
+  WithFieldMask | WithoutFieldMask | WithAndWithoutFieldMask
+
 let module_of_backend = function
   | DIL -> (module DessserBackEndDIL : BACKEND)
   | Cpp -> (module DessserBackEndCPP : BACKEND)
@@ -71,6 +74,11 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
   quiet := quiet_ ;
+  let with_fieldmasks =
+    match with_fieldmask with
+    | WithFieldMask -> [ true ]
+    | WithoutFieldMask -> [ false ]
+    | WithAndWithoutFieldMask -> [ true ; false ] in
   (* Make "this" refers to top-level type: *)
   T.add_type_as "" schema.T.typ ;
   DessserEval.inline_level := optim ;
@@ -112,28 +120,31 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   and add_encoder compunit encoding_out =
     let module Ser = (val (ser_of_encoding encoding_out) : SER) in
     let module OfValue = DessserHeapValue.Serialize (Ser) in
-    let compunit, sersize =
-      (* compute the serialization size of a heap value: *)
-      OfValue.sersize ~with_fieldmask schema compunit in
-    let compunit, ser =
-      (* convert from a heapvalue into encoding_out. *)
-      OfValue.serialize ~with_fieldmask schema compunit in
-    if !debug then (
-      ignore (TC.type_check E.no_env sersize) ;
-      ignore (TC.type_check E.no_env ser)) ;
-    let compunit, _, _ =
-      let name =
-        (if with_fieldmask then SSizeWithMask encoding_out
-                           else SSizeNoMask encoding_out) |>
-        string_of_type_method in
-      U.add_identifier_of_expression compunit ~name sersize in
-    let compunit, _, _ =
-      let name =
-        (if with_fieldmask then SerWithMask encoding_out
-                           else SerNoMask encoding_out) |>
-        string_of_type_method in
-      U.add_identifier_of_expression compunit ~name ser in
-    compunit
+    List.fold_left (fun compunit with_fieldmask ->
+      let compunit, sersize =
+        (* Compute the serialization size of a heap value: *)
+        OfValue.sersize ~with_fieldmask schema compunit in
+      let compunit, ser =
+        (* Convert from a heapvalue into encoding_out. *)
+        OfValue.serialize ~with_fieldmask schema compunit in
+      if !debug then (
+        ignore (TC.type_check E.no_env sersize) ;
+        ignore (TC.type_check E.no_env ser)) ;
+      let compunit, _, _ =
+        let name =
+          (if with_fieldmask then SSizeWithMask encoding_out
+                             else SSizeNoMask encoding_out) |>
+          string_of_type_method in
+        U.add_identifier_of_expression compunit ~name sersize in
+
+      let compunit, _, _ =
+        let name =
+          (if with_fieldmask then SerWithMask encoding_out
+                             else SerNoMask encoding_out) |>
+          string_of_type_method in
+        U.add_identifier_of_expression compunit ~name ser in
+      compunit
+    ) compunit with_fieldmasks
   and add_converter compunit (encoding_in, encoding_out) =
     let module Des = (val (des_of_encoding encoding_in) : DES) in
     let module Ser = (val (ser_of_encoding encoding_out) : SER) in
@@ -483,10 +494,14 @@ let backend =
   Arg.(opt (some (enum languages)) None i)
 
 let with_fieldmask =
-  let doc = "Generate code that accept a runtime fieldmask" in
-  let i = Arg.info ~doc [ "with-mask" ; "with-fieldmask" ;
-                          "with-field-mask" ] in
-  Arg.flag i
+  let fieldmask_options =
+    [ "with", WithFieldMask ;
+      "without", WithoutFieldMask ;
+      "both", WithAndWithoutFieldMask ] in
+  let doc = "Generate code that accept (or not) a runtime fieldmask" in
+  let docv = docv_of_enum fieldmask_options in
+  let i = Arg.info ~doc ~docv [ "fieldmask" ] in
+  Arg.(opt (enum fieldmask_options) WithoutFieldMask i)
 
 let parse_expression s =
   match P.expr s with
