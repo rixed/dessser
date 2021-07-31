@@ -125,18 +125,21 @@ let ( % ) f g x = f (g x)
 *)
 
 exception NotImplemented of string
-(* Parameter is the minimum length of the missing part: *)
-exception NotEnoughInput of { offset : int ; missing : int }
+
+type direction = Input | Output
+exception NotEnoughData of
+  { direction : direction ; offset : int ; missing : int }
 
 let () =
   Printexc.register_printer (function
     | NotImplemented s ->
         Some ("Not implemented: "^ s)
-    | NotEnoughInput b ->
+    | NotEnoughData b ->
         Some (
-          Printf.sprintf "NotEnoughInput: %d byte%s missing at offset %d"
+          Printf.sprintf "NotEnoughData: %d byte%s missing at offset %d for %s"
             b.missing (if b.missing > 1 then "s" else "")
-            b.offset)
+            b.offset
+            (match b.direction with Input -> "input" | Output -> "output"))
     | _ ->
         None)
 
@@ -337,8 +340,8 @@ struct
     else { p with stop }, start
 
   (* Check that the given start is not past the end; But end position is OK *)
-  let check_input_length o l =
-    if o > l then raise (NotEnoughInput { missing = o - l ; offset = o })
+  let check_length direction o l =
+    if o > l then raise (NotEnoughData { direction ; missing = o - l ; offset = o })
 
   let skip (p, o) n =
     let o' = o + n in
@@ -365,39 +368,39 @@ struct
     Size.of_int o
 
   let peekU8 (p, o) at =
-    check_input_length (o + at + 1) p.stop ;
+    check_length Input (o + at + 1) p.stop ;
     p.impl.peek1 (o + at)
 
   let peekU16Little (p, o) at =
-    check_input_length (o + at + 2) p.stop ;
+    check_length Input (o + at + 2) p.stop ;
     p.impl.peek2_le (o + at)
 
   let peekU16Big (p, o) at =
-    check_input_length (o + at + 2) p.stop ;
+    check_length Input (o + at + 2) p.stop ;
     p.impl.peek2_be (o + at)
 
   let peekU32Little (p, o) at =
-    check_input_length (o + at + 4) p.stop ;
+    check_length Input (o + at + 4) p.stop ;
     p.impl.peek4_le (o + at)
 
   let peekU32Big (p, o) at =
-    check_input_length (o + at + 4) p.stop ;
+    check_length Input (o + at + 4) p.stop ;
     p.impl.peek4_be (o + at)
 
   let peekU64Little (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
+    check_length Input (o + at + 8) p.stop ;
     p.impl.peek8_le (o + at)
 
   let peekU64Big (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
+    check_length Input (o + at + 8) p.stop ;
     p.impl.peek8_be (o + at)
 
   let peekU128Little (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
+    check_length Input (o + at + 8) p.stop ;
     p.impl.peek16_le (o + at)
 
   let peekU128Big (p, o) at =
-    check_input_length (o + at + 8) p.stop ;
+    check_length Input (o + at + 8) p.stop ;
     p.impl.peek16_be (o + at)
 
   let getBit p_o bi =
@@ -432,52 +435,52 @@ struct
     peekU128Big p_o 0, skip p_o 16
 
   let readBytes (p, o) sz =
-    check_input_length (o + sz) p.stop ;
+    check_length Input (o + sz) p.stop ;
     p.impl.peekn o sz,
     (p, o + sz)
 
   let pokeU8 (p, o) v =
-    check_input_length (o + 1) p.stop ;
+    check_length Input (o + 1) p.stop ;
     p.impl.poke1 o v
 
   let pokeU16Little (p, o) v =
-    check_input_length (o + 2) p.stop ;
+    check_length Output (o + 2) p.stop ;
     if debug then
       Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
     p.impl.poke2_le o v
 
   let pokeU16Big (p, o) v =
-    check_input_length (o + 2) p.stop ;
+    check_length Output (o + 2) p.stop ;
     if debug then
       Printf.eprintf "Poke word 0x%04x at %d\n%!" (Uint16.to_int v) o ;
     p.impl.poke2_be o v
 
   let pokeU32Little (p, o) v =
-    check_input_length (o + 4) p.stop ;
+    check_length Output (o + 4) p.stop ;
     if debug then
       Printf.eprintf "Poke U32 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
     p.impl.poke4_le o v
 
   let pokeU32Big (p, o) v =
-    check_input_length (o + 4) p.stop ;
+    check_length Output (o + 4) p.stop ;
     if debug then
       Printf.eprintf "Poke U32 0x%08Lx at %d\n%!" (Uint32.to_int64 v) o ;
     p.impl.poke4_be o v
 
   let pokeU64Little (p, o) v =
-    check_input_length (o + 8) p.stop ;
+    check_length Output (o + 8) p.stop ;
     p.impl.poke8_le o v
 
   let pokeU64Big (p, o) v =
-    check_input_length (o + 8) p.stop ;
+    check_length Output (o + 8) p.stop ;
     p.impl.poke8_be o v
 
   let pokeU128Little (p, o) v =
-    check_input_length (o + 16) p.stop ;
+    check_length Output (o + 16) p.stop ;
     p.impl.poke16_le o v
 
   let pokeU128Big (p, o) v =
-    check_input_length (o + 16) p.stop ;
+    check_length Output (o + 16) p.stop ;
     p.impl.poke16_be o v
 
   let setBit (p, o) bi v =
