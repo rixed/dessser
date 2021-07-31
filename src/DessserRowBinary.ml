@@ -196,6 +196,8 @@ struct
 
   let ssize_of_null _ _ = size 1
 
+  let ssize_of_notnull _ _ = size 1
+
   (* Size of a string is its length in bytes + the size of the LEB128 prefix,
    * which size is 1 bytes per group of 7 bits. *)
   let ssize_of_string _ _ v =

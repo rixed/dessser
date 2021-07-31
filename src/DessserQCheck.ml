@@ -1074,7 +1074,37 @@ let sexpr ?sexpr_config mn =
 *)
 (*$= check_rowbinary & ~printer:BatPervasives.identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
+
   "15134052" (check_rowbinary cpp_be "u24" "15134052")
+
+  "(0 (0x1.79c428d047e73p-16 1234 \"\"))" \
+     (check_rowbinary ocaml_be "[ Foo (float; u32; string) ]" \
+        "(0 (0x1.79c428d047e73p-16 1234 \"\"))")
+
+  "(0 (0x1.79c428d047e73p-16 1234 \"\"))" \
+     (check_rowbinary ocaml_be \
+        "[ Foo (float; u32; string) ]" \
+        "(0 (0x1.79c428d047e73p-16 1234 \"\"))")
+
+  "(0 ((0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" T))" \
+     (check_rowbinary ocaml_be \
+        "[ D { v:[Foo (float;u32;string)]; \
+               u:string; w:bool }]" \
+        "(0 ((0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" T))")
+
+  "(0 ((9 (7 \"s\")) (0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" T))" \
+     (check_rowbinary ocaml_be \
+        "[ D { k:[E|F|G|H|I|J|K|L|M|N (u32;string)?]; \
+               v:[Foo (float;u32;string)]; \
+               u:string; w:bool }]" \
+        "(0 ((9 (7 \"s\")) (0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" T))")
+
+  "(3 ((9 (1234 \"glop\")) (0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" -0x1.79c428d047e73p-16 T F \"o\" 0x1.79c428d047e73p-16))" \
+     (check_rowbinary ocaml_be \
+        "[A|B|C|D { k:[G|H|I|J|K|L|M|N|O|P (u32;string)? |Q|R]; \
+                    v:[Foo (float;u32;string)]; \
+                    u:string; m:float; w:bool; d:bool; o:string; e:float }|E|F]" \
+        "(3 ((9 (1234 \"glop\")) (0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" -0x1.79c428d047e73p-16 T F \"o\" 0x1.79c428d047e73p-16))")
 *)
 (*$= check_ringbuffer & ~printer:BatPervasives.identity
   "\"foo\"" (check_ringbuffer ocaml_be "String" "\"foo\"")

@@ -423,6 +423,7 @@ struct
   let ssize_of_vec _ _ _ = todo_ssize ()
   let ssize_of_arr _ _ _ = todo_ssize ()
   let ssize_of_null _ _ = todo_ssize ()
+  let ssize_of_notnull _ _ = todo_ssize ()
   let ssize_start ?(config=default_config) _ =
     ignore config ;
     todo_ssize ()

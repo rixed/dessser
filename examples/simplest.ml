@@ -168,6 +168,7 @@ struct
   let ssize_of_vec _ _ _ = size 0
   let ssize_of_arr _ _ _ = size 0
   let ssize_of_null _ _ = size 1
+  let ssize_of_notnull _ _ = size 0
   let ssize_start ?(config=()) _ =
     ignore config ;
     size 0

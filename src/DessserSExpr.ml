@@ -229,6 +229,8 @@ struct
     size_of_u32 (add (cardinality v) (u32_of_int 2))
 
   let ssize_of_null _mn _path = size 4
+
+  let ssize_of_notnull _mn0 _path = size 0
 end
 
 module Des : DES with type config = sexpr_config =

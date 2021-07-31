@@ -619,6 +619,8 @@ struct
 
   let ssize_of_null _mn0 _path = size 0
 
+  let ssize_of_notnull _mn0 _path = size 0
+
   let ssize_start ?(config=()) _ =
     ignore config ;
     size 0

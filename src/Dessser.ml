@@ -237,6 +237,7 @@ sig
   val ssize_of_vec : ssizer
   val ssize_of_arr : ssizer
   val ssize_of_null : T.mn -> Path.t -> E.t (*size*)
+  val ssize_of_notnull : T.mn -> Path.t -> E.t (*size*)
   (* The size that's added to any value of this type in addition to the size
    * of its constituents: *)
   val ssize_start : ?config:config -> T.mn -> E.t (*size*)

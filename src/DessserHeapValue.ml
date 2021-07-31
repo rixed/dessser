@@ -737,7 +737,8 @@ struct
       if mn.nullable then
         if_null v
           ~then_:(add sz (Ser.ssize_of_null mn0 path))
-          ~else_:(ssz_of_vt vt mn0 path (force v) sz)
+          ~else_:(add (ssz_of_vt vt mn0 path (force v) sz)
+                      (Ser.ssize_of_notnull mn0 path))
       else
         ssz_of_vt vt mn0 path v sz
     in
