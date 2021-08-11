@@ -1786,7 +1786,8 @@ struct
     let tn = type_identifier_mn p mn in
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn
 
-  let source_intro = function
+  (* No need for the module name here since file name is already a module: *)
+  let source_intro _module_name = function
     | P.Declaration ->
         "open Stdint\n\
          open DessserOCamlBackEndHelpers\n\
@@ -1800,7 +1801,7 @@ struct
          module DessserGen = struct\n\n\
          type _unused_for_syntax_only_ = unit\n"
 
-  let source_outro _ =
+  let source_outro _ _ =
     "\nend [@@ocaml.warning \"-8-26-30\"] (* DessserGen module *)\n"
 end
 

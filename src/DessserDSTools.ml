@@ -62,10 +62,11 @@ let make_converter ?dev_mode ?optim ?exe_fname ?mn compunit backend convert =
     BE.print_comment oc "Compile with:\n  %s\n"
       (BE.compile_cmd ?dev_mode ?optim ~link:Object src_fname exe_fname) ;
     BE.print_definitions oc compunit ;
+    let module_name = compunit.U.module_name in
     if BE.preferred_def_extension = "cc" then
-      String.print oc (FragmentsCPP.converter entry_point)
+      String.print oc (FragmentsCPP.converter module_name entry_point)
     else
-      String.print oc (FragmentsOCaml.converter entry_point)) ;
+      String.print oc (FragmentsOCaml.converter module_name entry_point)) ;
   compile ?dev_mode ?optim ~link:Executable backend src_fname exe_fname ;
   exe_fname
 

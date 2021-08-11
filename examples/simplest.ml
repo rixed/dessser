@@ -199,7 +199,7 @@ let test_backend () =
       exit 1
     ) in
   let module BE = (val backend : BACKEND) in
-  let compunit = U.make () in
+  let compunit = U.make "test_backend" in
   let compunit, _, _entry_point =
     U.add_identifier_of_expression compunit ~name:"entry_point" e in
   let exe_fname = "/tmp/simplest_gen"^ exe_ext in

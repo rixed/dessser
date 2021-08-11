@@ -10,7 +10,7 @@ let () =
     exit 1
 |}
 
-let converter ?(out_buf_size=50_000) convert_name =
+let converter ?(out_buf_size=50_000) _module_name convert_name =
   Printf.sprintf {|
 open Batteries
 
@@ -279,7 +279,7 @@ let main () =
 %s
 |} out_buf_size convert_key_name convert_val_name run_main
 
-let aggregator ?(out_buf_size=50_000) _state_name input_name output_name =
+let aggregator ?(out_buf_size=50_000) _module_name _state_name input_name output_name =
   Printf.sprintf {|
 open Batteries
 

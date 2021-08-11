@@ -1097,7 +1097,7 @@ struct
             s)
     | E0 (ExtIdentifier (Method { typ ; meth })) ->
         emit ?name p l e (fun oc ->
-          pp oc "dessser::gen::%s.%s"
+          pp oc "dessser::gen::%s::%s"
             (valid_identifier typ)
             (string_of_type_method meth |> valid_identifier))
     | E2 (Let (n, r), e1, e2) ->
@@ -1432,7 +1432,7 @@ struct
     let tn = type_identifier_mn p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro = function
+  let source_intro module_name = function
   | P.Declaration ->
       "#include <arpa/inet.h>\n\
        #include <functional>\n\
@@ -1442,7 +1442,7 @@ struct
        #include <vector>\n\
        #include \"dessser/runtime.h\"\n\
        \n\
-       namespace dessser::gen {\n\
+       namespace dessser::gen::"^ valid_identifier module_name ^" {\n\
        // don't ask me why:\n\
        using dessser::operator<<;\n\n"
   | P.Definition ->
@@ -1471,11 +1471,11 @@ struct
        std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
        std::default_random_engine _random_engine_;\n\
        \n\
-       namespace dessser::gen {\n\
+       namespace dessser::gen::"^ valid_identifier module_name ^" {\n\
        // don't ask me why:\n\
        using dessser::operator<<;\n\n"
 
-  let source_outro _ =
+  let source_outro _ _ =
     "\n}\n"
 
   let adapt_type t = t

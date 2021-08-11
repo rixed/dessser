@@ -7,8 +7,9 @@ module TC = DessserTypeCheck
 let debug = false
 
 type t =
-  (* FIXME: maps not lists *)
-  { identifiers : (string * identifier * T.mn) list ; (* TODO: add definition *)
+  { module_name : string ;
+    (* FIXME: maps not lists *)
+    identifiers : (string * identifier * T.mn) list ; (* TODO: add definition *)
     external_identifiers : (string * T.mn) list ;
     verbatim_definitions : verbatim_definition list ;
     external_types : (string * (P.t -> backend_id -> string)) list ;
@@ -32,8 +33,9 @@ and verbatim_location =
   | Middle (* After declarations *)
   | Bottom (* After declarations and definitions *)
 
-let make () =
-  { identifiers = [] ;
+let make module_name =
+  { module_name ;
+    identifiers = [] ;
     external_identifiers = [] ;
     verbatim_definitions = [] ;
     external_types = [] ;

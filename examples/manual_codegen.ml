@@ -60,7 +60,7 @@ let () =
   let module BE = (val backend : BACKEND) in
   let sexpr_config = { DessserSExpr.default_config with newline = Some '\n' } in
   let convert_only = false in
-  let compunit = U.make () in
+  let compunit = U.make "manual_codegen" in
   let compunit, convert =
     if convert_only then (
       (* Just convert the rowbinary to s-expr: *)

@@ -675,7 +675,7 @@ let expression =
 
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
-    let compunit = U.make () in
+    let compunit = U.make "test" in
     let compunit, _, _ = U.add_identifier_of_expression compunit e in
     let src_fname =
       let ext = "."^ BE.preferred_def_extension in
@@ -874,7 +874,7 @@ let sexpr ?sexpr_config mn =
     let e =
       func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
         (fun src dst -> S2S.desser mn src dst) in
-    let compunit = U.make () in
+    let compunit = U.make "test" in
     make_converter ~dev_mode:true ~mn compunit be e
 
   let test_desser ?sexpr_config alloc_dst be mn des ser =
@@ -898,7 +898,7 @@ let sexpr ?sexpr_config mn =
       let e' = DessserEval.peval E.no_env e in
       Format.eprintf "@[<v>After peval:@,%a@." (E.pretty_print ?max_depth:None) e'
     ) ;
-    let compunit = U.make () |> DessserJson.init in
+    let compunit = U.make "test" |> DessserJson.init in
     try
       make_converter ~dev_mode:true ~mn compunit be e
     with exn ->
@@ -969,7 +969,7 @@ let sexpr ?sexpr_config mn =
           make_pair src dst))
 
   let test_heap be mn =
-    let compunit = U.make () in
+    let compunit = U.make "test" in
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -1048,7 +1048,7 @@ let sexpr ?sexpr_config mn =
     String.trim (run_converter ~timeout:2 exe vs)
   let check_heapvalue be ts vs =
     let mn = P.mn_of_string ts in
-    let compunit = U.make () in
+    let compunit = U.make "test" in
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
@@ -1152,7 +1152,7 @@ let sexpr ?sexpr_config mn =
           DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      let compunit = U.make () in
+      let compunit = U.make "test" in
       make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -1167,7 +1167,7 @@ let sexpr ?sexpr_config mn =
           DS.desser mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      let compunit = U.make () in
+      let compunit = U.make "test" in
       make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
@@ -1206,7 +1206,7 @@ let sexpr ?sexpr_config mn =
           DS.desser ~ser_config ?des_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      let compunit = U.make () in
+      let compunit = U.make "test" in
       make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 
@@ -1219,7 +1219,7 @@ let sexpr ?sexpr_config mn =
           DS.desser ?ser_config:config mn src dst) in
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-      let compunit = U.make () in
+      let compunit = U.make "test" in
       make_converter ~dev_mode:true ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 

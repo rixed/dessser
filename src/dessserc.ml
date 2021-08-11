@@ -84,7 +84,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   init_backend backend schema ;
-  let compunit = U.make () in
+  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let compunit = U.make module_name in
   let compunit = List.fold_left init_encoding compunit encodings_in in
   let compunit = List.fold_left init_encoding compunit encodings_out in
   (* Christen the schema type the global type name "t" *)
@@ -195,7 +196,8 @@ let converter
     (* convert from encoding_in to encoding_out: *)
     func2 T.ptr T.ptr (DS.desser schema ~transform) in
   if !debug then ignore (TC.type_check E.no_env convert) ;
-  let compunit = U.make () in
+  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
   let compunit, _, convert_name =
@@ -203,9 +205,10 @@ let converter
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
+  let module_name = compunit.U.module_name in
   let convert_main_for = function
-    | "cc" -> DessserDSTools_FragmentsCPP.converter convert_name
-    | "ml" -> DessserDSTools_FragmentsOCaml.converter convert_name
+    | "cc" -> DessserDSTools_FragmentsCPP.converter module_name convert_name
+    | "ml" -> DessserDSTools_FragmentsOCaml.converter module_name convert_name
     | "dil" -> ""
     | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->
@@ -246,7 +249,8 @@ let lmdb main
     ignore (TC.type_check E.no_env convert_key) ;
     ignore (TC.type_check E.no_env convert_val)
   ) ;
-  let compunit = U.make () in
+  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
   let compunit, _, convert_key_name =
@@ -300,7 +304,8 @@ let aggregator
   init_backend backend schema ;
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
-  let compunit = U.make () in
+  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
   let compunit, des = ToValue.make schema compunit in
@@ -361,11 +366,12 @@ let aggregator
   let def_fname =
     change_ext BE.preferred_def_extension dest_fname |>
     BE.valid_source_name in
+  let module_name = compunit.U.module_name in
   let main_for = function
-    | "cc" -> DessserDSTools_FragmentsCPP.aggregator state_name input_name
-                                                     output_name
-    | "ml" -> DessserDSTools_FragmentsOCaml.aggregator state_name input_name
-                                                       output_name
+    | "cc" -> DessserDSTools_FragmentsCPP.aggregator module_name state_name
+                                                     input_name output_name
+    | "ml" -> DessserDSTools_FragmentsOCaml.aggregator module_name state_name
+                                                       input_name output_name
     | "dil" -> ""
     | _ -> assert false in
   write_source ~src_fname:def_fname (fun oc ->

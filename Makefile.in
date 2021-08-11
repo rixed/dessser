@@ -121,6 +121,12 @@ LIBDESSSER_SOURCES = \
 	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \
 	src/Dessser.ml \
+	src/DessserLeftistHeap.ml \
+	src/DessserOCamlBackEndHelpers.ml \
+	src/DessserBackEndDIL.ml \
+	src/DessserBackEndCLike.ml \
+	src/DessserBackEndCPP.ml \
+	src/DessserBackEndOCaml.ml \
 	src/DessserDSTools_FragmentsCPP.ml \
 	src/DessserDSTools_FragmentsOCaml.ml \
 	src/DessserDSTools.ml \
@@ -130,13 +136,7 @@ LIBDESSSER_SOURCES = \
 	src/DessserRamenRingBuffer.ml \
 	src/DessserDevNull.ml \
 	src/DessserJson.ml \
-	src/DessserBackEndDIL.ml \
-	src/DessserBackEndCLike.ml \
-	src/DessserBackEndCPP.ml \
-	src/DessserBackEndOCaml.ml \
 	src/DessserHeapValue.ml \
-	src/DessserLeftistHeap.ml \
-	src/DessserOCamlBackEndHelpers.ml \
 	src/DessserQCheck.ml \
 	src/dessser_ocaml_ext_pointer.c
 
@@ -272,14 +272,14 @@ LINKED_FOR_TESTS = \
 	src/DessserPrinter.ml \
 	src/DessserCompilationUnit.ml \
 	src/Dessser.ml \
-	src/DessserDSTools_FragmentsCPP.ml \
-	src/DessserDSTools_FragmentsOCaml.ml \
-	src/DessserDSTools.ml \
 	src/DessserLeftistHeap.ml \
 	src/DessserOCamlBackEndHelpers.ml \
 	src/DessserBackEndCLike.ml \
 	src/DessserBackEndCPP.ml \
 	src/DessserBackEndOCaml.ml \
+	src/DessserDSTools_FragmentsCPP.ml \
+	src/DessserDSTools_FragmentsOCaml.ml \
+	src/DessserDSTools.ml \
 	src/DessserSExpr.ml \
 	src/DessserCsv.ml \
 	src/DessserRowBinary.ml \

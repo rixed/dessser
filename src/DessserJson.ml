@@ -175,7 +175,7 @@ let init compunit =
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     let be = (module DessserBackEndOCaml : BACKEND) in
     let module BE = (val be : BACKEND) in
-    let compunit = U.make () |> init in
+    let compunit = U.make "test" |> init in
     let compunit, _, entry_point =
       U.add_identifier_of_expression compunit e in
     let exe_fname = Filename.temp_file "dessser_skip_json_" "" in
