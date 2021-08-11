@@ -6,7 +6,7 @@
 #include <ostream>
 #include <utility>
 
-namespace dessser_gen {
+namespace dessser {
 
 /* Generic set (see more specific implementations Set*.h */
 template<class T>

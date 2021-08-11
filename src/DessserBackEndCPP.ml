@@ -1097,7 +1097,7 @@ struct
             s)
     | E0 (ExtIdentifier (Method { typ ; meth })) ->
         emit ?name p l e (fun oc ->
-          pp oc "dessser_gen::%s.%s"
+          pp oc "dessser::gen::%s.%s"
             (valid_identifier typ)
             (string_of_type_method meth |> valid_identifier))
     | E2 (Let (n, r), e1, e2) ->
@@ -1442,7 +1442,9 @@ struct
        #include <vector>\n\
        #include \"dessser/runtime.h\"\n\
        \n\
-       namespace dessser_gen {\n\n"
+       namespace dessser::gen {\n\
+       // don't ask me why:\n\
+       using dessser::operator<<;\n\n"
   | P.Definition ->
       "#include <algorithm>\n\
        #include <arpa/inet.h>\n\
@@ -1469,7 +1471,9 @@ struct
        std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
        std::default_random_engine _random_engine_;\n\
        \n\
-       namespace dessser_gen {\n\n"
+       namespace dessser::gen {\n\
+       // don't ask me why:\n\
+       using dessser::operator<<;\n\n"
 
   let source_outro _ =
     "\n}\n"

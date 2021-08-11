@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 
-namespace dessser_gen {
+namespace dessser {
 
 typedef __uint128_t uint128_t;
 typedef __int128_t int128_t;

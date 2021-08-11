@@ -5,7 +5,7 @@
 #include <vector>
 #include "dessser/Set.h"
 
-namespace dessser_gen {
+namespace dessser {
 
 template<class T>
 struct Heap : public Set<T> {

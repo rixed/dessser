@@ -3,7 +3,7 @@
 #include <unordered_set>
 #include "dessser/Set.h"
 
-namespace dessser_gen {
+namespace dessser {
 
 template<class T>
 struct HashTable : public Set<T> {

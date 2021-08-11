@@ -8,7 +8,7 @@
 #include "dessser/Vec.h"
 #include "dessser/Set.h"
 
-namespace dessser_gen {
+namespace dessser {
 template<class T>
 struct Arr : public std::vector<T> {
   Arr()

@@ -2,7 +2,7 @@
 #define MAP_H_200116
 #include <map>
 
-namespace dessser_gen {
+namespace dessser {
 
 template<class K, class V>
 struct Map : public std::map<K, V> {

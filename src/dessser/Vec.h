@@ -6,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-namespace dessser_gen {
+namespace dessser {
 
 template<unsigned DIM, class T>
 struct Vec : public std::vector<T> {

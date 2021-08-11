@@ -12,7 +12,7 @@
 #include <sstream>
 #include <cctype>
 
-namespace dessser_gen {
+namespace dessser {
 
 /* Pointers that point to a byte buffer used to (de)serialize values. */
 

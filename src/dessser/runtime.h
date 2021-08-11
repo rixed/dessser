@@ -25,7 +25,7 @@
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)
 
-namespace dessser_gen {
+namespace dessser {
 
 inline uint64_t qword_of_float(double v)
 {
@@ -230,6 +230,5 @@ std::ostream &operator<<(std::ostream &os, std::tuple<T1,T2> const &t)
   return os;
 }
 
-};
-
+} // namespace dessser
 #endif

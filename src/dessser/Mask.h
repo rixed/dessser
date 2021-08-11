@@ -3,7 +3,7 @@
 #include <cassert>
 #include <vector>
 
-namespace dessser_gen {
+namespace dessser {
 
 struct Mask {
   enum Op { COPY, SKIP, SET_NULL, RECURSE } op;

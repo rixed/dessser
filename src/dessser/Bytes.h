@@ -5,7 +5,7 @@
 #include <string>
 #include "dessser/typedefs.h"
 
-namespace dessser_gen {
+namespace dessser {
 
 struct Bytes {
   /* Shared with pointers: */

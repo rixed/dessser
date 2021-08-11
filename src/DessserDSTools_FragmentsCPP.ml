@@ -17,7 +17,7 @@ let converter ?(out_buf_size=50_000) entry_point =
   readWholeFile ^
   Printf.sprintf {|
 
-using namespace dessser_gen;
+using namespace dessser;
 
 int main(int numArgs, char **args)
 {
@@ -61,7 +61,7 @@ int main(int numArgs, char **args)
   while (src.rem() > 0) {
     Pointer dst { %d };
 
-    std::tuple<Pointer, Pointer> ptrs = dessser_gen::%s(src, dst);
+    std::tuple<Pointer, Pointer> ptrs = dessser::gen::%s(src, dst);
 
     // Print serialized:
     dst = std::get<1>(ptrs);
@@ -95,7 +95,7 @@ let aggregator ?(out_buf_size=50_000) _state_name input_name output_name =
   readWholeFile ^
   Printf.sprintf {|
 
-using namespace dessser_gen;
+using namespace dessser;
 
 int main(int numArgs, char **args)
 {
@@ -128,12 +128,12 @@ int main(int numArgs, char **args)
 
   while (src.rem() > 0) {
     /* Accumulate that input into the global state: */
-    src = %s(src);
+    src = dessser::gen::%s(src);
   }
 
   /* Output the finalized state: */
   Pointer dst { %d };
-  dst = %s(dst);
+  dst = dessser::gen::%s(dst);
   assert(dst.offset < dst.size-1);
 
   if (dst.buffer) {

@@ -10,7 +10,7 @@
 
 #include <sstream>
 
-namespace dessser_gen {
+namespace dessser {
 
 template<class T>
 struct Lst {

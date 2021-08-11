@@ -2,7 +2,7 @@
 #define SIMPLESET_H_201202
 #include "dessser/Set.h"
 
-namespace dessser_gen {
+namespace dessser {
 
 template<class T>
 struct SimpleSet : public Set<T> {

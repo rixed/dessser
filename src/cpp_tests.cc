@@ -3,7 +3,7 @@
 #include <string>
 #include "dessser/runtime.h"
 
-using namespace dessser_gen;
+using namespace dessser;
 
 void test_i128(std::string const s)
 {
