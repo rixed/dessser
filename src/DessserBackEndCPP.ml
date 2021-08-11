@@ -187,6 +187,9 @@ struct
   and type_identifier p t =
     let type_identifier = type_identifier p
     and type_identifier_mn = type_identifier_mn p in
+    let declare_if_named s =
+      P.declare_if_named p t s (fun oc type_id ->
+        pp oc "typedef %s %s;\n" s type_id) in
     match t with
     | TUnknown -> invalid_arg "type_identifier"
     | TNamed (_, t) ->
@@ -194,32 +197,32 @@ struct
     | TThis n ->
         let t = T.find_this n in
         type_identifier t ^"*"
-    | TVoid -> "Void"
-    | TFloat -> "double"
-    | TString -> "std::string"
-    | TBool -> "bool"
-    | TChar -> "char"
-    | TI8 -> "int8_t"
-    | TU8 -> "uint8_t"
-    | TI16 -> "int16_t"
-    | TU16 -> "uint16_t"
-    | TI24 -> "int32_t"
-    | TU24 -> "uint32_t"
-    | TI32 -> "int32_t"
-    | TU32 -> "uint32_t"
-    | TI40 -> "int64_t"
-    | TU40 -> "uint64_t"
-    | TI48 -> "int64_t"
-    | TU48 -> "uint64_t"
-    | TI56 -> "int64_t"
-    | TU56 -> "uint64_t"
-    | TI64 -> "int64_t"
-    | TU64 -> "uint64_t"
-    | TI128 -> "int128_t"
-    | TU128 -> "uint128_t"
-    | TUsr mn -> type_identifier mn.def
+    | TVoid -> declare_if_named "Void"
+    | TFloat -> declare_if_named "double"
+    | TString -> declare_if_named "std::string"
+    | TBool -> declare_if_named "bool"
+    | TChar -> declare_if_named "char"
+    | TI8 -> declare_if_named "int8_t"
+    | TU8 -> declare_if_named "uint8_t"
+    | TI16 -> declare_if_named "int16_t"
+    | TU16 -> declare_if_named "uint16_t"
+    | TI24 -> declare_if_named "int32_t"
+    | TU24 -> declare_if_named "uint32_t"
+    | TI32 -> declare_if_named "int32_t"
+    | TU32 -> declare_if_named "uint32_t"
+    | TI40 -> declare_if_named "int64_t"
+    | TU40 -> declare_if_named "uint64_t"
+    | TI48 -> declare_if_named "int64_t"
+    | TU48 -> declare_if_named "uint64_t"
+    | TI56 -> declare_if_named "int64_t"
+    | TU56 -> declare_if_named "uint64_t"
+    | TI64 -> declare_if_named "int64_t"
+    | TU64 -> declare_if_named "uint64_t"
+    | TI128 -> declare_if_named "int128_t"
+    | TU128 -> declare_if_named "uint128_t"
+    | TUsr mn -> type_identifier mn.def |> declare_if_named
     | TExt n ->
-        P.get_external_type p n Cpp
+        P.get_external_type p n Cpp |> declare_if_named
     | TTup mns ->
         P.declared_type p t (fun oc type_id ->
           print_tuple p oc type_id mns) |>
@@ -233,27 +236,36 @@ struct
           print_variant p oc type_id mns) |>
         valid_identifier
     | TVec (dim, mn) ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn)
+        Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
+        declare_if_named
     | TArr mn ->
-        Printf.sprintf "Arr<%s>" (type_identifier_mn mn)
+        Printf.sprintf "Arr<%s>" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Simple, mn) ->
-        Printf.sprintf "Set<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "Set<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Sliding, mn) ->
-        Printf.sprintf "SlidingWindow<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "SlidingWindow<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Tumbling, mn) ->
-        Printf.sprintf "TumblingWindow<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "TumblingWindow<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Sampling, mn) ->
-        Printf.sprintf "Sampling<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "Sampling<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (HashTable, mn) ->
-        Printf.sprintf "HashTable<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "HashTable<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Heap, mn) ->
-        Printf.sprintf "Heap<%s> *" (type_identifier_mn mn)
+        Printf.sprintf "Heap<%s> *" (type_identifier_mn mn) |>
+        declare_if_named
     | TSet (Top, _) ->
         todo "C++ back-end for TOPs"
     | TMap _ ->
         assert false (* No value of map type *)
     | TLst mn1 ->
-        "Lst<"^ type_identifier_mn mn1 ^">"
+        "Lst<"^ type_identifier_mn mn1 ^">" |>
+        declare_if_named
     | TFunction (args, ret) ->
         (* We want all modifiable types (ir bytes, vectors, ...?) passed by
          * reference: *)
@@ -263,12 +275,13 @@ struct
               Printf.fprintf oc "%s%s"
                 (type_identifier_mn t)
                 (if is_mutable t then "&" else ""))
-          ) args ^">"
-    | TPtr -> "Pointer"
-    | TSize -> "Size"
-    | TAddress -> "Address"
-    | TBytes -> "Bytes"
-    | TMask -> "Mask"
+          ) args ^">" |>
+        declare_if_named
+    | TPtr -> declare_if_named "Pointer"
+    | TSize -> declare_if_named "Size"
+    | TAddress -> declare_if_named "Address"
+    | TBytes -> declare_if_named "Bytes"
+    | TMask -> declare_if_named "Mask"
 
   (* Identifiers used for function parameters: *)
   let param n = "p_"^ string_of_int n

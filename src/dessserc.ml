@@ -103,7 +103,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
                 let m = DessserBackEndOCaml.valid_module_name name in
                 m ^".DessserGen.t"
             | Cpp ->
-                "*"^ DessserBackEndCPP.valid_identifier name)
+                let m = DessserBackEndCPP.valid_identifier name in
+                "dessser::gen::"^ m ^"::t")
       | _ ->
           compunit
     ) schema in
