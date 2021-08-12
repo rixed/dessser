@@ -52,19 +52,28 @@ let type_id p t =
   try list_assoc_eq ~eq:T.eq t p.type_names
   with Not_found -> T.uniq_id t
 
+(* Add the declaration output by [f] before every currently emitted
+ * declarations: *)
+let prepend_declaration p f =
+  (* Write in a temp string to avoid being interrupted by another
+   * declaration: *)
+  let oc = IO.output_string ()
+  and indent = p.indent in
+  p.indent <- "" ;
+  f oc ;
+  p.indent <- indent ;
+  p.decls <- IO.close_out oc :: p.decls
+
+(* If [t] has not been declared yet then call [f] that's supposed to emit
+ * its declaration (as a type identified by passed identifier). The resulting
+ * string is added to declarations.
+ * If [t] has already been declared just return its identifier. *)
 let declared_type p t f =
   let id = type_id p t in
   if Set.String.mem id p.declared then id
   else (
     p.declared <- Set.String.add id p.declared ;
-    (* Write in a temp string to avoid being interrupted by another
-     * declaration: *)
-    let oc = IO.output_string ()
-    and indent = p.indent in
-    p.indent <- "" ;
-    f oc id ;
-    p.indent <- indent ;
-    p.decls <- IO.close_out oc :: p.decls ;
+    prepend_declaration p (fun oc -> f oc id) ;
     id
   )
 

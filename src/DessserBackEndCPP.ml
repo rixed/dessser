@@ -196,6 +196,19 @@ struct
         type_identifier t
     | TThis n ->
         let t = T.find_this n in
+        (* If t is a constructed type unknown to the compiler, then its name
+         * has to be disclosed to the compiler (FIXME: once is enough!): *)
+        (match t |> T.develop with
+        | TRec _ | TSum _ | TTup _ ->
+            (* All those are structs: *)
+            P.prepend_declaration p (fun oc ->
+              let id = if n = "" then "t" else valid_identifier n in
+              pp oc "struct %s;\n" id) ;
+        | _ ->
+            Printf.sprintf2
+              "type_identifier: C++ backend does not support recursive %a"
+              T.print t |>
+            failwith) ;
         type_identifier t ^"*"
     | TVoid -> declare_if_named "Void"
     | TFloat -> declare_if_named "double"
