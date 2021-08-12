@@ -1458,51 +1458,59 @@ struct
     let tn = type_identifier_mn p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro module_name = function
-  | P.Declaration ->
-      "#include <arpa/inet.h>\n\
-       #include <functional>\n\
-       #include <optional>\n\
-       #include <tuple>\n\
-       #include <variant>\n\
-       #include <vector>\n\
-       #include \"dessser/runtime.h\"\n\
-       \n\
-       namespace dessser::gen::"^ valid_identifier module_name ^" {\n\
-       // don't ask me why:\n\
-       using dessser::operator<<;\n\n"
-  | P.Definition ->
-      "#include <algorithm>\n\
-       #include <arpa/inet.h>\n\
-       #include <charconv>\n\
-       #include <chrono>\n\
-       #include <cmath>\n\
-       #include <cstdlib>\n\
-       #include <ctime>\n\
-       #include <exception>\n\
-       #include <fstream>\n\
-       #include <functional>\n\
-       #include <iostream>\n\
-       #include <optional>\n\
-       #include <random>\n\
-       #include <tuple>\n\
-       #include <utility>\n\
-       #include <variant>\n\
-       #include <vector>\n\
-       #include \"dessser/runtime.h\"\n\
-       \n\
-       std::uniform_real_distribution<double> _random_float_(0, 1);\n\
-       std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
-       std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
-       std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
-       std::default_random_engine _random_engine_;\n\
-       \n\
-       namespace dessser::gen::"^ valid_identifier module_name ^" {\n\
-       // don't ask me why:\n\
-       using dessser::operator<<;\n\n"
+  let source_intro module_name mode =
+    let m = valid_identifier module_name in
+    match mode with
+    | P.Declaration ->
+        "#ifndef DESSSER_GEN_"^ m ^"\n\
+         #define DESSSER_GEN_"^ m ^"\n\
+         #include <arpa/inet.h>\n\
+         #include <functional>\n\
+         #include <optional>\n\
+         #include <tuple>\n\
+         #include <variant>\n\
+         #include <vector>\n\
+         #include \"dessser/runtime.h\"\n\
+         \n\
+         namespace dessser::gen::"^ m ^" {\n\
+         // don't ask me why:\n\
+         using dessser::operator<<;\n\n"
+    | P.Definition ->
+        "#include <algorithm>\n\
+         #include <arpa/inet.h>\n\
+         #include <charconv>\n\
+         #include <chrono>\n\
+         #include <cmath>\n\
+         #include <cstdlib>\n\
+         #include <ctime>\n\
+         #include <exception>\n\
+         #include <fstream>\n\
+         #include <functional>\n\
+         #include <iostream>\n\
+         #include <optional>\n\
+         #include <random>\n\
+         #include <tuple>\n\
+         #include <utility>\n\
+         #include <variant>\n\
+         #include <vector>\n\
+         #include \"dessser/runtime.h\"\n\
+         \n\
+         std::uniform_real_distribution<double> _random_float_(0, 1);\n\
+         std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
+         std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
+         std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
+         std::default_random_engine _random_engine_;\n\
+         \n\
+         namespace dessser::gen::"^ m ^" {\n\
+         // don't ask me why:\n\
+         using dessser::operator<<;\n\n"
 
-  let source_outro _ _ =
-    "\n}\n"
+  let source_outro _ = function
+    | P.Declaration ->
+        "\n}\n\
+         #endif\n"
+    | P.Definition ->
+        "\n}\n"
 
   let adapt_type t = t
 end
