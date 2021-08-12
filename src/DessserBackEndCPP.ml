@@ -419,9 +419,9 @@ struct
         tn tn cpp_op n1 pos ;
       ppi p.P.def "  if (%s == %s.length()) %s = v_;" pos n1 res ;
       ppi p.P.def "} catch (const std::exception&) {}" ;
-      res
-    in
-    match e with
+      res in
+    let t = E.type_of l e in
+    let n = match e with
     | T.E1S (Apply, f, es) ->
         let nf = print p l f in
         let ns =
@@ -648,7 +648,6 @@ struct
     | E2 ((Pow | UnsafePow) as op, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
-        let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc ->
             pp oc "std::pow(%s, %s)" n1 n2) oc) |>
@@ -785,7 +784,7 @@ struct
              I8OfPtr | I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
              I48OfPtr | I56OfPtr | I64OfPtr), e1) ->
         let n = print p l e1 in
-        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
+        let tn = T.pair_of_tpair t |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
         let val_ = gen_sym "val_" in
@@ -801,7 +800,7 @@ struct
           pp oc "%s, %s.skip(%s.ptr - %s)" val_ n res start)
     | E1 (U128OfPtr, e1) ->
         let n = print p l e1 in
-        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
+        let tn = T.pair_of_tpair t |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
         let val_ = gen_sym "val_" in
@@ -815,7 +814,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s, %s.skip(count_)" val_ n)
     | E1 (I128OfPtr, e1) ->
         let n = print p l e1 in
-        let tn = E.type_of l e |> T.pair_of_tpair |> fst |> type_identifier_mn p in
+        let tn = T.pair_of_tpair t |> fst |> type_identifier_mn p in
         let start = gen_sym "start_" in
         let stop = gen_sym "stop_" in
         let val_ = gen_sym "val_" in
@@ -848,7 +847,6 @@ struct
              ToU128 | ToI128 | ToFloat), e1)
     | E1 (U8OfBool, e1) | E1 (BoolOfU8, e1) ->
         let n = print p l e1 in
-        let t = E.type_of l e in
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc -> pp oc "%s" n) oc)
     | E1 (ArrOfLst, e1) ->
@@ -1060,7 +1058,6 @@ struct
         (* Default constructor cannot be called with no-args as that would
          * not be C++ish enough: *)
         let res = gen_sym ?name "endoflist_" in
-        let t = E.type_of l e in
         let tn = type_identifier_mn p t in
         ppi p.P.def "%s %s;" tn res ;
         res
@@ -1095,7 +1092,6 @@ struct
         let n1 = print p l e1
         and n2 = print p l e2
         and op = match op with Min -> "min" | _ -> "max" in
-        let t = E.type_of l e in
         let tn = type_identifier_mn p t in
         emit ?name p l e (fun oc -> pp oc "std::%s<%s>(%s, %s)" op tn n1 n2)
     | E2 (Member, e1, e2) ->
@@ -1335,7 +1331,6 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s->getMin();" set)
     | E1 (AllocVec d, init) ->
         let init = print p l init in
-        let t = E.type_of l e in
         (* We want the size+item constructor, not a list initialization, so
          * since Arr is a std::vector we must avoid brace-initializer.
          * Work around: *)
@@ -1374,8 +1369,7 @@ struct
           pp oc "string_join(%s, %s)" n1 n2)
     | E2 (AllocArr, e1, e2) ->
         let n1 = print p l e1
-        and n2 = print p l e2
-        and t = E.type_of l e in
+        and n2 = print p l e2 in
         (* We want the size+item constructor, not a list initialization, so
          * since Arr is a std::vector we must avoid brace-initializer.
          * Work around: *)
@@ -1438,7 +1432,14 @@ struct
         ppi p.P.def "std::size_t const %s { clamp_to_length(%s, %s) };"
           clamp_stop stop len ;
         emit ?name p l e (fun oc ->
-          pp oc "%s, %s, (%s - %s)" str start stop start)
+          pp oc "%s, %s, (%s - %s)" str start stop start) in
+    (* Avoid unused-var warning: *)
+    (match t with
+    | { typ = T.TVoid ; nullable = false } ->
+        ppi p.P.def "(void)%s;" n
+    | _ ->
+        ()) ;
+    n
 
   let print_binding_toplevel emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
