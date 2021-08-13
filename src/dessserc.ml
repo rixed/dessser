@@ -67,13 +67,14 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask dest_fname optim () =
+        with_fieldmask include_base dest_fname optim () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
     failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
   quiet := quiet_ ;
+  DessserBackEndCPP.include_base := include_base ;
   let with_fieldmasks =
     match with_fieldmask with
     | WithFieldMask -> [ true ]
@@ -510,6 +511,13 @@ let with_fieldmask =
   let i = Arg.info ~doc ~docv [ "fieldmask" ] in
   Arg.(opt (enum fieldmask_options) WithoutFieldMask i)
 
+let include_base =
+  let doc =
+    "Where to find external types when compiling generated sources (for C++)"
+  and docv = "PATH" in
+  let i = Arg.info ~doc ~docv [ "include-base" ] in
+  Arg.(opt string "" i)
+
 let parse_expression s =
   match P.expr s with
   | exception e ->
@@ -614,6 +622,7 @@ let lib_cmd =
      $ Arg.value encodings_out
      $ Arg.value converters
      $ Arg.value with_fieldmask
+     $ Arg.value include_base
      $ Arg.required dest_fname
      $ Arg.value optim),
     info "lib" ~doc)

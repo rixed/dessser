@@ -11,6 +11,8 @@ module P = DessserPrinter
 
 let cpp_std_version = 17
 
+let include_base = ref ""
+
 let valid_identifier =
   (* Taken from https://en.cppreference.com/w/cpp/keyword: *)
   let keywords =
@@ -1459,8 +1461,17 @@ struct
     let tn = type_identifier_mn p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro module_name mode =
-    let m = valid_identifier module_name in
+  let source_intro compunit mode =
+    let m = valid_identifier compunit.U.module_name in
+    (* Collect all used external types to #include their headers: *)
+    let extra_incs =
+      let base = !include_base in
+      let base =
+        if base <> "" && not (String.ends_with base "/") then
+          base ^"/" else base in
+      List.enum compunit.external_types /@
+      (fun (n, _) -> "#include \""^ base ^ n ^".h\"\n") |>
+      Enum.fold (^) "" in
     match mode with
     | P.Declaration ->
         "#ifndef DESSSER_GEN_"^ m ^"\n\
@@ -1471,10 +1482,9 @@ struct
          #include <tuple>\n\
          #include <variant>\n\
          #include <vector>\n\
-         #include \"dessser/runtime.h\"\n\
-         \n\
-         namespace dessser::gen::"^ m ^" {\n\
-         // don't ask me why:\n\
+         #include \"dessser/runtime.h\"\n"^
+        extra_incs ^"\n"^
+        "namespace dessser::gen::"^ m ^" {\n\
          using dessser::operator<<;\n\n"
     | P.Definition ->
         "#include <algorithm>\n\
@@ -1494,16 +1504,15 @@ struct
          #include <utility>\n\
          #include <variant>\n\
          #include <vector>\n\
-         #include \"dessser/runtime.h\"\n\
-         \n\
-         std::uniform_real_distribution<double> _random_float_(0, 1);\n\
+         #include \"dessser/runtime.h\"\n"^
+        extra_incs ^"\n"^
+        "std::uniform_real_distribution<double> _random_float_(0, 1);\n\
          std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
          std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
          std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
          std::default_random_engine _random_engine_;\n\
          \n\
          namespace dessser::gen::"^ m ^" {\n\
-         // don't ask me why:\n\
          using dessser::operator<<;\n\n"
 
   let source_outro _ = function

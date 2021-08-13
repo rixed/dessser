@@ -1787,7 +1787,7 @@ struct
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn
 
   (* No need for the module name here since file name is already a module: *)
-  let source_intro _module_name = function
+  let source_intro _compunit = function
     | P.Declaration ->
         "open Stdint\n\
          open DessserOCamlBackEndHelpers\n\
