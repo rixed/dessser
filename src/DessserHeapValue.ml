@@ -205,7 +205,7 @@ struct
   (* Call the decoder for type name [n]: *)
   and dthis n _dstate mn0 _path src =
     let f =
-      if n = "" then myself T.(pair mn0 ptr)
+      if n = "t" then myself T.(pair mn0 ptr)
       else identifier (local_des_for n) in
     apply f [ src ]
 
@@ -460,7 +460,7 @@ struct
   and sthis n ma _sstate _mn0 _path v dst =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
-      if n = "" then myself T.ptr
+      if n = "t" then myself T.ptr
       else identifier (local_ser_for ~with_fieldmask n) in
     (* Call ourself recursively *)
     apply f (
@@ -684,7 +684,7 @@ struct
   and ssthis n ma _mn0 _path v =
     let f =
       let with_fieldmask = ma <> CompTimeMask in
-      if n = "" then myself T.size
+      if n = "t" then myself T.size
       else identifier (local_ssize_for ~with_fieldmask n) in
     apply f (
       match ma with

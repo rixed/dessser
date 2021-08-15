@@ -13,6 +13,7 @@ let cpp_std_version = 17
 
 let include_base = ref ""
 
+(* Must be a projection! *)
 let valid_identifier =
   (* Taken from https://en.cppreference.com/w/cpp/keyword: *)
   let keywords =
@@ -190,8 +191,10 @@ struct
     let type_identifier = type_identifier p
     and type_identifier_mn = type_identifier_mn p in
     let declare_if_named s =
-      P.declare_if_named p t s (fun oc type_id ->
-        pp oc "typedef %s %s;\n" s type_id) in
+      let is_id, s =
+        P.declare_if_named p t s (fun oc type_id ->
+          pp oc "typedef %s %s;\n" s (valid_identifier type_id)) in
+      if is_id then valid_identifier s else s in
     match t with
     | TUnknown -> invalid_arg "type_identifier"
     | TNamed (_, t) ->

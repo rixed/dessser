@@ -282,7 +282,7 @@ let this m =
   let m = "this" :: m in
   (
     strinG "this" -+
-    optional ~def:"" (!blanks -+ identifier) >>: fun s -> TThis s
+    optional ~def:"t" (!blanks -+ identifier) >>: fun s -> TThis s
   ) m
 
 type key_type =

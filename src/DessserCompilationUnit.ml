@@ -12,9 +12,7 @@ type t =
     identifiers : (string * identifier * T.mn) list ; (* TODO: add definition *)
     external_identifiers : (string * T.mn) list ;
     verbatim_definitions : verbatim_definition list ;
-    external_types : (string * (P.t -> backend_id -> string)) list ;
-    (* User may prefer some specific name for some types: *)
-    type_names : (T.typ * string) list }
+    external_types : (string * (P.t -> backend_id -> string)) list }
 
 and verbatim_definition =
   { name : string ; (* or empty string *)
@@ -38,17 +36,7 @@ let make module_name =
     identifiers = [] ;
     external_identifiers = [] ;
     verbatim_definitions = [] ;
-    external_types = [] ;
-    type_names = [] }
-
-let name_type compunit t name =
-  let t = T.shrink t in
-  match List.assoc t compunit.type_names with
-  | exception Not_found ->
-      { compunit with type_names = (t, name) :: compunit.type_names }
-  | name' ->
-      Printf.sprintf "name_type: type %S already named %S" name name' |>
-      invalid_arg
+    external_types = [] }
 
 (* Extract the currently defined (global) environment from the compunit: *)
 let environment compunit =

@@ -81,7 +81,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     | WithoutFieldMask -> [ false ]
     | WithAndWithoutFieldMask -> [ true ; false ] in
   (* Make "this" refers to top-level type: *)
-  T.add_type_as "" schema.T.typ ;
+  T.add_type_as "t" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   init_backend backend schema ;
@@ -89,9 +89,6 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let compunit = U.make module_name in
   let compunit = List.fold_left init_encoding compunit encodings_in in
   let compunit = List.fold_left init_encoding compunit encodings_out in
-  (* Christen the schema type the global type name "t" *)
-  let type_name = "t" in
-  let compunit = U.name_type compunit schema.T.typ type_name in
   (* Then declare all referenced external types as if we had the same methods
    * than those we are generating for this type: *)
   let compunit =
@@ -182,7 +179,7 @@ let converter
   debug := dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
-  T.add_type_as "" schema.T.typ ;
+  T.add_type_as "t" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in
@@ -297,7 +294,7 @@ let aggregator
   debug := dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
-  T.add_type_as "" schema.T.typ ;
+  T.add_type_as "t" schema.T.typ ;
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   let module BE = (val backend : BACKEND) in

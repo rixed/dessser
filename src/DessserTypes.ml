@@ -824,7 +824,7 @@ and print ?(sorted=false) ?with_defaults oc =
   | TNamed (n, t) ->
       pp oc "%s AS " n ;
       print ~sorted oc t
-  | TThis "" ->
+  | TThis "t" ->
       sp "THIS"
   | TThis n ->
       sp n
@@ -1090,7 +1090,8 @@ let () =
 (* We need types featuring `this`, that can come with various degrees of
  * unfolding, to all look equal.
  * We cannot "expand" This, because that would just make more This appear.
- * But there exist a form where the type is folded as much as possible: *)
+ * But there exist a form where the type is folded as much as possible
+ * (but for the top level): *)
 let rec shrink t =
   let find_def t =
     List.find (fun (_, def) -> eq t def) !these in
@@ -1114,7 +1115,7 @@ let rec shrink t =
     | exception Not_found -> t'
     | n, _ -> TThis n
   in
-  (* Avoid replacing the whole type with This: *)
+  (* Avoid replacing the whole type with TThis: *)
   match find_def t with
   | exception Not_found -> do_typ t
   | _ -> t

@@ -11,6 +11,7 @@ module P = DessserPrinter
 
 let debug = false
 
+(* Must be a projection! *)
 let valid_identifier =
   let keywords =
     [ "and" ; "as" ; "assert" ; "asr" ; "begin" ; "class" ; "constraint" ;
@@ -285,17 +286,21 @@ struct
     let type_identifier = type_identifier p
     and type_identifier_mn = type_identifier_mn p in
     let declare_if_named s =
-      P.declare_if_named p t s (fun oc type_id ->
-          pp oc "and %s = %s\n" type_id s) in
+      let is_id, s =
+        P.declare_if_named p t s (fun oc type_id ->
+          pp oc "and %s = %s\n" (valid_identifier type_id) s) in
+      if is_id then valid_identifier s else s in
     match t with
     | TUnknown -> invalid_arg "type_identifier"
     | TNamed (_, t) ->
         type_identifier t
-    | TThis "" ->
-        "t" (* FIXME: Useful ? *)
+    (* We want TThis to refer to the actual type by *name*, breaking
+     * infinite recursion.
+     * This leaves us with the problem of actually declaring that type
+     * at the top level. We rely on T.shrink not shrinking the top level
+     * type into "this" for that to happen. *)
     | TThis n ->
-        let t = T.find_this n in
-        type_identifier t
+        valid_identifier n
     | TChar -> "char" |> declare_if_named
     | TString -> "string" |> declare_if_named
     | TBool -> "bool" |> declare_if_named
