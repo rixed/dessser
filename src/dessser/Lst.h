@@ -102,6 +102,10 @@ struct Lst {
     return s;
   }
 
+  /* Explicitly implicit: */
+  Lst<T> &operator=(Lst<T> const &) = default;
+  Lst<T> &operator=(Lst<T> &&) = default;
+
   // Range based loops:
 
   struct Iterator {

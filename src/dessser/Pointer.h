@@ -474,6 +474,10 @@ struct Pointer {
   {
     return (Size)offset;
   }
+
+  /* Explicitly implicit: */
+  Pointer &operator=(Pointer const &) = default;
+  Pointer &operator=(Pointer &&) = default;
 };
 
 inline bool operator==(const Pointer& lhs, const Pointer& rhs)
