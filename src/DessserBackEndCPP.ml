@@ -73,20 +73,32 @@ struct
   let tuple_field_name i = "field_"^ string_of_int i
 
   let is_mutable t =
-    match T.develop_mn t with
-    | T.{ typ = (TBytes | TVec _ | TArr _) ; _ } ->
+    match T.develop t with
+    | TBytes | TVec _ | TArr _ ->
         true
     | _ ->
         false
 
-  (* Some types are hidden behind a pointer (for instance because we want
-   * to use inheritance) *)
+  (* Some types are hidden behind a pointer because we want polymorphism.
+   * Notice that TThis is only half-pointy: it's stored and manipulated as
+   * a pointer but when passing values to external functions it is actually
+   * no longer pointy. *)
   let is_pointy t =
-    match T.develop_mn t with
-    | T.{ typ = (TThis _ | TSet _) ; _ } ->
+    match T.develop t with
+    | TThis _ | TSet _ ->
         true
+    | (TRec _ | TSum _ | TTup _) as t ->
+        (* Even if expanded, any named type that's susceptible to be used
+         * recursively must be pointy. *)
+        List.exists (fun (_, def) -> T.eq t def) !T.these
     | _ ->
         false
+
+  (* Removes the final "*" of a pointy type representation: *)
+  let blunted tn =
+    if String.ends_with tn "*" then String.rchop tn else
+    if String.ends_with tn "_ext" then String.rchop ~n:4 tn else
+    invalid_arg ("blunted: "^ tn)
 
   let rec print_tuple p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
@@ -195,111 +207,122 @@ struct
         P.declare_if_named p t s (fun oc type_id ->
           pp oc "typedef %s %s;\n" s (valid_identifier type_id)) in
       if is_id then valid_identifier s else s in
-    match t with
-    | TUnknown -> invalid_arg "type_identifier"
-    | TNamed (_, t) ->
-        type_identifier t
-    | TThis n ->
-        let t = T.find_this n in
-        (* If t is a constructed type unknown to the compiler, then its name
-         * has to be disclosed to the compiler (FIXME: once is enough!): *)
-        (match t |> T.develop with
-        | TRec _ | TSum _ | TTup _ ->
-            (* All those are structs: *)
-            P.prepend_declaration p (fun oc ->
-              let id = if n = "" then "t" else valid_identifier n in
-              pp oc "struct %s;\n" id) ;
-        | _ ->
-            Printf.sprintf2
-              "type_identifier: C++ backend does not support recursive %a"
-              T.print t |>
-            failwith) ;
-        type_identifier t ^"*"
-    | TVoid -> declare_if_named "Void"
-    | TFloat -> declare_if_named "double"
-    | TString -> declare_if_named "std::string"
-    | TBool -> declare_if_named "bool"
-    | TChar -> declare_if_named "char"
-    | TI8 -> declare_if_named "int8_t"
-    | TU8 -> declare_if_named "uint8_t"
-    | TI16 -> declare_if_named "int16_t"
-    | TU16 -> declare_if_named "uint16_t"
-    | TI24 -> declare_if_named "int32_t"
-    | TU24 -> declare_if_named "uint32_t"
-    | TI32 -> declare_if_named "int32_t"
-    | TU32 -> declare_if_named "uint32_t"
-    | TI40 -> declare_if_named "int64_t"
-    | TU40 -> declare_if_named "uint64_t"
-    | TI48 -> declare_if_named "int64_t"
-    | TU48 -> declare_if_named "uint64_t"
-    | TI56 -> declare_if_named "int64_t"
-    | TU56 -> declare_if_named "uint64_t"
-    | TI64 -> declare_if_named "int64_t"
-    | TU64 -> declare_if_named "uint64_t"
-    | TI128 -> declare_if_named "int128_t"
-    | TU128 -> declare_if_named "uint128_t"
-    | TUsr mn -> type_identifier mn.def |> declare_if_named
-    | TExt n ->
-        P.get_external_type p n Cpp |> declare_if_named
-    | TTup mns ->
-        P.declared_type p t (fun oc type_id ->
-          print_tuple p oc type_id mns) |>
-        valid_identifier
-    | TRec mns ->
-        P.declared_type p t (fun oc type_id ->
-          print_rec p oc type_id mns) |>
-        valid_identifier
-    | TSum mns ->
-        P.declared_type p t (fun oc type_id ->
-          print_variant p oc type_id mns) |>
-        valid_identifier
-    | TVec (dim, mn) ->
-        Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
-        declare_if_named
-    | TArr mn ->
-        Printf.sprintf "Arr<%s>" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Simple, mn) ->
-        Printf.sprintf "Set<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Sliding, mn) ->
-        Printf.sprintf "SlidingWindow<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Tumbling, mn) ->
-        Printf.sprintf "TumblingWindow<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Sampling, mn) ->
-        Printf.sprintf "Sampling<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (HashTable, mn) ->
-        Printf.sprintf "HashTable<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Heap, mn) ->
-        Printf.sprintf "Heap<%s> *" (type_identifier_mn mn) |>
-        declare_if_named
-    | TSet (Top, _) ->
-        todo "C++ back-end for TOPs"
-    | TMap _ ->
-        assert false (* No value of map type *)
-    | TLst mn1 ->
-        "Lst<"^ type_identifier_mn mn1 ^">" |>
-        declare_if_named
-    | TFunction (args, ret) ->
-        (* We want all modifiable types (ir bytes, vectors, ...?) passed by
-         * reference: *)
-        "std::function<"^ type_identifier_mn ret ^
-          IO.to_string (
-            Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
-              Printf.fprintf oc "%s%s"
-                (type_identifier_mn t)
-                (if is_mutable t then "&" else ""))
-          ) args ^">" |>
-        declare_if_named
-    | TPtr -> declare_if_named "Pointer"
-    | TSize -> declare_if_named "Size"
-    | TAddress -> declare_if_named "Address"
-    | TBytes -> declare_if_named "Bytes"
-    | TMask -> declare_if_named "Mask"
+    let tn =
+      match t with
+      | TUnknown -> invalid_arg "type_identifier"
+      | TNamed (_, t) ->
+          type_identifier t
+      | TThis n ->
+          let t = T.find_this n in
+          (* If t is a constructed type unknown to the compiler, then its name
+           * has to be disclosed to the compiler (FIXME: once is enough!): *)
+          (match t |> T.develop with
+          | TRec _ | TSum _ | TTup _ ->
+              (* All those are structs: *)
+              P.prepend_declaration p (fun oc ->
+                let id = if n = "" then "t" else valid_identifier n in
+                pp oc "struct %s;\n" id) ;
+          | _ ->
+              Printf.sprintf2
+                "type_identifier: C++ backend does not support recursive %a"
+                T.print t |>
+              failwith) ;
+          (* Recursive types can only be created via an indirection in C++ as in
+           * C. So here any named type will be accessed via an indirection (even
+           * if actually not recursive).  *)
+          (* FIXME: for P.declared_type TThis and the actual type it replaces are
+           * exactly equivalent, so whenever TThis is embedded in a compound
+           * type then P.declared_type could either call back this function, and
+           * getting "t*", or reusing the identifier of a previously declared
+           * type with only "t". Should P.declared_type uniquify the results
+           * instead of identifying the types? *)
+          valid_identifier n
+      | TVoid -> declare_if_named "Void"
+      | TFloat -> declare_if_named "double"
+      | TString -> declare_if_named "std::string"
+      | TBool -> declare_if_named "bool"
+      | TChar -> declare_if_named "char"
+      | TI8 -> declare_if_named "int8_t"
+      | TU8 -> declare_if_named "uint8_t"
+      | TI16 -> declare_if_named "int16_t"
+      | TU16 -> declare_if_named "uint16_t"
+      | TI24 -> declare_if_named "int32_t"
+      | TU24 -> declare_if_named "uint32_t"
+      | TI32 -> declare_if_named "int32_t"
+      | TU32 -> declare_if_named "uint32_t"
+      | TI40 -> declare_if_named "int64_t"
+      | TU40 -> declare_if_named "uint64_t"
+      | TI48 -> declare_if_named "int64_t"
+      | TU48 -> declare_if_named "uint64_t"
+      | TI56 -> declare_if_named "int64_t"
+      | TU56 -> declare_if_named "uint64_t"
+      | TI64 -> declare_if_named "int64_t"
+      | TU64 -> declare_if_named "uint64_t"
+      | TI128 -> declare_if_named "int128_t"
+      | TU128 -> declare_if_named "uint128_t"
+      | TUsr mn -> type_identifier mn.def |> declare_if_named
+      | TExt n ->
+          P.get_external_type p n Cpp |> declare_if_named
+      | TTup mns ->
+          P.declared_type p t (fun oc type_id ->
+            print_tuple p oc type_id mns) |>
+          valid_identifier
+      | TRec mns ->
+          P.declared_type p t (fun oc type_id ->
+            print_rec p oc type_id mns) |>
+          valid_identifier
+      | TSum mns ->
+          P.declared_type p t (fun oc type_id ->
+            print_variant p oc type_id mns) |>
+          valid_identifier
+      | TVec (dim, mn) ->
+          Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
+          declare_if_named
+      | TArr mn ->
+          Printf.sprintf "Arr<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Simple, mn) ->
+          Printf.sprintf "Set<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Sliding, mn) ->
+          Printf.sprintf "SlidingWindow<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Tumbling, mn) ->
+          Printf.sprintf "TumblingWindow<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Sampling, mn) ->
+          Printf.sprintf "Sampling<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (HashTable, mn) ->
+          Printf.sprintf "HashTable<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Heap, mn) ->
+          Printf.sprintf "Heap<%s>" (type_identifier_mn mn) |>
+          declare_if_named
+      | TSet (Top, _) ->
+          todo "C++ back-end for TOPs"
+      | TMap _ ->
+          assert false (* No value of map type *)
+      | TLst mn1 ->
+          "Lst<"^ type_identifier_mn mn1 ^">" |>
+          declare_if_named
+      | TFunction (args, ret) ->
+          (* We want all modifiable types (ir bytes, vectors, ...?) passed by
+           * reference: *)
+          "std::function<"^ type_identifier_mn ret ^
+            IO.to_string (
+              Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
+                Printf.fprintf oc "%s%s"
+                  (type_identifier_mn t)
+                  (if is_mutable t.T.typ then "&" else ""))
+            ) args ^">" |>
+          declare_if_named
+      | TPtr -> declare_if_named "Pointer"
+      | TSize -> declare_if_named "Size"
+      | TAddress -> declare_if_named "Address"
+      | TBytes -> declare_if_named "Bytes"
+      | TMask -> declare_if_named "Mask" in
+  if is_pointy t then tn ^"*" else tn
 
   (* Identifiers used for function parameters: *)
   let param n = "p_"^ string_of_int n
@@ -316,9 +339,9 @@ struct
       pp oc "%s %s { %t };" tn n f
     )
 
-  let print_cast p t f oc =
-    let tn = type_identifier_mn p t in
-    if is_pointy t then
+  let print_cast p mn f oc =
+    let tn = type_identifier_mn p mn in
+    if is_pointy mn.T.typ then
       (* Outer parenth required since a following "->" would apply first *)
       pp oc "((%s)(%t))" tn f
     else
@@ -399,8 +422,8 @@ struct
       res in
     let method_call e1 m args =
       let deref_with =
-        if is_pointy (E.type_of l e1 |> T.develop_mn) then "->"
-                                                      else "." in
+        if is_pointy (E.type_of l e1 |> T.develop_mn).T.typ then "->"
+                                                            else "." in
       let n1 = print p l e1
       and ns = List.map (print p l) args in
       emit ?name p l e (fun oc ->
@@ -446,7 +469,13 @@ struct
     | E0S (MakeTup, es) ->
         let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
-          List.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
+          let first, last, sep =
+            if is_pointy t.T.typ then
+              let tn = type_identifier_mn p t |> blunted in
+              ("new "^ tn ^"({ "), " })", ", "
+            else
+              "", "", ", " in
+          List.print ~first ~last ~sep String.print oc inits)
     | E0R ((MakeVec | MakeArr _), es) ->
         let inits = Array.map (print p l) es in
         emit ?name p l e (fun oc ->
@@ -463,9 +492,14 @@ struct
           ) (None, []) es in
         let inits = List.rev inits in
         emit ?name p l e (fun oc ->
-          List.print ~first:" " ~last:" " ~sep:", "
-            (fun oc (name, n) ->
-              Printf.fprintf oc ".%s = %s" name n) oc inits)
+          let first, last, sep =
+            if is_pointy t.T.typ then
+              let tn = type_identifier_mn p t |> blunted in
+              ("new "^ tn ^"({ "), " })", ", "
+            else
+              "", "", ", " in
+          List.print ~first ~last ~sep (fun oc (name, n) ->
+            Printf.fprintf oc ".%s = %s" name n) oc inits)
     | E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
         print ?name p l e
@@ -1174,7 +1208,7 @@ struct
           array_print_i ~first ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier_mn p t)
-              (if is_mutable t then "&" else "")
+              (if is_mutable t.T.typ then "&" else "")
               (param i))
             oc ts ;
           let l = E.enter_function ~name ~ts l in
@@ -1256,25 +1290,41 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s, %s, %s" init f lst)
     | E1 (GetItem n, e1) ->
         let n1 = print p l e1 in
+        let mn1 = E.type_of l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "std::get<%d>(%s)" n n1)
+          Printf.fprintf oc "std::get<%d>(%s%s)"
+            n
+            (if is_pointy mn1.T.typ then "*" else "")
+            n1)
     | E1 (GetField s, e1) ->
         let n1 = print p l e1 in
+        let mn1 = E.type_of l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s.%s" n1 (valid_identifier s))
+          Printf.fprintf oc "%s%s%s"
+            n1
+            (if is_pointy mn1.T.typ then "->" else ".")
+            (valid_identifier s))
     | E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_mn with
         | T.{ typ = TSum mns ; nullable = false } ->
             let n1 = print p l e1 in
+            let mn1 = E.type_of l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
-              Printf.fprintf oc "std::get<%d>(%s)" lbl n1)
+              Printf.fprintf oc "std::get<%d>(%s%s)"
+                lbl
+                (if is_pointy mn1.T.typ then "*" else "")
+                n1)
         | _ ->
             assert false)
     | E1 (Construct (_, i), e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "std::in_place_index<%d>, %s" i n1)
+          if is_pointy t.T.typ then
+            let tn = type_identifier_mn p t |> blunted in
+            Printf.fprintf oc "new %s(std::in_place_index<%d>, %s)" tn i n1
+          else
+            Printf.fprintf oc "std::in_place_index<%d>, %s" i n1)
     | E1 (Assert, e1) ->
         let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
@@ -1283,7 +1333,10 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s.get(%d)" n1 i)
     | E1 (LabelOf, e1) ->
         let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())" n1)
+        let mn1 = E.type_of l e1 in
+        emit ?name p l e (fun oc -> pp oc "uint16_t(%s%sindex())"
+          n1
+          (if is_pointy mn1.T.typ then "->" else "."))
     | E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask::COPY")
     | E0 SkipField ->
@@ -1464,7 +1517,7 @@ struct
     let tn = type_identifier_mn p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro compunit mode =
+  let source_intro compunit context =
     let m = valid_identifier compunit.U.module_name in
     (* Collect all used external types to #include their headers: *)
     let extra_incs =
@@ -1475,7 +1528,7 @@ struct
       List.enum compunit.external_types /@
       (fun (n, _) -> "#include \""^ base ^ n ^".h\"\n") |>
       Enum.fold (^) "" in
-    match mode with
+    match context with
     | P.Declaration ->
         "#ifndef DESSSER_GEN_"^ m ^"\n\
          #define DESSSER_GEN_"^ m ^"\n\
@@ -1518,12 +1571,23 @@ struct
          namespace dessser::gen::"^ m ^" {\n\
          using dessser::operator<<;\n\n"
 
-  let source_outro _ = function
+  let source_outro _ context =
+    (* Also define a type t_ext to reference t as an external type (if t is
+     * pointy then it must be passed/received as a pointer) *)
+    (match T.find_this "t" with
+    | exception T.Unbound_type _ ->
+        ""
+    | t ->
+        "typedef t " ^
+          (* Note that pointy and mutable are exclusive *)
+          (if is_pointy t then "*" else "") ^
+          "t_ext;\n") ^
+    (match context with
     | P.Declaration ->
         "\n}\n\
          #endif\n"
     | P.Definition ->
-        "\n}\n"
+        "\n}\n")
 
   let adapt_type t = t
 end

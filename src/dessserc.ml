@@ -102,7 +102,10 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
                 m ^".DessserGen.t"
             | Cpp ->
                 let m = DessserBackEndCPP.valid_identifier name in
-                "dessser::gen::"^ m ^"::t")
+                (* All top-level external types that are records, tuples or sums are
+                 * pointy. Since we do not know here about pointyness of ext type,
+                 * it is assumed they also define a t_ext type *)
+                "dessser::gen::"^ m ^"::t_ext")
       | _ ->
           compunit
     ) schema in
