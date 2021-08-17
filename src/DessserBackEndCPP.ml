@@ -307,8 +307,6 @@ struct
           "Lst<"^ type_identifier_mn mn1 ^">" |>
           declare_if_named
       | TFunction (args, ret) ->
-          (* We want all modifiable types (ir bytes, vectors, ...?) passed by
-           * reference: *)
           "std::function<"^ type_identifier_mn ret ^
             IO.to_string (
               Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
@@ -1157,10 +1155,14 @@ struct
         | None ->
             s)
     | E0 (ExtIdentifier (Method { typ ; meth })) ->
-        emit ?name p l e (fun oc ->
-          pp oc "dessser::gen::%s::%s"
-            (valid_identifier typ)
-            (string_of_type_method meth |> valid_identifier))
+        (* When calling external function we don't know if their mutable arguments
+         * must be passed by reference or not, so in this case we rely on auto: *)
+        let name = name |? gen_sym "fun" in
+        ppi p.P.def "auto %s { dessser::gen::%s::%s };"
+          name
+          (valid_identifier typ)
+          (string_of_type_method meth |> valid_identifier) ;
+        name
     | E2 (Let (n, r), e1, e2) ->
         let n1 = print p l e1 in
         let t = E.get_memo_mn r l e1 in
