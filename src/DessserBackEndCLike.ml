@@ -70,8 +70,8 @@ sig
 
   val print : emitter -> ?name:string -> P.t -> E.env -> E.t -> string
 
-  val source_intro : U.t -> P.context -> string
-  val source_outro : U.t -> P.context -> string
+  val source_intro : U.t -> P.t -> string
+  val source_outro : U.t -> P.t -> string
 
   (* TODO: find a way to factorize the print function itself *)
 end
@@ -244,7 +244,7 @@ struct
           List.iter (String.print oc) in
     pp oc
       "%s%a%a%a%a%a%a%a%a%a%a%a%s"
-      (C.source_intro compunit p.P.context)
+      (C.source_intro compunit p)
       (print_verbatims "top" p) top_verbatim
       C.print_comment "------------"
       C.print_comment "Declarations"
@@ -256,7 +256,7 @@ struct
       C.print_comment "-----------"
       print_ios p.defs
       (print_verbatims "bottom" p) bottom_verbatim
-      (C.source_outro compunit p.P.context)
+      (C.source_outro compunit p)
 
   let print_definitions oc compunit =
     let verbatims loc =

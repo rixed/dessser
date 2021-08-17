@@ -1517,7 +1517,7 @@ struct
     let tn = type_identifier_mn p t in
     pp p.P.def "%s%s %s;\n" p.P.indent tn n
 
-  let source_intro compunit context =
+  let source_intro compunit p =
     let m = valid_identifier compunit.U.module_name in
     (* Collect all used external types to #include their headers: *)
     let extra_incs =
@@ -1528,7 +1528,7 @@ struct
       List.enum compunit.external_types /@
       (fun (n, _) -> "#include \""^ base ^ n ^".h\"\n") |>
       Enum.fold (^) "" in
-    match context with
+    match p.P.context with
     | P.Declaration ->
         "#ifndef DESSSER_GEN_"^ m ^"\n\
          #define DESSSER_GEN_"^ m ^"\n\
@@ -1571,18 +1571,20 @@ struct
          namespace dessser::gen::"^ m ^" {\n\
          using dessser::operator<<;\n\n"
 
-  let source_outro _ context =
+  let source_outro _ p =
     (* Also define a type t_ext to reference t as an external type (if t is
      * pointy then it must be passed/received as a pointer) *)
     (match T.find_this "t" with
     | exception T.Unbound_type _ ->
         ""
     | t ->
-        "typedef t " ^
-          (* Note that pointy and mutable are exclusive *)
-          (if is_pointy t then "*" else "") ^
-          "t_ext;\n") ^
-    (match context with
+        if Set.String.mem "t" p.P.declared then
+          "typedef t " ^
+            (if is_pointy t then "*" else "") ^
+            "t_ext;\n"
+        else
+          "") ^
+    (match p.P.context with
     | P.Declaration ->
         "\n}\n\
          #endif\n"
