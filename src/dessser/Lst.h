@@ -69,6 +69,8 @@ struct Lst {
     else return 1 + cells->next.length();
   }
 
+  uint32_t size() const { return (uint32_t)length(); }  // For Cardinality
+
   Arr<T> toList() const
   {
     Arr<T> l;
@@ -151,6 +153,14 @@ struct Lst {
 
   Iterator begin() { return Iterator(cells); }
   Iterator end() { return Iterator(std::shared_ptr<Cell>()); }
+
+  T const &operator[](std::size_t i) const {
+    Lst<T> const *that { this };
+    while (i-- != 0) {
+      that = &that->cells->next;
+    }
+    return that->cells->val;
+  }
 };
 
 template<class T>
