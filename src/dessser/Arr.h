@@ -77,7 +77,7 @@ struct Arr : public std::vector<T> {
 };
 
 template<class T>
-std::ostream &operator<<(std::ostream &os, Arr<T> const &v)
+inline std::ostream &operator<<(std::ostream &os, Arr<T> const &v)
 {
   os << '[';
   bool sep = false;

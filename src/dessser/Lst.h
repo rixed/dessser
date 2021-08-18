@@ -164,7 +164,7 @@ struct Lst {
 };
 
 template<class T>
-static inline std::ostream &operator<<(std::ostream &os, Lst<T> const &l)
+inline std::ostream &operator<<(std::ostream &os, Lst<T> const &l)
 {
   if (l.empty()) {
     os << "{empty}";

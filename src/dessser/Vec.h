@@ -33,7 +33,7 @@ struct Vec : public std::vector<T> {
 };
 
 template<unsigned DIM, class T>
-std::ostream &operator<<(std::ostream &os, Vec<DIM, T> const &v)
+inline std::ostream &operator<<(std::ostream &os, Vec<DIM, T> const &v)
 {
   os << '[';
   bool sep = false;

@@ -494,7 +494,7 @@ inline bool operator!=(const Pointer& lhs, const Pointer& rhs)
   return !(lhs == rhs);
 }
 
-static inline std::string printable_string_of_byte(uint8_t const b)
+inline std::string printable_string_of_byte(uint8_t const b)
 {
   std::stringstream stream;
   if (isprint(b)) stream << (char)b;
@@ -502,7 +502,7 @@ static inline std::string printable_string_of_byte(uint8_t const b)
   return stream.str();
 }
 
-static inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
+inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
 {
   uint8_t *dest = p.bytes ? p.bytes : p.buffer.get();
 

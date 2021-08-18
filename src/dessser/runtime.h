@@ -193,20 +193,20 @@ inline std::string string_join(std::string sep, Arr<std::string> strs)
 }
 
 template <typename T>
-std::ostream &operator<<(std::ostream &os, std::optional<T> const &o)
+inline std::ostream &operator<<(std::ostream &os, std::optional<T> const &o)
 {
   if (o.has_value()) os << o.value();
   else os << "??";
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, uint128_t n)
+inline std::ostream &operator<<(std::ostream &os, uint128_t n)
 {
   os << string_of_u128(n);
   return os;
 }
 
-std::ostream &operator<<(std::ostream &os, int128_t n)
+inline std::ostream &operator<<(std::ostream &os, int128_t n)
 {
   os << string_of_i128(n);
   return os;
@@ -224,7 +224,7 @@ std::ostream &operator<<(std::ostream &os, int128_t n)
  * We could do this for longer tuples while we are at it, if it's beneficial. */
 
 template <typename T1, typename T2>
-std::ostream &operator<<(std::ostream &os, std::tuple<T1,T2> const &t)
+inline std::ostream &operator<<(std::ostream &os, std::tuple<T1,T2> const &t)
 {
   os << '<' << std::get<0>(t) << ", " << std::get<1>(t) << ">";
   return os;

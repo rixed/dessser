@@ -114,7 +114,7 @@ struct Bytes {
   }
 };
 
-static inline std::ostream &operator<<(std::ostream &os, Bytes const &b)
+inline std::ostream &operator<<(std::ostream &os, Bytes const &b)
 {
   os << b.toString();
   return os;

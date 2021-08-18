@@ -118,8 +118,8 @@ struct
       ppi oc "> %s;\n" id
     else
       ppi oc "> { using tuple::tuple; };" ;
-    if not is_pair then (
-      ppi oc "std::ostream &operator<<(std::ostream &os, %s const &t) {" id ;
+    if not is_pair && p.context = P.Declaration then (
+      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &t) {" id ;
       P.indent_more p (fun () ->
         ppi oc "os << '<'" ;
         for i = 0 to Array.length mns - 1 do
@@ -153,18 +153,20 @@ struct
         ppi oc "}"
       )) ;
     ppi oc "};" ;
-    ppi oc "std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
-    P.indent_more p (fun () ->
-      ppi oc "os << '{';" ;
-      Array.iteri (fun i (field_name, _) ->
-        ppi oc "os << %S << r.%s%s;"
-          (field_name ^ ":")
-          (valid_identifier field_name)
-          (if i < Array.length mns - 1 then " << ','" else "")
-      ) mns ;
-      ppi oc "os << '}';" ;
-      ppi oc "return os;") ;
-    ppi oc "}\n"
+    if p.context = P.Declaration then (
+      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
+      P.indent_more p (fun () ->
+        ppi oc "os << '{';" ;
+        Array.iteri (fun i (field_name, _) ->
+          ppi oc "os << %S << r.%s%s;"
+            (field_name ^ ":")
+            (valid_identifier field_name)
+            (if i < Array.length mns - 1 then " << ','" else "")
+        ) mns ;
+        ppi oc "os << '}';" ;
+        ppi oc "return os;") ;
+      ppi oc "}\n"
+    )
 
   and print_variant p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
@@ -178,18 +180,20 @@ struct
       ) mns
     ) ;
     ppi oc "> { using variant::variant; };" ;
-    ppi oc "std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
-    P.indent_more p (fun () ->
-      (* too smart for its own good:
-       * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
-      ppi oc "switch (v.index()) {" ;
+    if p.context = P.Declaration then (
+      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
       P.indent_more p (fun () ->
-        for i = 0 to Array.length mns - 1 do
-          ppi oc "case %d: os << std::get<%d>(v); break;" i i
-        done) ;
-      ppi oc "}" ;
-      ppi oc "return os;") ;
-    ppi oc "}\n"
+        (* too smart for its own good:
+         * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
+        ppi oc "switch (v.index()) {" ;
+        P.indent_more p (fun () ->
+          for i = 0 to Array.length mns - 1 do
+            ppi oc "case %d: os << std::get<%d>(v); break;" i i
+          done) ;
+        ppi oc "}" ;
+        ppi oc "return os;") ;
+      ppi oc "}\n"
+    )
 
   and type_identifier_mn p mn =
     if mn.T.nullable then
@@ -1517,7 +1521,7 @@ struct
   let print_identifier_declaration n p l e =
     let t = E.type_of l e in
     let tn = type_identifier_mn p t in
-    pp p.P.def "%s%s %s;\n" p.P.indent tn n
+    pp p.P.def "%sextern %s %s;\n" p.P.indent tn n
 
   let source_intro compunit p =
     let m = valid_identifier compunit.U.module_name in
@@ -1563,15 +1567,14 @@ struct
          #include <variant>\n\
          #include <vector>\n\
          #include \"dessser/runtime.h\"\n"^
-        extra_incs ^"\n"^
-        "std::uniform_real_distribution<double> _random_float_(0, 1);\n\
+        extra_incs ^"\n\n"^
+        "namespace dessser::gen::"^ m ^" {\n\
+         using dessser::operator<<;\n\n\
+         std::uniform_real_distribution<double> _random_float_(0, 1);\n\
          std::uniform_int_distribution<uint8_t> _random_u8_(0);\n\
          std::uniform_int_distribution<uint32_t> _random_u32_(0);\n\
          std::uniform_int_distribution<uint64_t> _random_u64_(0);\n\
-         std::default_random_engine _random_engine_;\n\
-         \n\
-         namespace dessser::gen::"^ m ^" {\n\
-         using dessser::operator<<;\n\n"
+         std::default_random_engine _random_engine_;\n\n"
 
   let source_outro _ p =
     (* Also define a type t_ext to reference t as an external type (if t is
