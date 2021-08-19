@@ -4,7 +4,7 @@ module P = DessserPrinter
 module T = DessserTypes
 module TC = DessserTypeCheck
 
-let debug = false
+let debug = ref false
 
 type t =
   { module_name : string ;
@@ -82,17 +82,17 @@ let add_identifier_of_expression compunit ?name expr =
     | Some name ->
         name, true in
   let l = environment compunit in
-  if debug then
+  if !debug then
     BatPrintf.eprintf "add_identifier_of_expression: type checking%s\n"
       (E.to_pretty_string expr) ;
   let expr = TC.type_check l expr in
   let t = E.type_of l expr in
-  if debug then
+  if !debug then
     BatPrintf.eprintf "  …of type: %a\n" T.print_mn t ;
   let expr =
     if !DessserEval.inline_level > 0 then (
       let expr = DessserEval.peval l expr in
-      if debug then (
+      if !debug then (
         BatPrintf.eprintf "  …simplified into%s\n" (E.to_pretty_string expr) ;
         (* Check that the expression types are equivalent: *)
         ignore (TC.type_check l expr)

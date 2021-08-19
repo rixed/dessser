@@ -73,6 +73,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   if List.exists (fun (i, o) -> i = o) converters then
     failwith "Cannot convert from an encoding to itself" ;
   debug := dbg ;
+  DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
   DessserBackEndCPP.include_base := include_base ;
   let with_fieldmasks =
@@ -180,6 +181,7 @@ let converter
       dbg quiet_ schema backend encoding_in encoding_out
       modifier_exprs dest_fname dev_mode optim () =
   debug := dbg ;
+  DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
   T.add_type_as "t" schema.T.typ ;
@@ -231,6 +233,7 @@ let lmdb main
       dbg quiet_ key_schema val_schema backend encoding_in encoding_out
       dest_fname dev_mode optim () =
   debug := dbg ;
+  DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
   T.add_type_as "val" val_schema.T.typ ;
   T.add_type_as "key" key_schema.T.typ ;
@@ -295,6 +298,7 @@ let aggregator
       init_expr update_expr finalize_expr
       dest_fname dev_mode optim () =
   debug := dbg ;
+  DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
   T.add_type_as "t" schema.T.typ ;
