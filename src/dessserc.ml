@@ -115,38 +115,22 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     let module Des = (val (des_of_encoding encoding_in) : DES) in
     let module ToValue = DessserHeapValue.Materialize (Des) in
     (* convert from encoding_in into a heapvalue: *)
-    let compunit, des = ToValue.make schema compunit in
-    if !debug then ignore(TC.type_check E.no_env des) ;
-    let compunit, _, _ =
-      let name = string_of_type_method (DesNoMask encoding_in) in
-      U.add_identifier_of_expression compunit ~name des in
+    let compunit, des, _ = ToValue.make "t" schema compunit in
+    if !debug then ignore (TC.type_check (U.environment compunit) des) ;
     compunit
   and add_encoder compunit encoding_out =
     let module Ser = (val (ser_of_encoding encoding_out) : SER) in
     let module OfValue = DessserHeapValue.Serialize (Ser) in
     List.fold_left (fun compunit with_fieldmask ->
-      let compunit, sersize =
+      let compunit, sersize, _ =
         (* Compute the serialization size of a heap value: *)
-        OfValue.sersize ~with_fieldmask schema compunit in
-      let compunit, ser =
+        OfValue.sersize ~with_fieldmask "t" schema compunit in
+      let compunit, ser, _ =
         (* Convert from a heapvalue into encoding_out. *)
-        OfValue.serialize ~with_fieldmask schema compunit in
+        OfValue.serialize ~with_fieldmask "t" schema compunit in
       if !debug then (
-        ignore (TC.type_check E.no_env sersize) ;
-        ignore (TC.type_check E.no_env ser)) ;
-      let compunit, _, _ =
-        let name =
-          (if with_fieldmask then SSizeWithMask encoding_out
-                             else SSizeNoMask encoding_out) |>
-          string_of_type_method in
-        U.add_identifier_of_expression compunit ~name sersize in
-
-      let compunit, _, _ =
-        let name =
-          (if with_fieldmask then SerWithMask encoding_out
-                             else SerNoMask encoding_out) |>
-          string_of_type_method in
-        U.add_identifier_of_expression compunit ~name ser in
+        ignore (TC.type_check (U.environment compunit) sersize) ;
+        ignore (TC.type_check (U.environment compunit) ser)) ;
       compunit
     ) compunit with_fieldmasks
   and add_converter compunit (encoding_in, encoding_out) =
@@ -158,7 +142,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       func2 T.ptr T.ptr (fun p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
         DS.desser schema ?transform:None p1 p2) in
-    if !debug then ignore (TC.type_check E.no_env convert) ;
+    if !debug then ignore (TC.type_check (U.environment compunit) convert) ;
     let compunit, _, _ =
       let name =
         string_of_type_method (Convert (encoding_in, encoding_out)) in
@@ -314,14 +298,14 @@ let aggregator
   let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
-  let compunit, des = ToValue.make schema compunit in
+  let compunit, des, _ = ToValue.make "t" schema compunit in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
-  if !debug then ignore (TC.type_check E.no_env init_expr) ;
+  if !debug then ignore (TC.type_check (U.environment compunit) init_expr) ;
   let state_t = E.type_of E.no_env init_expr in
   (* Then check the update expression, that must be a function of the state_t
    * and the input_t: *)
-  if !debug then ignore (TC.type_check E.no_env update_expr) ;
+  if !debug then ignore (TC.type_check (U.environment compunit) update_expr) ;
   let update_t = E.type_of E.no_env update_expr in
   if not (T.eq_mn update_t (T.func [| state_t ; schema |] T.void))
   then
@@ -334,7 +318,7 @@ let aggregator
       T.print_mn update_t |>
     failwith ;
   (* Then check the finalizer: *)
-  if !debug then ignore (TC.type_check E.no_env finalize_expr) ;
+  if !debug then ignore (TC.type_check (U.environment compunit) finalize_expr) ;
   let output_t =
     match E.type_of E.no_env finalize_expr with
     | T.{ typ = TFunction ([| a1 |], mn) ; nullable = false }
@@ -347,7 +331,7 @@ let aggregator
    * in the given encoding: *)
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
-  let compunit, ser = OfValue.serialize output_t compunit in
+  let compunit, ser, _ = OfValue.serialize "output_t" output_t compunit in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source

@@ -1505,7 +1505,7 @@ struct
         ()) ;
     n
 
-  let print_binding_toplevel emit n p l e =
+  let print_binding_toplevel _i emit n p l e =
     (* In C++ toplevel expressions cannot be initialized with arbitrary code so we
      * must rely on a static function to produce the value: *)
     let t = E.type_of l e in
@@ -1518,7 +1518,7 @@ struct
     pp p.P.def "%s}\n" p.P.indent ;
     pp p.P.def "%s%s %s(%s_init());\n\n" p.P.indent tn n n
 
-  let print_identifier_declaration n p l e =
+  let print_identifier_declaration _i n p l e =
     let t = E.type_of l e in
     let tn = type_identifier_mn p t in
     pp p.P.def "%sextern %s %s;\n" p.P.indent tn n

@@ -958,8 +958,8 @@ let sexpr ?sexpr_config mn =
   module OfValue = DessserHeapValue.Serialize (DessserSExpr.Ser)
 
   let heap_convert_expr compunit mn =
-    let compunit, ser_func = OfValue.serialize mn compunit in
-    let compunit, des = ToValue.make mn compunit in
+    let compunit, ser_func, _ = OfValue.serialize "t" mn compunit in
+    let compunit, des, _ = ToValue.make "t" mn compunit in
     compunit,
     func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
       (fun src dst ->

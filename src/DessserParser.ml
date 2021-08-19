@@ -371,7 +371,15 @@ and mn m =
             with _ ->
               raise (Reject "not a valid default expression")))) >>:
       fun ((typ, nullable), default) ->
-        { typ ; nullable ; default }
+        (* Get rid of 1-uple, which are useful only to make parenthesis valid
+         * in type expressions: *)
+        match typ with
+        | TTup [| mn |] ->
+            { typ = mn.typ ;
+              nullable = nullable || mn.nullable ;
+              default = if default <> None then default else mn.default }
+        | typ ->
+            { typ ; nullable ; default }
   ) m
 
 and typ m =

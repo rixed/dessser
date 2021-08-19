@@ -24,11 +24,14 @@ let type_identifier_mn _p t =
 let print_definitions oc compunit =
   (* Print in the order of definition: *)
   List.rev compunit.U.identifiers |>
-  List.iter (fun (name, U.{ expr ; _ }, _) ->
-    Format.(fprintf str_formatter "@[<hov 2>(define@ %s@ %a)@]"
-      name
-      (E.pretty_print ?max_depth:None) expr) ;
-    Format.flush_str_formatter () |> String.print oc)
+  List.iter (function
+    | name, U.{ expr = Some expr ; _ }, _ ->
+        Format.(fprintf str_formatter "@[<hov 2>(define@ %s@ %a)@]"
+          name
+          (E.pretty_print ?max_depth:None) expr) ;
+        Format.flush_str_formatter () |> String.print oc
+    | name, U.{ expr = None ; _ }, _ ->
+        invalid_arg ("print_definitions: missing definition for "^ name))
 
 let print_declarations _oc _compunit =
   (* TODO: a header with all those types? *)

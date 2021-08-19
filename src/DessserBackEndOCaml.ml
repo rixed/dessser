@@ -585,8 +585,8 @@ struct
     let preallocate printer i oc =
       let value = IO.to_string printer i in
       let uniq_id = "const_"^ Digest.(string value |> to_hex) in
-      let def = "let "^ uniq_id ^" = "^ value ^"\n" in
-      if not (List.mem def p.P.defs) then p.P.defs <- def :: p.P.defs ;
+      let def = "let "^ uniq_id ^" = "^ value ^"\n\n" in
+      if not (List.mem def p.P.consts) then p.P.consts <- def :: p.P.consts ;
       String.print oc uniq_id
     in
     match e with
@@ -1776,17 +1776,20 @@ struct
           pp oc "substring %s (%s.to_int %s) (%s.to_int %s)"
             str m_start start m_stop stop)
 
-  let print_binding_toplevel emit n p l e =
+  let print_binding_toplevel i emit n p l e =
     let mn = E.type_of l e in
     let tn = type_identifier_mn p mn in
-    pp p.P.def "%slet %s : %s =\n" p.P.indent n tn ;
+    pp p.P.def "%s%s %s : %s =\n"
+      p.P.indent
+      (if i = 0 then "let rec" else "and")
+      n tn ;
     P.indent_more p (fun () ->
       (* TODO: find a way to force the first call to emit to inline
        * the expression, in order to avoid the useless "let id = x in id" *)
       let n = print emit p l e in
       pp p.P.def "%s%s\n\n" p.P.indent n)
 
-  let print_identifier_declaration n p l e =
+  let print_identifier_declaration _i n p l e =
     let mn = E.type_of l e in
     let tn = type_identifier_mn p mn in
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn

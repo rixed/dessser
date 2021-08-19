@@ -8,8 +8,13 @@ type context = Declaration | Definition
 
 type t =
   { context : context ;
+    (* Current definition: *)
     def : string IO.output ;
+    (* Declarations: *)
     mutable decls : string list ;
+    (* Constants, output before any definitions: *)
+    mutable consts : string list ;
+    (* Definitions: *)
     mutable defs : string list ;
     mutable indent : string ;
     (* The set of all type ids that have already been declared *)
@@ -20,6 +25,7 @@ let make ?(declared=Set.String.empty) ?(decls=[]) context external_types =
   { context ;
     def = IO.output_string () ;
     decls ;
+    consts = [] ;
     defs = [] ;
     indent = "" ;
     declared ;
@@ -29,7 +35,8 @@ let new_top_level p f =
   let p' = make ~declared:p.declared ~decls:p.decls
                 p.context p.external_types in
   let res = f p' in
-  (* Merge the new defs and decls into old decls and defs: *)
+  (* Merge the new consts, defs and decls into old ones: *)
+  p.consts <- List.rev_append p'.consts p.consts ;
   p.defs <- IO.close_out p'.def :: List.rev_append p'.defs p.defs ;
   p.decls <- p'.decls ;
   p.declared <- Set.String.union p.declared p'.declared ;

@@ -41,9 +41,12 @@ sig
   (* TODO: This should also accept a runtime fieldmask as parameter. *)
 
   val make : ?config:Des.config ->
+             (* The type name (as used with TThis): *)
+             string ->
              T.mn ->
              U.t ->
-             U.t * E.t (* src -> e*src *)
+             (* Same return type than U.add_identifier_of_expression: *)
+             U.t * E.t * string
 end
 
 module Materialize (Des : DES) :
@@ -52,7 +55,7 @@ struct
   module Des = Des
 
   let local_des_for n =
-    n ^"-"^ string_of_type_method (DesNoMask Des.id)
+    (if n = "t" then "" else n ^"-")^ string_of_type_method (DesNoMask Des.id)
 
   let rec dvec dim mn dstate mn0 path src =
     let src = Des.vec_opn dim mn dstate mn0 path src in
@@ -205,8 +208,11 @@ struct
   (* Call the decoder for type name [n]: *)
   and dthis n _dstate mn0 _path src =
     let f =
-      if n = "t" then myself T.(pair mn0 ptr)
-      else identifier (local_des_for n) in
+      let mn = T.required (T.find_this n) in
+      if T.eq_mn mn mn0 then
+        myself T.(pair mn0 ptr)
+      else
+        identifier (local_des_for n) in
     apply f [ src ]
 
   and make_mn dstate mn0 path mn src =
@@ -282,22 +288,25 @@ struct
     | None ->
         make_mn dstate mn0 path mn src
 
-  let rec make ?config mn0 compunit =
+  let rec make ?config n mn0 compunit =
+    (* Pretend first that this desserializer is defined, so that mutually recursive
+     * calls can type-check: *)
+    let name = local_des_for n in
+    let mn = T.(func1 ptr (pair mn0 ptr)) in
+    let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
     (* Start by defining all required deserializers for subtypes: *)
     let compunit = make_des_for_subtypes ?config compunit mn0.T.typ in
-    compunit,
-    func1 T.ptr (fun src ->
-      let dstate, src = Des.start ?config mn0 src in
-      let v_src = make1 dstate mn0 [] mn0 src in
-      E.with_sploded_pair "make" v_src (fun v src ->
-        make_pair v (Des.stop dstate src)))
+    let expr =
+      func1 T.ptr (fun src ->
+        let dstate, src = Des.start ?config mn0 src in
+        let v_src = make1 dstate mn0 [] mn0 src in
+        E.with_sploded_pair "make" v_src (fun v src ->
+          make_pair v (Des.stop dstate src))) in
+    U.add_identifier_of_expression compunit ~name expr
 
   and make_des_for_subtypes ?config compunit = function
     | T.TNamed (n, t) ->
-        let compunit, _, _ =
-          let compunit, e = make ?config T.(required t) compunit
-          and name = local_des_for n in
-          U.add_identifier_of_expression compunit ~name e in
+        let compunit, _, _ = make ?config n T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
@@ -331,16 +340,22 @@ sig
   val serialize :
     ?config:Ser.config ->
     ?with_fieldmask:bool ->
+    (* Type name as in TThis: *)
+    string ->
     T.mn ->
     U.t ->
-    U.t * E.t (* mask (if with_fieldmask) -> value -> dataptr -> dataptr *)
+    (* Same output type than U.add_identifier_of_expression: *)
+    U.t * E.t * string
 
   val sersize :
     ?config:Ser.config ->
     ?with_fieldmask:bool ->
+    (* Type name as in TThis: *)
+    string ->
     T.mn ->
     U.t ->
-    U.t * E.t (* mask (if with_fieldmask) -> v -> size *)
+    (* Same output type than U.add_identifier_of_expression: *)
+    U.t * E.t * string
 end
 
 module Serialize (Ser : SER) :
@@ -349,7 +364,7 @@ struct
   module Ser = Ser
 
   let local_ser_for ~with_fieldmask n =
-    n ^"-"^ string_of_type_method
+    (if n = "t" then "" else n ^"-")^ string_of_type_method
       (if with_fieldmask then SerWithMask Ser.id else SerNoMask Ser.id)
 
   let rec svec dim mn ma sstate mn0 path v dst =
@@ -457,11 +472,14 @@ struct
       | CompTimeMask ->
           apply (type_method name (SerNoMask Ser.id)) [ v ; dst ])
 
-  and sthis n ma _sstate _mn0 _path v dst =
+  and sthis n ma _sstate mn0 _path v dst =
     let f =
-      let with_fieldmask = ma <> CompTimeMask in
-      if n = "t" then myself T.ptr
-      else identifier (local_ser_for ~with_fieldmask n) in
+      let mn = T.required (T.find_this n) in
+      if T.eq_mn mn mn0 then
+        myself T.ptr
+      else
+        let with_fieldmask = ma <> CompTimeMask in
+        identifier (local_ser_for ~with_fieldmask n) in
     (* Call ourself recursively *)
     apply f (
       match ma with
@@ -538,33 +556,40 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec serialize ?config ?(with_fieldmask=true) mn0 compunit =
+  let rec serialize ?config ?(with_fieldmask=true) n mn0 compunit =
+    (* Pretend first that this sersize is defined, so that mutually recursive
+     * calls can type-check: *)
+    let name = local_ser_for ~with_fieldmask n in
+    let mn =
+      if with_fieldmask then
+        T.(func3 mask mn0 ptr ptr)
+      else
+        T.(func2 mn0 ptr ptr) in
+    let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
     (* Similarly to Serialize.make, construct all required serializers: *)
     let compunit =
       make_ser_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
-    compunit,
-    if with_fieldmask then
-      func3 T.mask mn0 T.ptr (fun ma v dst ->
-        let path = [] in
-        let sstate, dst = Ser.start ?config mn0 dst in
-        let dst = ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst in
-        Ser.stop sstate dst)
-    else
-      func2 mn0 T.ptr (fun v dst ->
-        let path = [] in
-        let sstate, dst = Ser.start ?config mn0 dst in
-        let dst = ser1 sstate mn0 path mn0 v CompTimeMask dst in
-        Ser.stop sstate dst)
+    let expr =
+      if with_fieldmask then
+        func3 T.mask mn0 T.ptr (fun ma v dst ->
+          let path = [] in
+          let sstate, dst = Ser.start ?config mn0 dst in
+          let dst = ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst in
+          Ser.stop sstate dst)
+      else
+        func2 mn0 T.ptr (fun v dst ->
+          let path = [] in
+          let sstate, dst = Ser.start ?config mn0 dst in
+          let dst = ser1 sstate mn0 path mn0 v CompTimeMask dst in
+          Ser.stop sstate dst) in
+    U.add_identifier_of_expression compunit ~name expr
 
   and make_ser_for_subtypes ?config ~with_fieldmask compunit =
     let make_ser_for_subtypes = make_ser_for_subtypes ?config ~with_fieldmask
     and serialize = serialize ?config ~with_fieldmask in
     function
     | T.TNamed (n, t) ->
-        let compunit, _, _ =
-          let compunit, e = serialize T.(required t) compunit
-          and name = local_ser_for ~with_fieldmask n in
-          U.add_identifier_of_expression compunit ~name e in
+        let compunit, _, _ = serialize n T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
@@ -591,7 +616,7 @@ struct
    *)
 
   let local_ssize_for ~with_fieldmask n =
-    n ^"-"^ string_of_type_method
+    (if n = "t" then "" else n ^"-")^ string_of_type_method
       (if with_fieldmask then SSizeWithMask Ser.id else SSizeNoMask Ser.id)
 
   let rec ssvec dim mn ma mn0 path v sz =
@@ -681,11 +706,14 @@ struct
     | CompTimeMask ->
         apply (type_method name (SSizeNoMask Ser.id)) [ v ]
 
-  and ssthis n ma _mn0 _path v =
+  and ssthis n ma mn0 _path v =
     let f =
-      let with_fieldmask = ma <> CompTimeMask in
-      if n = "t" then myself T.size
-      else identifier (local_ssize_for ~with_fieldmask n) in
+      let mn = T.required (T.find_this n) in
+      if T.eq_mn mn mn0 then
+        myself T.size
+      else
+        let with_fieldmask = ma <> CompTimeMask in
+        identifier (local_ssize_for ~with_fieldmask n) in
     apply f (
       match ma with
       | RunTimeMask ma -> [ ma ; v ]
@@ -757,29 +785,36 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec sersize ?config ?(with_fieldmask=true) mn0 compunit =
-    (* Start by defining all required deserializers for subtypes: *)
+  let rec sersize ?config ?(with_fieldmask=true) n mn0 compunit =
+    (* Pretend first that this sersize is defined, so that mutually recursive
+     * calls can type-check: *)
+    let name = local_ssize_for ~with_fieldmask n in
+    let mn =
+      if with_fieldmask then
+        T.(func2 mask mn0 size)
+      else
+        T.(func1 mn0 size) in
+    let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
+    (* Defines all required deserializers for subtypes: *)
     let compunit =
       make_ssize_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
-    compunit,
-    if with_fieldmask then
-      func2 T.mask mn0 (fun ma v ->
-        let sz = Ser.ssize_start ?config mn0 in
-        sersz1 mn0 mn0 [] v (RunTimeMask ma) sz)
-    else
-      func1 mn0 (fun v ->
-        let sz = Ser.ssize_start ?config mn0 in
-        sersz1 mn0 mn0 [] v CompTimeMask sz)
+    let expr =
+      if with_fieldmask then
+        func2 T.mask mn0 (fun ma v ->
+          let sz = Ser.ssize_start ?config mn0 in
+          sersz1 mn0 mn0 [] v (RunTimeMask ma) sz)
+      else
+        func1 mn0 (fun v ->
+          let sz = Ser.ssize_start ?config mn0 in
+          sersz1 mn0 mn0 [] v CompTimeMask sz) in
+    U.add_identifier_of_expression compunit ~name expr
 
   and make_ssize_for_subtypes ?config ~with_fieldmask compunit =
     let make_ssize_for_subtypes = make_ssize_for_subtypes ?config ~with_fieldmask
     and sersize = sersize ?config ~with_fieldmask in
     function
     | T.TNamed (n, t) ->
-        let compunit, _, _ =
-          let compunit, e = sersize T.(required t) compunit
-          and name = local_ssize_for ~with_fieldmask n in
-          U.add_identifier_of_expression compunit ~name e in
+        let compunit, _, _ = sersize n T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)

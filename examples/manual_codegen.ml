@@ -82,12 +82,12 @@ let () =
         DessserHeapValue.Serialize (DessserSExpr.Ser) in
 
       let ma = copy_field in
-      let compunit, des =
-        ToValue.make typ compunit in
-      let compunit, ser_func =
-        OfValue2.serialize ~config:sexpr_config typ compunit in
-      let compunit, sersize =
-        OfValue1.sersize typ compunit in
+      let compunit, des, _ =
+        ToValue.make "t" typ compunit in
+      let compunit, ser_func, _ =
+        OfValue2.serialize ~config:sexpr_config "t" typ compunit in
+      let compunit, sersize, _ =
+        OfValue1.sersize "t" typ compunit in
       compunit,
       func2 T.ptr T.ptr (fun src dst ->
         comment "Convert from RowBinary into a heap value:" (

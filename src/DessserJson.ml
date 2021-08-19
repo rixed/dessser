@@ -155,9 +155,9 @@ let skip =
  * compilation unit with the required library functions (FIXME: should not
  * be required): *)
 let init compunit =
-  let compunit, _, _ =
-    U.add_identifier_of_expression compunit ~name:"json_skip" skip in
-  compunit
+  match U.add_identifier_of_expression compunit ~name:"json_skip" skip with
+  | exception U.Already_defined _ -> compunit
+  | compunit, _, _ -> compunit
 
 (*$inject
   open Batteries

@@ -23,7 +23,8 @@ and verbatim_definition =
     printer : (P.t, unit) BatIO.printer }
 
 and identifier =
-  { public : bool ; expr : E.t }
+  { public : bool ;
+    mutable expr : E.t option }
 
 and verbatim_location =
   | Inline (* According to declared names and dependencies *)
@@ -72,6 +73,39 @@ let gen_sym =
     incr name_seq ;
     pref ^ string_of_int !name_seq
 
+(* Declare that a given identifier exists with a given type, but without giving
+ * its expression as of yet. Useful for mutually recursive expressions.
+ * [add_identifier_of_expression] will have to be called later to set the
+ * actual expression before the code can be generated though. *)
+let add_identifier_of_type compunit ?name mn =
+  let name, public =
+    match name with
+    | None ->
+        gen_sym "anon_", false
+    | Some name ->
+        name, true in
+  let l = environment compunit in
+  if E.defined name l then
+    invalid_arg ("add_identifier_of_expression: "^ name ^" already defined") ;
+  if !debug then
+    BatPrintf.eprintf "add_identifier_of_type name=%s, type=%a\n"
+      name
+      T.print_mn mn ;
+  let identifier = { public ; expr = None } in
+  { compunit with
+      identifiers = (name, identifier, mn) :: compunit.identifiers },
+  T.E0 (Identifier name),
+  name
+
+exception Already_defined of string
+
+let () =
+  Printexc.register_printer (function
+    | Already_defined name ->
+        Some (Printf.sprintf "Expression %s is already defined" name)
+    | _ ->
+        None)
+
 (* Returns the new compilation unit, the Identifier expression to use in new
  * expressions, and the identifier name in the source code. *)
 let add_identifier_of_expression compunit ?name expr =
@@ -83,7 +117,8 @@ let add_identifier_of_expression compunit ?name expr =
         name, true in
   let l = environment compunit in
   if !debug then
-    BatPrintf.eprintf "add_identifier_of_expression: type checking%s\n"
+    BatPrintf.eprintf "add_identifier_of_expression name=%s: type checking%s\n"
+      name
       (E.to_pretty_string expr) ;
   let expr = TC.type_check l expr in
   let t = E.type_of l expr in
@@ -100,9 +135,33 @@ let add_identifier_of_expression compunit ?name expr =
       assert (T.eq_mn t (E.type_of l expr)) ;
       expr
     ) else expr in
-  let identifier = { public ; expr } in
-  { compunit with
-      identifiers = (name, identifier, t) :: compunit.identifiers },
+  let compunit =
+    try
+      (* Try to set the expression of a previously declared identifier: *)
+      List.iter (fun (name', identifier', t') ->
+        if name = name' then
+          if identifier'.expr = None then
+            if T.eq_mn t t' then (
+              identifier'.expr <- Some expr ;
+              raise Exit
+            ) else (
+              BatPrintf.sprintf2 "Definition for identifier %s has type %a \
+                                  but was declared of type %a"
+                name
+                T.print_mn t
+                T.print_mn t' |>
+              failwith
+            )
+          else
+            raise (Already_defined name)
+      ) compunit.identifiers ;
+      (* Couldn't exit: add a new identifier: *)
+      let identifier = { public ; expr = Some expr } in
+      { compunit with
+          identifiers = (name, identifier, t) :: compunit.identifiers }
+    with Exit ->
+      compunit in
+  compunit,
   T.E0 (Identifier name),
   name
 
