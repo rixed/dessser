@@ -37,6 +37,19 @@ let valid_module_name s =
   assert (s <> "" && s.[0] <> '!') ;
   valid_upper_identifier s
 
+(* We need T.eq to be used for key comparisons instead of the generic comparison,
+ * so that named types compare equal to their definition: *)
+module RenamingHash = Hashtbl.Make (struct
+  (* Key will be field name and parent type: *)
+  type t = string * T.typ
+
+  let equal (n1, t1) (n2, t2) =
+    n1 = n2 && T.eq t1 t2
+
+  (* Lots of collisions but safe: *)
+  let hash (n, _t) = Hashtbl.hash n
+end)
+
 (* Uniquify in a human friendly way all record field and sum constructor
  * names.
  * Beware that when the exact same type is encountered several times in [t]
@@ -69,6 +82,8 @@ let make_get_field_name mn =
   let rec sensus_mn path mn =
     sensus_vt path mn.T.typ
   and sensus_vt path = function
+    | TNamed (_, t) ->
+        sensus_vt path t
     | TUsr { name ; def } ->
         sensus_vt (name :: path) def
     | TVec (_, mn) ->
@@ -133,12 +148,12 @@ let make_get_field_name mn =
     else
       n in
   (* Precompute all names: *)
-  let field_names = Hashtbl.create 10 in
+  let field_names = RenamingHash.create 10 in
   Hashtbl.iter (fun n l ->
     List.iter (fun (vt, _) ->
       let n' = uniq_field_name n vt in
       if n' <> n then
-        Hashtbl.modify_opt (n, vt) (function
+        RenamingHash.modify_opt (n, vt) (function
           | None -> Some n'
           | Some n'' ->
               Some (
@@ -149,7 +164,7 @@ let make_get_field_name mn =
   ) renamings ;
   fun n t ->
     let t = T.develop t |> T.shrink in
-    Hashtbl.find_default field_names (n, t) n
+    RenamingHash.find_default field_names (n, t) n
 
 (* When [get_field_name] is not initialized, the default is to always prefix
  * with a hash of the type: *)
