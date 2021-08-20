@@ -288,10 +288,33 @@ let this m =
 type key_type =
   VecDim of int | ArrDim | SetDim of set_type | MapKey of mn | LstDim
 
+(* Get rid of 1-uples, which are useful only to make parenthesis valid in type
+ * expressions: *)
+let rec simplify mn0 =
+  match mn0.typ with
+  | TTup [| mn |] ->
+      { typ = mn.typ ;
+        nullable = mn0.nullable || mn.nullable ;
+        default = if mn0.default <> None then mn0.default else mn.default } |>
+      simplify
+  | TVec (dim, mn) ->
+      { mn0 with typ = TVec (dim, simplify mn) }
+  | TArr mn ->
+      { mn0 with typ = TArr (simplify mn) }
+  | TSet (st, mn) ->
+      { mn0 with typ = TSet (st, simplify mn) }
+  | TMap (k, v) ->
+      { mn0 with typ = TMap (simplify k, simplify v) }
+  | TLst mn ->
+      { mn0 with typ = TLst (simplify mn) }
+  | _ ->
+      mn0
+
 let rec reduce_dims typ =
   let default = None in (* TODO *)
   function
-  | [] -> typ
+  | [] ->
+      typ
   | (nullable, VecDim d) :: rest ->
       reduce_dims (TVec (d, { nullable ; typ ; default })) rest
   | (nullable, ArrDim) :: rest ->
@@ -371,15 +394,7 @@ and mn m =
             with _ ->
               raise (Reject "not a valid default expression")))) >>:
       fun ((typ, nullable), default) ->
-        (* Get rid of 1-uple, which are useful only to make parenthesis valid
-         * in type expressions: *)
-        match typ with
-        | TTup [| mn |] ->
-            { typ = mn.typ ;
-              nullable = nullable || mn.nullable ;
-              default = if default <> None then default else mn.default }
-        | typ ->
-            { typ ; nullable ; default }
+        simplify { typ ; nullable ; default }
   ) m
 
 and typ m =
@@ -578,6 +593,12 @@ and sum_typ m =
     (test_p mn "[c1 Bool | c2 U8?]")
   (Ok ((required (TVec (1, required TBool))), (7,[]))) \
     (test_p mn "Bool[1]")
+  (Ok (required TU8, (4,[]))) \
+    (test_p mn "(U8)")
+  (Ok (required (named "foo" TU8), (11,[]))) \
+    (test_p mn "(foo as U8)")
+  (Ok (required (arr (required (named "bar" TU8))), (13,[]))) \
+    (test_p mn "(bar as U8)[]")
 *)
 
 (* In addition to native dessser format for type specification, we

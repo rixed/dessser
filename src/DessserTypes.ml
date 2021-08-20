@@ -822,8 +822,8 @@ and print ?(sorted=false) ?with_defaults oc =
   | TUnknown ->
       sp "UNKNOWN"
   | TNamed (n, t) ->
-      pp oc "%s AS " n ;
-      print ~sorted oc t
+      (* TODO: add parentheses only when required *)
+      pp oc "(%s AS %a)" n (print ~sorted ?with_defaults) t
   | TThis "t" ->
       sp "THIS"
   | TThis n ->
