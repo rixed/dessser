@@ -264,7 +264,11 @@ struct
     ) ;
     ppi oc ")\n"
 
+  (* As the result is going to be used as an identifier for the type, make sure to
+   * sort the fields first, at least when id is "_": *)
   and print_record p oc id mns =
+    (* Keep user order when actually defining the type: *)
+    let mns = if id = "_" then T.sorted_rec mns else mns in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     ppi oc "and %s = {" (valid_identifier id) ;
     P.indent_more p (fun () ->

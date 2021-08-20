@@ -2058,9 +2058,12 @@ struct
   let make_rec = function
     | [] -> void
     | es ->
-        (* Flatten the list to comply with E0S structure: *)
+        (* Flatten the list to comply with E0S structure.
+         * Although field order does not matter in records, it's nice to keep user order
+         * when parsing/printing: *)
         let es =
-          List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] es in
+          List.rev es |>
+          List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] in
         T.E0S (MakeRec, es)
 
   let make_usr name es =

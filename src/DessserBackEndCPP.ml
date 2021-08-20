@@ -131,7 +131,9 @@ struct
       ppi oc "}\n"
     )
 
-  and print_rec p oc id mns =
+  and print_record p oc id mns =
+    (* Keep user order when actually defining the type: *)
+    let mns = if id = "_" then T.sorted_rec mns else mns in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s {" id ;
@@ -273,7 +275,7 @@ struct
           valid_identifier
       | TRec mns ->
           P.declared_type p t (fun oc type_id ->
-            print_rec p oc type_id mns) |>
+            print_record p oc type_id mns) |>
           valid_identifier
       | TSum mns ->
           P.declared_type p t (fun oc type_id ->
