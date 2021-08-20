@@ -1151,8 +1151,8 @@ and eq ?(opaque_user_type=false) t1 t2 =
   | TNamed (_, t1), t2
   | t2, TNamed (_, t1) ->
       eq t1 t2
-  | TThis r1, TThis r2 ->
-      r1 = r2
+  | TThis n1, TThis n2 ->
+      n1 = n2
   | TThis r, t
   | t, TThis r ->
       let t' = find_this r in
