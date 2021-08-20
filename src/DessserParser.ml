@@ -297,6 +297,10 @@ let rec simplify mn0 =
         nullable = mn0.nullable || mn.nullable ;
         default = if mn0.default <> None then mn0.default else mn.default } |>
       simplify
+  | TTup mns ->
+      { mn0 with typ = TTup (Array.map simplify mns) }
+  | TRec mns ->
+      { mn0 with typ = TRec (Array.map (fun (n, mn0) -> n, simplify mn0) mns) }
   | TVec (dim, mn) ->
       { mn0 with typ = TVec (dim, simplify mn) }
   | TArr mn ->

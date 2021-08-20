@@ -1,0 +1,2 @@
+[ A (x as [ A0 string | A1 this])?
+| B (y as u8?)[2] ]
