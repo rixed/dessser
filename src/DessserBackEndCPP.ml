@@ -118,8 +118,10 @@ struct
       ppi oc "> %s;\n" id
     else
       ppi oc "> { using tuple::tuple; };" ;
-    if not is_pair && p.context = P.Declaration then (
-      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &t) {" id ;
+    if id <> "_" && not is_pair && p.context = P.Declaration then (
+      ppi oc
+        "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
+        id ;
       P.indent_more p (fun () ->
         ppi oc "os << '<'" ;
         for i = 0 to Array.length mns - 1 do
@@ -155,7 +157,7 @@ struct
         ppi oc "}"
       )) ;
     ppi oc "};" ;
-    if p.context = P.Declaration then (
+    if id <> "_" && p.context = P.Declaration then (
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
       P.indent_more p (fun () ->
         ppi oc "os << '{';" ;
@@ -182,7 +184,7 @@ struct
       ) mns
     ) ;
     ppi oc "> { using variant::variant; };" ;
-    if p.context = P.Declaration then (
+    if id <> "_" && p.context = P.Declaration then (
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
       P.indent_more p (fun () ->
         (* too smart for its own good:
