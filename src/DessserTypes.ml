@@ -502,6 +502,9 @@ let get_user_type n =
  * Printers
  *)
 
+let cmp_nv (n1, _) (n2, _) =
+  String.compare n1 n2
+
 let rec string_of_e0 = function
   | Param n -> "param "^ string_of_int n
   | Myself mn -> "myself "^ String.quote (mn_to_string mn)
@@ -809,8 +812,6 @@ and string_of_e3 = function
 (* In many occasions we want the items of a record to be deterministically
  * ordered so they can be compared etc: *)
 and sorted_rec fields =
-  let cmp_nv (n1, _) (n2, _) =
-    String.compare n1 n2 in
   let fields = Array.copy fields in
   Array.sort cmp_nv fields ;
   fields

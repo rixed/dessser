@@ -132,8 +132,8 @@ struct
     )
 
   and print_record p oc id mns =
-    (* Keep user order when actually defining the type: *)
-    let mns = if id = "_" then T.sorted_rec mns else mns in
+    (* See note below about MakeRec: *)
+    let mns = T.sorted_rec mns in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s {" id ;
@@ -485,16 +485,23 @@ struct
         emit ?name p l e (fun oc ->
           Array.print ~first:" " ~last:" " ~sep:", " String.print oc inits)
     | E0S (MakeRec, es) ->
-        let _, inits =
-          List.fold_left (fun (prev_name, inits) e ->
-            match prev_name with
-            | None ->
-                Some (E.field_name_of_expr e), inits
-            | Some name ->
-                let n = print p l e in
-                None, (valid_identifier name, n) :: inits
-          ) (None, []) es in
-        let inits = List.rev inits in
+        (* Field order can be specified in any order in a MakeRec, but C++ prefer
+         * them in the same order than declaration. So let's order both
+         * alphabetically. *)
+        let es =
+          let rec loop = function
+          | [] -> []
+          | n :: e :: rest ->
+              (E.field_name_of_expr n, e) :: loop rest
+          | [ _ ] ->
+              invalid_arg "print: MakeRec" in
+          loop es in
+        let es = List.sort T.cmp_nv es in
+        let inits =
+          List.map (fun (name, e) ->
+            let n = print p l e in
+            (valid_identifier name, n)
+          ) es in
         emit ?name p l e (fun oc ->
           let first, last, sep =
             if is_pointy t.T.typ then
