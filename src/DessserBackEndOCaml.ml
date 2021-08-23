@@ -37,6 +37,11 @@ let valid_module_name s =
   assert (s <> "" && s.[0] <> '!') ;
   valid_upper_identifier s
 
+let let_of ~recurs ~rec_seq =
+  if recurs then
+    if rec_seq = 0 then "let rec" else "and"
+  else "let"
+
 (* We need T.eq to be used for key comparisons instead of the generic comparison,
  * so that named types compare equal to their definition: *)
 module RenamingHash = Hashtbl.Make (struct
@@ -1795,12 +1800,12 @@ struct
           pp oc "substring %s (%s.to_int %s) (%s.to_int %s)"
             str m_start start m_stop stop)
 
-  let print_binding_toplevel i emit n p l e =
+  let print_binding_toplevel ~recurs ~rec_seq emit n p l e =
     let mn = E.type_of l e in
     let tn = type_identifier_mn p mn in
     pp p.P.def "%s%s %s : %s =\n"
       p.P.indent
-      (if i = 0 then "let rec" else "and")
+      (let_of ~recurs ~rec_seq)
       n tn ;
     P.indent_more p (fun () ->
       (* TODO: find a way to force the first call to emit to inline
@@ -1808,7 +1813,8 @@ struct
       let n = print emit p l e in
       pp p.P.def "%s%s\n\n" p.P.indent n)
 
-  let print_identifier_declaration _i n p l e =
+  let print_identifier_declaration ~recurs ~rec_seq n p l e =
+    ignore recurs ; ignore rec_seq ;
     let mn = E.type_of l e in
     let tn = type_identifier_mn p mn in
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn

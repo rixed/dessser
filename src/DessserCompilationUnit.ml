@@ -20,7 +20,7 @@ and verbatim_definition =
     dependencies : string list ;
     backend : backend_id ;
     location : verbatim_location ;
-    printer : (P.t, unit) BatIO.printer }
+    printer : recurs:bool -> rec_seq:int -> (P.t, unit) BatIO.printer }
 
 and identifier =
   { public : bool ;
@@ -73,6 +73,15 @@ let gen_sym =
     incr name_seq ;
     pref ^ string_of_int !name_seq
 
+exception Already_defined of string
+
+let () =
+  Printexc.register_printer (function
+    | Already_defined name ->
+        Some (Printf.sprintf "Expression %s is already defined" name)
+    | _ ->
+        None)
+
 (* Declare that a given identifier exists with a given type, but without giving
  * its expression as of yet. Useful for mutually recursive expressions.
  * [add_identifier_of_expression] will have to be called later to set the
@@ -86,7 +95,7 @@ let add_identifier_of_type compunit ?name mn =
         name, true in
   let l = environment compunit in
   if E.defined name l then
-    invalid_arg ("add_identifier_of_expression: "^ name ^" already defined") ;
+    raise (Already_defined name) ;
   if !debug then
     BatPrintf.eprintf "add_identifier_of_type name=%s, type=%a\n"
       name
@@ -96,15 +105,6 @@ let add_identifier_of_type compunit ?name mn =
       identifiers = (name, identifier, mn) :: compunit.identifiers },
   T.E0 (Identifier name),
   name
-
-exception Already_defined of string
-
-let () =
-  Printexc.register_printer (function
-    | Already_defined name ->
-        Some (Printf.sprintf "Expression %s is already defined" name)
-    | _ ->
-        None)
 
 (* Returns the new compilation unit, the Identifier expression to use in new
  * expressions, and the identifier name in the source code. *)

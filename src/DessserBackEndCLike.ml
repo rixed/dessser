@@ -61,12 +61,12 @@ sig
     P.t -> T.mn -> string -> (string IO.output -> unit) -> string IO.output -> unit
 
   val print_binding_toplevel :
-    (* The initial int is a sequence for that compilation unit: *)
-    int -> emitter -> string -> P.t -> E.env -> E.t -> unit
+    (* The int is a sequence in a recursive set of definitions, or 0: *)
+    recurs:bool -> rec_seq:int -> emitter -> string -> P.t -> E.env -> E.t -> unit
 
   val print_identifier_declaration :
     (* The initial int is a sequence for that compilation unit: *)
-    int -> string -> P.t -> E.env -> E.t -> unit
+    recurs:bool -> rec_seq:int -> string -> P.t -> E.env -> E.t -> unit
 
   val print_comment : 'b IO.output -> ('a, 'b IO.output, unit) format -> 'a
 
@@ -135,14 +135,14 @@ struct
     pp p.P.def "%s%t\n" p.indent (C.print_binding p t n f) ;
     n
 
-  let define i name p l e =
+  let define ~recurs ~rec_seq name p l e =
     C.print_comment p.P.def "%s" (E.to_pretty_string ?max_depth:None e) ;
     let name = valid_identifier name in
-    C.print_binding_toplevel i emit name p l e
+    C.print_binding_toplevel ~recurs ~rec_seq emit name p l e
 
-  let declare i name p l e =
+  let declare ~recurs ~rec_seq name p l e =
     let name = valid_identifier name in
-    C.print_identifier_declaration i name p l e
+    C.print_identifier_declaration ~recurs ~rec_seq name p l e
 
   let print_verbatims where p oc = function
     | [] ->
@@ -151,31 +151,28 @@ struct
         C.print_comment oc "Verbatim (%s)" where ;
         List.rev defs |>
         List.iter (fun verb ->
-          Printf.sprintf2 "%a" verb.U.printer p |>
+          Printf.sprintf2 "%a" (verb.U.printer ~recurs:false ~rec_seq:0) p |>
           String.print oc) ;
         String.print oc "\n"
 
   let print_source compunit p oc top_verbatim middle_verbatim bottom_verbatim =
-    let output_identifier =
-      let i = ref ~-1 in
-      fun n p l e ->
-        incr i ;
-        (match p.P.context with
-        | Definition -> define
-        | Declaration -> declare) !i n p l e in
+    let output_identifier n ~recurs ~rec_seq p l e =
+      (match p.P.context with
+      | Definition -> define
+      | Declaration -> declare) ~recurs ~rec_seq n p l e in
     (* [compunit] is full of identifiers (list of name * exp). Also,
      * [inline_verbatim] is a list of verbatim definitions to be printed
      * amongst other identifiers.
      * All of those must be output in any order compatible with dependencies.
      *)
     let identifiers =
-      let print_identifier name id p l =
+      let print_identifier name id ~recurs ~rec_seq p l =
         P.new_top_level p (fun p ->
           match id.U.expr with
           | None ->
               invalid_arg ("identifiers: missing definition for "^ name)
           | Some expr ->
-              output_identifier name p l expr) in
+              output_identifier name ~recurs ~rec_seq p l expr) in
       List.map (fun (name, identifier, _) ->
         match identifier.U.expr with
         | None ->
@@ -185,9 +182,9 @@ struct
             name, print_identifier name identifier, deps
       ) compunit.U.identifiers in
     let identifiers =
-      let print_verbatim verb p _l =
+      let print_verbatim verb ~recurs ~rec_seq p _l =
         P.new_top_level p (fun p ->
-          Printf.sprintf2 "%a" verb.U.printer p |>
+          Printf.sprintf2 "%a" (verb.U.printer ~recurs ~rec_seq) p |>
           String.print p.P.def) in
       List.fold_left (fun identifiers verb ->
         if verb.U.backend = id && verb.U.location = U.Inline then
@@ -218,8 +215,8 @@ struct
                 if debug then
                   pp stdout "Remaining identifiers are mutually recursive" ;
                 let l = U.environment compunit in
-                List.iter (fun (_name, printer, _depends) ->
-                  printer p l
+                List.iteri (fun i (_name, printer, _depends) ->
+                  printer ~recurs:true ~rec_seq:i p l
                 ) left_overs ;
               ) else
                 raise (Missing_dependencies really_missings)
@@ -250,7 +247,7 @@ struct
                                               verbatim_definitions } in
             if debug then
               pp stdout "Environment: %a\n" E.print_environment l ;
-            printer p l ;
+            printer ~recurs:false ~rec_seq:0 p l ;
             let defined = name :: defined in
             loop true defined left_overs rest
           ) else (
