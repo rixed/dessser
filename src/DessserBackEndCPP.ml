@@ -1522,6 +1522,9 @@ struct
      * must rely on a static function to produce the value: *)
     let t = E.type_of l e in
     let tn = type_identifier_mn p t in
+    (* Mutually recursive functions must be declared first: *)
+    if recurs && T.is_function t.T.typ then
+      P.prepend_declaration p (fun oc -> pp oc "extern %s %s;\n" tn n) ;
     pp p.P.def "%sstatic %s %s_init()\n" p.P.indent tn n ;
     pp p.P.def "%s{\n" p.P.indent ;
     P.indent_more p (fun () ->

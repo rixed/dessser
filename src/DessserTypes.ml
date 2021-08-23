@@ -1362,6 +1362,10 @@ let is_integer t =
 let is_numeric t =
   is_num ~accept_float:true t
 
+let is_function = function
+  | TFunction _ -> true
+  | _ -> false
+
 (*
  * User-types registration
  *
