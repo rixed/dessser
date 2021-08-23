@@ -286,12 +286,12 @@ struct
       List.filter (fun verb ->
         verb.U.backend = id && verb.location = loc
       ) compunit.U.verbatim_definitions in
-    let p = P.(make Definition compunit.external_types) in
+    let p = P.(make compunit.U.module_name Definition compunit.external_types) in
     print_source compunit p oc
       (verbatims Top) (verbatims Middle) (verbatims Bottom)
 
   let print_declarations oc compunit =
-    let p = P.(make Declaration compunit.U.external_types) in
+    let p = P.(make compunit.U.module_name Declaration compunit.external_types) in
     print_source compunit p oc [] [] []
 
 end

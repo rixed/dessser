@@ -215,6 +215,8 @@ struct
         P.declare_if_named p t s (fun oc type_id ->
           pp oc "typedef %s %s;\n" s (valid_identifier type_id)) in
       if is_id then valid_identifier s else s in
+    let m = valid_identifier p.P.module_name in
+    let with_namespace s = "::dessser::gen::"^ m ^"::"^ s in
     let tn =
       match t with
       | TUnknown -> invalid_arg "type_identifier"
@@ -274,15 +276,18 @@ struct
       | TTup mns ->
           P.declared_type p t (fun oc type_id ->
             print_tuple p oc type_id mns) |>
-          valid_identifier
+          valid_identifier |>
+          with_namespace
       | TRec mns ->
           P.declared_type p t (fun oc type_id ->
             print_record p oc type_id mns) |>
-          valid_identifier
+          valid_identifier |>
+          with_namespace
       | TSum mns ->
           P.declared_type p t (fun oc type_id ->
             print_variant p oc type_id mns) |>
-          valid_identifier
+          valid_identifier |>
+          with_namespace
       | TVec (dim, mn) ->
           Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
           declare_if_named

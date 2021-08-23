@@ -7,7 +7,8 @@ module T = DessserTypes
 type context = Declaration | Definition
 
 type t =
-  { context : context ;
+  { module_name : string ;
+    context : context ;
     (* Current definition: *)
     def : string IO.output ;
     (* Declarations: *)
@@ -21,8 +22,9 @@ type t =
     mutable declared : Set.String.t ;
     mutable external_types : (string * (t -> backend_id -> string)) list }
 
-let make ?(declared=Set.String.empty) ?(decls=[]) context external_types =
-  { context ;
+let make ?(declared=Set.String.empty) ?(decls=[]) module_name context external_types =
+  { module_name ;
+    context ;
     def = IO.output_string () ;
     decls ;
     consts = [] ;
@@ -33,7 +35,7 @@ let make ?(declared=Set.String.empty) ?(decls=[]) context external_types =
 
 let new_top_level p f =
   let p' = make ~declared:p.declared ~decls:p.decls
-                p.context p.external_types in
+                p.module_name p.context p.external_types in
   let res = f p' in
   (* Merge the new consts, defs and decls into old ones: *)
   p.consts <- List.rev_append p'.consts p.consts ;
