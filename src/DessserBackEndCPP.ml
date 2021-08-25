@@ -177,10 +177,12 @@ struct
     let id = valid_identifier id in
     ppi oc "struct %s : public std::variant<" id ;
     P.indent_more p (fun () ->
-      Array.iteri (fun i (_, mn) ->
+      Array.iteri (fun i (n, mn) ->
         let typ_id = type_identifier_mn p mn in
-        ppi oc "%s%s"
-          typ_id (if i < Array.length mns - 1 then "," else "")
+        ppi oc "%s%s // %s"
+          typ_id
+          (if i < Array.length mns - 1 then "," else "")
+          n
       ) mns
     ) ;
     ppi oc "> { using variant::variant; };" ;
