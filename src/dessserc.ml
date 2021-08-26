@@ -56,6 +56,7 @@ let init_backend backend schema =
   let module BE = (val backend : BACKEND) in
   match BE.id with
   | OCaml -> DessserBackEndOCaml.init schema
+  | Cpp -> DessserBackEndCPP.init schema
   | _ -> ()
 
 (* Some des/ser modules need to register some functions before they can be

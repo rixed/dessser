@@ -39,6 +39,23 @@ let valid_identifier =
     if Set.String.mem s keywords then s ^ "_" else
     DessserBackEndCLike.valid_identifier s
 
+(* When [get_field_name] is not initialized, the default is to always prefix
+ * with a hash of the type: *)
+let default_get_field_name n t =
+  let t = T.develop t in
+  valid_identifier T.(uniq_id t) ^"_"^ n
+
+let get_field_name = ref default_get_field_name
+
+let init mn =
+  get_field_name := make_get_field_name mn
+
+let uniq_field_name vt n =
+  valid_identifier (!get_field_name n vt)
+
+let uniq_cstr_name vt n =
+  valid_identifier (!get_field_name n vt)
+
 module Config =
 struct
   let id = Cpp
@@ -141,8 +158,9 @@ struct
     ppi oc "struct %s {" id ;
     P.indent_more p (fun () ->
       Array.iter (fun (field_name, mn) ->
+        let field_name = uniq_field_name (T.TRec mns) field_name in
         let typ_id = type_identifier_mn p mn in
-        ppi oc "%s %s;" typ_id (valid_identifier field_name)
+        ppi oc "%s %s;" typ_id field_name
       ) mns ;
       if cpp_std_version >= 20 then
         ppi oc "bool operator==(%s const &) const & = default;" id
@@ -152,6 +170,7 @@ struct
           ppi oc "return %a;"
             (Array.print ~first:"" ~last:"" ~sep:" && "
               (fun oc (field_name, _) ->
+                let field_name = uniq_field_name (T.TRec mns) field_name in
                 let id = valid_identifier field_name in
                 Printf.fprintf oc "%s == other.%s" id id)) mns) ;
         ppi oc "}"
@@ -162,6 +181,7 @@ struct
       P.indent_more p (fun () ->
         ppi oc "os << '{';" ;
         Array.iteri (fun i (field_name, _) ->
+          let field_name = uniq_field_name (T.TRec mns) field_name in
           ppi oc "os << %S << r.%s%s;"
             (field_name ^ ":")
             (valid_identifier field_name)
@@ -172,7 +192,7 @@ struct
       ppi oc "}\n"
     )
 
-  and print_variant p oc id mns =
+  and print_sum p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s : public std::variant<" id ;
@@ -185,13 +205,13 @@ struct
           n
       ) mns
     ) ;
-    ppi oc "> { using variant::variant; };" ;
+    ppi oc "> { using variant::variant; };\n" ;
     if id <> "_" && p.context = P.Declaration then (
       (* An enum with the constructors: *)
-      ppi oc "enum %sConstr {" id ;
+      ppi oc "enum Constr_%s {" id ;
       P.indent_more p (fun () ->
         Array.iter (fun (n, _) ->
-          ppi oc "%s," (valid_identifier n)
+          ppi oc "%s," (uniq_cstr_name (T.TSum mns) n)
         ) mns) ;
       ppi oc "};\n" ;
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
@@ -294,7 +314,7 @@ struct
           with_namespace
       | TSum mns ->
           P.declared_type p t (fun oc type_id ->
-            print_variant p oc type_id mns) |>
+            print_sum p oc type_id mns) |>
           valid_identifier |>
           with_namespace
       | TVec (dim, mn) ->
@@ -513,10 +533,12 @@ struct
               invalid_arg "print: MakeRec" in
           loop es in
         let es = List.sort T.cmp_nv es in
+        let mns =
+          match t.typ with T.TRec mns -> T.sorted_rec mns | _ -> assert false in
         let inits =
           List.map (fun (name, e) ->
             let n = print p l e in
-            (valid_identifier name, n)
+            uniq_field_name (T.TRec mns) name, n
           ) es in
         emit ?name p l e (fun oc ->
           let first, last, sep =
@@ -1334,7 +1356,7 @@ struct
           Printf.fprintf oc "%s%s%s"
             n1
             (if is_pointy mn1.T.typ then "->" else ".")
-            (valid_identifier s))
+            (uniq_field_name mn1.typ s))
     | E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_mn with
         | T.{ typ = TSum mns ; nullable = false } ->
@@ -1342,20 +1364,21 @@ struct
             let mn1 = E.type_of l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
-              Printf.fprintf oc "std::get<%d>(%s%s)"
-                lbl
+              Printf.fprintf oc "std::get<%d /* %s */>(%s%s)"
+                lbl (fst mns.(lbl))
                 (if is_pointy mn1.T.typ then "*" else "")
                 n1)
         | _ ->
             assert false)
-    | E1 (Construct (_, i), e1) ->
+    | E1 (Construct (_, lbl), e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           if is_pointy t.T.typ then
             let tn = type_identifier_mn p t |> blunted in
-            Printf.fprintf oc "new %s(std::in_place_index<%d>, %s)" tn i n1
+            Printf.fprintf oc "new %s(std::in_place_index<%d>, %s)"
+              tn lbl n1
           else
-            Printf.fprintf oc "std::in_place_index<%d>, %s" i n1)
+            Printf.fprintf oc "std::in_place_index<%d>, %s" lbl n1)
     | E1 (Assert, e1) ->
         let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
