@@ -217,6 +217,9 @@ struct
   let make buffer offset length =
     { buffer ; offset ; length }
 
+  let of_bytes bytes =
+    make bytes 0 (Bytes.length bytes)
+
   (* Returns an optional value: *)
   let get s i =
     Bytes.get s.buffer (s.offset + i)
@@ -251,15 +254,18 @@ struct
       Bytes.unsafe_set buffer s1.length b ;
       { buffer ; offset = 0 ; length }
 
+  let to_bytes s =
+    if s.offset = 0 && s.length = Bytes.length s.buffer then
+      s.buffer
+    else
+      Bytes.sub s.buffer s.offset s.length
+
   (* FIXME: the string type should be implemented as a slice *)
   let to_string s =
-    if s.offset = 0 && s.length = Bytes.length s.buffer then
-      Bytes.unsafe_to_string s.buffer
-    else
-      Bytes.sub_string s.buffer s.offset s.length
+    Bytes.unsafe_to_string (to_bytes s)
 
   let of_string s =
-    make (Bytes.unsafe_of_string s) 0 (String.length s)
+    of_bytes (Bytes.unsafe_of_string s)
 
   let eq s1 s2 =
     s1.length = s2.length && (
