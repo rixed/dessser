@@ -187,6 +187,13 @@ struct
     ) ;
     ppi oc "> { using variant::variant; };" ;
     if id <> "_" && p.context = P.Declaration then (
+      (* An enum with the constructors: *)
+      ppi oc "enum %sConstr {" id ;
+      P.indent_more p (fun () ->
+        Array.iter (fun (n, _) ->
+          ppi oc "%s," (valid_identifier n)
+        ) mns) ;
+      ppi oc "};\n" ;
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
       P.indent_more p (fun () ->
         (* too smart for its own good:
