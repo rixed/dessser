@@ -36,12 +36,6 @@ struct Pointer {
   // Current location of the read/write pointer inside the buffer/bytes:
   size_t offset;
 
-  /* The type of pointer used to hold a heap allocated value.
-   * If this is set then buffer must by null, and the other way around.
-   * On shared_ptr<void>, it works because BackEndCPP.alloc_value alloc
-   * with new, and we build the shared_ptr when the actual type is known. */
-  std::shared_ptr<void> value; // FIXME: obsolete?
-
   /* Construct (with uninitialized buffer) from a size: */
   Pointer(Size const &sz) :
     buffer(new uint8_t[sz]),
@@ -65,8 +59,7 @@ struct Pointer {
     buffer(that.buffer),
     bytes(that.bytes),
     size(that.size),
-    offset(that.offset),
-    value(that.value)
+    offset(that.offset)
   {}
 
   /* Construct from another Pointer, narrowing a subpart of it */
@@ -74,19 +67,27 @@ struct Pointer {
     buffer(that.buffer),
     bytes(that.bytes),
     size(that.offset + size_),
-    offset(that.offset + offset_),
-    value(that.value)
+    offset(that.offset + offset_)
   {
     assert(size <= that.size);
     assert(offset <= that.size);
   }
 
   /* Construct from any heap allocated value */
-  Pointer(std::shared_ptr<void> value_) :
+  Pointer(std::shared_ptr<uint8_t> buffer_, size_t size_) :
+    buffer(buffer_),
     bytes(nullptr),
-    size(0),
-    offset(0),
-    value(value_)
+    size(size_),
+    offset(0)
+  {}
+
+  /* Construct from a Bytes */
+  Pointer(Bytes const &bytes) :
+    buffer(bytes.buffer),
+    bytes(nullptr),
+    // FIXME: either make this size start after offset or make Bytes size start from 0
+    size(bytes.offset + bytes.size),
+    offset(bytes.offset)
   {}
 
   /* Default constructor for uninitialized objects: */
