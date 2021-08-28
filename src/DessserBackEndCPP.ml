@@ -104,7 +104,7 @@ struct
     match T.develop t with
     | TThis _ | TSet _ ->
         true
-    | (TRec _ | TSum _ | TTup _) as t ->
+    | (TTup _ | TRec _ | TSum _) as t ->
         (* Even if expanded, any named type that's susceptible to be used
          * recursively must be pointy. *)
         List.exists (fun (_, def) -> T.eq t def) !T.these
@@ -142,7 +142,9 @@ struct
       P.indent_more p (fun () ->
         ppi oc "os << '<'" ;
         for i = 0 to Array.length mns - 1 do
-          ppi oc "   << std::get<%d>(t)%s"
+          ppi oc "   << %sstd::get<%d>(t)%s"
+            (* Display the content rather than the pointer: *)
+            (if is_pointy mns.(i).T.typ then "*" else "")
             i (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
         ppi oc "   << '>';" ;
@@ -180,10 +182,12 @@ struct
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
       P.indent_more p (fun () ->
         ppi oc "os << '{';" ;
-        Array.iteri (fun i (field_name, _) ->
+        Array.iteri (fun i (field_name, mn) ->
           let field_name = uniq_field_name (T.TRec mns) field_name in
-          ppi oc "os << %S << r.%s%s;"
+          ppi oc "os << %S << %sr.%s%s;"
             (field_name ^ ":")
+            (* Display the content rather than the pointer: *)
+            (if is_pointy mn.T.typ then "*" else "")
             (valid_identifier field_name)
             (if i < Array.length mns - 1 then " << ','" else "")
         ) mns ;
@@ -221,7 +225,13 @@ struct
         ppi oc "switch (v.index()) {" ;
         P.indent_more p (fun () ->
           for i = 0 to Array.length mns - 1 do
-            ppi oc "case %d: os << std::get<%d>(v); break;" i i
+            let label = fst mns.(i) in
+            ppi oc "case %d: os << %S << %sstd::get<%d>(v); break;"
+              i
+              (label ^ " ")
+              (* Display the content rather than the pointer: *)
+              (if is_pointy (snd mns.(i)).T.typ then "*" else "")
+              i
           done) ;
         ppi oc "}" ;
         ppi oc "return os;") ;
@@ -256,11 +266,14 @@ struct
           (* If t is a constructed type unknown to the compiler, then its name
            * has to be disclosed to the compiler (FIXME: once is enough!): *)
           (match t |> T.develop with
-          | TRec _ | TSum _ | TTup _ ->
+          | TTup _ | TRec _ | TSum _ ->
               (* All those are structs: *)
               P.prepend_declaration p (fun oc ->
                 let id = if n = "" then "t" else valid_identifier n in
-                pp oc "struct %s;\n" id) ;
+                pp oc "struct %s;\n" id ;
+                pp oc "inline std::ostream &operator<<(std::ostream &, \
+                                                       struct %s const &);\n"
+                      id)
           | _ ->
               Printf.sprintf2
                 "type_identifier: C++ backend does not support recursive %a"
