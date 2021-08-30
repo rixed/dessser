@@ -164,6 +164,23 @@ struct
         let typ_id = type_identifier_mn p mn in
         ppi oc "%s %s;" typ_id field_name
       ) mns ;
+      (* In case this is used as first type in a variant it must have an
+       * explicit constructor because $reason. *)
+      ppi oc "%s(%a) : %a {}"
+        id
+        (Array.print ~first:"" ~last:"" ~sep:", "
+          (fun oc (field_name, mn) ->
+            let field_name = uniq_field_name (T.TRec mns) field_name in
+            let typ_id = type_identifier_mn p mn in
+            Printf.fprintf oc "%s %s_" typ_id field_name)) mns
+        (Array.print ~first:"" ~last:"" ~sep:", "
+          (fun oc (field_name, _) ->
+            let field_name = uniq_field_name (T.TRec mns) field_name in
+            Printf.fprintf oc "%s(%s_)" field_name field_name)) mns ;
+      (* But wait, this implicitly also disabled the default constructor that
+       * is also needed, so let's reintroduce it: *)
+      ppi oc "%s() = default;" id ;
+      (* That is still not enough. We need an equality operator: *)
       if cpp_std_version >= 20 then
         ppi oc "bool operator==(%s const &) const & = default;" id
       else (
