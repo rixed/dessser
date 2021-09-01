@@ -28,7 +28,7 @@ struct Bytes {
 
   Bytes(std::shared_ptr<uint8_t> buffer_, size_t size_, size_t offset_) :
     buffer(buffer_),
-    capa(size_),
+    capa(offset_ + size_),
     size(size_),
     offset(offset_)
   {}
