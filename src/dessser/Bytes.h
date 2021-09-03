@@ -112,6 +112,11 @@ struct Bytes {
   {
     return buffer.get()[offset + i];
   }
+
+  void const *get() const
+  {
+    return buffer.get() + offset;
+  }
 };
 
 inline std::ostream &operator<<(std::ostream &os, Bytes const &b)

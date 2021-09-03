@@ -211,7 +211,7 @@ struct
       buffer : Bytes.t ;
       (* Where the bytes start: *)
       offset : int ;
-      (* The length of the bytes: *)
+      (* The length of the bytes (from offset): *)
       length : int }
 
   let make buffer offset length =

@@ -8,6 +8,7 @@ open DessserTools
 module T = DessserTypes
 module E = DessserExpressions
 module P = DessserPrinter
+module Parser = DessserParser
 
 let cpp_std_version = 17
 
@@ -100,7 +101,7 @@ struct
    * Notice that TThis is only half-pointy: it's stored and manipulated as
    * a pointer but when passing values to external functions it is actually
    * no longer pointy. *)
-  let is_pointy t =
+  let rec is_pointy t =
     match T.develop t with
     | TThis _ | TSet _ ->
         true
@@ -108,6 +109,8 @@ struct
         (* Even if expanded, any named type that's susceptible to be used
          * recursively must be pointy. *)
         List.exists (fun (_, def) -> T.eq t def) !T.these
+    | TExt _ ->
+        false (* Assuming non pointy *)
     | _ ->
         false
 
@@ -116,6 +119,25 @@ struct
     if String.ends_with tn "*" then String.rchop tn else
     if String.ends_with tn "_ext" then String.rchop ~n:4 tn else
     invalid_arg ("blunted: "^ tn)
+
+  let deref t s =
+    let star = "(*" ^ s ^")" in
+    match T.develop t with
+    | TThis _ | TSet _ ->
+        star
+    | (TTup _ | TRec _ | TSum _) as t ->
+        (* Even if expanded, any named type that's susceptible to be used
+         * recursively must be pointy. *)
+        if List.exists (fun (_, def) -> T.eq t def) !T.these then
+          star
+        else
+          s
+    | TExt n ->
+        (* Deref deals with nulls on its own *)
+        let m = valid_identifier n in
+        "::dessser::gen::"^ m ^"::Deref("^ s ^")"
+    | _ ->
+        s
 
   let rec print_tuple p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
@@ -142,14 +164,22 @@ struct
           ppi oc "return %a;"
             (array_print_i ~first:"" ~last:"" ~sep:" && "
               (fun i oc mn ->
+                let a = "std::get<"^ string_of_int i ^">(a)"
+                and b = "std::get<"^ string_of_int i ^">(b)" in
                 (* Do not compare functions! *)
                 if T.is_function mn.T.typ then
                   String.print oc "false"
+                else if mn.nullable then
+                  Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
+                    a b
+                    (deref mn.T.typ (a ^".value()"))
+                    (deref mn.T.typ (b ^".value()"))
+                    a b
                 else
                   (* nor pointers! *)
-                  let pref = if is_pointy mn.T.typ then "*" else "" in
-                  Printf.fprintf oc "%sstd::get<%d>(a) == %sstd::get<%d>(b)"
-                    pref i pref i)) mns) ;
+                  Printf.fprintf oc "%s == %s"
+                    (deref mn.T.typ a) (deref mn.T.typ b)
+              )) mns) ;
         ppi oc "}"
       )
     ) ;
@@ -205,12 +235,20 @@ struct
         ppi oc "os << '{';" ;
         Array.iteri (fun i (field_name, mn) ->
           let field_name = uniq_field_name (T.TRec mns) field_name in
-          ppi oc "os << %S << %sr.%s%s;"
-            (field_name ^ ":")
-            (* Display the content rather than the pointer: *)
-            (if is_pointy mn.T.typ then "*" else "")
-            (valid_identifier field_name)
-            (if i < Array.length mns - 1 then " << ','" else "")
+          let n = "r."^ valid_identifier field_name in
+          if mn.T.nullable then
+            ppi oc "if (%s) os << %S << %s%s;"
+              n
+              (field_name ^ ":")
+              (* Display the content rather than the pointer: *)
+              (deref mn.T.typ (n ^ ".value()"))
+              (if i < Array.length mns - 1 then " << ','" else "")
+          else
+            ppi oc "os << %S << %s%s;"
+              (field_name ^ ":")
+              (* Display the content rather than the pointer: *)
+              (deref mn.T.typ n)
+              (if i < Array.length mns - 1 then " << ','" else "")
         ) mns ;
         ppi oc "os << '}';" ;
         ppi oc "return os;") ;
@@ -227,9 +265,17 @@ struct
               ) else (
                 let field_name = uniq_field_name (T.TRec mns) field_name in
                 let id = valid_identifier field_name in
-                (* Do not compare pointers! *)
-                let pref = if is_pointy mn.T.typ then "*" else "" in
-                Printf.fprintf oc "%sa.%s == %sb.%s" pref id pref id
+                let a = "a."^ id
+                and b = "b."^ id in
+                if mn.T.nullable then
+                  Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
+                    a b
+                    (deref mn.T.typ (a ^".value()"))
+                    (deref mn.T.typ (b ^".value()"))
+                    a b
+                else
+                  Printf.fprintf oc "%s == %s"
+                    (deref mn.T.typ a) (deref mn.T.typ b)
               ))) mns) ;
       ppi oc "}\n"
     )
@@ -263,10 +309,21 @@ struct
         ppi oc "switch (a.index()) {" ;
         P.indent_more p (fun () ->
           Array.iteri (fun i (n, mn) ->
-            let pref = if is_pointy mn.T.typ then "*" else "" in
-            ppi oc "case %d: return %sstd::get<%d>(a) == \
-                                    %sstd::get<%d>(b); // %s"
-              i pref i pref i n
+            let a = "std::get<"^ string_of_int i ^">(a)"
+            and b = "std::get<"^ string_of_int i ^">(b)" in
+            if mn.T.nullable then
+              ppi oc "case %d: return (%s && %s && %s == %s) || (!%s && !%s); // %s"
+                i
+                a b
+                (deref mn.T.typ (a ^".value()"))
+                (deref mn.T.typ (b ^".value()"))
+                a b
+                n
+            else
+              ppi oc "case %d: return %s == %s; // %s"
+                i
+                (deref mn.T.typ a) (deref mn.T.typ b)
+                n
           ) mns) ;
         ppi oc "};" ;
         ppi oc "return false;"
@@ -280,12 +337,21 @@ struct
         P.indent_more p (fun () ->
           for i = 0 to Array.length mns - 1 do
             let label = fst mns.(i) in
-            ppi oc "case %d: os << %S << %sstd::get<%d>(v); break;"
-              i
-              (label ^ " ")
-              (* Display the content rather than the pointer: *)
-              (if is_pointy (snd mns.(i)).T.typ then "*" else "")
-              i
+            let v = "std::get<"^ string_of_int i ^">(v)" in
+            let _lbl, mn = mns.(i) in
+            if mn.T.nullable then
+              ppi oc "case %d: if (%s) os << %S << %s; break;"
+                i
+                v
+                (label ^ " ")
+                (* Display the content rather than the pointer: *)
+                (deref mn.T.typ (v ^".value()"))
+            else
+              ppi oc "case %d: os << %S << %s; break;"
+                i
+                (label ^ " ")
+                (* Display the content rather than the pointer: *)
+                (deref mn.T.typ v)
           done) ;
         ppi oc "}" ;
         ppi oc "return os;") ;
@@ -529,13 +595,11 @@ struct
       ppi p.P.def "}" ;
       res in
     let method_call e1 m args =
-      let deref_with =
-        if is_pointy (E.type_of l e1 |> T.develop_mn).T.typ then "->"
-                                                            else "." in
+      let t1 = E.type_of l e1 |> T.develop_mn in
       let n1 = print p l e1
       and ns = List.map (print p l) args in
       emit ?name p l e (fun oc ->
-        pp oc "%s%s%s%a" n1 deref_with m
+        pp oc "%s.%s%a" (deref t1.T.typ n1) m
           (List.print ~first:"(" ~last:")" ~sep:", " String.print) ns) in
     let null_of_nan res =
       ppi p.P.def "if (std::isnan(*%s)) %s.reset();" res res ;
@@ -1413,17 +1477,15 @@ struct
         let n1 = print p l e1 in
         let mn1 = E.type_of l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "std::get<%d>(%s%s)"
+          Printf.fprintf oc "std::get<%d>(%s)"
             n
-            (if is_pointy mn1.T.typ then "*" else "")
-            n1)
+            (deref mn1.T.typ n1))
     | E1 (GetField s, e1) ->
         let n1 = print p l e1 in
         let mn1 = E.type_of l e1 in
         emit ?name p l e (fun oc ->
-          Printf.fprintf oc "%s%s%s"
-            n1
-            (if is_pointy mn1.T.typ then "->" else ".")
+          Printf.fprintf oc "%s.%s"
+            (deref mn1.T.typ n1)
             (uniq_field_name mn1.typ s))
     | E1 (GetAlt s, e1) ->
         (match E.type_of l e1 |> T.develop_mn with
@@ -1432,10 +1494,9 @@ struct
             let mn1 = E.type_of l e1 in
             let lbl = Array.findi (fun (n, _) -> n = s) mns in
             emit ?name p l e (fun oc ->
-              Printf.fprintf oc "std::get<%d /* %s */>(%s%s)"
+              Printf.fprintf oc "std::get<%d /* %s */>(%s)"
                 lbl (fst mns.(lbl))
-                (if is_pointy mn1.T.typ then "*" else "")
-                n1)
+                (deref mn1.T.typ n1))
         | _ ->
             assert false)
     | E1 (Construct (_, lbl), e1) ->
@@ -1456,9 +1517,8 @@ struct
     | E1 (LabelOf, e1) ->
         let n1 = print p l e1 in
         let mn1 = E.type_of l e1 in
-        emit ?name p l e (fun oc -> pp oc "uint16_t(%s%sindex())"
-          n1
-          (if is_pointy mn1.T.typ then "->" else "."))
+        emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())"
+          (deref mn1.T.typ n1))
     | E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask::COPY")
     | E0 SkipField ->
@@ -1705,9 +1765,12 @@ struct
         ""
     | t ->
         if Set.String.mem "t" p.P.declared then
-          "typedef t " ^
-            (if is_pointy t then "*" else "") ^
-            "t_ext;\n"
+          if is_pointy t then
+            "typedef t *t_ext;\n\
+             inline t Deref(t_ext x) { return *x; }\n"
+          else
+            "typedef t t_ext;\n\
+             inline t Deref(t_ext x) { return x; }\n"
         else
           "") ^
     (match p.P.context with
