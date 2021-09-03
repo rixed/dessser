@@ -180,7 +180,10 @@ struct
                   Printf.fprintf oc "%s == %s"
                     (deref mn.T.typ a) (deref mn.T.typ b)
               )) mns) ;
-        ppi oc "}"
+        ppi oc "}" ;
+        ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+                  return !operator==(a, b);\n\
+                }" id id
       )
     ) ;
     if id <> "_" && not is_pair && p.context = P.Declaration then (
@@ -277,7 +280,10 @@ struct
                   Printf.fprintf oc "%s == %s"
                     (deref mn.T.typ a) (deref mn.T.typ b)
               ))) mns) ;
-      ppi oc "}\n"
+      ppi oc "}\n" ;
+      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+                return !operator==(a, b);\n\
+              }" id id
     )
 
   and print_sum p oc id mns =
@@ -329,6 +335,9 @@ struct
         ppi oc "return false;"
       ) ;
       ppi oc "}" ;
+      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+                return !operator==(a, b);\n\
+              }" id id ;
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
       P.indent_more p (fun () ->
         (* too smart for its own good:
@@ -394,6 +403,8 @@ struct
                 pp oc "inline std::ostream &operator<<(\
                          std::ostream &, struct %s const &);\n" id ;
                 pp oc "inline bool operator==(\
+                         struct %s const &, struct %s const &);\n" id id ;
+                pp oc "inline bool operator!=(\
                          struct %s const &, struct %s const &);\n" id id)
           | _ ->
               Printf.sprintf2
