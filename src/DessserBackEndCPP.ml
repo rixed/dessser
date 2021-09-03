@@ -131,10 +131,28 @@ struct
         ppi oc "%s%s"
           typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns) ;
-    if is_pair then
+    if is_pair then (
       ppi oc "> %s;\n" id
-    else
+    ) else (
       ppi oc "> { using tuple::tuple; };" ;
+      (* Need a custom comparison operator that dereferences pointers: *)
+      if id <> "_" && p.context = P.Declaration then (
+        ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+        P.indent_more p (fun () ->
+          ppi oc "return %a;"
+            (array_print_i ~first:"" ~last:"" ~sep:" && "
+              (fun i oc mn ->
+                (* Do not compare functions! *)
+                if T.is_function mn.T.typ then
+                  String.print oc "false"
+                else
+                  (* nor pointers! *)
+                  let pref = if is_pointy mn.T.typ then "*" else "" in
+                  Printf.fprintf oc "%sstd::get<%d>(a) == %sstd::get<%d>(b)"
+                    pref i pref i)) mns) ;
+        ppi oc "}"
+      )
+    ) ;
     if id <> "_" && not is_pair && p.context = P.Declaration then (
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
@@ -179,21 +197,7 @@ struct
             Printf.fprintf oc "%s(%s_)" field_name field_name)) mns ;
       (* But wait, this implicitly also disabled the default constructor that
        * is also needed, so let's reintroduce it: *)
-      ppi oc "%s() = default;" id ;
-      (* That is still not enough. We need an equality operator: *)
-      if cpp_std_version >= 20 then
-        ppi oc "bool operator==(%s const &) const & = default;" id
-      else (
-        ppi oc "bool operator==(%s const &other) const {" id ;
-        P.indent_more p (fun () ->
-          ppi oc "return %a;"
-            (Array.print ~first:"" ~last:"" ~sep:" && "
-              (fun oc (field_name, _) ->
-                let field_name = uniq_field_name (T.TRec mns) field_name in
-                let id = valid_identifier field_name in
-                Printf.fprintf oc "%s == other.%s" id id)) mns) ;
-        ppi oc "}"
-      )) ;
+      ppi oc "%s() = default;" id) ;
     ppi oc "};" ;
     if id <> "_" && p.context = P.Declaration then (
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
@@ -210,6 +214,23 @@ struct
         ) mns ;
         ppi oc "os << '}';" ;
         ppi oc "return os;") ;
+      ppi oc "}" ;
+      (* That is still not enough. We need an equality operator: *)
+      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+      P.indent_more p (fun () ->
+        ppi oc "return %a;"
+          (Array.print ~first:"" ~last:"" ~sep:" && "
+            (fun oc (field_name, mn) ->
+              (* Do not compare functions! *)
+              if T.is_function mn.T.typ then (
+                String.print oc "false"
+              ) else (
+                let field_name = uniq_field_name (T.TRec mns) field_name in
+                let id = valid_identifier field_name in
+                (* Do not compare pointers! *)
+                let pref = if is_pointy mn.T.typ then "*" else "" in
+                Printf.fprintf oc "%sa.%s == %sb.%s" pref id pref id
+              ))) mns) ;
       ppi oc "}\n"
     )
 
@@ -235,6 +256,22 @@ struct
           ppi oc "%s," (uniq_cstr_name (T.TSum mns) n)
         ) mns) ;
       ppi oc "};\n" ;
+      (* A comparison operator (for < C++20): *)
+      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+      P.indent_more p (fun () ->
+        ppi oc "if (a.index() != b.index()) return false;" ;
+        ppi oc "switch (a.index()) {" ;
+        P.indent_more p (fun () ->
+          Array.iteri (fun i (n, mn) ->
+            let pref = if is_pointy mn.T.typ then "*" else "" in
+            ppi oc "case %d: return %sstd::get<%d>(a) == \
+                                    %sstd::get<%d>(b); // %s"
+              i pref i pref i n
+          ) mns) ;
+        ppi oc "};" ;
+        ppi oc "return false;"
+      ) ;
+      ppi oc "}" ;
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
       P.indent_more p (fun () ->
         (* too smart for its own good:
@@ -288,9 +325,10 @@ struct
               P.prepend_declaration p (fun oc ->
                 let id = if n = "" then "t" else valid_identifier n in
                 pp oc "struct %s;\n" id ;
-                pp oc "inline std::ostream &operator<<(std::ostream &, \
-                                                       struct %s const &);\n"
-                      id)
+                pp oc "inline std::ostream &operator<<(\
+                         std::ostream &, struct %s const &);\n" id ;
+                pp oc "inline bool operator==(\
+                         struct %s const &, struct %s const &);\n" id id)
           | _ ->
               Printf.sprintf2
                 "type_identifier: C++ backend does not support recursive %a"
