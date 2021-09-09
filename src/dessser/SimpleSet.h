@@ -37,6 +37,26 @@ struct SimpleSet : public Set<T> {
   }
 };
 
+template<class T>
+inline bool operator==(SimpleSet<T> lhs, SimpleSet<T> rhs)
+{
+  if (lhs.size() != rhs.size()) return false;
+
+  auto i1 { lhs.cbegin() };
+  auto i2 { rhs.cbegin() };
+  while (i1 != lhs.cend()) {
+    if (*i1++ != *i2++) return false;
+  }
+
+  return true;
+}
+
+template<class T>
+inline bool operator!=(SimpleSet<T> lhs, SimpleSet<T> rhs)
+{
+  return !operator==(lhs, rhs);
+}
+
 };
 
 #endif
