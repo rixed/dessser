@@ -143,50 +143,57 @@ struct
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     let is_pair = Array.length mns = 2 in
-    if is_pair then
-      ppi oc "typedef std::tuple<"
-    else
-      ppi oc "struct %s : public std::tuple<" id ;
+    ppi oc "struct %s : public std::tuple<" id ;
     P.indent_more p (fun () ->
       Array.iteri (fun i mn ->
         let typ_id = type_identifier_mn p mn in
         ppi oc "%s%s"
           typ_id (if i < Array.length mns - 1 then "," else "")
       ) mns) ;
-    if is_pair then (
-      ppi oc "> %s;\n" id
-    ) else (
-      ppi oc "> { using tuple::tuple; };" ;
-      (* Need a custom comparison operator that dereferences pointers: *)
-      if id <> "_" && p.context = P.Declaration then (
-        ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
-        P.indent_more p (fun () ->
-          ppi oc "return %a;"
-            (array_print_i ~first:"" ~last:"" ~sep:" && "
-              (fun i oc mn ->
-                let a = "std::get<"^ string_of_int i ^">(a)"
-                and b = "std::get<"^ string_of_int i ^">(b)" in
-                (* Do not compare functions! *)
-                if T.is_function mn.T.typ then
-                  String.print oc "false"
-                else if mn.nullable then
-                  Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
-                    a b
-                    (deref mn.T.typ (a ^".value()"))
-                    (deref mn.T.typ (b ^".value()"))
-                    a b
-                else
-                  (* nor pointers! *)
-                  Printf.fprintf oc "%s == %s"
-                    (deref mn.T.typ a) (deref mn.T.typ b)
-              )) mns) ;
-        ppi oc "}" ;
-        ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
-                  return !operator==(a, b);\n\
-                }" id id
+    ppi oc "> {" ;
+    P.indent_more p (fun () ->
+      ppi oc "using tuple::tuple;" ;
+      (* The dessser runtime lib uses pairs on its own. We want those pairs,
+       * defined as `std::tuple<$X, $Y>`, to be usable to construct a user
+       * defined pair of the same type, which will be defined as a distinct
+       * struct, so let's add a specific constructor: *)
+      if is_pair then (
+        let t0 = type_identifier_mn p mns.(0)
+        and t1 = type_identifier_mn p mns.(1) in
+        ppi oc "%s(std::tuple<%s, %s> p)" id t0 t1 ;
+        ppi oc "  : std::tuple<%s, %s>(std::get<0>(p), std::get<1>(p)) {}" t0 t1
       )
     ) ;
-    if id <> "_" && not is_pair && p.context = P.Declaration then (
+    ppi oc "};" ;
+    (* Need a custom comparison operator that dereferences pointers: *)
+    if id <> "_" && p.context = P.Declaration then (
+      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+      P.indent_more p (fun () ->
+        ppi oc "return %a;"
+          (array_print_i ~first:"" ~last:"" ~sep:" && "
+            (fun i oc mn ->
+              let a = "std::get<"^ string_of_int i ^">(a)"
+              and b = "std::get<"^ string_of_int i ^">(b)" in
+              (* Do not compare functions! *)
+              if T.is_function mn.T.typ then
+                String.print oc "false"
+              else if mn.nullable then
+                Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
+                  a b
+                  (deref mn.T.typ (a ^".value()"))
+                  (deref mn.T.typ (b ^".value()"))
+                  a b
+              else
+                (* nor pointers! *)
+                Printf.fprintf oc "%s == %s"
+                  (deref mn.T.typ a) (deref mn.T.typ b)
+            )) mns) ;
+      ppi oc "}" ;
+      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+                return !operator==(a, b);\n\
+              }" id id
+    ) ;
+    if id <> "_" && p.context = P.Declaration then (
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
         id ;
@@ -655,7 +662,7 @@ struct
           let first, last, sep =
             if is_pointy t.T.typ then
               let tn = type_identifier_mn p t |> blunted in
-              ("new "^ tn ^"({ "), " })", ", "
+              ("new "^ tn ^"("), ")", ", "
             else
               "", "", ", " in
           List.print ~first ~last ~sep String.print oc inits)
