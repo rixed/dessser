@@ -431,7 +431,7 @@ and typ m =
       repeat ~sep:opt_blanks key_type
     ) >>: fun (t, dims) -> reduce_dims t dims in
   (
-    (identifier +- !blanks +- string "as" +- !blanks ++ anonymous >>:
+    (identifier +- !blanks +- strinG "as" +- !blanks ++ anonymous >>:
       fun (n, t) -> TNamed (n, t)) |<|
     anonymous
   ) m
