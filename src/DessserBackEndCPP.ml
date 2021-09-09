@@ -165,8 +165,12 @@ struct
       )
     ) ;
     ppi oc "};" ;
-    (* Need a custom comparison operator that dereferences pointers: *)
-    if id <> "_" && p.context = P.Declaration then (
+    (* Need a custom comparison operator that dereferences pointers.
+     * Notice that it is useful to output it also when defining (not only
+     * declaring) as even when some separate declarations are output those
+     * are not included by the definition file, and operator== is required
+     * by the generated code. *)
+    if id <> "_" then (
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
         ppi oc "return %a;"
@@ -262,7 +266,8 @@ struct
         ) mns ;
         ppi oc "os << '}';" ;
         ppi oc "return os;") ;
-      ppi oc "}" ;
+      ppi oc "}") ;
+    if id <> "_" then (
       (* That is still not enough. We need an equality operator: *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
@@ -315,6 +320,34 @@ struct
           ppi oc "%s," (uniq_cstr_name (T.TSum mns) n)
         ) mns) ;
       ppi oc "};\n" ;
+      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
+      P.indent_more p (fun () ->
+        (* too smart for its own good:
+         * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
+        ppi oc "switch (v.index()) {" ;
+        P.indent_more p (fun () ->
+          for i = 0 to Array.length mns - 1 do
+            let label = fst mns.(i) in
+            let v = "std::get<"^ string_of_int i ^">(v)" in
+            let _lbl, mn = mns.(i) in
+            if mn.T.nullable then
+              ppi oc "case %d: if (%s) os << %S << %s; break;"
+                i
+                v
+                (label ^ " ")
+                (* Display the content rather than the pointer: *)
+                (deref mn.T.typ (v ^".value()"))
+            else
+              ppi oc "case %d: os << %S << %s; break;"
+                i
+                (label ^ " ")
+                (* Display the content rather than the pointer: *)
+                (deref mn.T.typ v)
+          done) ;
+        ppi oc "}" ;
+        ppi oc "return os;") ;
+      ppi oc "}\n") ;
+    if id <> "_" then (
       (* A comparison operator (for < C++20): *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
@@ -344,35 +377,7 @@ struct
       ppi oc "}" ;
       ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
                 return !operator==(a, b);\n\
-              }" id id ;
-      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
-      P.indent_more p (fun () ->
-        (* too smart for its own good:
-         * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
-        ppi oc "switch (v.index()) {" ;
-        P.indent_more p (fun () ->
-          for i = 0 to Array.length mns - 1 do
-            let label = fst mns.(i) in
-            let v = "std::get<"^ string_of_int i ^">(v)" in
-            let _lbl, mn = mns.(i) in
-            if mn.T.nullable then
-              ppi oc "case %d: if (%s) os << %S << %s; break;"
-                i
-                v
-                (label ^ " ")
-                (* Display the content rather than the pointer: *)
-                (deref mn.T.typ (v ^".value()"))
-            else
-              ppi oc "case %d: os << %S << %s; break;"
-                i
-                (label ^ " ")
-                (* Display the content rather than the pointer: *)
-                (deref mn.T.typ v)
-          done) ;
-        ppi oc "}" ;
-        ppi oc "return os;") ;
-      ppi oc "}\n"
-    )
+              }" id id)
 
   and type_identifier_mn p mn =
     if mn.T.nullable then
