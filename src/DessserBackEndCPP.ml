@@ -115,6 +115,7 @@ struct
         false
 
   (* Removes the final "*" of a pointy type representation: *)
+  (* FIXME: shoose between a variety of pointy/smarty types *)
   let blunted tn =
     if String.ends_with tn "*" then String.rchop tn else
     if String.ends_with tn "_ext" then String.rchop ~n:4 tn else
@@ -206,6 +207,7 @@ struct
         for i = 0 to Array.length mns - 1 do
           ppi oc "   << %sstd::get<%d>(t)%s"
             (* Display the content rather than the pointer: *)
+            (* FIXME: shoose between a variety of pointy/smarty types *)
             (if is_pointy mns.(i).T.typ then "*" else "")
             i (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
@@ -230,6 +232,7 @@ struct
        * explicit constructor because $reason. *)
       ppi oc "%s(%a) : %a {}"
         id
+        (* FIXME: take fields in user order for construction *)
         (Array.print ~first:"" ~last:"" ~sep:", "
           (fun oc (field_name, mn) ->
             let field_name = uniq_field_name (T.TRec mns) field_name in
@@ -519,6 +522,7 @@ struct
       | TAddress -> declare_if_named "Address"
       | TBytes -> declare_if_named "Bytes"
       | TMask -> declare_if_named "Mask" in
+  (* FIXME: shoose between a variety of pointy/smarty types *)
   if is_pointy t then tn ^"*" else tn
 
   (* Identifiers used for function parameters: *)

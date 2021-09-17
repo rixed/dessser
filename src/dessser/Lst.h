@@ -110,6 +110,7 @@ struct Lst {
 
   // Range based loops:
 
+  // FIXME: also a const iterator
   struct Iterator {
     using iterator_category = std::forward_iterator_tag;
     using difference_type = std::size_t;
