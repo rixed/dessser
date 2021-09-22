@@ -329,7 +329,8 @@ struct
       poken : int -> Slice.t -> unit ;
       (* Convert the whole underlying buffer as fast as possible with
        * no regard for offset/length: *)
-      to_string : unit -> string }
+      to_string : unit -> string ;
+      to_bytes : unit -> Bytes.t }
 
   type t = ptr * int (* offset *)
 
@@ -337,6 +338,10 @@ struct
     { stop = impl.size ;
       seq = next_seq () ;
       impl },
+    0
+
+  let reset (p, _) =
+    { p with stop = p.impl.size },
     0
 
   let of_pointer (p, _) start stop =
@@ -622,6 +627,8 @@ let pointer_of_bytes t =
     Bytes.blit slice.Slice.buffer slice.offset t at slice.length in
   let to_string () =
     Bytes.unsafe_to_string t in
+  let to_bytes () =
+    t in
   Pointer.make
     { peek1 ; peekn ;
       peek2_le ; peek4_le ; peek8_le ; peek16_le ;
@@ -629,7 +636,7 @@ let pointer_of_bytes t =
       poke1 ; poken ;
       poke2_le ; poke4_le ; poke8_le ; poke16_le ;
       poke2_be ; poke4_be ; poke8_be ; poke16_be ;
-      size ; to_string }
+      size ; to_string ; to_bytes }
 
 let pointer_of_buffer size =
   pointer_of_bytes (Bytes.create size)
@@ -693,7 +700,9 @@ let pointer_of_address addr size =
   and poke16_le at v = ExtPointer.poke16_le t at v
   and poke16_be at v = ExtPointer.poke16_be t at v
   and poken at slice = ExtPointer.poken t at slice
-  and to_string () = ExtPointer.to_string t in
+  and to_string () = ExtPointer.to_string t
+  and to_bytes () = ExtPointer.to_string t |> Bytes.unsafe_of_string
+  in
   Pointer.make
     { peek1 ; peekn ;
       peek2_le ; peek4_le ; peek8_le ; peek16_le ;
@@ -701,7 +710,7 @@ let pointer_of_address addr size =
       poke1 ; poken ;
       poke2_le ; poke4_le ; poke8_le ; poke16_le ;
       poke2_be ; poke4_be ; poke8_be ; poke16_be ;
-      size ; to_string }
+      size ; to_string ; to_bytes }
 
 (* Once a set is constructed few operations are possible with it:
  * - insert an item
