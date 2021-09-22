@@ -1162,9 +1162,12 @@ and expr_of_string s =
       Printf.sprintf2 "Cannot parse %S as a single expression" s |>
       failwith
 
-and mn_of_string ?what =
+and mn_of_string ?(any_format=false) ?what =
   let print = print_mn in
-  string_parser ~print ?what mn
+  let p =
+    if any_format then mn |<| (clickhouse_names_and_types >>: required)
+    else mn in
+  string_parser ~print ?what p
 
 (* If [any_format] then any known format to specify types will be tried.
  * If not then only dessser own format will be tried (faster, esp when
