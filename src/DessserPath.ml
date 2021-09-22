@@ -84,7 +84,7 @@ let resolve t0 path =
         let field = field ^"[?]" in
         loop no_index field mn path
     | (TTup _ | TRec _ | TSum _), RunTime _ :: _ ->
-        invalid_arg "type_and_index_of_path on tup/rec/sum + runtime path"
+        invalid_arg "resolve on tup/rec/sum + runtime path"
   in
   loop no_index "" t0 path
 
