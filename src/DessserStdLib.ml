@@ -475,14 +475,23 @@ let string_around ?(width=6) p =
         let bytes_p = read_bytes p (add rwd fwd) in
         string_of_bytes (first bytes_p))))
 
+let dump_u8_as_char b =
+  seq [
+    dump (char '\'') ;
+    dump (char_of_u8 b) ;
+    dump (char '\'') ;
+    dump (string " (") ;
+    dump b ;
+    dump (char ')') ]
+
 let check_byte p c =
   let_ ~name:"check_byte_c" c (fun c ->
     let_ ~name:"check_byte_b" (peek_u8 p (size 0)) (fun b ->
       if_ (ne b c)
         ~then_:(
           seq [ dump (string "Bad char at ") ; dump (offset p) ;
-                dump (string ": ") ; dump b ;
-                dump (string " should be: ") ; dump c ;
+                dump (string ": ") ; dump_u8_as_char b ;
+                dump (string " should be: ") ; dump_u8_as_char c ;
                 dump (string " (") ; dump (string_around p) ; dump (string ")") ;
                 dump (char '\n') ;
                 assert_ false_ ])
