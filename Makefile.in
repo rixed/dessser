@@ -46,15 +46,22 @@ INSTALLED_LIB = \
 	src/libdessser_ext.a
 
 INSTALLED_HEADERS = \
+	src/dessser/Arr.h \
 	src/dessser/Bytes.h \
+	src/dessser/HashTable.h \
+	src/dessser/Heap.h \
+	src/dessser/Lst.h \
 	src/dessser/Map.h \
 	src/dessser/Mask.h \
 	src/dessser/Pointer.h \
-	src/dessser/Arr.h \
+	src/dessser/Sampling.h \
+	src/dessser/Set.h \
+	src/dessser/SimpleSet.h \
+	src/dessser/SlidingWindow.h \
+	src/dessser/TumblingWindow.h \
+	src/dessser/Vec.h \
 	src/dessser/runtime.h \
-	src/dessser/Lst.h \
-	src/dessser/typedefs.h \
-	src/dessser/Vec.h
+	src/dessser/typedefs.h
 
 INSTALLED = \
 	$(INSTALLED_LIB) \
