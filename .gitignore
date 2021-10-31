@@ -71,3 +71,5 @@ tests/json/cidr
 tests/json/cidr2
 tests/json/enum
 tests/json/defaults
+*.dSYM
+src/all_tests.ml
