@@ -232,7 +232,10 @@ struct
        * explicit constructor because $reason. *)
       ppi oc "%s(%a) : %a {}"
         id
-        (* FIXME: take fields in user order for construction *)
+        (* It would be nice to list fields in user order in the constructor,
+         * but unfortunately there is no really such thing as user order,
+         * since we want two make-rec with different field order to map to
+         * the same C++ type. *)
         (Array.print ~first:"" ~last:"" ~sep:", "
           (fun oc (field_name, mn) ->
             let field_name = uniq_field_name (T.TRec mns) field_name in
@@ -691,14 +694,9 @@ struct
           | [ _ ] ->
               invalid_arg "print: MakeRec" in
           loop es in
+        (* Fields are ordered alphabetically in record constructors: *)
         let es = List.sort T.cmp_nv es in
-        let mns =
-          match t.typ with T.TRec mns -> T.sorted_rec mns | _ -> assert false in
-        let inits =
-          List.map (fun (name, e) ->
-            let n = print p l e in
-            uniq_field_name (T.TRec mns) name, n
-          ) es in
+        let inits = List.map (fun (_name, e) -> print p l e) es in
         emit ?name p l e (fun oc ->
           let first, last, sep =
             if is_pointy t.T.typ then
@@ -706,8 +704,7 @@ struct
               ("new "^ tn ^"({ "), " })", ", "
             else
               "", "", ", " in
-          List.print ~first ~last ~sep (fun oc (name, n) ->
-            Printf.fprintf oc ".%s = %s" name n) oc inits)
+          List.print ~first ~last ~sep String.print oc inits)
     | E0S (MakeUsr n, ins) ->
         let e = E.apply_constructor e l n ins in
         print ?name p l e
