@@ -25,6 +25,7 @@ struct Set {
   /* Not always implemented: */
   virtual void delMin(size_t const n)
   {
+    (void)n;
     std::cerr << "delMin not implemented for this set\n" << std::endl;
   }
 
@@ -44,6 +45,7 @@ struct Set {
 template<class T>
 inline bool operator==(Set<T> const &a, Set<T> const &b)
 {
+  (void)a; (void)b;
   return false; // TODO
 }
 

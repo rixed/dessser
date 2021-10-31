@@ -76,7 +76,8 @@ struct
     Printf.sprintf2
       "g++ -std=c++%d -g -O%d -W -Wall \
            -Wno-unused-parameter -Wno-unused-variable \
-           -Wno-shift-negative-value %a %s %s %S -o %S"
+           -Wno-shift-negative-value -Wno-unused-lambda-capture \
+           %a %s %s %S -o %S"
       cpp_std_version
       optim
       (List.print ~first:"" ~last:"" ~sep:" " (fun oc path ->
