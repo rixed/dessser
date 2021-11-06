@@ -194,7 +194,7 @@ sig
   val arr_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
-(* TODO: desser should skip serialization with skip_default succeed
+(* TODO: desser should skip serialization when skip_default succeeds
   val skip_default : (* or raise Cannot_skip_default *)
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t *)
   val nullable :

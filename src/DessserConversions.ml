@@ -209,12 +209,12 @@ let rec conv ?(depth=0) ~from ~to_ e =
       make_usr "Cidr" [ e ], false
   | _, TVec (d1, mn1), TVec (d2, mn2) when d1 = d2 ->
       map_items e mn1 mn2, false
+  (* TODO: Also when d2 < d1 (need a truncate operator), and d2 > d1 (extending
+   * with null as long as mn2 is nullable) *)
   | _, TArr mn1, TArr mn2 ->
       map_items e mn1 mn2, false
   | _, TLst mn1, TLst mn2 ->
       map_items e mn1 mn2, false
-  (* TODO: Also when d2 < d1, and d2 > d1 extending with null as long as mn2 is
-   * nullable *)
   | _, TVec (_, mn1), TArr mn2 ->
       let e = arr_of_vec e in
       map_items e mn1 mn2, false

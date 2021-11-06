@@ -680,8 +680,9 @@ struct
         | TBytes ->
             (* Bytes have a dedicated equality operator *)
             binary_op "Slice.eq" e1 e2
-        (* FIXME: Shouldn't IPs also have a dedicated eq operator for comparing
-         * generic with specific IPs/CIDRs *)
+        (* No need for a dedicated eq operator for comparing
+         * generic with specific IPs/CIDRs because eq type checks only for
+         * same types. *)
         | _ ->
             binary_infix_op e1 "=" e2)
     | E2 (Add, e1, e2) ->
