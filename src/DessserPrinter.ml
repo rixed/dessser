@@ -20,9 +20,12 @@ type t =
     mutable indent : string ;
     (* The set of all type ids that have already been declared *)
     mutable declared : Set.String.t ;
-    mutable external_types : (string * (t -> backend_id -> string)) list }
+    mutable external_types : (string * (t -> backend_id -> string)) list ;
+    (* Used by C++ backend to remember forward declarations: *)
+    mutable forward_declared : Set.String.t }
 
-let make ?(declared=Set.String.empty) ?(decls=[]) module_name context external_types =
+let make ?(declared=Set.String.empty) ?(forward_declared=Set.String.empty)
+         ?(decls=[]) module_name context external_types =
   { module_name ;
     context ;
     def = IO.output_string () ;
@@ -31,11 +34,12 @@ let make ?(declared=Set.String.empty) ?(decls=[]) module_name context external_t
     defs = [] ;
     indent = "" ;
     declared ;
-    external_types }
+    external_types ;
+    forward_declared }
 
 let new_top_level p f =
-  let p' = make ~declared:p.declared ~decls:p.decls
-                p.module_name p.context p.external_types in
+  let p' = make ~declared:p.declared ~forward_declared:p.forward_declared
+                ~decls:p.decls p.module_name p.context p.external_types in
   let res = f p' in
   (* Merge the new consts, defs and decls into old ones: *)
   p.consts <- List.rev_append p'.consts p.consts ;

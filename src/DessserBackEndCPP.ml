@@ -116,7 +116,7 @@ struct
         false
 
   (* Removes the final "*" of a pointy type representation: *)
-  (* FIXME: shoose between a variety of pointy/smarty types *)
+  (* FIXME: choose between a variety of pointy/smarty types *)
   let blunted tn =
     if String.ends_with tn "*" then String.rchop tn else
     if String.ends_with tn "_ext" then String.rchop ~n:4 tn else
@@ -208,7 +208,7 @@ struct
         for i = 0 to Array.length mns - 1 do
           ppi oc "   << %sstd::get<%d>(t)%s"
             (* Display the content rather than the pointer: *)
-            (* FIXME: shoose between a variety of pointy/smarty types *)
+            (* FIXME: choose between a variety of pointy/smarty types *)
             (if is_pointy mns.(i).T.typ then "*" else "")
             i (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
@@ -412,27 +412,31 @@ struct
       | TThis n ->
           let t = T.find_this n in
           (* If t is a constructed type unknown to the compiler, then its name
-           * has to be disclosed to the compiler (FIXME: once is enough!): *)
-          (match t |> T.develop with
-          | TTup _ | TRec _ | TSum _ ->
-              (* All those are structs: *)
-              P.prepend_declaration p (fun oc ->
-                let id = if n = "" then "t" else valid_identifier n in
-                pp oc "struct %s;\n" id ;
-                pp oc "inline std::ostream &operator<<(\
-                         std::ostream &, struct %s const &);\n" id ;
-                pp oc "inline bool operator==(\
-                         struct %s const &, struct %s const &);\n" id id ;
-                pp oc "inline bool operator!=(\
-                         struct %s const &, struct %s const &);\n" id id)
-          | _ ->
-              Printf.sprintf2
-                "type_identifier: C++ backend does not support recursive %a"
-                T.print t |>
-              failwith) ;
-          (* Recursive types can only be created via an indirection in C++ as in
-           * C. So here any named type will be accessed via an indirection (even
-           * if actually not recursive).  *)
+           * has to be disclosed to the compiler (once is enough so remember
+           * them in the printer): *)
+          let id = if n = "" then "t" else valid_identifier n in
+          if not (Set.String.mem id p.P.forward_declared) then (
+            p.forward_declared <- Set.String.add id p.forward_declared ;
+            match t |> T.develop with
+            | TTup _ | TRec _ | TSum _ ->
+                (* All those are structs: *)
+                P.prepend_declaration p (fun oc ->
+                  pp oc "struct %s;\n" id ;
+                  pp oc "inline std::ostream &operator<<(\
+                           std::ostream &, struct %s const &);\n" id ;
+                  pp oc "inline bool operator==(\
+                           struct %s const &, struct %s const &);\n" id id ;
+                  pp oc "inline bool operator!=(\
+                           struct %s const &, struct %s const &);\n" id id)
+            | _ ->
+                (* Recursive types can only be created via an indirection in
+                 * C++ as in C. So here any named type will be accessed via an
+                 * indirection (even if actually not recursive). *)
+                Printf.sprintf2
+                  "type_identifier: C++ backend does not support recursive %a"
+                  T.print t |>
+                failwith
+          ) ;
           (* FIXME: for P.declared_type TThis and the actual type it replaces are
            * exactly equivalent, so whenever TThis is embedded in a compound
            * type then P.declared_type could either call back this function, and
@@ -526,7 +530,7 @@ struct
       | TAddress -> declare_if_named "Address"
       | TBytes -> declare_if_named "Bytes"
       | TMask -> declare_if_named "Mask" in
-  (* FIXME: shoose between a variety of pointy/smarty types *)
+  (* FIXME: choose between a variety of pointy/smarty types *)
   if is_pointy t then tn ^"*" else tn
 
   (* Identifiers used for function parameters: *)
