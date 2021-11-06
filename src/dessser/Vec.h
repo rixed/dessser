@@ -30,6 +30,16 @@ struct Vec : public std::vector<T> {
       this->push_back(f(init, x2));
     }
   }
+
+  // Truncation of another vector:
+  template<unsigned DIM2>
+  Vec(Vec<DIM2, T> other, size_t offset, size_t len)
+  {
+    this->reserve(DIM);
+    for (size_t i = 0; i < len; i++) {
+      this->push_back(other[offset + i]);
+    }
+  }
 };
 
 template<unsigned DIM, class T>

@@ -343,6 +343,10 @@ and e1 =
    * Users are thus exempt from knowing the actual type of the value
    * beforehand. *)
   | Convert of mn
+  (* Extract a sub-vector, from given index with given length. The only
+   * arg being the source vector. As vector length has to be known at
+   * compile time the length cannot be an expression. *)
+  | Truncate of int * int
 
 and e1s =
   | Apply
@@ -727,6 +731,7 @@ and string_of_e1 = function
   | GetMin -> "get-min"
   | AllocVec d -> "alloc-vec "^ string_of_int d
   | Convert mn -> "convert "^ String.quote (mn_to_string mn)
+  | Truncate (o, l) -> "truncate "^ string_of_int o ^" "^ string_of_int l
 
 and string_of_e2 = function
   | Let (n, _) ->

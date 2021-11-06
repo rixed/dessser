@@ -494,6 +494,16 @@ let rec type_check l =
             check_eq l str T.string ;
             check_integer l start ;
             check_integer l stop
+
+        | E1 (Truncate (o, len), e) ->
+            (match E.type_of l e |> T.develop1 with
+            | { typ = T.TVec (d, _) ; nullable = false } ->
+                if o < 0 || o >= d then
+                  raise (E.Invalid_truncate (e0, "offset"))
+                else if len < 0 || o + len > d then
+                  raise (E.Invalid_truncate (e0, "length"))
+            | t ->
+                raise (E.Type_error (e0, e, t, "be a vector")))
         ) ;
         e0
   )

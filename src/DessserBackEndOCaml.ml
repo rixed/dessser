@@ -1568,6 +1568,10 @@ struct
         let init = print p l init in
         emit ?name p l e (fun oc ->
           pp oc "Array.make %d %s" d init)
+    | E1 (Truncate (o, len), e1) ->
+        let n1 = print p l e1 in
+        emit ?name p l e (fun oc ->
+          pp oc "Array.init %d (fun i_ -> %s.(i_ + %d))" len n1 o)
     | E1 (Convert _, _)
     | E2 (NullMap _, _, _) ->
         assert false (* because of type checking *)

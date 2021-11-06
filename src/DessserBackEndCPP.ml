@@ -1607,6 +1607,10 @@ struct
         ppi p.P.def "%s %s(std::size_t(%d), %s); /* size+init constructor */"
           (type_identifier_mn p t) tmp d init ;
         emit ?name p l e (fun oc -> pp oc "%s" tmp)
+    | E1 (Truncate (o, len), vec) ->
+        let vec = print p l vec in
+        emit ?name p l e (fun oc ->
+          pp oc "%s, (size_t)%d, (size_t)%d" vec o len)
     | E1 (Convert _, _)
     | E2 (NullMap _, _, _) ->
         assert false (* because of type checking *)

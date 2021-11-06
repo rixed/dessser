@@ -385,7 +385,8 @@ let can_duplicate e =
          Heap | DecimalStringOfFloat), _)
   | E3 (Top _, _, _, _)
   (* Expensive: *)
-  | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet), _)
+  | E1 ((ArrOfLst | ArrOfLstRev | SetOfLst | ArrOfVec | ArrOfSet |
+         Truncate _), _)
   | E2 ((While | ForEach _), _, _)
   | E3 ((FindSubstring | SubString), _, _, _) ->
       false
@@ -468,6 +469,7 @@ exception Unbound_identifier of t * env
 exception Unbound_parameter of t * int * env
 exception Invalid_expression of t * string
 exception Redefinition of string
+exception Invalid_truncate of t * string
 
 (* expr must be a plain string: *)
 let field_name_of_expr = function
@@ -846,6 +848,9 @@ and type_of l e0 =
       let item_mn = type_of l init in
       T.(required (vec d item_mn))
   | E1 (Convert mn, _) -> mn
+  | E1 (Truncate (_, len), e1) ->
+      let item_mn = get_item_type ~vec:true e0 l e1 in
+      T.(required (vec len item_mn))
   | E2 (Cons, e1, _e2) ->
       T.(required (lst (type_of l e1)))
   (* Shortcut: *)
@@ -1346,6 +1351,11 @@ let () =
     | Redefinition n ->
         Some (
           "Identifier "^ String.quote n ^" shadows a previous definition")
+    | Invalid_truncate (e0, what) ->
+        Some (
+          Printf.sprintf2 "Invalid %s in truncate operation %s"
+            what
+            (to_pretty_string ~max_depth e0))
     | _ ->
         None)
 
@@ -2021,6 +2031,9 @@ struct
   let convert mn e1 =
     let mn = T.shrink_mn mn in
     T.E1 (Convert mn, e1)
+
+  let truncate o l e1 =
+    T.E1 (Truncate (o, l), e1)
 
   let make_arr mn es =
     let mn = T.shrink_mn mn in
