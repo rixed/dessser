@@ -721,7 +721,7 @@ struct
         print ?name p l e1
     | E1 (Ignore, e1) ->
         let n = print p l e1 in
-        ppi p.P.def "((void)%s, VOID);" n ;
+        ppi p.P.def "(void)%s;" n ;
         "VOID"
     | E1 (Dump, e1) ->
         let n = print p l e1 in
