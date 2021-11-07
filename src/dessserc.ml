@@ -68,11 +68,13 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base dest_fname optim () =
+        with_fieldmask include_base dest_fname optim skip_decls skip_defs () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
     failwith "Cannot convert from an encoding to itself" ;
+  if skip_decls && skip_defs then
+    failwith "Nothing to do" ;
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -154,13 +156,18 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let compunit = List.fold_left add_converter compunit converters in
   let def_fname = change_ext BE.preferred_def_extension dest_fname in
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
-  write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions oc compunit) ;
-  write_source ~src_fname:decl_fname (fun oc ->
-    BE.print_declarations oc compunit) ;
-  if not !quiet then (
-    Printf.printf "declarations in %S\n" decl_fname ;
-    Printf.printf "definitions in %S\n" def_fname)
+  if not skip_defs then (
+    write_source ~src_fname:def_fname (fun oc ->
+      BE.print_definitions oc compunit) ;
+    if not !quiet then
+      Printf.printf "definitions in %S\n" def_fname
+  ) ;
+  if not skip_decls then (
+    write_source ~src_fname:decl_fname (fun oc ->
+      BE.print_declarations oc compunit) ;
+    if not !quiet then
+      Printf.printf "declarations in %S\n" decl_fname
+  )
 
 let converter
       dbg quiet_ schema backend encoding_in encoding_out
@@ -598,6 +605,18 @@ let converter_cmd =
      $ Arg.value optim),
     info "converter" ~doc)
 
+let skip_decls =
+  let doc = "Do not emit declarations" in
+  let env = Term.env_info "DESSSER_SKIP_DECLS" in
+  let i = Arg.info ~env ~doc [ "skip-decls" ; "no-decls" ] in
+  Arg.flag i
+
+let skip_defs =
+  let doc = "Do not emit declarations" in
+  let env = Term.env_info "DESSSER_SKIP_DEFS" in
+  let i = Arg.info ~env ~doc [ "skip-defs" ; "no-defs" ] in
+  Arg.flag i
+
 let lib_cmd =
   let doc = "Generate a library with various converters from in to out \
              encodings" in
@@ -613,7 +632,9 @@ let lib_cmd =
      $ Arg.value with_fieldmask
      $ Arg.value include_base
      $ Arg.required dest_fname
-     $ Arg.value optim),
+     $ Arg.value optim
+     $ Arg.value skip_decls
+     $ Arg.value skip_defs),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =
