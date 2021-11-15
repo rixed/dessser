@@ -28,7 +28,9 @@ type typ =
    * text provided by the user when code is printed. *)
   | TExt of string
   (* Compound types: *)
+  (* Arrays which size is known at compile time: *)
   | TVec of int * mn
+  (* Vectors of unknown length, implemented as resizeable arrays *)
   | TArr of mn
   (* Special compound type amenable to incremental computation over sets.
    * There are different implementations with slightly different APIs,

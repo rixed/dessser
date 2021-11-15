@@ -1590,9 +1590,9 @@ struct
 
   let is_null e = T.E1 (IsNull, e)
 
-  let nth e1 e2 = T.E2 (Nth, e1, e2)
+  let nth i v = T.E2 (Nth, i, v)
 
-  let unsafe_nth e1 e2 = T.E2 (UnsafeNth, e1, e2)
+  let unsafe_nth i v = T.E2 (UnsafeNth, i, v)
 
   let read_u8 e1 = T.E1 (ReadU8, e1)
 
