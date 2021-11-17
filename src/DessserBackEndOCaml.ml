@@ -1695,6 +1695,12 @@ struct
     let tn = type_identifier_mn p mn in
     pp p.P.def "%sval %s : %s\n" p.P.indent n tn
 
+  let print_type_info_def oc schema =
+    TODO ()
+
+  let print_type_info_decl oc schema =
+    TODO ()
+
   (* No need for the module name here since file name is already a module: *)
   let source_intro _compunit p =
     match p.P.context with

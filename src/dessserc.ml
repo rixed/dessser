@@ -68,7 +68,8 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base dest_fname optim skip_decls skip_defs () =
+        with_fieldmask include_base dest_fname optim skip_decls skip_defs
+        skip_type_info () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -158,13 +159,15 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
   if not skip_defs then (
     write_source ~src_fname:def_fname (fun oc ->
-      BE.print_definitions oc compunit) ;
+      BE.print_definitions oc compunit ;
+      if not skip_type_info then BE.print_type_info_def oc schema) ;
     if not !quiet then
       Printf.printf "definitions in %S\n" def_fname
   ) ;
   if not skip_decls then (
     write_source ~src_fname:decl_fname (fun oc ->
-      BE.print_declarations oc compunit) ;
+      BE.print_declarations oc compunit ;
+      if not skip_type_info then BE.print_type_info_decl oc schema) ;
     if not !quiet then
       Printf.printf "declarations in %S\n" decl_fname
   )
@@ -617,6 +620,12 @@ let skip_defs =
   let i = Arg.info ~env ~doc [ "skip-defs" ; "no-defs" ] in
   Arg.flag i
 
+let skip_type_info =
+  let doc = "Do not emit a value describing the type" in
+  let env = Term.env_info "DESSSER_SKIP_TYPE_INFO" in
+  let i = Arg.info ~env ~doc [ "skip-type-info" ; "no-type-info" ] in
+  Arg.flag i
+
 let lib_cmd =
   let doc = "Generate a library with various converters from in to out \
              encodings" in
@@ -634,7 +643,8 @@ let lib_cmd =
      $ Arg.required dest_fname
      $ Arg.value optim
      $ Arg.value skip_decls
-     $ Arg.value skip_defs),
+     $ Arg.value skip_defs
+     $ Arg.value skip_type_info),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =

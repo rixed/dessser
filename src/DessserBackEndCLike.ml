@@ -423,4 +423,6 @@ struct
     let p = P.(make compunit.U.module_name Declaration compunit.external_types) in
     print_source compunit p oc [] [] []
 
+  let print_type_info_def = C.print_type_info_def
+  let print_type_info_decl = C.print_type_info_decl
 end
