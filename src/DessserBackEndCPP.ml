@@ -710,7 +710,7 @@ struct
           let first, last, sep =
             if is_pointy t.T.typ then
               let tn = type_identifier_mn ~blunted:true p t in
-              (make_pointer tn ^"({ "), " })", ", "
+              (make_pointer tn ^"("), ")", ", "
             else
               "", "", ", " in
           List.print ~first ~last ~sep String.print oc inits)
