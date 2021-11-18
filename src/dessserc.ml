@@ -68,7 +68,8 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base dest_fname optim skip_decls skip_defs () =
+        with_fieldmask include_base pointer_type dest_fname optim skip_decls
+        skip_defs () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -79,6 +80,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
   DessserBackEndCPP.include_base := include_base ;
+  DessserBackEndCPP.pointer_type := pointer_type ;
   let with_fieldmasks =
     match with_fieldmask with
     | WithFieldMask -> [ true ]
@@ -514,6 +516,15 @@ let include_base =
   let i = Arg.info ~doc ~docv [ "include-base" ] in
   Arg.(opt string "" i)
 
+let pointer_type =
+  let types =
+    [ "raw", Raw ;
+      "shared", Shared ] in
+  let doc = "Type of pointers to use int the C++ backend" in
+  let docv = docv_of_enum types in
+  let i = Arg.info ~doc ~docv [ "pointers" ] in
+  Arg.(opt (enum types) Raw i)
+
 let parse_expression s =
   match P.expr s with
   | exception e ->
@@ -631,6 +642,7 @@ let lib_cmd =
      $ Arg.value converters
      $ Arg.value with_fieldmask
      $ Arg.value include_base
+     $ Arg.value pointer_type
      $ Arg.required dest_fname
      $ Arg.value optim
      $ Arg.value skip_decls

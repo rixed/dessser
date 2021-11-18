@@ -14,6 +14,18 @@ let cpp_std_version = 17
 
 let include_base = ref ""
 
+let pointer_type = ref Raw
+
+let pointer_to tn =
+  match !pointer_type with
+  | Raw -> tn ^" *"
+  | Shared -> "std::shared_ptr<"^ tn ^">"
+
+let make_pointer tn =
+  match !pointer_type with
+  | Raw -> "new "^ tn
+  | Shared -> "std::make_shared<"^ tn ^">"
+
 (* Must be a projection! *)
 let valid_identifier =
   (* Taken from https://en.cppreference.com/w/cpp/keyword: *)
@@ -114,13 +126,6 @@ struct
         false (* Assuming non pointy *)
     | _ ->
         false
-
-  (* Removes the final "*" of a pointy type representation: *)
-  (* FIXME: choose between a variety of pointy/smarty types *)
-  let blunted tn =
-    if String.ends_with tn "*" then String.rchop tn else
-    if String.ends_with tn "_ext" then String.rchop ~n:4 tn else
-    invalid_arg ("blunted: "^ tn)
 
   let deref t s =
     let star = "(*" ^ s ^")" in
@@ -386,17 +391,17 @@ struct
                 return !operator==(a, b);\n\
               }" id id)
 
-  and type_identifier_mn p mn =
+  and type_identifier_mn ?blunted p mn =
     if mn.T.nullable then
       "std::optional<"^
-        type_identifier p mn.typ
+        type_identifier ?blunted p mn.typ
       ^">"
     else
-      type_identifier p mn.typ
+      type_identifier ?blunted p mn.typ
 
-  and type_identifier p t =
-    let type_identifier = type_identifier p
-    and type_identifier_mn = type_identifier_mn p in
+  and type_identifier ?(blunted=false) p t =
+    let type_identifier = type_identifier ~blunted p
+    and type_identifier_mn = type_identifier_mn ~blunted p in
     let declare_if_named s =
       let is_id, s =
         P.declare_if_named p t s (fun oc type_id ->
@@ -530,8 +535,7 @@ struct
       | TAddress -> declare_if_named "Address"
       | TBytes -> declare_if_named "Bytes"
       | TMask -> declare_if_named "Mask" in
-  (* FIXME: choose between a variety of pointy/smarty types *)
-  if is_pointy t then tn ^"*" else tn
+  if not blunted && is_pointy t then pointer_to tn else tn
 
   (* Identifiers used for function parameters: *)
   let param n = "p_"^ string_of_int n
@@ -678,8 +682,8 @@ struct
         emit ?name p l e (fun oc ->
           let first, last, sep =
             if is_pointy t.T.typ then
-              let tn = type_identifier_mn p t |> blunted in
-              ("new "^ tn ^"("), ")", ", "
+              let tn = type_identifier_mn ~blunted:true p t in
+              (make_pointer tn ^"("), ")", ", "
             else
               "", "", ", " in
           List.print ~first ~last ~sep String.print oc inits)
@@ -705,8 +709,8 @@ struct
         emit ?name p l e (fun oc ->
           let first, last, sep =
             if is_pointy t.T.typ then
-              let tn = type_identifier_mn p t |> blunted in
-              ("new "^ tn ^"({ "), " })", ", "
+              let tn = type_identifier_mn ~blunted:true p t in
+              (make_pointer tn ^"({ "), " })", ", "
             else
               "", "", ", " in
           List.print ~first ~last ~sep String.print oc inits)
@@ -1311,9 +1315,8 @@ struct
         ppi p.P.def "%s %s;" tn res ;
         res
     | E0 (EmptySet mn) ->
-        let tn = type_identifier_mn p mn in
-        emit ?name p l e (fun oc ->
-          pp oc "new SimpleSet<%s>()" tn)
+        let tn = "SimpleSet<"^ type_identifier_mn p mn ^">" in
+        emit ?name p l e (fun oc -> pp oc "%s()" (make_pointer tn))
     | E0 Now ->
         emit ?name p l e (fun oc ->
           pp oc "std::chrono::duration<double>(std::chrono::high_resolution_clock::now().time_since_epoch()).count()")
@@ -1532,9 +1535,9 @@ struct
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
           if is_pointy t.T.typ then
-            let tn = type_identifier_mn p t |> blunted in
-            Printf.fprintf oc "new %s(std::in_place_index<%d>, %s)"
-              tn lbl n1
+            let tn = type_identifier_mn ~blunted:true p t in
+            Printf.fprintf oc "%s(std::in_place_index<%d>, %s)"
+              (make_pointer tn) lbl n1
           else
             Printf.fprintf oc "std::in_place_index<%d>, %s" lbl n1)
     | E1 (Assert, e1) ->
@@ -1557,43 +1560,38 @@ struct
     | E1 (SlidingWindow mn, e1) ->
         let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier_mn p mn in
+        let tn = "SlidingWindow<"^ type_identifier_mn p mn ^">" in
         let res = gen_sym ?name "sliding_win_" in
-        ppi p.P.def "SlidingWindow<%s> *%s = new SlidingWindow<%s>(%s);"
-          tn res tn n1 ;
+        ppi p.P.def "%s%s = %s(%s);" (pointer_to tn) res (make_pointer tn) n1 ;
         res
     | E1 (TumblingWindow mn, e1) ->
         let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier_mn p mn in
+        let tn = "TumblingWindow<"^ type_identifier_mn p mn ^">" in
         let res = gen_sym ?name "tumbling_win_" in
-        ppi p.P.def "TumblingWindow<%s> *%s = new TumblingWindow<%s>(%s);"
-          tn res tn n1 ;
+        ppi p.P.def "%s%s = %s(%s);" (pointer_to tn) res (make_pointer tn) n1 ;
         res
     | E1 (Sampling mn, e1) ->
         let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier_mn p mn in
+        let tn = "Sampling<"^ type_identifier_mn p mn ^">" in
         let res = gen_sym ?name "sampling_" in
-        ppi p.P.def "Sampling<%s> *%s = new Sampling<%s>(%s);"
-          tn res tn n1 ;
+        ppi p.P.def "%s%s = %s(%s);" (pointer_to tn) res (make_pointer tn) n1 ;
         res
     | E1 (HashTable mn, e1) ->
         let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)
-        let tn = type_identifier_mn p mn in
+        let tn = "HashTable<"^ type_identifier_mn p mn ^">" in
         let res = gen_sym ?name "hash_table_" in
-        ppi p.P.def "HashTable<%s> *%s = new HashTable<%s>(%s);"
-          tn res tn n1 ;
+        ppi p.P.def "%s%s = %s(%s);" (pointer_to tn) res (make_pointer tn) n1 ;
         res
     | E1 (Heap, cmp) ->
         let n1 = print p l cmp in
         (* Cannot use emit since we want to select a specific type of set: *)
         let item_t = E.get_compared_type l cmp in
-        let tn = type_identifier_mn p item_t in
+        let tn = "Heap<"^ type_identifier_mn p item_t ^">" in
         let res = gen_sym ?name "heap_" in
-        ppi p.P.def "Heap<%s> *%s = new Heap<%s>(%s);"
-          tn res tn n1 ;
+        ppi p.P.def "%s%s = %s(%s);" (pointer_to tn) res (make_pointer tn) n1 ;
         res
     | E1 (GetMin, set) ->
         let set = print p l set in
@@ -1753,8 +1751,9 @@ struct
         "#ifndef DESSSER_GEN_"^ m ^"\n\
          #define DESSSER_GEN_"^ m ^"\n\
          #include <arpa/inet.h>\n\
-         #include <functional>\n\
-         #include <optional>\n\
+         #include <functional>\n" ^
+        (if !pointer_type <> Raw then "#include <memory>\n" else "") ^
+        "#include <optional>\n\
          #include <tuple>\n\
          #include <variant>\n\
          #include <vector>\n\
@@ -1799,7 +1798,7 @@ struct
     | t ->
         if Set.String.mem "t" p.P.declared then
           if is_pointy t then
-            "typedef t *t_ext;\n\
+            "typedef "^ pointer_to "t" ^"t_ext;\n\
              inline t Deref(t_ext x) { return *x; }\n"
           else
             "typedef t t_ext;\n\
@@ -1814,6 +1813,10 @@ struct
         "\n}\n")
 
   let adapt_type t = t
+
+  (* Make those compatible with DessserBackEndCLike.CONFIG: *)
+  let type_identifier_mn = type_identifier_mn ~blunted:false
+  let type_identifier = type_identifier ~blunted:false
 end
 
 include DessserBackEndCLike.Make (Config)

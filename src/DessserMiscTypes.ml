@@ -115,3 +115,7 @@ let type_method_of_string s =
 type ext_identifier =
   | Verbatim of string (* Used as is by any back-end, no question asked *)
   | Method of { typ : string ; meth : type_method }
+
+(* Identifies the types of C++ pointers *)
+
+type pointer_type = Raw | Shared
