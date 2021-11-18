@@ -19,7 +19,7 @@ let pointer_type = ref Raw
 let pointer_to tn =
   match !pointer_type with
   | Raw -> tn ^" *"
-  | Shared -> "std::shared_ptr<"^ tn ^">"
+  | Shared -> "std::shared_ptr<"^ tn ^"> "
 
 let make_pointer tn =
   match !pointer_type with
