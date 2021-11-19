@@ -1790,27 +1790,28 @@ struct
          std::default_random_engine _random_engine_;\n\n"
 
   let source_outro _ p =
-    (* Also define a type t_ext to reference t as an external type (if t is
-     * pointy then it must be passed/received as a pointer) *)
-    (match T.find_this "t" with
-    | exception T.Unbound_type _ ->
-        ""
-    | t ->
-        if Set.String.mem "t" p.P.declared then
-          if is_pointy t then
-            "typedef "^ pointer_to "t" ^"t_ext;\n\
-             inline t Deref(t_ext x) { return *x; }\n"
-          else
-            "typedef t t_ext;\n\
-             inline t Deref(t_ext x) { return x; }\n"
-        else
-          "") ^
-    (match p.P.context with
+    match p.P.context with
     | P.Declaration ->
-        "\n}\n\
-         #endif\n"
+        (* Define a type t_ext to reference t as an external type (if t is
+         * pointy then it must be passed/received as a pointer) *)
+        (match T.find_this "t" with
+        | exception T.Unbound_type _ ->
+            ""
+        | t ->
+            if Set.String.mem "t" p.P.declared then
+              if is_pointy t then
+                "typedef "^ pointer_to "t" ^"t_ext;\n\
+                 inline t Deref(t_ext x) { return *x; }\n\
+                 inline std::ostream &operator<<(std::ostream &os, "^
+                   pointer_to "t" ^" r) { os << *r; return os; }\n"
+              else
+                "typedef t t_ext;\n\
+                 inline t Deref(t_ext x) { return x; }\n"
+            else
+              "") ^
+        "\n}\n#endif\n"
     | P.Definition ->
-        "\n}\n")
+        "\n}\n"
 
   let adapt_type t = t
 
