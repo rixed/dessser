@@ -60,6 +60,7 @@ INSTALLED_HEADERS = \
 	src/dessser/SlidingWindow.h \
 	src/dessser/TumblingWindow.h \
 	src/dessser/Vec.h \
+	src/dessser/Void.h \
 	src/dessser/runtime.h \
 	src/dessser/typedefs.h
 

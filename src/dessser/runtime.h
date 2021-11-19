@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>  // for pair
 #include "dessser/typedefs.h"
+#include "dessser/Void.h"
 #include "dessser/Bytes.h"
 #include "dessser/Pointer.h"
 #include "dessser/Vec.h"

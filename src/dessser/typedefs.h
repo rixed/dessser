@@ -11,9 +11,6 @@ typedef __int128_t int128_t;
 typedef size_t Size;
 typedef void *Address;
 
-typedef bool Void;
-#define VOID false
-
 }
 
 #endif
