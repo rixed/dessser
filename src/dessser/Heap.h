@@ -57,6 +57,6 @@ struct Heap : public Set<T> {
   }
 };
 
-};
+}
 
 #endif

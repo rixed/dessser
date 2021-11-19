@@ -37,6 +37,6 @@ struct Sampling : public Set<T> {
   }
 };
 
-};
+}
 
 #endif

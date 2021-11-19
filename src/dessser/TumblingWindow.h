@@ -28,6 +28,6 @@ struct TumblingWindow : public Set<T> {
   }
 };
 
-};
+}
 
 #endif

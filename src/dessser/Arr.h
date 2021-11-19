@@ -90,6 +90,6 @@ inline std::ostream &operator<<(std::ostream &os, Arr<T> const &v)
   return os;
 }
 
-};
+}
 
 #endif

@@ -9,6 +9,6 @@ struct Map : public std::map<K, V> {
   Map() {}
 };
 
-};
+}
 
 #endif

@@ -57,6 +57,6 @@ inline bool operator!=(SimpleSet<T> lhs, SimpleSet<T> rhs)
   return !operator==(lhs, rhs);
 }
 
-};
+}
 
 #endif

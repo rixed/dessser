@@ -521,6 +521,6 @@ inline std::ostream &operator<<(std::ostream &os, Pointer const &p)
   return os;
 }
 
-};
+}
 
 #endif

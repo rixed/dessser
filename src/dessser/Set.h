@@ -55,6 +55,6 @@ inline bool operator!=(Set<T> const &a, Set<T> const &b)
   return !operator==(a, b);
 }
 
-};
+}
 
 #endif

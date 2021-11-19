@@ -40,6 +40,6 @@ struct HashTable : public Set<T> {
   }
 };
 
-};
+}
 
 #endif

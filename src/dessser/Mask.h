@@ -37,6 +37,6 @@ inline bool operator!=(Mask const &lhs, Mask const &rhs)
   return !(lhs == rhs);
 }
 
-};
+}
 
 #endif

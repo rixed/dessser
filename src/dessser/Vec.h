@@ -56,6 +56,6 @@ inline std::ostream &operator<<(std::ostream &os, Vec<DIM, T> const &v)
   return os;
 }
 
-};
+}
 
 #endif

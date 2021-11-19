@@ -67,6 +67,6 @@ struct SlidingWindow : public Set<T> {
   }
 };
 
-};
+}
 
 #endif

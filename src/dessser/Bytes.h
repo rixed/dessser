@@ -139,6 +139,6 @@ inline bool operator!=(Bytes const &lhs, Bytes const &rhs)
   return !(lhs == rhs);
 }
 
-};
+}
 
 #endif

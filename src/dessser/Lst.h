@@ -192,6 +192,6 @@ inline bool operator!=(Lst<T> const &lhs, Lst<T> const &rhs)
   return !(lhs == rhs);
 }
 
-};
+}
 
 #endif
