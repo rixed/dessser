@@ -1373,6 +1373,10 @@ let is_function = function
   | TFunction _ -> true
   | _ -> false
 
+let is_void = function
+  | TVoid -> true
+  | _ -> false
+
 (*
  * User-types registration
  *

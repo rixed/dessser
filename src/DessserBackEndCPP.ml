@@ -339,20 +339,21 @@ struct
         ppi oc "switch (v.index()) {" ;
         P.indent_more p (fun () ->
           for i = 0 to Array.length mns - 1 do
-            let label = fst mns.(i) in
             let v = "std::get<"^ string_of_int i ^">(v)" in
-            let _lbl, mn = mns.(i) in
+            let label, mn = mns.(i) in
+            (* Include a space after the label is there is a value: *)
+            let label = if T.is_void mn.T.typ then label else label ^ " " in
             if mn.T.nullable then
               ppi oc "case %d: if (%s) os << %S << %s; break;"
                 i
                 v
-                (label ^ " ")
+                label
                 (* Display the content rather than the pointer: *)
                 (deref mn.T.typ (v ^".value()"))
             else
               ppi oc "case %d: os << %S << %s; break;"
                 i
-                (label ^ " ")
+                label
                 (* Display the content rather than the pointer: *)
                 (deref mn.T.typ v)
           done) ;
