@@ -211,11 +211,10 @@ struct
       P.indent_more p (fun () ->
         ppi oc "os << '<'" ;
         for i = 0 to Array.length mns - 1 do
-          ppi oc "   << %sstd::get<%d>(t)%s"
+          ppi oc "   << %s%s"
             (* Display the content rather than the pointer: *)
-            (* FIXME: choose between a variety of pointy/smarty types *)
-            (if is_pointy mns.(i).T.typ then "*" else "")
-            i (if i < Array.length mns - 1 then " << \", \"" else "")
+            (deref mns.(i).T.typ ("std::get<"^ string_of_int i ^">(t)"))
+            (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
         ppi oc "   << '>';" ;
         ppi oc "return os;") ;
