@@ -1066,7 +1066,7 @@ let iter_mn f mn =
  * part of the constructed type. Those names will be favored by back-ends
  * when generating the code, and it is also possible to refer back to another
  * type by its name, possibly recursively.
- * We rely on a global index of type names to definitions (shrinked as much as
+ * We rely on a global index of type names to definitions (shrunk as much as
  * possible, possibly more than in the source definition).
  * The special empty name "" refers back to the global definition (when there
  * is only one). *)
