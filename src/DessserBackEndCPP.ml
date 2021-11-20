@@ -122,25 +122,29 @@ struct
         (* Even if expanded, any named type that's susceptible to be used
          * recursively must be pointy. *)
         List.exists (fun (_, def) -> T.eq t def) !T.these
+    | TNamed (_, t) ->
+        is_pointy t
     | TExt _ ->
         false (* Assuming non pointy *)
     | _ ->
         false
 
-  let deref t s =
+  let rec deref t s =
     let star = "(*" ^ s ^")" in
     match T.develop t with
     | TThis _ | TSet _ ->
         star
     | (TTup _ | TRec _ | TSum _) as t ->
         (* Even if expanded, any named type that's susceptible to be used
-         * recursively must be pointy. *)
+         * recursively must be pointy. (Note that scalar TNamed are not
+         * necessarily pointy, cf is_pointy) *)
         if List.exists (fun (_, def) -> T.eq t def) !T.these then
           star
         else
           s
+    | TNamed (_, t) ->
+        deref t s
     | TExt n ->
-        (* Deref deals with nulls on its own *)
         let m = valid_identifier n in
         "::dessser::gen::"^ m ^"::Deref("^ s ^")"
     | _ ->
@@ -416,133 +420,140 @@ struct
       if is_id then valid_identifier s else s in
     let m = valid_identifier p.P.module_name in
     let with_namespace s = "::dessser::gen::"^ m ^"::"^ s in
-    let tn =
-      match t with
-      | TUnknown -> invalid_arg "type_identifier"
-      | TNamed (_, t) ->
-          type_identifier t
-      | TThis n ->
-          let t = T.find_this n in
-          (* If t is a constructed type unknown to the compiler, then its name
-           * has to be disclosed to the compiler (once is enough so remember
-           * them in the printer): *)
-          let id = if n = "" then "t" else valid_identifier n in
-          if not (Set.String.mem id p.P.forward_declared) then (
-            p.forward_declared <- Set.String.add id p.forward_declared ;
-            match t |> T.develop with
-            | TTup _ | TRec _ | TSum _ ->
-                (* All those are structs: *)
-                P.prepend_declaration p (fun oc ->
-                  pp oc "struct %s;\n" id ;
-                  pp oc "inline std::ostream &operator<<(\
-                           std::ostream &, struct %s const &);\n" id ;
-                  pp oc "inline bool operator==(\
-                           struct %s const &, struct %s const &);\n" id id ;
-                  pp oc "inline bool operator!=(\
-                           struct %s const &, struct %s const &);\n" id id)
-            | _ ->
-                (* Recursive types can only be created via an indirection in
-                 * C++ as in C. So here any named type will be accessed via an
-                 * indirection (even if actually not recursive). *)
-                Printf.sprintf2
-                  "type_identifier: C++ backend does not support recursive %a"
-                  T.print t |>
-                failwith
-          ) ;
-          (* FIXME: for P.declared_type TThis and the actual type it replaces are
-           * exactly equivalent, so whenever TThis is embedded in a compound
-           * type then P.declared_type could either call back this function, and
-           * getting "t*", or reusing the identifier of a previously declared
-           * type with only "t". Should P.declared_type uniquify the results
-           * instead of identifying the types? *)
-          valid_identifier n
-      | TVoid -> declare_if_named "Void"
-      | TFloat -> declare_if_named "double"
-      | TString -> declare_if_named "std::string"
-      | TBool -> declare_if_named "bool"
-      | TChar -> declare_if_named "char"
-      | TI8 -> declare_if_named "int8_t"
-      | TU8 -> declare_if_named "uint8_t"
-      | TI16 -> declare_if_named "int16_t"
-      | TU16 -> declare_if_named "uint16_t"
-      | TI24 -> declare_if_named "int32_t"
-      | TU24 -> declare_if_named "uint32_t"
-      | TI32 -> declare_if_named "int32_t"
-      | TU32 -> declare_if_named "uint32_t"
-      | TI40 -> declare_if_named "int64_t"
-      | TU40 -> declare_if_named "uint64_t"
-      | TI48 -> declare_if_named "int64_t"
-      | TU48 -> declare_if_named "uint64_t"
-      | TI56 -> declare_if_named "int64_t"
-      | TU56 -> declare_if_named "uint64_t"
-      | TI64 -> declare_if_named "int64_t"
-      | TU64 -> declare_if_named "uint64_t"
-      | TI128 -> declare_if_named "int128_t"
-      | TU128 -> declare_if_named "uint128_t"
-      | TUsr mn -> type_identifier mn.def |> declare_if_named
-      | TExt n ->
-          P.get_external_type p n Cpp |> declare_if_named
-      | TTup mns ->
-          P.declared_type p t (fun oc type_id ->
-            print_tuple p oc type_id mns) |>
-          valid_identifier |>
-          with_namespace
-      | TRec mns ->
-          P.declared_type p t (fun oc type_id ->
-            print_record p oc type_id mns) |>
-          valid_identifier |>
-          with_namespace
-      | TSum mns ->
-          P.declared_type p t (fun oc type_id ->
-            print_sum p oc type_id mns) |>
-          valid_identifier |>
-          with_namespace
-      | TVec (dim, mn) ->
-          Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
-          declare_if_named
-      | TArr mn ->
-          Printf.sprintf "Arr<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Simple, mn) ->
-          Printf.sprintf "Set<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Sliding, mn) ->
-          Printf.sprintf "SlidingWindow<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Tumbling, mn) ->
-          Printf.sprintf "TumblingWindow<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Sampling, mn) ->
-          Printf.sprintf "Sampling<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (HashTable, mn) ->
-          Printf.sprintf "HashTable<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Heap, mn) ->
-          Printf.sprintf "Heap<%s>" (type_identifier_mn mn) |>
-          declare_if_named
-      | TSet (Top, _) ->
-          todo "C++ back-end for TOPs"
-      | TMap _ ->
-          assert false (* No value of map type *)
-      | TLst mn1 ->
-          "Lst<"^ type_identifier_mn mn1 ^">" |>
-          declare_if_named
-      | TFunction (args, ret) ->
-          "std::function<"^ type_identifier_mn ret ^
-            IO.to_string (
-              Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
-                Printf.fprintf oc "%s%s"
-                  (type_identifier_mn t)
-                  (if is_mutable t.T.typ then "&" else ""))
-            ) args ^">" |>
-          declare_if_named
-      | TPtr -> declare_if_named "Pointer"
-      | TSize -> declare_if_named "Size"
-      | TAddress -> declare_if_named "Address"
-      | TBytes -> declare_if_named "Bytes"
-      | TMask -> declare_if_named "Mask" in
-  if not blunted && is_pointy t then pointer_to tn else tn
+    match t with
+    | TNamed (_, t) ->
+        (* Recurse but must not add another layer of pointer! *)
+        type_identifier t
+    | _ ->
+        (* All other types are real and will end up pointy if needed: *)
+        let tn =
+          match t with
+          | TUnknown ->
+              invalid_arg "type_identifier"
+          | TNamed _ ->
+              assert false (* Handled above *)
+          | TThis n ->
+              let t = T.find_this n in
+              (* If t is a constructed type unknown to the compiler, then its name
+               * has to be disclosed to the compiler (once is enough so remember
+               * them in the printer): *)
+              let id = if n = "" then "t" else valid_identifier n in
+              if not (Set.String.mem id p.P.forward_declared) then (
+                p.forward_declared <- Set.String.add id p.forward_declared ;
+                match t |> T.develop with
+                | TTup _ | TRec _ | TSum _ ->
+                    (* All those are structs: *)
+                    P.prepend_declaration p (fun oc ->
+                      pp oc "struct %s;\n" id ;
+                      pp oc "inline std::ostream &operator<<(\
+                               std::ostream &, struct %s const &);\n" id ;
+                      pp oc "inline bool operator==(\
+                               struct %s const &, struct %s const &);\n" id id ;
+                      pp oc "inline bool operator!=(\
+                               struct %s const &, struct %s const &);\n" id id)
+                | _ ->
+                    (* Recursive types can only be created via an indirection in
+                     * C++ as in C. So here any named type will be accessed via an
+                     * indirection (even if actually not recursive). *)
+                    Printf.sprintf2
+                      "type_identifier: C++ backend does not support recursive %a"
+                      T.print t |>
+                    failwith
+              ) ;
+              (* FIXME: for P.declared_type TThis and the actual type it replaces are
+               * exactly equivalent, so whenever TThis is embedded in a compound
+               * type then P.declared_type could either call back this function, and
+               * getting "t*", or reusing the identifier of a previously declared
+               * type with only "t". Should P.declared_type uniquify the results
+               * instead of identifying the types? *)
+              valid_identifier n
+          | TVoid -> declare_if_named "Void"
+          | TFloat -> declare_if_named "double"
+          | TString -> declare_if_named "std::string"
+          | TBool -> declare_if_named "bool"
+          | TChar -> declare_if_named "char"
+          | TI8 -> declare_if_named "int8_t"
+          | TU8 -> declare_if_named "uint8_t"
+          | TI16 -> declare_if_named "int16_t"
+          | TU16 -> declare_if_named "uint16_t"
+          | TI24 -> declare_if_named "int32_t"
+          | TU24 -> declare_if_named "uint32_t"
+          | TI32 -> declare_if_named "int32_t"
+          | TU32 -> declare_if_named "uint32_t"
+          | TI40 -> declare_if_named "int64_t"
+          | TU40 -> declare_if_named "uint64_t"
+          | TI48 -> declare_if_named "int64_t"
+          | TU48 -> declare_if_named "uint64_t"
+          | TI56 -> declare_if_named "int64_t"
+          | TU56 -> declare_if_named "uint64_t"
+          | TI64 -> declare_if_named "int64_t"
+          | TU64 -> declare_if_named "uint64_t"
+          | TI128 -> declare_if_named "int128_t"
+          | TU128 -> declare_if_named "uint128_t"
+          | TUsr mn -> type_identifier mn.def |> declare_if_named
+          | TExt n ->
+              P.get_external_type p n Cpp |> declare_if_named
+          | TTup mns ->
+              P.declared_type p t (fun oc type_id ->
+                print_tuple p oc type_id mns) |>
+              valid_identifier |>
+              with_namespace
+          | TRec mns ->
+              P.declared_type p t (fun oc type_id ->
+                print_record p oc type_id mns) |>
+              valid_identifier |>
+              with_namespace
+          | TSum mns ->
+              P.declared_type p t (fun oc type_id ->
+                print_sum p oc type_id mns) |>
+              valid_identifier |>
+              with_namespace
+          | TVec (dim, mn) ->
+              Printf.sprintf "Vec<%d, %s>" dim (type_identifier_mn mn) |>
+              declare_if_named
+          | TArr mn ->
+              Printf.sprintf "Arr<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Simple, mn) ->
+              Printf.sprintf "Set<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Sliding, mn) ->
+              Printf.sprintf "SlidingWindow<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Tumbling, mn) ->
+              Printf.sprintf "TumblingWindow<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Sampling, mn) ->
+              Printf.sprintf "Sampling<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (HashTable, mn) ->
+              Printf.sprintf "HashTable<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Heap, mn) ->
+              Printf.sprintf "Heap<%s>" (type_identifier_mn mn) |>
+              declare_if_named
+          | TSet (Top, _) ->
+              todo "C++ back-end for TOPs"
+          | TMap _ ->
+              assert false (* No value of map type *)
+          | TLst mn1 ->
+              "Lst<"^ type_identifier_mn mn1 ^">" |>
+              declare_if_named
+          | TFunction (args, ret) ->
+              "std::function<"^ type_identifier_mn ret ^
+                IO.to_string (
+                  Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
+                    Printf.fprintf oc "%s%s"
+                      (type_identifier_mn t)
+                      (if is_mutable t.T.typ then "&" else ""))
+                ) args ^">" |>
+              declare_if_named
+          | TPtr -> declare_if_named "Pointer"
+          | TSize -> declare_if_named "Size"
+          | TAddress -> declare_if_named "Address"
+          | TBytes -> declare_if_named "Bytes"
+          | TMask -> declare_if_named "Mask" in
+      if not blunted && is_pointy t then pointer_to tn else tn
 
   (* Identifiers used for function parameters: *)
   let param n = "p_"^ string_of_int n
