@@ -209,14 +209,21 @@ struct
         "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
         id ;
       P.indent_more p (fun () ->
-        ppi oc "os << '<'" ;
+        ppi oc "os << '<';" ;
         for i = 0 to Array.length mns - 1 do
-          ppi oc "   << %s%s"
-            (* Display the content rather than the pointer: *)
-            (deref mns.(i).T.typ ("std::get<"^ string_of_int i ^">(t)"))
-            (if i < Array.length mns - 1 then " << \", \"" else "")
+          let n = "std::get<"^ string_of_int i ^">(t)" in
+          if mns.(i).T.nullable then
+            ppi oc "if (%s) os << %s%s;"
+              n
+              (deref mns.(i).T.typ (n ^ ".value()"))
+              (if i < Array.length mns - 1 then " << \", \"" else "")
+          else
+            ppi oc "os << %s%s;"
+              (* Display the content rather than the pointer: *)
+              (deref mns.(i).T.typ n)
+              (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
-        ppi oc "   << '>';" ;
+        ppi oc "os << '>';" ;
         ppi oc "return os;") ;
       ppi oc "}\n"
     )
