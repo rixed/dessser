@@ -217,19 +217,22 @@ struct
         for i = 0 to Array.length mns - 1 do
           let n = "std::get<"^ string_of_int i ^">(t)" in
           if mns.(i).T.nullable then
-            ppi oc "if (%s) os << %s%s;"
-              n
-              (deref mns.(i).T.typ (n ^ ".value()"))
+            ppi oc "if (%s) os << %s.value()%s;"
+              n n
               (if i < Array.length mns - 1 then " << \", \"" else "")
           else
             ppi oc "os << %s%s;"
               (* Display the content rather than the pointer: *)
-              (deref mns.(i).T.typ n)
+              n
               (if i < Array.length mns - 1 then " << \", \"" else "")
         done ;
         ppi oc "os << '>';" ;
         ppi oc "return os;") ;
-      ppi oc "}\n"
+      ppi oc "}\n" ;
+      ppi oc
+        "inline std::ostream &operator<<(std::ostream &os, %sconst t) { \
+           os << *t; return os; }\n"
+        (pointer_to id)
     )
 
   and print_record p oc id mns =
@@ -273,22 +276,24 @@ struct
           let field_name = uniq_field_name (T.TRec mns) field_name in
           let n = "r."^ valid_identifier field_name in
           if mn.T.nullable then
-            ppi oc "if (%s) os << %S << %s%s;"
+            ppi oc "if (%s) os << %S << %s.value()%s;"
               n
               (field_name ^ ":")
-              (* Display the content rather than the pointer: *)
-              (deref mn.T.typ (n ^ ".value()"))
+              n
               (if i < Array.length mns - 1 then " << ','" else "")
           else
             ppi oc "os << %S << %s%s;"
               (field_name ^ ":")
-              (* Display the content rather than the pointer: *)
-              (deref mn.T.typ n)
+              n
               (if i < Array.length mns - 1 then " << ','" else "")
         ) mns ;
         ppi oc "os << '}';" ;
         ppi oc "return os;") ;
-      ppi oc "}") ;
+      ppi oc "}" ;
+      ppi oc
+        "inline std::ostream &operator<<(std::ostream &os, %sconst r) { \
+           os << *r; return os; }\n"
+        (pointer_to id)) ;
     if id <> "_" then (
       (* That is still not enough. We need an equality operator: *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
@@ -354,22 +359,24 @@ struct
             (* Include a space after the label is there is a value: *)
             let label = if T.is_void mn.T.typ then label else label ^ " " in
             if mn.T.nullable then
-              ppi oc "case %d: if (%s) os << %S << %s; break;"
+              ppi oc "case %d: if (%s) os << %S << %s.value(); break;"
                 i
                 v
                 label
-                (* Display the content rather than the pointer: *)
-                (deref mn.T.typ (v ^".value()"))
+                v
             else
               ppi oc "case %d: os << %S << %s; break;"
                 i
                 label
-                (* Display the content rather than the pointer: *)
-                (deref mn.T.typ v)
+                v
           done) ;
         ppi oc "}" ;
         ppi oc "return os;") ;
-      ppi oc "}\n") ;
+      ppi oc "}\n" ;
+      ppi oc
+        "inline std::ostream &operator<<(std::ostream &os, %sconst v) { \
+           os << *v; return os; }\n"
+        (pointer_to id)) ;
     if id <> "_" then (
       (* A comparison operator (for < C++20): *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
@@ -449,6 +456,9 @@ struct
                       pp oc "struct %s;\n" id ;
                       pp oc "inline std::ostream &operator<<(\
                                std::ostream &, struct %s const &);\n" id ;
+                      pp oc "inline std::ostream &operator<<(\
+                               std::ostream &, %sconst);\n"
+                        (pointer_to ("struct "^ id)) ;
                       pp oc "inline bool operator==(\
                                struct %s const &, struct %s const &);\n" id id ;
                       pp oc "inline bool operator!=(\
@@ -1821,9 +1831,14 @@ struct
             if Set.String.mem "t" p.P.declared then
               if is_pointy t then
                 "typedef "^ pointer_to "t" ^"t_ext;\n\
-                 inline t Deref(t_ext x) { return *x; }\n\
-                 inline std::ostream &operator<<(std::ostream &os, "^
-                   pointer_to "t" ^" r) { os << *r; return os; }\n"
+                 inline t Deref(t_ext x) { return *x; }\n" ^
+                (match t with TTup _ | TRec _ | TSum _ ->
+                    (* Pointer variant already emitted: *)
+                    ""
+                | _ ->
+                    (* Also emit a pointer variant: *)
+                    "inline std::ostream &operator<<(std::ostream &os, "^
+                     pointer_to "t" ^" const r) { os << *r; return os; }\n")
               else
                 "typedef t t_ext;\n\
                  inline t Deref(t_ext x) { return x; }\n"
