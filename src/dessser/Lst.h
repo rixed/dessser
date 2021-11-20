@@ -167,11 +167,19 @@ struct Lst {
 template<class T>
 inline std::ostream &operator<<(std::ostream &os, Lst<T> const &l)
 {
+  os << '{';
   if (l.empty()) {
-    os << "{empty}";
+    os << "empty";
   } else {
-    os << '{' << l.head() << ',' << l.tail() << '}';
+    bool sep = false;
+    // TODO: const iterators
+    for (T const &i : const_cast<Lst<T> &>(l)) {
+      if (sep) os << ", ";
+      sep = true;
+      os << i;
+    }
   }
+  os << '}';
   return os;
 }
 
