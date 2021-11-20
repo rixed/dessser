@@ -410,9 +410,11 @@ struct
     else
       type_identifier ?blunted p mn.typ
 
+  (* Note about [blunted]: return the non-pointy version of a pointy type, to
+   * be used with [make_pointer]. Only applies to the outer type obviously. *)
   and type_identifier ?(blunted=false) p t =
-    let type_identifier = type_identifier ~blunted p
-    and type_identifier_mn = type_identifier_mn ~blunted p in
+    let type_identifier = type_identifier ~blunted:false p
+    and type_identifier_mn = type_identifier_mn ~blunted:false p in
     let declare_if_named s =
       let is_id, s =
         P.declare_if_named p t s (fun oc type_id ->
