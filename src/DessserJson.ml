@@ -175,16 +175,13 @@ let init compunit =
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
     let be = (module DessserBackEndOCaml : BACKEND) in
     let module BE = (val be : BACKEND) in
-    let compunit = U.make "test" |> init in
+    let compunit = U.make "test_json_eo_exe" |> init in
     let compunit, _, entry_point =
       U.add_identifier_of_expression compunit e in
-    let exe_fname = Filename.temp_file "dessser_skip_json_" "" in
-    let src_fname = exe_fname ^".ml" in
-    write_source ~src_fname (fun oc ->
-      BE.print_definitions oc compunit ;
-      Printf.fprintf oc "let () = DessserGen.%s Sys.argv.(1)\n" entry_point) ;
-    compile ~dev_mode:true ~optim:3 ~link:Executable be src_fname exe_fname ;
-    exe_fname
+    let dst_fname = Filename.temp_file "dessser_skip_json_" "" in
+    let outro =
+      Printf.sprintf2 "let () = DessserGen.%s Sys.argv.(1)\n" entry_point in
+    BE.compile ~dev_mode:true ~optim:3 ~link:Executable ~dst_fname ~outro compunit
 
   let skip_json =
     let e =

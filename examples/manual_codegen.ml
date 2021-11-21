@@ -48,11 +48,11 @@ let () =
       u64 ; u64 ; u64 ; float ; u8 ; i64 ; float ;
       i64 ; float ; i64 ; float ; u32 |])) in
   let typ = udp_typ in
-  let backend, exe_ext =
+  let backend =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
-      (module DessserBackEndOCaml : BACKEND), ".opt"
+      (module DessserBackEndOCaml : BACKEND)
     else if Array.length Sys.argv > 1 && Sys.argv.(1) = "c++" then
-      (module DessserBackEndCPP : BACKEND), ".exe"
+      (module DessserBackEndCPP : BACKEND)
     else (
       Printf.eprintf "%s ocaml|c++\n" Sys.argv.(0) ;
       exit 1
@@ -105,7 +105,7 @@ let () =
                     make_pair src dst') ])))))
     ) in
   (*Printf.printf "convert = %a\n%!" (print_expr ?max_depth:None) convert ;*)
-  let exe_fname = "examples/rowbinary2sexpr"^ exe_ext in
-  let exe_fname =
-    make_converter ~dev_mode:true ~exe_fname compunit backend convert in
-  Printf.printf "executable in %s\n" exe_fname
+  let dst_fname = "examples/rowbinary2sexpr."^ BE.preferred_comp_extension Executable in
+  let dst_fname =
+    make_converter ~dev_mode:true ~dst_fname compunit backend convert in
+  Printf.printf "executable in %s\n" dst_fname

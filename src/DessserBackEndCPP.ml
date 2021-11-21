@@ -81,20 +81,21 @@ struct
   let preferred_comp_extension = function
     | Object -> "o"
     | SharedObject -> "so"
-    | Executable -> ""
+    | Executable -> "x"
 
   let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ?(optim=0) ~link src dst =
     let optim = clamp 0 3 optim in
+    let extra_search_paths =
+      if dev_mode then "src" :: extra_search_paths else extra_search_paths in
     Printf.sprintf2
       "g++ -std=c++%d -g -O%d -W -Wall \
            -Wno-unused-parameter -Wno-unused-variable \
            -Wno-shift-negative-value -Wno-unused-lambda-capture \
-           %a %s %s %S -o %S"
+           %a %s %S -o %S"
       cpp_std_version
       optim
       (List.print ~first:"" ~last:"" ~sep:" " (fun oc path ->
-        Printf.fprintf oc "-I %s" path)) extra_search_paths
-      (if dev_mode then "-I src" else "")
+        Printf.fprintf oc "-iquote %s" path)) extra_search_paths
       (match link with
       | Object -> "-c"
       | SharedObject -> "-fPIC -c"
@@ -150,6 +151,16 @@ struct
     | _ ->
         s
 
+  (* When printing definitions, there is no way to tell if a type has already
+   * been output in the declarations or not (definitions typically need
+   * additional types not present in identifiers signature, thus not visible
+   * when printing declarations).
+   * Therefore we have to output definitions of every type in definitions as
+   * well as declarations files.
+   * As a consequence, definition can not include declaration (since redefining
+   * a type is an error).
+   * Still, we try to avoid defining useless operators (such as <<) in the
+   * definition file. *)
   let rec print_tuple p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
@@ -176,12 +187,8 @@ struct
       )
     ) ;
     ppi oc "};" ;
-    (* Need a custom comparison operator that dereferences pointers.
-     * Notice that it is useful to output it also when defining (not only
-     * declaring) as even when some separate declarations are output those
-     * are not included by the definition file, and operator== is required
-     * by the generated code. *)
-    if id <> "_" then (
+    if id <> "_" && p.context = P.Declaration then (
+      (* Need a custom comparison operator that dereferences pointers. *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
         ppi oc "return %a;"
@@ -206,9 +213,8 @@ struct
       ppi oc "}" ;
       ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
                 return !operator==(a, b);\n\
-              }" id id
-    ) ;
-    if id <> "_" && p.context = P.Declaration then (
+              }" id id ;
+      (* Also define operator<<: *)
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
         id ;
@@ -293,8 +299,7 @@ struct
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %sconst r) { \
            os << *r; return os; }\n"
-        (pointer_to id)) ;
-    if id <> "_" then (
+        (pointer_to id) ;
       (* That is still not enough. We need an equality operator: *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
@@ -376,8 +381,7 @@ struct
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %sconst v) { \
            os << *v; return os; }\n"
-        (pointer_to id)) ;
-    if id <> "_" then (
+        (pointer_to id) ;
       (* A comparison operator (for < C++20): *)
       ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
       P.indent_more p (fun () ->
@@ -1810,7 +1814,7 @@ struct
          #include <variant>\n\
          #include <vector>\n\
          #include \"dessser/runtime.h\"\n"^
-        extra_incs ^"\n\n"^
+        extra_incs ^"\n"^
         "namespace dessser::gen::"^ m ^" {\n\
          using dessser::operator<<;\n\n\
          std::uniform_real_distribution<double> _random_float_(0, 1);\n\
@@ -1856,3 +1860,27 @@ struct
 end
 
 include DessserBackEndCLike.Make (Config)
+
+let compile ?dev_mode ?(extra_search_paths=[]) ?optim ~link ?dst_fname ?comment ?outro compunit =
+  let dst_fname =
+    (match dst_fname with
+    | None ->
+        Filename.get_temp_dir_name () ^"/"^
+        compunit.U.module_name ^"."^
+        preferred_comp_extension link
+    | Some f ->
+        f) |> valid_source_name in
+  let src_fname = change_ext preferred_def_extension dst_fname in
+  let decl_fname = change_ext preferred_decl_extension dst_fname in
+  let extra_search_paths = Filename.dirname src_fname :: extra_search_paths in
+  let cmd = compile_cmd ?dev_mode ~extra_search_paths ?optim ~link src_fname dst_fname in
+  write_source ~src_fname (fun oc ->
+    Option.may (print_comment oc "%s") comment ;
+    print_comment oc "Compile with:\n  %s\n" cmd ;
+    print_definitions oc compunit ;
+    Option.may (String.print oc) outro) ;
+  write_source ~src_fname:decl_fname (fun oc ->
+    print_declarations oc compunit) ;
+  run_cmd cmd ;
+  ignore_exceptions Unix.unlink src_fname ;
+  dst_fname

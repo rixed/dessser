@@ -20,55 +20,29 @@ let has_timeout () =
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
 
-let compile ?dev_mode ?(optim=0) ?extra_search_paths ~link backend
-            src_fname dest_fname =
-  let module BE = (val backend : BACKEND) in
-  let cmd = BE.compile_cmd ?dev_mode ?extra_search_paths ~optim ~link src_fname dest_fname in
-  run_cmd cmd
-
-(* Compile and dynload the given compunit.
- * The compunit should do something on its own to register something
- * to the main program, as usual with Dynlink. *)
-let compile_and_load ?optim ?extra_search_paths backend compunit =
-  let module BE = (val backend : BACKEND) in
-  let src_fname =
-    Filename.temp_file "dessser_" ("."^ BE.preferred_def_extension) in
-  write_source ~src_fname (fun oc -> BE.print_definitions oc compunit) ;
-  let dest_fname =
-    change_extension src_fname (BE.preferred_comp_extension SharedObject) in
-  compile ?optim ?extra_search_paths ~link:SharedObject backend src_fname dest_fname ;
-  (* Dynload dest_fname *)
-  Dynlink.loadfile dest_fname
-
 (* [convert] is a filter, aka a function from a pair of src*dst ptrs to
  * another such pair, as returned by DesSer.desser function. From that a
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
  * into stdout and stops (for tests). *)
-let make_converter ?dev_mode ?optim ?exe_fname ?mn compunit backend convert =
+let make_converter ?dev_mode ?optim ?dst_fname ?mn compunit backend convert =
   let module BE = (val backend : BACKEND) in
   let convert = TC.type_check U.(environment compunit) convert in
   let compunit, _, entry_point =
-    U.add_identifier_of_expression compunit convert in
-  let exe_fname = match exe_fname with
-    | Some fname -> fname
-    | None -> Filename.temp_file "dessser_converter_" "" in
-  let src_fname = change_ext BE.preferred_def_extension exe_fname in
-  write_source ~src_fname (fun oc ->
-    Option.may (fun mn ->
-      BE.print_comment oc "Converter for values of type:\n  %a\n"
+    U.add_identifier_of_expression compunit ~name:"convert" convert in
+  let comment =
+    Option.map (fun mn ->
+      Printf.sprintf2 "Converter for values of type:\n  %a\n"
         T.print_mn mn
-    ) mn ;
-    BE.print_comment oc "Compile with:\n  %s\n"
-      (BE.compile_cmd ?dev_mode ?optim ~link:Object src_fname exe_fname) ;
-    BE.print_definitions oc compunit ;
+    ) mn in
+  let outro =
     let module_name = compunit.U.module_name in
-    if BE.preferred_def_extension = "cc" then
-      String.print oc (FragmentsCPP.converter module_name entry_point)
-    else
-      String.print oc (FragmentsOCaml.converter module_name entry_point)) ;
-  compile ?dev_mode ?optim ~link:Executable backend src_fname exe_fname ;
-  exe_fname
+    match BE.preferred_def_extension with
+    | "cc" -> FragmentsCPP.converter module_name entry_point
+    | "ml" -> FragmentsOCaml.converter module_name entry_point
+    | "dil" -> ""
+    | _ -> assert false in
+  BE.compile ?dev_mode ?optim ~link:Executable ?comment ~outro ?dst_fname compunit
 
 (* Write an input to some single-shot converter program and return its
  * output: *)

@@ -26,9 +26,6 @@ let write_source ~src_fname f =
   let mode = [ `create ; `text ; `trunc ] in
   File.with_file_out ~mode src_fname f
 
-let change_extension fname ext =
-  Filename.remove_extension fname ^"."^ ext
-
 let array_print_i ?first ?last ?sep p oc a =
   let i = ref 0 in
   Array.print ?first ?last ?sep (fun oc x ->

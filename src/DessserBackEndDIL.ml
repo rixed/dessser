@@ -3,6 +3,7 @@ open Batteries
 
 open Dessser
 open DessserMiscTypes
+open DessserTools
 module E = DessserExpressions
 module P = DessserPrinter
 module T = DessserTypes
@@ -51,7 +52,24 @@ let preferred_comp_extension _ =
 
 let compile_cmd ?dev_mode ?extra_search_paths ?(optim=0) ~link _src _dst =
   ignore optim ; ignore link ; ignore dev_mode ; ignore extra_search_paths ;
-  Printf.printf "Won't compile Desser Inetermediate Language (DIL).\n" ;
+  Printf.printf "Won't compile Desser Intermediate Language (DIL).\n" ;
   "true"
+
+let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment ?outro compunit =
+  ignore dev_mode ;
+  ignore extra_search_paths ;
+  ignore optim ;
+  ignore link ;
+  let src_fname =
+    match dst_fname with
+    | Some f -> f
+    | None ->
+        let ext = "."^ preferred_def_extension in
+        Filename.temp_file "dessserQCheck_" ext in
+  write_source ~src_fname (fun oc ->
+    Option.may (print_comment oc "%s") comment ;
+    print_definitions oc compunit ;
+    Option.may (String.print oc) outro) ;
+  src_fname
 
 let adapt_type t = t

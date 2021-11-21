@@ -1716,3 +1716,32 @@ struct
 end
 
 include DessserBackEndCLike.Make (Config)
+
+let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment ?outro compunit =
+  let dst_fname =
+    (match dst_fname with
+    | None ->
+        Filename.get_temp_dir_name () ^"/"^
+        compunit.U.module_name ^"."^
+        preferred_comp_extension link
+    | Some f ->
+        f) |> valid_source_name in
+  let src_fname = change_ext preferred_def_extension dst_fname in
+  let cmd = compile_cmd ?dev_mode ?extra_search_paths ?optim ~link src_fname dst_fname in
+  write_source ~src_fname (fun oc ->
+    Option.may (print_comment oc "%s") comment ;
+    print_comment oc "Compile with:\n  %s\n" cmd ;
+    print_definitions oc compunit ;
+    Option.may (String.print oc) outro) ;
+  run_cmd cmd ;
+  ignore_exceptions Unix.unlink src_fname ;
+  dst_fname
+
+(* Compile and dynload the given compunit.
+ * The compunit should do something on its own to register something
+ * to the main program, as usual with Dynlink. *)
+let compile_and_load ?optim ?extra_search_paths compunit =
+  let dest_fname =
+    compile ?optim ?extra_search_paths ~link:SharedObject compunit in
+  (* Dynload dest_fname *)
+  Dynlink.loadfile dest_fname

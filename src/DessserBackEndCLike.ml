@@ -207,7 +207,7 @@ sig
   (* TODO: find a way to factorize the print function itself *)
 end
 
-module Make (C : CONFIG) : BACKEND =
+module Make (C : CONFIG) =
 struct
   let id = C.id
   let print_comment = C.print_comment
@@ -422,5 +422,4 @@ struct
   let print_declarations oc compunit =
     let p = P.(make compunit.U.module_name Declaration compunit.external_types) in
     print_source compunit p oc [] [] []
-
 end

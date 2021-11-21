@@ -189,25 +189,20 @@ let test_desser () =
 (* Test: generate the source for test_desser and compile it: *)
 let test_backend () =
   let e = test_desser () in
-  let backend, exe_ext, outro =
+  let backend, outro =
     if Array.length Sys.argv > 1 && Sys.argv.(1) = "ocaml" then
-      (module DessserBackEndOCaml : BACKEND), ".opt", ""
+      (module DessserBackEndOCaml : BACKEND), ""
     else if Array.length Sys.argv > 1 && Sys.argv.(1) = "c++" then
-      (module DessserBackEndCPP : BACKEND), ".exe", "int main() { return 0; }\n"
+      (module DessserBackEndCPP : BACKEND), "int main() { return 0; }\n"
     else (
       Printf.eprintf "%s ocaml|c++\n" Sys.argv.(0) ;
       exit 1
     ) in
   let module BE = (val backend : BACKEND) in
-  let compunit = U.make "test_backend" in
+  let compunit = U.make "simplest_gen" in
   let compunit, _, _entry_point =
     U.add_identifier_of_expression compunit ~name:"entry_point" e in
-  let exe_fname = "/tmp/simplest_gen"^ exe_ext in
-  let src_fname = change_ext BE.preferred_def_extension exe_fname in
-  write_source ~src_fname (fun oc ->
-      BE.print_definitions oc compunit ;
-      String.print oc outro) ;
-  compile ~dev_mode:true ~link:Executable  backend src_fname exe_fname
+  BE.compile ~dev_mode:true ~link:Executable ~outro compunit
 
 let main =
   test_backend ()

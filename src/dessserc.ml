@@ -68,7 +68,7 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base pointer_type dest_fname optim skip_decls
+        with_fieldmask include_base pointer_type dst_fname optim skip_decls
         skip_defs () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
@@ -91,7 +91,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   DessserEval.inline_level := optim ;
   let backend = module_of_backend backend in
   init_backend backend schema ;
-  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let module_name = Filename.(basename dst_fname |> remove_extension) in
   let compunit = U.make module_name in
   let compunit = List.fold_left init_encoding compunit encodings_in in
   let compunit = List.fold_left init_encoding compunit encodings_out in
@@ -156,8 +156,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   let compunit = List.fold_left add_decoder compunit encodings_in in
   let compunit = List.fold_left add_encoder compunit encodings_out in
   let compunit = List.fold_left add_converter compunit converters in
-  let def_fname = change_ext BE.preferred_def_extension dest_fname in
-  let decl_fname = change_ext BE.preferred_decl_extension dest_fname in
+  let def_fname = change_ext BE.preferred_def_extension dst_fname in
+  let decl_fname = change_ext BE.preferred_decl_extension dst_fname in
   if not skip_defs then (
     write_source ~src_fname:def_fname (fun oc ->
       BE.print_definitions oc compunit) ;
@@ -173,7 +173,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
 
 let converter
       dbg quiet_ schema backend encoding_in encoding_out
-      modifier_exprs dest_fname dev_mode optim () =
+      modifier_exprs dst_fname dev_mode optim () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -194,27 +194,13 @@ let converter
     (* convert from encoding_in to encoding_out: *)
     func2 T.ptr T.ptr (DS.desser schema ~transform) in
   if !debug then ignore (TC.type_check E.no_env convert) ;
-  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let module_name = Filename.(basename dst_fname |> remove_extension) in
   let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
-  let compunit, _, convert_name =
-    U.add_identifier_of_expression compunit ~name:"convert" convert in
-  let def_fname =
-    change_ext BE.preferred_def_extension dest_fname |>
-    BE.valid_source_name in
-  let module_name = compunit.U.module_name in
-  let convert_main_for = function
-    | "cc" -> DessserDSTools_FragmentsCPP.converter module_name convert_name
-    | "ml" -> DessserDSTools_FragmentsOCaml.converter module_name convert_name
-    | "dil" -> ""
-    | _ -> assert false in
-  write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions oc compunit ;
-    String.print oc (convert_main_for BE.preferred_def_extension)
-  ) ;
-  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  if not !quiet then Printf.printf "executable in %S\n" dest_fname
+  let dst_fname =
+    DessserDSTools.make_converter ~dev_mode ~optim ~dst_fname compunit backend convert in
+  if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 let destruct_pair = function
   | T.{ typ = TTup [| k ; v |] ; _ } ->
@@ -225,7 +211,7 @@ let destruct_pair = function
 
 let lmdb main
       dbg quiet_ key_schema val_schema backend encoding_in encoding_out
-      dest_fname dev_mode optim () =
+      dst_fname dev_mode optim () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -248,7 +234,7 @@ let lmdb main
     ignore (TC.type_check E.no_env convert_key) ;
     ignore (TC.type_check E.no_env convert_val)
   ) ;
-  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let module_name = Filename.(basename dst_fname |> remove_extension) in
   let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
@@ -256,16 +242,11 @@ let lmdb main
     U.add_identifier_of_expression compunit ~name:"convert_key" convert_key in
   let compunit, _, convert_val_name =
     U.add_identifier_of_expression compunit ~name:"convert_val" convert_val in
-  let def_fname =
-    change_ext BE.preferred_def_extension dest_fname |>
-    BE.valid_source_name in
-  write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions oc compunit ;
-    main BE.preferred_def_extension convert_key_name convert_val_name |>
-    String.print oc
-  ) ;
-  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  if not !quiet then Printf.printf "executable in %S\n" dest_fname
+  let outro =
+    main BE.preferred_def_extension convert_key_name convert_val_name in
+  let dst_fname =
+    BE.compile ~dev_mode ~optim ~link:Executable ~dst_fname ~outro compunit in
+  if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 let lmdb_dump =
   let main ext convert_key_id convert_val_id =
@@ -290,7 +271,7 @@ let lmdb_query _ _ _ _ _ _ _ _ () =
 let aggregator
       dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
-      dest_fname dev_mode optim () =
+      dst_fname dev_mode optim () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -304,7 +285,7 @@ let aggregator
   init_backend backend schema ;
   (* Let's start with a function that's reading input values from a given
    * source pointer and returns the heap value and the new source pointer: *)
-  let module_name = Filename.(basename dest_fname |> remove_extension) in
+  let module_name = Filename.(basename dst_fname |> remove_extension) in
   let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
@@ -363,23 +344,18 @@ let aggregator
       apply ser [ copy_field ; v ; dst ]) in
   let compunit, _, output_name =
     U.add_identifier_of_expression compunit ~name:"output" output_expr in
-  let def_fname =
-    change_ext BE.preferred_def_extension dest_fname |>
-    BE.valid_source_name in
   let module_name = compunit.U.module_name in
-  let main_for = function
+  let outro =
+    match BE.preferred_def_extension with
     | "cc" -> DessserDSTools_FragmentsCPP.aggregator module_name state_name
                                                      input_name output_name
     | "ml" -> DessserDSTools_FragmentsOCaml.aggregator module_name state_name
                                                        input_name output_name
     | "dil" -> ""
     | _ -> assert false in
-  write_source ~src_fname:def_fname (fun oc ->
-    BE.print_definitions oc compunit ;
-    String.print oc (main_for BE.preferred_def_extension)
-  ) ;
-  compile ~dev_mode ~optim ~link:Executable backend def_fname dest_fname ;
-  if not !quiet then Printf.printf "executable in %S\n" dest_fname
+  let dst_fname =
+    BE.compile ~dev_mode ~optim ~link:Executable ~outro ~dst_fname compunit in
+  if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 (*
  * Command line
@@ -581,7 +557,7 @@ let aggr_finalize =
   let i = Arg.info ~doc ~docv [ "finalize" ] in
   Arg.(opt (some expression) None i)
 
-let dest_fname =
+let dst_fname =
   let doc = "Output file" in
   let docv = "FILE" in
   let i = Arg.info ~doc ~docv [ "o" ; "output-file" ] in
@@ -611,7 +587,7 @@ let converter_cmd =
      $ Arg.value encoding_in
      $ Arg.value encoding_out
      $ Arg.value modifier_exprs
-     $ Arg.required dest_fname
+     $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim),
     info "converter" ~doc)
@@ -643,7 +619,7 @@ let lib_cmd =
      $ Arg.value with_fieldmask
      $ Arg.value include_base
      $ Arg.value pointer_type
-     $ Arg.required dest_fname
+     $ Arg.required dst_fname
      $ Arg.value optim
      $ Arg.value skip_decls
      $ Arg.value skip_defs),
@@ -661,7 +637,7 @@ let lmdb_dump_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dest_fname
+     $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim),
     info "lmdb-dump" ~doc)
@@ -678,7 +654,7 @@ let lmdb_load_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dest_fname
+     $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim),
     info "lmdb-load" ~doc)
@@ -695,7 +671,7 @@ let lmdb_query_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dest_fname),
+     $ Arg.required dst_fname),
     info "lmdb-query" ~doc)
 
 let aggregator_cmd =
@@ -711,7 +687,7 @@ let aggregator_cmd =
      $ Arg.required aggr_init
      $ Arg.required aggr_update
      $ Arg.required aggr_finalize
-     $ Arg.required dest_fname
+     $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim),
     info "aggregator" ~doc)

@@ -71,7 +71,6 @@ INSTALLED = \
 	META
 
 prefix = @prefix@
-exec_prefix = @exec_prefix@
 bindir ?= @bindir@
 
 all: $(INSTALLED) examples
@@ -335,14 +334,14 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	@ulimit -n 5000 ;\
 	 export DESSSER_DEV_MODE=1 ;\
 	 examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK" && \
-	 examples/simplest.opt c++ && /tmp/simplest_gen.exe && echo "simplest c++ OK" && \
+	 examples/simplest.opt c++ && /tmp/simplest_gen.x && echo "simplest c++ OK" && \
 	 examples/manual_codegen.opt ocaml && \
 	 examples/rowbinary2sexpr.opt < udp_v30.chb > examples/rowbinary2sexpr.opt.out && \
 	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.opt.out && \
 	 echo "manual_codegen ocaml OK" && \
 	 examples/manual_codegen.opt c++ && \
-	 examples/rowbinary2sexpr.exe < udp_v30.chb > examples/rowbinary2sexpr.exe.out && \
-	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.exe.out && \
+	 examples/rowbinary2sexpr.x < udp_v30.chb > examples/rowbinary2sexpr.x.out && \
+	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.x.out && \
 	 echo "manual_codegen c++ OK"
 	@echo SUCCESS
 
