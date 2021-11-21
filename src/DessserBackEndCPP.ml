@@ -451,23 +451,26 @@ struct
                * has to be disclosed to the compiler (once is enough so remember
                * them in the printer): *)
               let id = if n = "" then "t" else valid_identifier n in
+              let is_tup_rec_sum =
+                match t |> T.develop with
+                | TTup _ | TRec _ | TSum _ -> true
+                | _ -> false in
               if not (Set.String.mem id p.P.forward_declared) then (
                 p.forward_declared <- Set.String.add id p.forward_declared ;
-                match t |> T.develop with
-                | TTup _ | TRec _ | TSum _ ->
-                    (* All those are structs: *)
-                    P.prepend_declaration p (fun oc ->
-                      pp oc "struct %s;\n" id ;
-                      pp oc "inline std::ostream &operator<<(\
-                               std::ostream &, struct %s const &);\n" id ;
-                      pp oc "inline std::ostream &operator<<(\
-                               std::ostream &, %sconst);\n"
-                        (pointer_to ("struct "^ id)) ;
-                      pp oc "inline bool operator==(\
-                               struct %s const &, struct %s const &);\n" id id ;
-                      pp oc "inline bool operator!=(\
-                               struct %s const &, struct %s const &);\n" id id)
-                | _ ->
+                if is_tup_rec_sum then (
+                  (* All those are structs: *)
+                  P.prepend_declaration p (fun oc ->
+                    pp oc "struct %s;\n" id ;
+                    pp oc "inline std::ostream &operator<<(\
+                             std::ostream &, struct %s const &);\n" id ;
+                    pp oc "inline std::ostream &operator<<(\
+                             std::ostream &, %sconst);\n"
+                      (pointer_to ("struct "^ id)) ;
+                    pp oc "inline bool operator==(\
+                             struct %s const &, struct %s const &);\n" id id ;
+                    pp oc "inline bool operator!=(\
+                             struct %s const &, struct %s const &);\n" id id)
+                ) else (
                     (* Recursive types can only be created via an indirection in
                      * C++ as in C. So here any named type will be accessed via an
                      * indirection (even if actually not recursive). *)
@@ -475,6 +478,7 @@ struct
                       "type_identifier: C++ backend does not support recursive %a"
                       T.print t |>
                     failwith
+                )
               ) ;
               (* FIXME: for P.declared_type TThis and the actual type it replaces are
                * exactly equivalent, so whenever TThis is embedded in a compound
@@ -482,7 +486,8 @@ struct
                * getting "t*", or reusing the identifier of a previously declared
                * type with only "t". Should P.declared_type uniquify the results
                * instead of identifying the types? *)
-              valid_identifier n
+              let id = valid_identifier n in
+              if is_tup_rec_sum then with_namespace id else id
           | TVoid -> declare_if_named "Void"
           | TFloat -> declare_if_named "double"
           | TString -> declare_if_named "std::string"
