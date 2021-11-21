@@ -82,7 +82,7 @@ struct
   let preferred_comp_extension = function
   | Object -> "cmx"
   | SharedObject -> "cmxs"
-  | Executable -> ""
+  | Executable -> "x"
 
   let compile_cmd ?(dev_mode=false) ?(extra_search_paths=[]) ?(optim=0) ~link src dst =
     let optim = clamp 2 3 optim in
