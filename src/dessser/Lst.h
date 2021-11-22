@@ -194,6 +194,28 @@ inline bool operator==(Lst<T> const &lhs, Lst<T> const &rhs)
     lhs.cells->next == rhs.cells->next;
 }
 
+/* Objects composed of pointer to subcomponents must compare equal by value: */
+
+template<class T>
+inline bool operator==(Lst<std::shared_ptr<T>> const &lhs, Lst<std::shared_ptr<T>> const &rhs)
+{
+  if (lhs.cells.get() == rhs.cells.get()) return true;
+  if (!lhs.cells || !rhs.cells) return false;
+  return
+    *lhs.cells->val == *rhs.cells->val &&
+    lhs.cells->next == rhs.cells->next;
+}
+
+template<class T>
+inline bool operator==(Lst<T*> const &lhs, Lst<T*> const &rhs)
+{
+  if (lhs.cells.get() == rhs.cells.get()) return true;
+  if (!lhs.cells || !rhs.cells) return false;
+  return
+    *lhs.cells->val == *rhs.cells->val &&
+    lhs.cells->next == rhs.cells->next;
+}
+
 template<class T>
 inline bool operator!=(Lst<T> const &lhs, Lst<T> const &rhs)
 {

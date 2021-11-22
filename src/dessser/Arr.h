@@ -90,6 +90,36 @@ inline std::ostream &operator<<(std::ostream &os, Arr<T> const &v)
   return os;
 }
 
+/* Objects composed of pointer to subcomponents must compare equal by value: */
+
+template<class T>
+inline bool operator==(Arr<std::shared_ptr<T>> const &a, Arr<std::shared_ptr<T>> const &b)
+{
+  size_t const sz { a.size() };
+  if (b.size() != sz) return false;
+  for (size_t i = 0; i < sz; i ++) {
+    if (*a[i] != *b[i]) return false;
+  }
+  return true;
+}
+
+template<class T>
+inline bool operator==(Arr<T*> const &a, Arr<T*> const &b)
+{
+  size_t const sz { a.size() };
+  if (b.size() != sz) return false;
+  for (size_t i = 0; i < sz; i ++) {
+    if (*a[i] != *b[i]) return false;
+  }
+  return true;
+}
+
+template<class T>
+inline bool operator!=(Arr<T> const &a, Arr<T> const &b)
+{
+  return !operator==(a, b);
+}
+
 }
 
 #endif

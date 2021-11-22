@@ -49,6 +49,22 @@ inline bool operator==(Set<T> const &a, Set<T> const &b)
   return false; // TODO
 }
 
+/* Objects composed of pointer to subcomponents must compare equal by value: */
+
+template<class T>
+inline bool operator==(Set<std::shared_ptr<T>> const &a, Set<std::shared_ptr<T>> const &b)
+{
+  (void)a; (void)b;
+  return false; // TODO
+}
+
+template<class T>
+inline bool operator==(Set<T*> const &a, Set<T*> const &b)
+{
+  (void)a; (void)b;
+  return false; // TODO
+}
+
 template<class T>
 inline bool operator!=(Set<T> const &a, Set<T> const &b)
 {

@@ -56,6 +56,38 @@ inline std::ostream &operator<<(std::ostream &os, Vec<DIM, T> const &v)
   return os;
 }
 
+/* Objects composed of pointer to subcomponents must compare equal by value: */
+
+template<unsigned DIM, class T>
+inline bool operator==(Vec<DIM, std::shared_ptr<T>> const &a, Vec<DIM, std::shared_ptr<T>> const &b)
+{
+  for (size_t i = 0; i < DIM; i ++) {
+    if (*a[i] != *b[i]) return false;
+  }
+  return true;
+}
+
+template<unsigned DIM, class T>
+inline bool operator!=(Vec<DIM, std::shared_ptr<T>> const &a, Vec<DIM, std::shared_ptr<T>> const &b)
+{
+  return !operator==(a, b);
+}
+
+template<unsigned DIM, class T>
+inline bool operator==(Vec<DIM, T*> const &a, Vec<DIM, T*> const &b)
+{
+  for (size_t i = 0; i < DIM; i ++) {
+    if (*a[i] != *b[i]) return false;
+  }
+  return true;
+}
+
+template<unsigned DIM, class T>
+inline bool operator!=(Vec<DIM, T*> const &a, Vec<DIM, T*> const &b)
+{
+  return !operator==(a, b);
+}
+
 }
 
 #endif
