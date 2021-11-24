@@ -1,11 +1,12 @@
 #ifndef VOID_H_211119
 #define VOID_H_211119
+#include <ostream>
 
 namespace dessser {
 
 struct Void {};
 
-#define VOID ::dessser::Void()
+#define VOID Void()
 
 inline std::ostream &operator<<(std::ostream &os, Void const &)
 {

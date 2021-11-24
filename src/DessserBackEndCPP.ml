@@ -582,7 +582,7 @@ struct
   let print_binding p t n f oc =
     let tn = type_identifier_mn p t in
     if T.eq_mn t T.void then (
-      pp oc "%s %s { ((void)(%t), VOID) };" tn n f
+      pp oc "%s %s { ((void)(%t), ::dessser::VOID) };" tn n f
     ) else (
       (* Beware that this must not be parsed as a function declaration. Thus
        * the use of the "uniform initialization" syntax, which, this being
@@ -713,9 +713,9 @@ struct
         ppi p.P.def "/* %s */" c ;
         print ?name p l e1
     | E0S (Seq, []) ->
-        "VOID"
+        "::dessser::VOID"
     | E0S (Seq, es) ->
-        List.fold_left (fun _ e -> print p l e) "VOID" es
+        List.fold_left (fun _ e -> print p l e) "::dessser::VOID" es
     | E0S (MakeTup, es) ->
         let inits = List.map (print p l) es in
         emit ?name p l e (fun oc ->
@@ -765,11 +765,11 @@ struct
     | E1 (Ignore, e1) ->
         let n = print p l e1 in
         ppi p.P.def "(void)%s;" n ;
-        "VOID"
+        "::dessser::VOID"
     | E1 (Dump, e1) ->
         let n = print p l e1 in
         ppi p.P.def "std::cout << %s;" n ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (Nth, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
@@ -1424,7 +1424,8 @@ struct
         let l = E.add_local n t l in
         let t2 = E.type_of l e2 in
         let has_res = not (T.eq_mn t2 T.void) in
-        let res = if has_res then gen_sym ?name "let_res_" else "VOID" in
+        let res =
+          if has_res then gen_sym ?name "let_res_" else "::dessser::VOID" in
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "{" ;
         P.indent_more p (fun () ->
@@ -1441,7 +1442,8 @@ struct
                 E.add_local name2 t2 in
         let t2 = E.type_of l e2 in
         let has_res = not (T.eq_mn t2 T.void) in
-        let res = if has_res then gen_sym ?name "letpair_res_" else "VOID" in
+        let res =
+          if has_res then gen_sym ?name "letpair_res_" else "::dessser::VOID" in
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "{" ;
         P.indent_more p (fun () ->
@@ -1483,7 +1485,8 @@ struct
         let cond = print p l e1 in
         let t2 = E.type_of l e2 in
         let has_res = not (T.eq_mn t2 T.void) in
-        let res = if has_res then gen_sym ?name "choose_res_" else "VOID" in
+        let res =
+          if has_res then gen_sym ?name "choose_res_" else "::dessser::VOID" in
         if has_res then ppi p.P.def "%s %s;" (type_identifier_mn p t2) res ;
         ppi p.P.def "if (%s) {" cond ;
         P.indent_more p (fun () ->
@@ -1507,7 +1510,7 @@ struct
             print p l body |> ignore) ;
           ppi p.P.def "}") ;
         ppi p.P.def "} while (%s);" flag ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (ForEach (n, r), lst, body) ->
         let n1 = valid_identifier n in
         let t = E.get_memo_item_mn r l lst in
@@ -1529,7 +1532,7 @@ struct
           ppi p.P.def "});"
         else
           ppi p.P.def "}" ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (Index, chr, str) ->
         let chr = print p l chr in
         let str = print p l str in
@@ -1656,12 +1659,12 @@ struct
         let x = print p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insert(%s);" set x ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (DelMin, set, n) ->
         let set = print p l set in
         let n = print p l n in
         ppi p.P.def "%s->delMin(%s);" set n ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (SplitBy, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
@@ -1699,7 +1702,7 @@ struct
         let set = print p l set in
         let d = print p l d in
         ppi p.P.def "%s->scale(%s);" set d ;
-        "VOID"
+        "::dessser::VOID"
     | E2 (Strftime, fmt, time) ->
         let fmt = print p l fmt
         and time = print p l time
@@ -1728,7 +1731,7 @@ struct
         and x = print p l x in
         (* Do not use [emit] to avoid generating more identifiers: *)
         ppi p.P.def "%s->insertWeighted(%s, %s);" set w x ;
-        "VOID"
+        "::dessser::VOID"
     | E3 (SubString, str, start, stop) ->
         let str = print p l str
         and start = print p l start
