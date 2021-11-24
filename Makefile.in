@@ -336,9 +336,10 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	 examples/simplest.opt ocaml && /tmp/simplest_gen.opt && echo "simplest ocaml OK" && \
 	 examples/simplest.opt c++ && /tmp/simplest_gen.x && echo "simplest c++ OK" && \
 	 examples/manual_codegen.opt ocaml && \
-	 examples/rowbinary2sexpr.opt < udp_v30.chb > examples/rowbinary2sexpr.opt.out && \
-	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.opt.out && \
+	 examples/rowbinary2sexpr.x < udp_v30.chb > examples/rowbinary2sexpr.x.out && \
+	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.x.out && \
 	 echo "manual_codegen ocaml OK" && \
+	 $(RM) examples/rowbinary2sexpr.x && \
 	 examples/manual_codegen.opt c++ && \
 	 examples/rowbinary2sexpr.x < udp_v30.chb > examples/rowbinary2sexpr.x.out && \
 	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.x.out && \
