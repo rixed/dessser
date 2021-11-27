@@ -1,0 +1,5 @@
+// Check we can use a named this with an unnamed this in the same type expression
+// Cf https://github.com/rixed/dessser/issues/42
+[ Foo (subtype as (string; bool))[]
+| Bar (this subtype)[]
+| Baz (this; bool) ]

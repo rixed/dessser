@@ -1102,7 +1102,13 @@ let () =
  * (but for the top level): *)
 let rec shrink t =
   let find_def t =
-    List.find (fun (_, def) -> eq t def) !these in
+    List.find (fun (_, def) ->
+      (* Beware that t might reference types not yet in [these] when we are
+       * shrinking a new type before registering it. In that case [t] cannot be
+       * equal to a previously registered type: *)
+      try eq t def
+      with Unbound_type _ -> false
+    ) !these in
   let rec do_mn mn =
     { mn with typ = do_typ mn.typ }
   and do_typ t =
