@@ -28,7 +28,7 @@ struct Pointer {
   // Shared with all pointers derived from this one:
   //std::shared_ptr<uint8_t[]> buffer;
   // Work around MacOS c17 issue:
-  std::shared_ptr<uint8_t> buffer;
+  std::shared_ptr<uint8_t[]> buffer;
   // If the pointer was created from an address (to some non-managed memory):
   uint8_t *bytes;
   // Total size of the buffer/bytes arena (regardless of offset)
@@ -74,7 +74,7 @@ struct Pointer {
   }
 
   /* Construct from any heap allocated value */
-  Pointer(std::shared_ptr<uint8_t> buffer_, size_t size_) :
+  Pointer(std::shared_ptr<uint8_t[]> buffer_, size_t size_) :
     buffer(buffer_),
     bytes(nullptr),
     size(size_),
