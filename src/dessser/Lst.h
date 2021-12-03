@@ -162,6 +162,12 @@ struct Lst {
     }
     return that->cells->val;
   }
+
+  bool contains(T const &v) const {
+    if (!cells) return false;
+    if (cells->val == v) return true;
+    return cells->next.contains(v);
+  }
 };
 
 template<class T>
