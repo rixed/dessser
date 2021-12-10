@@ -29,8 +29,8 @@ struct Lst {
   Lst(Lst<T> const &other)
     : cells(other.cells) {}
 
-  // Cons:
-  Lst(T hd, Lst<T> tl)
+  // Cons (or singleton):
+  Lst(T hd, Lst<T> tl = Lst())
     : cells(std::make_shared<Cell>(hd, tl)) {}
 
   // Mapped from another Lst:
@@ -107,6 +107,21 @@ struct Lst {
   /* Explicitly implicit: */
   Lst<T> &operator=(Lst<T> const &) = default;
   Lst<T> &operator=(Lst<T> &&) = default;
+
+  /* Modify the list: */
+  void push_back(T v)
+  {
+    if (! cells)  {
+      cells = std::make_shared<Cell>(v);
+    } else {
+      cells->next.push_back(v);
+    }
+  }
+
+  void push_front(T v)
+  {
+    cells = std::make_shared<Cell>(v, cells);
+  }
 
   // Range based loops:
 
