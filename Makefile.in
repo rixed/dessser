@@ -333,8 +333,8 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	@echo Testing examples
 	@ulimit -n 5000 ;\
 	 export DESSSER_DEV_MODE=1 ;\
-	 rm /tmp/simplest_gen.x && examples/simplest.opt ocaml && /tmp/simplest_gen.x && echo "simplest ocaml OK" && \
-	 rm /tmp/simplest_gen.x && examples/simplest.opt c++ && /tmp/simplest_gen.x && echo "simplest c++ OK" && \
+	 $(RM) /tmp/simplest_gen.x && examples/simplest.opt ocaml && /tmp/simplest_gen.x && echo "simplest ocaml OK" && \
+	 $(RM) /tmp/simplest_gen.x && examples/simplest.opt c++ && /tmp/simplest_gen.x && echo "simplest c++ OK" && \
 	 examples/manual_codegen.opt ocaml && \
 	 examples/rowbinary2sexpr.x < udp_v30.chb > examples/rowbinary2sexpr.x.out && \
 	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.x.out && \
@@ -368,7 +368,7 @@ testdb-load: src/dessserc
 dump-load-check: testdb-dump testdb-load testdb.dump
 	@echo Testing lmdb dump/load
 	@ENVNAME=/tmp/testdb ;\
-	 rm -rf $$ENVNAME ;\
+	 $(RM) -r $$ENVNAME ;\
 	 mkdir -p $$ENVNAME ;\
 	 export DESSSER_DEV_MODE=1 ;\
 	 ./testdb-load --kv-delim : $$ENVNAME < testdb.dump ;\
@@ -392,7 +392,7 @@ convert-check: src/dessserc
 	   out=$$($$f '(42 0 "foo")'); \
 	   exp='(43 0x1p-1 "FOO")'; \
 	   if test "$$out" = "$$exp"; then \
-	     rm -f "$$f"* ;\
+	     $(RM) "$$f"* ;\
 	   else \
 	     echo "$$f failed for backend $$be: Expected $$exp but got $$out!" ;\
 	     ok=no ;\
@@ -419,7 +419,7 @@ aggregator-simplest-check: src/dessserc examples/i32s.csv
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='55'; \
 	   if test "$$out" = "$$exp"; then \
-	     rm -f "$$f"* ;\
+	     $(RM) -f "$$f"* ;\
 	   else \
 	     echo "$$f failed for backend $$be: Expected $$exp but got $$out!" ;\
 	     ok=no ;\
@@ -443,7 +443,7 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 	   out=$$($$f -i examples/i32s.csv); \
 	   exp='3 (8 9 10)'; \
 	   if test "$$out" = "$$exp"; then \
-	     rm -f "$$f"* ;\
+	     $(RM) -f "$$f"* ;\
 	   else \
 	     echo "$$f failed for backend $$be: Expected $$exp but got $$out!" ;\
 	     ok=no ;\
