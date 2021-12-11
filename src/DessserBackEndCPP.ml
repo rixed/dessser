@@ -187,33 +187,33 @@ struct
       )
     ) ;
     ppi oc "};" ;
+    (* Need a custom comparison operator that dereferences pointers. *)
+    ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+    P.indent_more p (fun () ->
+      ppi oc "return %a;"
+        (array_print_i ~first:"" ~last:"" ~sep:" && "
+          (fun i oc mn ->
+            let a = "std::get<"^ string_of_int i ^">(a)"
+            and b = "std::get<"^ string_of_int i ^">(b)" in
+            (* Do not compare functions! *)
+            if T.is_function mn.T.typ then
+              String.print oc "false"
+            else if mn.nullable then
+              Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
+                a b
+                (deref mn.T.typ (a ^".value()"))
+                (deref mn.T.typ (b ^".value()"))
+                a b
+            else
+              (* nor pointers! *)
+              Printf.fprintf oc "%s == %s"
+                (deref mn.T.typ a) (deref mn.T.typ b)
+          )) mns) ;
+    ppi oc "}" ;
+    ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+              return !operator==(a, b);\n\
+            }" id id ;
     if id <> "_" && p.context = P.Declaration then (
-      (* Need a custom comparison operator that dereferences pointers. *)
-      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
-      P.indent_more p (fun () ->
-        ppi oc "return %a;"
-          (array_print_i ~first:"" ~last:"" ~sep:" && "
-            (fun i oc mn ->
-              let a = "std::get<"^ string_of_int i ^">(a)"
-              and b = "std::get<"^ string_of_int i ^">(b)" in
-              (* Do not compare functions! *)
-              if T.is_function mn.T.typ then
-                String.print oc "false"
-              else if mn.nullable then
-                Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
-                  a b
-                  (deref mn.T.typ (a ^".value()"))
-                  (deref mn.T.typ (b ^".value()"))
-                  a b
-              else
-                (* nor pointers! *)
-                Printf.fprintf oc "%s == %s"
-                  (deref mn.T.typ a) (deref mn.T.typ b)
-            )) mns) ;
-      ppi oc "}" ;
-      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
-                return !operator==(a, b);\n\
-              }" id id ;
       (* Also define operator<<: *)
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %s const &t) {"
@@ -274,6 +274,34 @@ struct
        * is also needed, so let's reintroduce it: *)
       ppi oc "%s() = default;" id) ;
     ppi oc "};" ;
+    (* We also need an equality operator: *)
+    ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+    P.indent_more p (fun () ->
+      ppi oc "return %a;"
+        (Array.print ~first:"" ~last:"" ~sep:" && "
+          (fun oc (field_name, mn) ->
+            (* Do not compare functions! *)
+            if T.is_function mn.T.typ then (
+              String.print oc "false"
+            ) else (
+              let field_name = uniq_field_name (T.TRec mns) field_name in
+              let id = valid_identifier field_name in
+              let a = "a."^ id
+              and b = "b."^ id in
+              if mn.T.nullable then
+                Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
+                  a b
+                  (deref mn.T.typ (a ^".value()"))
+                  (deref mn.T.typ (b ^".value()"))
+                  a b
+              else
+                Printf.fprintf oc "%s == %s"
+                  (deref mn.T.typ a) (deref mn.T.typ b)
+            ))) mns) ;
+    ppi oc "}\n" ;
+    ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+              return !operator==(a, b);\n\
+            }" id id ;
     if id <> "_" && p.context = P.Declaration then (
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &r) {" id ;
       P.indent_more p (fun () ->
@@ -300,34 +328,6 @@ struct
         "inline std::ostream &operator<<(std::ostream &os, %sconst r) { \
            os << *r; return os; }\n"
         (pointer_to id) ;
-      (* That is still not enough. We need an equality operator: *)
-      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
-      P.indent_more p (fun () ->
-        ppi oc "return %a;"
-          (Array.print ~first:"" ~last:"" ~sep:" && "
-            (fun oc (field_name, mn) ->
-              (* Do not compare functions! *)
-              if T.is_function mn.T.typ then (
-                String.print oc "false"
-              ) else (
-                let field_name = uniq_field_name (T.TRec mns) field_name in
-                let id = valid_identifier field_name in
-                let a = "a."^ id
-                and b = "b."^ id in
-                if mn.T.nullable then
-                  Printf.fprintf oc "((%s && %s && %s == %s) || (!%s && !%s))"
-                    a b
-                    (deref mn.T.typ (a ^".value()"))
-                    (deref mn.T.typ (b ^".value()"))
-                    a b
-                else
-                  Printf.fprintf oc "%s == %s"
-                    (deref mn.T.typ a) (deref mn.T.typ b)
-              ))) mns) ;
-      ppi oc "}\n" ;
-      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
-                return !operator==(a, b);\n\
-              }" id id
     )
 
   and print_sum p oc id mns =
@@ -344,6 +344,36 @@ struct
       ) mns
     ) ;
     ppi oc "> { using variant::variant; };\n" ;
+    (* A comparison operator (for < C++20): *)
+    ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
+    P.indent_more p (fun () ->
+      ppi oc "if (a.index() != b.index()) return false;" ;
+      ppi oc "switch (a.index()) {" ;
+      P.indent_more p (fun () ->
+        Array.iteri (fun i (n, mn) ->
+          let a = "std::get<"^ string_of_int i ^">(a)"
+          and b = "std::get<"^ string_of_int i ^">(b)" in
+          if mn.T.nullable then
+            ppi oc "case %d: return (%s && %s && %s == %s) || (!%s && !%s); // %s"
+              i
+              a b
+              (deref mn.T.typ (a ^".value()"))
+              (deref mn.T.typ (b ^".value()"))
+              a b
+              n
+          else
+            ppi oc "case %d: return %s == %s; // %s"
+              i
+              (deref mn.T.typ a) (deref mn.T.typ b)
+              n
+        ) mns) ;
+      ppi oc "};" ;
+      ppi oc "return false;"
+    ) ;
+    ppi oc "}" ;
+    ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
+              return !operator==(a, b);\n\
+            }" id id ;
     if id <> "_" && p.context = P.Declaration then (
       (* An enum with the constructors: *)
       ppi oc "enum Constr_%s {" id ;
@@ -381,37 +411,8 @@ struct
       ppi oc
         "inline std::ostream &operator<<(std::ostream &os, %sconst v) { \
            os << *v; return os; }\n"
-        (pointer_to id) ;
-      (* A comparison operator (for < C++20): *)
-      ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
-      P.indent_more p (fun () ->
-        ppi oc "if (a.index() != b.index()) return false;" ;
-        ppi oc "switch (a.index()) {" ;
-        P.indent_more p (fun () ->
-          Array.iteri (fun i (n, mn) ->
-            let a = "std::get<"^ string_of_int i ^">(a)"
-            and b = "std::get<"^ string_of_int i ^">(b)" in
-            if mn.T.nullable then
-              ppi oc "case %d: return (%s && %s && %s == %s) || (!%s && !%s); // %s"
-                i
-                a b
-                (deref mn.T.typ (a ^".value()"))
-                (deref mn.T.typ (b ^".value()"))
-                a b
-                n
-            else
-              ppi oc "case %d: return %s == %s; // %s"
-                i
-                (deref mn.T.typ a) (deref mn.T.typ b)
-                n
-          ) mns) ;
-        ppi oc "};" ;
-        ppi oc "return false;"
-      ) ;
-      ppi oc "}" ;
-      ppi oc "inline bool operator!=(%s const &a, %s const &b) {\n  \
-                return !operator==(a, b);\n\
-              }" id id)
+        (pointer_to id)
+    )
 
   and type_identifier_mn ?blunted p mn =
     if mn.T.nullable then
