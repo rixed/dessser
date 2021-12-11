@@ -219,8 +219,6 @@ struct
   type config = unit
   type state = unit
 
-  let ptr _mn = T.(pair ptr (required (lst t_frame)))
-
   (* Few helper functions: *)
 
   (* Zero a nullmask which max width (ie. assuming all fields will be selected
@@ -272,8 +270,9 @@ struct
       let p = f p in
       make_pair p stk)
 
-  let start ?(config=()) _mn p =
-    config,
+  let make_state ?(config=()) _mn = config
+
+  let start _conf p =
     make_pair p (end_of_list t_frame)
 
   let stop () p_stk =
@@ -633,9 +632,6 @@ struct
   type config = unit
   type state = unit
 
-  (* To deserialize we need the same kind of pointer than to serialize: *)
-  let ptr = Ser.ptr
-
   (* Enter a new compound type by recording its location in the stack
    * and jumping over it, after having incremented the current nullbit
    * index.
@@ -659,8 +655,9 @@ struct
           and stk = cons new_frame stk in
           make_pair p stk ]
 
-  let start ?(config=()) _mn p =
-    config,
+  let make_state ?(config=()) _mn = config
+
+  let start _conf p =
     make_pair p (end_of_list t_frame)
 
   let stop () p_stk =
@@ -890,3 +887,7 @@ struct
 
   let dnotnull _t () _ _ p_stk = p_stk
 end
+
+let () =
+  let ptr = T.(pair ptr (required (lst t_frame))) in
+  T.register_ptr_type RingBuff ptr ptr

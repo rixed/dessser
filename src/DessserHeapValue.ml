@@ -210,7 +210,7 @@ struct
     let f =
       let mn = T.required (T.find_this n) in
       if T.eq_mn mn mn0 then
-        myself T.(pair mn0 ptr)
+        myself T.(pair mn0 (T.dptr_of_enc Des.id))
       else
         identifier (local_des_for n) in
     apply f [ src ]
@@ -288,45 +288,62 @@ struct
     | None ->
         make_mn dstate mn0 path mn src
 
-  let rec make ?config n mn0 compunit =
+  (* Build the deserializer, using augmented pointers: *)
+  let rec make_ dstate n mn0 compunit =
     (* Pretend first that this desserializer is defined, so that mutually recursive
      * calls can type-check: *)
     let name = local_des_for n in
-    let mn = T.(func1 ptr (pair mn0 ptr)) in
+    let dptr = T.dptr_of_enc Des.id in
+    let mn = T.(func1 dptr (pair mn0 dptr)) in
     let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
     (* Start by defining all required deserializers for subtypes: *)
-    let compunit = make_des_for_subtypes ?config compunit mn0.T.typ in
+    let compunit = make_des_for_subtypes dstate compunit mn0.T.typ in
     let expr =
-      func1 T.ptr (fun src ->
-        let dstate, src = Des.start ?config mn0 src in
-        let v_src = make1 dstate mn0 [] mn0 src in
-        E.with_sploded_pair "make" v_src (fun v src ->
-          make_pair v (Des.stop dstate src))) in
+      func1 dptr (fun src -> make1 dstate mn0 [] mn0 src) in
     U.add_identifier_of_expression compunit ~name expr
 
-  and make_des_for_subtypes ?config compunit = function
+  and make_des_for_subtypes dstate compunit = function
     | T.TNamed (n, t) ->
-        let compunit, _, _ = make ?config n T.(required t) compunit in
+        let compunit, _, _ = make_ dstate n T.(required t) compunit in
         compunit
-        (* No further recursion needed since [make] have added subtypes
+        (* No further recursion needed since [make_] have added subtypes
          * already *)
     | TUsr { def ; _ } ->
-        make_des_for_subtypes ?config compunit def
+        make_des_for_subtypes dstate compunit def
     | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
-        make_des_for_subtypes ?config compunit mn.T.typ
+        make_des_for_subtypes dstate compunit mn.T.typ
     | TTup mns ->
         Array.fold (fun compunit mn ->
-          make_des_for_subtypes ?config compunit mn.T.typ
+          make_des_for_subtypes dstate compunit mn.T.typ
         ) compunit mns
     | TRec mns | TSum mns ->
         Array.fold (fun compunit (_, mn) ->
-          make_des_for_subtypes ?config compunit mn.T.typ
+          make_des_for_subtypes dstate compunit mn.T.typ
         ) compunit mns
     | TMap (kt, vt) ->
-        let compunit = make_des_for_subtypes ?config compunit kt.T.typ in
-        make_des_for_subtypes ?config compunit vt.T.typ
+        let compunit = make_des_for_subtypes dstate compunit kt.T.typ in
+        make_des_for_subtypes dstate compunit vt.T.typ
     | _ ->
         compunit
+
+  let make ?config n mn0 compunit =
+    let dstate = Des.make_state ?config mn0 in
+    let compunit, id, name = make_ dstate n mn0 compunit in
+    (* If that Des uses a custom pointer then we need to return a wrapper.
+     * the [local_des_for] name must not be that of the wrapper though, since
+     * that's the name recursive calls will use. So in this case we need a
+     * new name.
+     * And since the [start] and [stop] functions are allowed to emit any
+     * code they want (for instance, to append a new line after serialization)
+     * this wrapper is needed in any cases:*)
+    let wrapper =
+      func1 T.ptr (fun src ->
+        let src = Des.start dstate src in
+        let v_src = apply id [ src ] in
+        E.with_sploded_pair "make" v_src (fun v src ->
+          make_pair v (Des.stop dstate src))) in
+    let name' = "wrap-"^ name in
+    U.add_identifier_of_expression compunit ~name:name' wrapper
 end
 
 (* The other way around: given a heap value of some type and a serializer,
@@ -476,7 +493,7 @@ struct
     let f =
       let mn = T.required (T.find_this n) in
       if T.eq_mn mn mn0 then
-        myself T.ptr
+        myself (T.sptr_of_enc Ser.id)
       else
         let with_fieldmask = ma <> CompTimeMask in
         identifier (local_ser_for ~with_fieldmask n) in
@@ -556,37 +573,34 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec serialize ?config ?(with_fieldmask=true) n mn0 compunit =
+  let rec serialize_ sstate ~with_fieldmask n mn0 compunit =
     (* Pretend first that this sersize is defined, so that mutually recursive
      * calls can type-check: *)
     let name = local_ser_for ~with_fieldmask n in
+    let sptr = T.sptr_of_enc Ser.id in
     let mn =
       if with_fieldmask then
-        T.(func3 mask mn0 ptr ptr)
+        T.(func3 mask mn0 sptr sptr)
       else
-        T.(func2 mn0 ptr ptr) in
+        T.(func2 mn0 sptr sptr) in
     let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
-    (* Similarly to Serialize.make, construct all required serializers: *)
+    (* Similarly to Materialize.make, construct all required serializers: *)
     let compunit =
-      make_ser_for_subtypes ?config ~with_fieldmask compunit mn0.T.typ in
+      make_ser_for_subtypes sstate ~with_fieldmask compunit mn0.T.typ in
     let expr =
       if with_fieldmask then
-        func3 T.mask mn0 T.ptr (fun ma v dst ->
+        func3 T.mask mn0 sptr (fun ma v dst ->
           let path = [] in
-          let sstate, dst = Ser.start ?config mn0 dst in
-          let dst = ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst in
-          Ser.stop sstate dst)
+          ser1 sstate mn0 path mn0 v (RunTimeMask ma) dst)
       else
-        func2 mn0 T.ptr (fun v dst ->
+        func2 mn0 sptr (fun v dst ->
           let path = [] in
-          let sstate, dst = Ser.start ?config mn0 dst in
-          let dst = ser1 sstate mn0 path mn0 v CompTimeMask dst in
-          Ser.stop sstate dst) in
+          ser1 sstate mn0 path mn0 v CompTimeMask dst) in
     U.add_identifier_of_expression compunit ~name expr
 
-  and make_ser_for_subtypes ?config ~with_fieldmask compunit =
-    let make_ser_for_subtypes = make_ser_for_subtypes ?config ~with_fieldmask
-    and serialize = serialize ?config ~with_fieldmask in
+  and make_ser_for_subtypes sstate ~with_fieldmask compunit =
+    let make_ser_for_subtypes = make_ser_for_subtypes sstate ~with_fieldmask
+    and serialize = serialize_ sstate ~with_fieldmask in
     function
     | T.TNamed (n, t) ->
         let compunit, _, _ = serialize n T.(required t) compunit in
@@ -610,6 +624,23 @@ struct
         make_ser_for_subtypes compunit vt.T.typ
     | _ ->
         compunit
+
+  let serialize ?config ?(with_fieldmask=true) n mn0 compunit =
+    let sstate = Ser.make_state ?config mn0 in
+    let compunit, id, name = serialize_ sstate ~with_fieldmask n mn0 compunit in
+    let wrapper =
+      if with_fieldmask then
+        func3 T.mask mn0 T.ptr (fun ma v dst ->
+          let dst = Ser.start sstate dst in
+          let dst = apply id [ ma ; v ; dst ] in
+          Ser.stop sstate dst)
+      else
+        func2 mn0 T.ptr (fun v dst ->
+          let dst = Ser.start sstate dst in
+          let dst = apply id [ v ; dst ] in
+          Ser.stop sstate dst) in
+    let name' = "wrap-"^ name in
+    U.add_identifier_of_expression compunit ~name:name' wrapper
 
   (*
    * Compute the sersize of a expression:

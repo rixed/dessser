@@ -224,12 +224,11 @@ struct
 
   type state = config
 
-  let ptr mn =
-    if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.ptr
+  let make_state ?(config=default_config) mn0 =
+    if not (is_serializable mn0) then invalid_arg "not serializable" ;
+    config
 
-  let start ?(config=default_config) _ p =
-    config, p
+  let start _conf p = p
 
   let stop conf p =
     match conf.newline with
@@ -437,12 +436,11 @@ struct
 
   type state = config
 
-  let ptr mn =
-    if not (is_serializable mn) then invalid_arg "not serializable" ;
-    T.ptr
+  let make_state ?(config=default_config) mn0 =
+    if not (is_serializable mn0) then invalid_arg "not serializable" ;
+    config
 
-  let start ?(config=default_config) _mn p =
-    config, p
+  let start _conf p = p
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
 

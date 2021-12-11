@@ -397,19 +397,19 @@ let no_value_cstrs mn0 path =
 
 type config = unit
 
+(* For parsing JSON objects (as records), fields need to be reordered.
+ * Therefore, when "opening" a record, all fields are located within the
+ * incoming bytes and recorded in an array of pointers, in order of
+ * definition, as well as a pointer to the end of the record.
+ * All objects we are currently in form a stack of such objects. *)
+let frame_t = T.(tuple [| required (arr nptr) ; ptr |])
+
 module Des : DES with type config = config =
 struct
   let id = JSON
 
   type config = unit
   type state = unit
-
-  (* For parsing JSON objects (as records), fields need to be reordered.
-   * Therefore, when "opening" a record, all fields are located within the
-   * incoming bytes and recorded in an array of pointers, in order of
-   * definition, as well as a pointer to the end of the record.
-   * All objects we are currently in form a stack of such objects. *)
-  let frame_t = T.(tuple [| required (arr nptr) ; ptr |])
 
   let frame_push ptrs end_p stk =
     let frame = make_tup [ ptrs ; end_p ] in
@@ -448,13 +448,11 @@ struct
     | _ ->
         not_null p
 
-  let ptr _vtyp = T.(pair ptr (required (lst frame_t)))
+  let make_state ?(config=()) _mn = config
 
   (* Pass the compunit to this function, so it can register its own stuff,
    * such as the skip function? *)
-  let start ?(config=()) _mn p =
-    ignore config ;
-    (),
+  let start _conf p =
     make_pair p (end_of_list frame_t)
 
   let stop () p_stk =
@@ -675,12 +673,9 @@ struct
   type config = unit
   type state = unit
 
-  let ptr _mn = T.ptr
+  let make_state ?(config=()) _mn = config
 
-  let start ?(config=()) _mn p =
-    ignore config ;
-    (),
-    p
+  let start _conf p = p
 
   let stop () p = p
 
@@ -985,3 +980,8 @@ struct
   let ssize_of_notnull _mn0 _path =
     size 0
 end
+
+let () =
+  let dptr = T.(pair ptr (required (lst frame_t)))
+  and sptr = T.ptr in
+  T.register_ptr_type JSON sptr dptr

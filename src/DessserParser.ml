@@ -785,11 +785,11 @@ and e =
   | Lst [ Sym "address" ; Sym n ] -> E0 (Address (Uint64.of_string n))
   | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
   | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
-  | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifier (Verbatim s))
-  | Lst [ Sym "ext-identifier" ; Sym typ ;
+  | Lst [ Sym "ext-identifier" ; Str s ] -> E0 (ExtIdentifierUnmanaged s)
+  | Lst [ Sym "ext-identifier" ; Sym type_name ;
           Sym ("ser"|"des"|"ssize" as meth) ] ->
       let meth = type_method_of_string meth in
-      E0 (ExtIdentifier (Method { typ ; meth }))
+      E0 (ExtIdentifierManaged { type_name ; meth })
   | Lst [ Sym "copy-field" ] -> E0 CopyField
   | Lst [ Sym "skip-field" ] -> E0 SkipField
   | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull

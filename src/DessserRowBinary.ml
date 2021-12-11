@@ -13,10 +13,10 @@ struct
   let id = RowBinary
   type config = unit
   type state = unit
-  let ptr _mn = T.ptr
 
-  let start ?(config=()) _mn p =
-    config, p
+  let make_state ?(config=()) _mn = config
+
+  let start () p = p
 
   let stop () p = p
   type ser = state -> T.mn -> Path.t -> E.t -> E.t -> E.t
@@ -218,10 +218,10 @@ struct
   let id = RowBinary
   type config = unit
   type state = unit
-  let ptr _mn = T.ptr
 
-  let start ?(config=()) _mn p =
-    config, p
+  let make_state ?(config=()) _mn = config
+
+  let start () p = p
 
   let stop () p = p
   type des = state -> T.mn -> Path.t -> E.t -> E.t

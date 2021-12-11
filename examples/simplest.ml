@@ -16,9 +16,9 @@ struct
   let id = User "test"
   type config = unit
   type state = unit
-  let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _vtyp src = config, src
+  let make_state ?(config=()) _mn0 = config
+  let start _conf src = src
   let stop () src = src
   type des = state -> T.mn -> Path.t -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
@@ -86,9 +86,9 @@ struct
   let id = User "test"
   type config = unit
   type state = unit
-  let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _v dst = config, dst
+  let make_state ?(config=()) _ = config
+  let start () dst = dst
   let stop () dst = dst
   type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 

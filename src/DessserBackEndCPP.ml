@@ -1401,20 +1401,20 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             valid_identifier s)
-    | E0 (ExtIdentifier (Verbatim s)) ->
+    | E0 (ExtIdentifierUnmanaged s) ->
         (match name with
         | Some _ ->
             (* If we want another name for that identifier, emit a binding: *)
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E0 (ExtIdentifier (Method { typ ; meth })) ->
+    | E0 (ExtIdentifierManaged { type_name ; meth }) ->
         (* When calling external function we don't know if their mutable arguments
          * must be passed by reference or not, so in this case we rely on auto: *)
         let name = name |? gen_sym "fun" in
         ppi p.P.def "auto %s { dessser::gen::%s::%s };"
           name
-          (valid_identifier typ)
+          (valid_identifier type_name)
           (string_of_type_method meth |> valid_identifier) ;
         name
     | E2 (Let (n, r), e1, e2) ->

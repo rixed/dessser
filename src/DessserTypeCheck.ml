@@ -153,7 +153,8 @@ let rec type_check l =
              | I8 _ | I16 _ | I24 _ | I32 _ | I40 _
              | I48 _ | I56 _ | I64 _ | I128 _
              | Size _ | Address _
-             | Bytes _ | Identifier _ | ExtIdentifier _
+             | Bytes _ | Identifier _
+             | ExtIdentifierUnmanaged _ | ExtIdentifierManaged _
              | Param _ | CopyField | SkipField | SetFieldNull)
         | E0S (Verbatim _, _)
         | E1 ((Comment _ | NotNull | Force _ | Dump | Identity | Ignore

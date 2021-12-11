@@ -11,10 +11,10 @@ struct
 
   type config = unit
   type state = unit
-  let ptr _vtyp = T.ptr
 
-  let start ?(config=()) _vtyp p =
-    config, p
+  let make_state ?(config=()) _ = config
+
+  let start _conf p = p
 
   let stop () p = p
 

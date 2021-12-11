@@ -27,10 +27,9 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.ptr
+  let make_state ?(config=default_config) _ = config
 
-  let start ?(config=default_config) _ p =
-    config, p
+  let start _ p = p
 
   let stop conf p =
     match conf.newline with
@@ -241,10 +240,9 @@ struct
 
   type state = config
 
-  let ptr _vtyp = T.ptr
+  let make_state ?(config=default_config) _mn = config
 
-  let start ?(config=default_config) _mn p =
-    config, p
+  let start _conf p = p
 
   let skip n p = ptr_add p (size n)
 

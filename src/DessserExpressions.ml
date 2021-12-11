@@ -82,7 +82,7 @@ let rec can_precompute ?(has_function_body=false) i = function
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Size _ | Address _
        | Bytes _ | CopyField | SkipField | SetFieldNull
-       | ExtIdentifier _) ->
+       | ExtIdentifierUnmanaged _ | ExtIdentifierManaged _) ->
       true
   | E0 (Param _) ->
       has_function_body
@@ -341,7 +341,8 @@ let has_side_effect = function
          I16OfPtr | I24OfPtr | I32OfPtr | I40OfPtr |
          I48OfPtr | I56OfPtr | I64OfPtr | I128OfPtr |
          AllocVec _), _)
-  | E1S (Apply, E0 (Identifier _ | ExtIdentifier _), _)
+  | E1S (Apply, E0 (Identifier _ |
+         ExtIdentifierUnmanaged _ | ExtIdentifierManaged _), _)
   | E2 ((ReadBytes | WriteU8 | WriteBytes | WriteU16 _ | WriteU32 _ |
          WriteU64 _ | WriteU128 _ | PokeU8 | PtrAdd |
          Insert | DelMin | AllocArr | PartialSort), _, _)
@@ -479,7 +480,7 @@ let field_name_of_expr = function
 let defined n l =
   let def =
     List.exists (function
-      | T.E0 (Identifier n' | ExtIdentifier (Verbatim n')), _
+      | T.E0 (Identifier n' | ExtIdentifierUnmanaged n'), _
         when n' = n ->
           true
       | _ ->
@@ -870,20 +871,25 @@ and type_of l e0 =
   | E2 ((Min | Max), e1, e2) ->
       either e1 e2
   | E2 (Member, _, _) -> T.bool
-  | E0 (Identifier _ | ExtIdentifier (Verbatim _)) as e ->
+  | E0 (Identifier _ | ExtIdentifierUnmanaged _) as e ->
       find_id_type l e
-  | E0 (ExtIdentifier (Method { typ ; meth = SerWithMask _ })) ->
-      T.func3 T.mask T.(required (ext typ)) T.ptr T.ptr
-  | E0 (ExtIdentifier (Method { typ ; meth = SerNoMask _ })) ->
-      T.func2 T.(required (ext typ)) T.ptr T.ptr
-  | E0 (ExtIdentifier (Method { typ ; meth = DesNoMask _ })) ->
-      T.func1 T.ptr T.(pair (required (ext typ)) T.ptr)
-  | E0 (ExtIdentifier (Method { typ ; meth = SSizeWithMask _ })) ->
-      T.func2 T.mask T.(required (ext typ)) T.size
-  | E0 (ExtIdentifier (Method { typ ; meth = SSizeNoMask _ })) ->
-      T.func1 T.(required (ext typ)) T.size
-  | E0 (ExtIdentifier (Method { meth = Convert _ ; _ })) ->
-      T.func2 T.ptr T.ptr T.(pair ptr ptr)
+  | E0 (ExtIdentifierManaged { type_name ; meth = SerWithMask enc }) ->
+      let sptr = T.sptr_of_enc enc in
+      T.func3 T.mask T.(required (ext type_name)) sptr sptr
+  | E0 (ExtIdentifierManaged { type_name ; meth = SerNoMask enc }) ->
+      let sptr = T.sptr_of_enc enc in
+      T.func2 T.(required (ext type_name)) sptr sptr
+  | E0 (ExtIdentifierManaged { type_name ; meth = DesNoMask enc }) ->
+      let dptr = T.dptr_of_enc enc in
+      T.func1 dptr T.(pair (required (ext type_name)) dptr)
+  | E0 (ExtIdentifierManaged { type_name ; meth = SSizeWithMask _ }) ->
+      T.func2 T.mask T.(required (ext type_name)) T.size
+  | E0 (ExtIdentifierManaged { type_name ; meth = SSizeNoMask _ }) ->
+      T.func1 T.(required (ext type_name)) T.size
+  | E0 (ExtIdentifierManaged { meth = Convert (senc, denc) }) ->
+      let sptr = T.sptr_of_enc senc
+      and dptr = T.dptr_of_enc denc in
+      T.func2 sptr dptr T.(pair sptr dptr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.mask
   | E2 (Let (n, r), e1, e2) ->
@@ -1891,9 +1897,10 @@ struct
 
   let identifier n = T.E0 (Identifier n)
 
-  let ext_identifier n = T.E0 (ExtIdentifier (Verbatim n))
+  let ext_identifier n = T.E0 (ExtIdentifierUnmanaged n)
 
-  let type_method typ meth = T.E0 (ExtIdentifier (Method { typ ; meth }))
+  let type_method type_name meth =
+    T.E0 (ExtIdentifierManaged { type_name ; meth })
 
   let to_i8 e = T.E1 (ToI8, e)
   let to_i16 e = T.E1 (ToI16, e)

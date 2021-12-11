@@ -873,7 +873,7 @@ let sexpr ?sexpr_config mn =
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      func2 (T.dptr_of_enc DessserSExpr.Des.id) (T.sptr_of_enc DessserSExpr.Ser.id)
         (fun src dst -> S2S.desser mn src dst) in
     let compunit = U.make (test_name ()) in
     make_converter ~dev_mode:true ~mn compunit be e
@@ -884,7 +884,7 @@ let sexpr ?sexpr_config mn =
     let module S2T = DesSer (DessserSExpr.Des) (Ser : SER) in
     let module T2S = DesSer (Des : DES) (DessserSExpr.Ser) in
     let e =
-      func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+      func2 (T.dptr_of_enc DessserSExpr.Des.id) (T.sptr_of_enc DessserSExpr.Ser.id)
         (fun src dst ->
           E.Ops.let_ alloc_dst (fun tdst ->
             let s2t = S2T.desser ?des_config:sexpr_config mn src tdst in
@@ -962,7 +962,7 @@ let sexpr ?sexpr_config mn =
     let compunit, ser_func, _ = OfValue.serialize "t" mn compunit in
     let compunit, des, _ = ToValue.make "t" mn compunit in
     compunit,
-    func2 (DessserSExpr.Des.ptr mn) (DessserSExpr.Ser.ptr mn)
+    func2 (T.dptr_of_enc DessserSExpr.Des.id) (T.sptr_of_enc DessserSExpr.Ser.id)
       (fun src dst ->
         let v_src = apply des [ src ] in
         E.with_sploded_pair "v_src" v_src (fun v src ->

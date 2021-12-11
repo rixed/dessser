@@ -94,6 +94,7 @@ let string_of_type_method = function
   | Convert (from_, to_) ->
       string_of_encoding to_ ^"-of-"^ string_of_encoding from_
 
+(* See also DessserTypes.ext_identifier *)
 let type_method_of_string s =
   let to_enc n s = encoding_of_string (String.lchop ~n s) in
   let s = String.lowercase_ascii s in
@@ -111,10 +112,6 @@ let type_method_of_string s =
   | exception Not_found ->
       invalid_arg ("type_method_of_string: "^ s)
   | from_, to_ -> Convert (to_enc 0 from_, to_enc 0 to_)
-
-type ext_identifier =
-  | Verbatim of string (* Used as is by any back-end, no question asked *)
-  | Method of { typ : string ; meth : type_method }
 
 (* Identifies the types of C++ pointers *)
 

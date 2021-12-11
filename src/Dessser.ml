@@ -38,12 +38,19 @@ sig
   (* No need for a backend (BE) since we merely compute expressions *)
   (* RW state passed to every deserialization operations *)
   type state
-  (* Wraps a DataPtr into whatever the DES needs *)
-  val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> (*dataptr*) E.t ->
-              state * (*ptr*) E.t
-  val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
+  (* Build the initial state: *)
+  val make_state : ?config:config -> T.mn -> state
+
+  (* Des/Ser can use an augmented type for the pointer (so that they can have
+   * a runtime state.
+   * Those augmented pointers must match those defined in [sptr_of_enc] and
+   * [dptr_of_enc].
+   * Those two functions wrap a normal [T.ptr] into such an augmented pointer,
+   * and back. *)
+  val start : state -> (*ptr*) E.t -> (*augmented ptr*) E.t
+
+  val stop : state -> (*augmented ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
    * yielding a pointer (either a CodePtr pointing at a byte stream or a
@@ -131,12 +138,13 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
-  (* Wraps a DataPtr into whatever the SER needs *)
-  val ptr : T.mn -> T.mn
 
-  val start : ?config:config -> T.mn -> (*dataptr*) E.t ->
-              state * (*ptr*) E.t
-  val stop : state -> (*ptr*) E.t -> (*ptr*) E.t
+  (* Build the initial state: *)
+  val make_state : ?config:config -> T.mn -> state
+
+  val start : state -> (*ptr*) E.t -> (*augmented ptr*) E.t
+
+  val stop : state -> (*augmented ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
   type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
@@ -653,12 +661,33 @@ struct
               desser_mn mn is_present def transform sstate dstate
                         mn0 path src_dst))
 
+  (* Creates a function that converts values of the the given type [mn0].
+   * Since this very function is never called recursively it is OK that it takes
+   * regular pointers. *)
   let desser ?ser_config ?des_config mn0 ?transform src dst =
     let no_transform _mn0 _path v = v in
     let transform = transform |? no_transform in
+(*
+    let convert =
+      (* convert from encoding_in to encoding_out: *)
+      func2 T.ptr T.ptr (fun p1 p2 ->
+        let module DS = DesSer (Des) (Ser) in
+        DS.desser schema ?transform:None p1 p2) in
+    if !debug then ignore (TC.type_check (U.environment compunit) convert) ;
+    let compunit, _, _ =
+      let name =
+        string_of_type_method (Convert (encoding_in, encoding_out)) in
+      U.add_identifier_of_expression compunit ~name convert in
+    compunit in
+*)
     let open E.Ops in
-    let sstate, dst = Ser.start mn0 ?config:ser_config dst
-    and dstate, src = Des.start mn0 ?config:des_config src in
+    (* [src] and [dst] passed by the caller are ordinary pointers.
+     * We now turn them into whatever the Ser/Des module uses for pointers, and
+     * will convert back into normal pointers at the end (by calling [stop]). *)
+    let sstate = Ser.make_state ?config:ser_config mn0
+    and dstate = Des.make_state ?config:des_config mn0 in
+    let dst = Ser.start sstate dst
+    and src = Des.start dstate src in
     let src_dst = make_pair src dst in
     let def = E.default_mn mn0 in
     let src_dst = desser_ true_ def transform sstate dstate mn0 [] src_dst in

@@ -1305,17 +1305,17 @@ struct
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             valid_identifier s)
-    | E0 (ExtIdentifier (Verbatim s)) ->
+    | E0 (ExtIdentifierUnmanaged s) ->
         (match name with
         | Some _ ->
             (* If we want another name for that identifier, emit a binding: *)
             emit ?name p l e (fun oc -> String.print oc (valid_identifier s))
         | None ->
             s)
-    | E0 (ExtIdentifier (Method { typ ; meth })) ->
+    | E0 (ExtIdentifierManaged { type_name ; meth }) ->
         emit ?name p l e (fun oc ->
           pp oc "%s.DessserGen.%s"
-            (valid_module_name typ)
+            (valid_module_name type_name)
             (string_of_type_method meth |> valid_identifier))
     | E2 (Let (n, r), e1, e2) ->
         (* Most of definitions we can actually choose the name (with ?name),
