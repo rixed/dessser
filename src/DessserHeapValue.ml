@@ -206,14 +206,14 @@ struct
       apply (type_method name (DesNoMask Des.id)) [ src ])
 
   (* Call the decoder for type name [n]: *)
-  and dthis n _dstate mn0 _path src =
+  and dthis n dstate mn0 path src =
     let f =
       let mn = T.required (T.find_this n) in
       if T.eq_mn mn mn0 then
         myself T.(pair mn0 (T.dptr_of_enc Des.id))
       else
         identifier (local_des_for n) in
-    apply f [ src ]
+    Des.dext (fun src -> apply f [ src ]) dstate mn0 path src
 
   and make_mn dstate mn0 path mn src =
     let rec des_of_vt = function
@@ -489,7 +489,7 @@ struct
       | CompTimeMask ->
           apply (type_method name (SerNoMask Ser.id)) [ v ; dst ])
 
-  and sthis n ma _sstate mn0 _path v dst =
+  and sthis n ma sstate mn0 path v dst =
     let f =
       let mn = T.required (T.find_this n) in
       if T.eq_mn mn mn0 then
@@ -498,10 +498,12 @@ struct
         let with_fieldmask = ma <> CompTimeMask in
         identifier (local_ser_for ~with_fieldmask n) in
     (* Call ourself recursively *)
-    apply f (
-      match ma with
-      | RunTimeMask ma -> [ ma ; v ; dst ]
-      | CompTimeMask -> [ v ; dst ])
+    Ser.sext (fun v dst ->
+      apply f (
+        match ma with
+        | RunTimeMask ma -> [ ma ; v ; dst ]
+        | CompTimeMask -> [ v ; dst ])
+    ) sstate mn0 path v dst
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
