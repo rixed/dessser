@@ -454,16 +454,19 @@ aggregator-sets-check: src/dessserc examples/i32s.csv
 dessserc-check: src/dessserc $(wildcard tests/*.type)
 	@echo Testing dessserc
 	@set -e ;\
+	mkdir -p /tmp/dessser ;\
 	for enc in ringbuf row-binary s-expression json ; do \
 	  echo Testing I/O encoding $$enc ;\
 	  for f in tests/*.type; do \
 	    echo "...on $$f" ;\
-	    src_file=/tmp/$$(basename $$f .type) ;\
-	    src/dessserc lib --quiet -O3 \
+	    src_file=/tmp/dessser/$$(basename $$f .type) ;\
+	    src/dessserc lib --quiet --fieldmask=both -O3 \
 	      --input-encoding $$enc --output-encoding $$enc \
 	      --language=OCaml --schema=@$$f -o "$$src_file.ml" ;\
-	    $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.mli" ;\
-	    $(OCAMLOPT) -package batteries,stdint -I src -I /tmp -c "$$src_file.ml" ;\
+	    if test "$$f" != tests/test_type_error.type; then \
+	      $(OCAMLOPT) -package batteries,stdint -I src -I /tmp/dessser -c "$$src_file.mli" ;\
+	      $(OCAMLOPT) -package batteries,stdint -I src -I /tmp/dessser -c "$$src_file.ml" ;\
+	    fi ;\
 	  done ;\
 	done
 	@echo SUCCESS

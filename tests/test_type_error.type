@@ -1,5 +1,5 @@
 {
   x: bool default true;
   y: (foo as [ F float | G { x : float; y : u32; } ]);
-  z: string default "";
+  z: $test_ext;
 }
