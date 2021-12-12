@@ -120,7 +120,8 @@ struct Lst {
 
   void push_front(T v)
   {
-    cells = std::make_shared<Cell>(v, cells);
+    Lst<T> copy { *this };
+    cells = std::make_shared<Cell>(v, copy);
   }
 
   // Range based loops:
