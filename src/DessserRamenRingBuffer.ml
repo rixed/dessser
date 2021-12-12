@@ -394,8 +394,10 @@ struct
       align_const p 16)
 
   let sext f () mn0 path v p_stk =
-    with_nullbit_done mn0 path p_stk (fun p ->
-      with_debug p "ext" (f p v))
+    E.with_sploded_pair "sext" p_stk (fun p stk ->
+      let stk = may_set_nullbit true mn0 path stk in
+      let p_stk = make_pair p stk in
+      f v p_stk)
 
   (* The given mns has all the types of the input structure, regardless of the
    * fieldmask. When runtime fieldmasks are added then we must also be given
@@ -798,7 +800,9 @@ struct
         make_pair (to_i128 w) (align_const p 8)))
 
   let dext f () mn0 path p_stk =
-    with_nullbit_done mn0 path p_stk f
+    E.with_sploded_pair "dext" p_stk (fun p stk ->
+      let stk = may_set_nullbit false mn0 path stk in
+      let_ ~name:"p_stk" (make_pair p stk) f)
 
   let tup_rec_opn _mns mn0 path p_stk =
     E.with_sploded_pair

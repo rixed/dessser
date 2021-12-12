@@ -526,10 +526,14 @@ struct
   let du128 = dnum u128_of_ptr
   let dfloat = dnum float_of_ptr
 
-  let dext f : des =
-    with_p_stk (fun p stk ->
-      let_pair ~n1:"v" ~n2:"p" (f p) (fun v p ->
-        make_pair v (make_pair p stk)))
+  let dext f () mn0 path p_stk =
+    (* Adapted from with_p_stk: *)
+    let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
+      let p_opt = locate_p mn0 path p stk in
+      let what = "dext:locate_p("^ Path.field_name mn0 path ^")" in
+      let p = force ~what p_opt in
+      let p = skip_blanks p in
+      let_ ~name:"p_stk" (make_pair p stk) f)
 
   (* If in a record, locate the pointer at the beginning of the field first: *)
   let skip_1_reloc c : des =

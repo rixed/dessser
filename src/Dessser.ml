@@ -85,8 +85,8 @@ sig
   val du56 : des
   val du64 : des
   val du128 : des
-  (* The callback receives and returns mere T.ptr instead of the ptr used for
-   * desser: *)
+  (* Given this is used for managed external identifiers only, the callback
+   * receives the same augmented pointer than the Des: *)
   val dext : ((*ptr*) E.t -> (*V*ptr*) E.t) -> des
 
   (* Paths passed to opn/cls/sep functions are the path of the compound structure
