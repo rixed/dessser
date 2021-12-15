@@ -343,7 +343,13 @@ struct
           n
       ) mns
     ) ;
-    ppi oc "> { using variant::variant; };\n" ;
+    ppi oc "> {" ;
+    ppi oc "  using variant::variant;" ;
+    ppi oc "  using variant::operator=;" ;
+    (* Also define the size of the variant since std::variant_size is not always
+     * implemented properly: *)
+    ppi oc "  static constexpr size_t size { %d };" (Array.length mns) ;
+    ppi oc "};\n" ;
     (* A comparison operator (for < C++20): *)
     ppi oc "inline bool operator==(%s const &a, %s const &b) {" id id ;
     P.indent_more p (fun () ->
