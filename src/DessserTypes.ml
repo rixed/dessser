@@ -1001,7 +1001,6 @@ and to_string t =
 
 let print_sorted oc = print ~sorted:true oc
 let print oc = print ~sorted:false ~with_defaults:true oc
-let print_mn_sorted oc = print_mn ~sorted:true ~with_defaults:false oc
 let print_mn oc = print_mn ~sorted:false ~with_defaults:true oc
 
 (*

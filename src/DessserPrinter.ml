@@ -76,7 +76,12 @@ let prepend_declaration p f =
  * string is added to declarations.
  * If [t] has already been declared just return its identifier.
  * The "identifier" may not be valid for a given back-end and might need further
- * adaptation. *)
+ * adaptation.
+ * Notice that for the purpose of the printer, two types might be distinct for
+ * Dessser (ie have distinct [DessserTypes.id]) but still have the same
+ * definition. So to avoid emitting several times the same type definition we
+ * can not rely on [DessserTypes.id]. Instead, we emit the type definition for
+ * a virtual type name "_" and hash that. *)
 let declared_type p t f =
   (* For the purpose of identifying types, use a generic type name "_": *)
   let s = new_declaration p (fun oc -> f oc "_") in

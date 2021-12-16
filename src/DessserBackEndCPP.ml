@@ -151,6 +151,22 @@ struct
     | _ ->
         s
 
+  let known_order = Hashtbl.create 10
+
+  let smart_sorted_rec nvs =
+    let names = List.map fst nvs in
+    let names' = List.sort String.compare names in
+    match Hashtbl.find known_order names' with
+    | exception Not_found ->
+        (* Remember the original order then: *)
+        Hashtbl.add known_order names' names ;
+        nvs
+    | names' ->
+        (* That's the order in which we want the names returned: *)
+        List.map (fun n' ->
+          List.find (fun (n, _) -> n = n') nvs
+        ) names'
+
   (* When printing definitions, there is no way to tell if a type has already
    * been output in the declarations or not (definitions typically need
    * additional types not present in identifiers signature, thus not visible
@@ -243,7 +259,9 @@ struct
 
   and print_record p oc id mns =
     (* See note below about MakeRec: *)
-    let mns = T.sorted_rec mns in
+    let mns =
+      if id = "_" then T.sorted_rec mns
+      else Array.of_list (smart_sorted_rec (Array.to_list mns)) in
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s {" id ;
@@ -750,7 +768,7 @@ struct
               invalid_arg "print: MakeRec" in
           loop es in
         (* Fields are ordered alphabetically in record constructors: *)
-        let es = List.sort T.cmp_nv es in
+        let es = smart_sorted_rec es in
         let inits = List.map (fun (_name, e) -> print p l e) es in
         emit ?name p l e (fun oc ->
           let first, last, sep =
