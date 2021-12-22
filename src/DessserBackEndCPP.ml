@@ -217,7 +217,8 @@ struct
   let rec print_tuple p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
-    let is_pair = Array.length mns = 2 in
+    let is_pointer_pair =
+      Array.length mns = 2 && T.eq_mn mns.(1) T.ptr in
     ppi oc "struct %s : public std::tuple<" id ;
     P.indent_more p (fun () ->
       Array.iteri (fun i mn ->
@@ -228,11 +229,11 @@ struct
     ppi oc "> {" ;
     P.indent_more p (fun () ->
       ppi oc "using tuple::tuple;" ;
-      (* The dessser runtime lib uses pairs on its own. We want those pairs,
-       * defined as `std::tuple<$X, $Y>`, to be usable to construct a user
-       * defined pair of the same type, which will be defined as a distinct
-       * struct, so let's add a specific constructor: *)
-      if is_pair then (
+      (* The dessser runtime lib uses pairs on its own for pointers. We want
+       * those pairs, defined as `std::tuple<$X, Pointer>`, to be usable to
+       * construct a user defined pair of the same type, which will be defined
+       * as a distinct struct, so let's add a specific constructor: *)
+      if is_pointer_pair then (
         let t0 = type_identifier_mn p mns.(0)
         and t1 = type_identifier_mn p mns.(1) in
         ppi oc "%s(std::tuple<%s, %s> p)" id t0 t1 ;
