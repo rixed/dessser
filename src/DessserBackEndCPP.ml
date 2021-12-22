@@ -130,6 +130,43 @@ struct
     | _ ->
         false
 
+  (* "trivial" as in trivially cheap to build (false if unsure) *)
+  let is_trivial mn =
+    if mn.T.nullable then false else
+    let rec aux t =
+      match T.develop t with
+      | TThis _ | TString | TExt _
+      | TVec _ | TArr _ | TSet _
+      | TTup _ | TRec _ | TSum _
+      | TMap _ | TPtr | TBytes
+      | TMask | TLst _ | TFunction _ ->
+          false
+      | TNamed (_, t) ->
+          aux t
+      | _ ->
+          false in
+    aux mn.typ
+
+  (* Can we declare a "const t"? (false if unsure) *)
+  let rec is_const t =
+    match T.develop t with
+    | TThis _ | TExt _
+    | TVec _ | TArr _ | TSet _ | TMap _
+    | TPtr | TBytes ->
+        false
+    | TTup mns ->
+        Array.for_all (fun mn -> is_const mn.T.typ) mns
+    | TRec mns ->
+        Array.for_all (fun (_, mn) -> is_const mn.T.typ) mns
+    | TSum mns ->
+        Array.for_all (fun (_, mn) -> is_const mn.T.typ) mns
+    | TMask | TLst _ | TFunction _ ->
+        true
+    | TNamed (_, t) ->
+        is_const t
+    | _ ->
+        true
+
   let rec deref t s =
     let star = "(*" ^ s ^")" in
     match T.develop t with
@@ -1486,8 +1523,9 @@ struct
         let name = gen_sym ?name "fun" in
         emit ?name:(Some name) p l e (fun oc ->
           (* Make sure this function can be called recursively by capturing
-           * its name: *)
-          let first = "[&"^ name ^"](" in
+           * its name, without being too specific to avoid "unused lambda
+           * capture" warning: *)
+          let first = "[&](" in
           array_print_i ~first ~last:") {\n" ~sep:", "
             (fun i oc t -> Printf.fprintf oc "%s%s %s"
               (type_identifier_mn p t)
@@ -1538,10 +1576,10 @@ struct
         "::dessser::VOID"
     | E2 (ForEach (n, r), lst, body) ->
         let n1 = valid_identifier n in
-        let t = E.get_memo_item_mn r l lst in
+        let item_mn = E.get_memo_item_mn r l lst in
         let lst_t = E.type_of l lst |> T.develop_mn in
         let lst = print p l lst in
-        let item_tn = type_identifier_mn p t in
+        let item_tn = type_identifier_mn p item_mn in
         let is_set =
           match lst_t with
           | T.{ typ = TSet _ ; _ } -> true
@@ -1549,9 +1587,13 @@ struct
         if is_set then
           ppi p.P.def "%s->iter([&](%s &%s) {" lst item_tn n1
         else
-          ppi p.P.def "for (%s %s : %s) {" item_tn n1 lst ;
+          ppi p.P.def "for (%s %s%s%s : %s) {"
+            item_tn
+            (if is_const item_mn.T.typ then "const " else "")
+            (if is_trivial item_mn then "" else "&")
+            n1 lst ;
         P.indent_more p (fun () ->
-          let l = E.add_local n t l in
+          let l = E.add_local n item_mn l in
           print p l body |> ignore) ;
         if is_set then
           ppi p.P.def "});"
