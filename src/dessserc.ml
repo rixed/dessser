@@ -68,8 +68,7 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base pointer_type dst_fname optim skip_decls
-        skip_defs () =
+        with_fieldmask include_base pointer_type dst_fname optim skip_decls skip_defs () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -173,7 +172,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
 
 let converter
       dbg quiet_ schema backend encoding_in encoding_out
-      modifier_exprs dst_fname dev_mode optim () =
+      modifier_exprs dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -199,7 +198,8 @@ let converter
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
   let dst_fname =
-    DessserDSTools.make_converter ~dev_mode ~optim ~dst_fname compunit backend convert in
+    DessserDSTools.make_converter ~dev_mode ~optim ~dst_fname ~keep_temp_files
+                                  compunit backend convert in
   if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 let destruct_pair = function
@@ -211,7 +211,7 @@ let destruct_pair = function
 
 let lmdb main
       dbg quiet_ key_schema val_schema backend encoding_in encoding_out
-      dst_fname dev_mode optim () =
+      dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -245,7 +245,8 @@ let lmdb main
   let outro =
     main BE.preferred_def_extension convert_key_name convert_val_name in
   let dst_fname =
-    BE.compile ~dev_mode ~optim ~link:Executable ~dst_fname ~outro compunit in
+    BE.compile ~dev_mode ~optim ~link:Executable ~dst_fname ~outro ~keep_temp_files
+               compunit in
   if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 let lmdb_dump =
@@ -271,7 +272,7 @@ let lmdb_query _ _ _ _ _ _ _ _ () =
 let aggregator
       dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
-      dst_fname dev_mode optim () =
+      dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -354,7 +355,8 @@ let aggregator
     | "dil" -> ""
     | _ -> assert false in
   let dst_fname =
-    BE.compile ~dev_mode ~optim ~link:Executable ~outro ~dst_fname compunit in
+    BE.compile ~dev_mode ~optim ~link:Executable ~outro ~dst_fname ~keep_temp_files
+               compunit in
   if not !quiet then Printf.printf "executable in %S\n" dst_fname
 
 (*
@@ -576,6 +578,12 @@ let optim =
   let i = Arg.info ~env ~doc [ "O" ] in
   Arg.(opt int 3 i)
 
+let keep_temp_files =
+  let doc = "Keep intermediary temporary files" in
+  let env = Term.env_info "DESSSER_KEEP_TEMP_FILES" in
+  let i = Arg.info ~env ~doc [ "keep-temp-files" ] in
+  Arg.flag i
+
 let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
   Term.(
@@ -589,7 +597,8 @@ let converter_cmd =
      $ Arg.value modifier_exprs
      $ Arg.required dst_fname
      $ Arg.value dev_mode
-     $ Arg.value optim),
+     $ Arg.value optim
+     $ Arg.value keep_temp_files),
     info "converter" ~doc)
 
 let skip_decls =
@@ -639,7 +648,8 @@ let lmdb_dump_cmd =
      $ Arg.value encoding_out
      $ Arg.required dst_fname
      $ Arg.value dev_mode
-     $ Arg.value optim),
+     $ Arg.value optim
+     $ Arg.value keep_temp_files),
     info "lmdb-dump" ~doc)
 
 let lmdb_load_cmd =
@@ -656,7 +666,8 @@ let lmdb_load_cmd =
      $ Arg.value encoding_out
      $ Arg.required dst_fname
      $ Arg.value dev_mode
-     $ Arg.value optim),
+     $ Arg.value optim
+     $ Arg.value keep_temp_files),
     info "lmdb-load" ~doc)
 
 let lmdb_query_cmd =
@@ -689,7 +700,8 @@ let aggregator_cmd =
      $ Arg.required aggr_finalize
      $ Arg.required dst_fname
      $ Arg.value dev_mode
-     $ Arg.value optim),
+     $ Arg.value optim
+     $ Arg.value keep_temp_files),
     info "aggregator" ~doc)
 
 let default_cmd =

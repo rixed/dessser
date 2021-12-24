@@ -1937,7 +1937,8 @@ end
 
 include DessserBackEndCLike.Make (Config)
 
-let compile ?dev_mode ?(extra_search_paths=[]) ?optim ~link ?dst_fname ?comment ?outro compunit =
+let compile ?dev_mode ?(extra_search_paths=[]) ?optim ~link ?dst_fname ?comment
+            ?outro ?(keep_temp_files=false) compunit =
   let dst_fname =
     (match dst_fname with
     | None ->
@@ -1958,5 +1959,5 @@ let compile ?dev_mode ?(extra_search_paths=[]) ?optim ~link ?dst_fname ?comment 
   write_source ~src_fname:decl_fname (fun oc ->
     print_declarations oc compunit) ;
   run_cmd cmd ;
-  ignore_exceptions Unix.unlink src_fname ;
+  if not keep_temp_files then ignore_exceptions Unix.unlink src_fname ;
   dst_fname

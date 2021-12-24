@@ -726,7 +726,7 @@ sig
   val preferred_comp_extension : link -> string
   val compile_cmd : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> string -> string -> string
   (* High level API: *)
-  val compile : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> ?dst_fname:string -> ?comment:string -> ?outro:string -> U.t -> string
+  val compile : ?dev_mode:bool -> ?extra_search_paths:string list -> ?optim:int -> link:link -> ?dst_fname:string -> ?comment:string -> ?outro:string -> ?keep_temp_files:bool -> U.t -> string
 
   val type_identifier : Printer.t -> T.typ -> string
   val type_identifier_mn : Printer.t -> T.mn -> string

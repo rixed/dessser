@@ -25,7 +25,8 @@ module FragmentsOCaml = DessserDSTools_FragmentsOCaml
  * program from stdin to stdout is created. For simplicity, it will also
  * work in single-entry mode where it converts just one value from argv[1]
  * into stdout and stops (for tests). *)
-let make_converter ?dev_mode ?optim ?dst_fname ?mn compunit backend convert =
+let make_converter
+      ?dev_mode ?optim ?dst_fname ?mn ?keep_temp_files compunit backend convert =
   let module BE = (val backend : BACKEND) in
   let convert = TC.type_check U.(environment compunit) convert in
   let compunit, _, entry_point =
@@ -42,7 +43,8 @@ let make_converter ?dev_mode ?optim ?dst_fname ?mn compunit backend convert =
     | "ml" -> FragmentsOCaml.converter module_name entry_point
     | "dil" -> ""
     | _ -> assert false in
-  BE.compile ?dev_mode ?optim ~link:Executable ?comment ~outro ?dst_fname compunit
+  BE.compile ?dev_mode ?optim ~link:Executable ?comment ~outro ?dst_fname
+             ?keep_temp_files compunit
 
 (* Write an input to some single-shot converter program and return its
  * output: *)

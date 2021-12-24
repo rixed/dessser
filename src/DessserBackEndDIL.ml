@@ -55,11 +55,13 @@ let compile_cmd ?dev_mode ?extra_search_paths ?(optim=0) ~link _src _dst =
   Printf.printf "Won't compile Desser Intermediate Language (DIL).\n" ;
   "true"
 
-let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment ?outro compunit =
+let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
+            ?outro ?keep_temp_files compunit =
   ignore dev_mode ;
   ignore extra_search_paths ;
   ignore optim ;
   ignore link ;
+  ignore keep_temp_files ;
   let src_fname =
     match dst_fname with
     | Some f -> f
