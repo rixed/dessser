@@ -57,7 +57,6 @@ let skip_char p c =
   skip_1_char p c
 
 let skip_string p =
-  (* The pointed byte is already known to be a double quote: *)
   let_ ~name:"p" p (fun p ->
     let off_ref =
       seq [
@@ -131,25 +130,29 @@ let skip_object p =
     skip_container ~item ~close:'}' p ]
 
 (* This must be a function because of recursive calls: *)
-let skip =
+let skip =  (* Known as "json_skip" *)
   func1 T.ptr (fun p ->
     let_ ~name:"p" (skip_blanks p) (fun p ->
-      let_ ~name:"c" (peek_u8 p (size 0)) (fun c ->
-        if_ (or_ (eq c (u8_of_const_char 'n')) (eq c (u8_of_const_char 't')))
-          ~then_:(comment "skip null/true" (ptr_add p (size 4)))
-          ~else_:(
-            if_ (eq c (u8_of_const_char 'f'))
-              ~then_:(comment "skip false" (ptr_add p (size 5)))
-              ~else_:(
-                if_ (eq c (u8_of_const_char '"'))
-                  ~then_:(comment "skip string" (skip_string p))
-                  ~else_:(
-                    if_ (eq c (u8_of_const_char '{'))
-                      ~then_:(comment "skip object" (skip_object p))
-                      ~else_:(
-                        if_ (eq c (u8_of_const_char '['))
-                          ~then_:(comment "skip array" (skip_array p))
-                          ~else_:(comment "skip number" (skip_number p)))))))))
+      let_ ~name:"new_p" (
+        let_ ~name:"c" (peek_u8 p (size 0)) (fun c ->
+          if_ (or_ (eq c (u8_of_const_char 'n')) (eq c (u8_of_const_char 't')))
+            ~then_:(comment "skip null/true" (ptr_add p (size 4)))
+            ~else_:(
+              if_ (eq c (u8_of_const_char 'f'))
+                ~then_:(comment "skip false" (ptr_add p (size 5)))
+                ~else_:(
+                  if_ (eq c (u8_of_const_char '"'))
+                    ~then_:(comment "skip string" (skip_string p))
+                    ~else_:(
+                      if_ (eq c (u8_of_const_char '{'))
+                        ~then_:(comment "skip object" (skip_object p))
+                        ~else_:(
+                          if_ (eq c (u8_of_const_char '['))
+                            ~then_:(comment "skip array" (skip_array p))
+                            ~else_:(comment "skip number" (skip_number p))))))))
+        (fun new_p ->
+          seq [ assert_ (gt (offset new_p) (offset p)) ;
+                new_p ])))
 
 (* Call this function before using the Json module to initialize the
  * compilation unit with the required library functions (FIXME: should not

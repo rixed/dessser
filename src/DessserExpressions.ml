@@ -10,6 +10,7 @@ module T = DessserTypes
   module T = DessserTypes *)
 
 (* Controls whether [debug] translates into Dump or Ignore: *)
+(* TODO: Control this from dessserc command line *)
 let dump_debug = ref false
 
 type t = T.expr

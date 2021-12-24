@@ -482,7 +482,8 @@ JSON_TESTS = \
   tests/json/not-an-object.type \
   tests/json/nullable-array.type \
   tests/json/simple-object.type \
-  tests/json/empty-object.type
+  tests/json/empty-object.type \
+  tests/json/deadloop_non_reg.type
 
 # TODO: OCaml and C++
 json-check: src/dessserc $(JSON_TESTS)
@@ -496,7 +497,7 @@ json-check: src/dessserc $(JSON_TESTS)
 	      --backend=$$be \
 	      --input-encoding=json \
 	      --output-encoding=s-expr \
-	      --dev-mode -O3 -o $$base ;\
+	      --dev-mode -O3 --keep-temp-files -o $$base ;\
 	    for in in $$base.*.in; do \
 	      out=/tmp/$$(basename $$in .in).out ;\
 	      expected=tests/json/$$(basename $$in .in).out ;\
