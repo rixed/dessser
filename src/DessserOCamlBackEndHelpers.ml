@@ -355,12 +355,15 @@ struct
     if o > l then raise (NotEnoughData { direction ; missing = o - l ; offset = o })
 
   let skip (p, o) n =
+    assert (n >= 0) ;
     let o' = o + n in
     if debug then
       Printf.eprintf "Advance from %d to %d\n%!" o o' ;
+    assert (o' <= p.stop) ;
     p, o'
 
   let rewind (p, o) n =
+    assert (n >= 0) ;
     let o' = o - n in
     assert (o' >= 0) ;
     if debug then
