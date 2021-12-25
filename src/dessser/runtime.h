@@ -162,7 +162,7 @@ inline std::size_t u128_from_chars(char const *start, char const *stop, uint128_
 {
   assert(stop > start);
   std::size_t count = is_sign(*start) ? 1 : 0;
-  for (count = 0 ; start + count < stop && is_digit(start[count]); count++) ;
+  for (; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };
   std::optional<int128_t> v { i128_of_string(s) };
