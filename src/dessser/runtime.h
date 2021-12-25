@@ -92,12 +92,12 @@ inline std::string string_of_u128(uint128_t const u128)
 
 inline uint128_t u128_of_string(std::string const &s)
 {
-  std::size_t const len = s.length();
+  std::size_t const len { s.length() };
   assert(len > 0);
   if (len <= E10_UINT64) return std::stoull(s);
-  std::size_t const hi_len(len - E10_UINT64);
-  uint128_t const hi(u128_of_string(s.substr(0, hi_len)));
-  uint128_t const lo(u128_of_string(s.substr(hi_len, E10_UINT64)));
+  std::size_t const hi_len { len - E10_UINT64 };
+  uint128_t const hi { u128_of_string(s.substr(0, hi_len)) };
+  uint128_t const lo { u128_of_string(s.substr(hi_len, E10_UINT64)) };
   return hi * P10_UINT64 + lo;
 }
 
@@ -110,10 +110,10 @@ inline std::string string_of_i128(int128_t const i128)
   if (INT64_MIN <= i128 && i128 <= INT64_MAX) {
     return std::to_string((int64_t)i128);
   } else {
-    int128_t const hi(i128 / P10_INT64);
-    int64_t const lo(i128 % P10_INT64);
-    std::string const ss(std::to_string(std::abs(lo)));
-    std::size_t num_zeros(E10_INT64 - ss.length());
+    int128_t const hi { i128 / P10_INT64 };
+    int64_t const lo { int64_t(i128 % P10_INT64) };
+    std::string const ss { std::to_string(std::abs(lo)) };
+    std::size_t num_zeros { E10_INT64 - ss.length() };
     return string_of_i128(hi) + std::string(num_zeros, '0') + ss;
   }
 }
@@ -124,9 +124,9 @@ inline bool is_digit(char const x) { return x >= '0' && x <= '9'; }
 inline std::optional<int128_t> i128_of_string(std::string const &s)
 {
   // FIXME: do not split just after the leading minus sign!
-  std::size_t const len = s.length();
+  std::size_t const len { s.length() };
   assert(len > 0);
-  std::size_t const max_len(E10_INT64 + (is_sign(s[0]) ? 1:0));
+  std::size_t const max_len { std::size_t(E10_INT64 + (is_sign(s[0]) ? 1:0)) };
   if (len <= max_len) {
     std::size_t pos;
     try {
@@ -137,7 +137,7 @@ inline std::optional<int128_t> i128_of_string(std::string const &s)
       return std::nullopt;
     }
   }
-  std::size_t const hi_len(len - E10_INT64);
+  std::size_t const hi_len { len - E10_INT64 };
   std::optional<int128_t> const hi { i128_of_string(s.substr(0, hi_len)) };
   if (! hi) return std::nullopt;
   std::optional<int128_t> const lo { i128_of_string(s.substr(hi_len, E10_INT64)) };
@@ -149,7 +149,7 @@ inline std::optional<int128_t> i128_of_string(std::string const &s)
 inline std::size_t i128_from_chars(char const *start, char const *stop, int128_t *res)
 {
   assert(stop > start);
-  std::size_t count = is_sign(*start) ? 1 : 0;
+  std::size_t count { std::size_t(is_sign(*start) ? 1 : 0) };
   for (; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };
@@ -161,7 +161,7 @@ inline std::size_t i128_from_chars(char const *start, char const *stop, int128_t
 inline std::size_t u128_from_chars(char const *start, char const *stop, uint128_t *res)
 {
   assert(stop > start);
-  std::size_t count = is_sign(*start) ? 1 : 0;
+  std::size_t count { std::size_t(is_sign(*start) ? 1 : 0) };
   for (; start + count < stop && is_digit(start[count]); count++) ;
   assert(count > 0);
   std::string const s { start, count };

@@ -37,57 +37,57 @@ struct Pointer {
   size_t offset;
 
   /* Construct (with uninitialized buffer) from a size: */
-  Pointer(Size const &sz) :
-    buffer(new uint8_t[sz]),
-    bytes(nullptr),
-    size(sz),
-    offset(0)
+  Pointer(Size const &sz)
+    : buffer(new uint8_t[sz]),
+      bytes(nullptr),
+      size(sz),
+      offset(0)
   {}
 
   /* Construct from a string: */
-  Pointer(std::string const &str) :
-    buffer(new uint8_t[str.size()]),
-    bytes(nullptr),
-    size(str.size()),
-    offset(0)
+  Pointer(std::string const &str)
+    : buffer(new uint8_t[str.size()]),
+      bytes(nullptr),
+      size(str.size()),
+      offset(0)
   {
     memcpy(buffer.get(), str.c_str(), size);
   }
 
   /* Construct from another Pointer, sharing the buffer */
-  Pointer(Pointer const &that) :
-    buffer(that.buffer),
-    bytes(that.bytes),
-    size(that.size),
-    offset(that.offset)
+  Pointer(Pointer const &that)
+    : buffer(that.buffer),
+      bytes(that.bytes),
+      size(that.size),
+      offset(that.offset)
   {}
 
   /* Construct from another Pointer, narrowing a subpart of it */
-  Pointer(Pointer const &that, Size offset_, Size size_) :
-    buffer(that.buffer),
-    bytes(that.bytes),
-    size(that.offset + size_),
-    offset(that.offset + offset_)
+  Pointer(Pointer const &that, Size offset_, Size size_)
+    : buffer(that.buffer),
+      bytes(that.bytes),
+      size(that.offset + size_),
+      offset(that.offset + offset_)
   {
     assert(size <= that.size);
     assert(offset <= that.size);
   }
 
   /* Construct from any heap allocated value */
-  Pointer(std::shared_ptr<uint8_t[]> buffer_, size_t size_) :
-    buffer(buffer_),
-    bytes(nullptr),
-    size(size_),
-    offset(0)
+  Pointer(std::shared_ptr<uint8_t[]> buffer_, size_t size_)
+    : buffer(buffer_),
+      bytes(nullptr),
+      size(size_),
+      offset(0)
   {}
 
   /* Construct from a Bytes */
-  Pointer(Bytes const &bytes) :
-    buffer(bytes.buffer),
-    bytes(nullptr),
-    // FIXME: either make this size start after offset or make Bytes size start from 0
-    size(bytes.offset + bytes.size),
-    offset(bytes.offset)
+  Pointer(Bytes const &bytes)
+    : buffer(bytes.buffer),
+      bytes(nullptr),
+      // FIXME: either make this size start after offset or make Bytes size start from 0
+      size(bytes.offset + bytes.size),
+      offset(bytes.offset)
   {}
 
   /* Default constructor for uninitialized objects: */
