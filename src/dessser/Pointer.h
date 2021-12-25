@@ -91,7 +91,11 @@ struct Pointer {
   {}
 
   /* Default constructor for uninitialized objects: */
-  Pointer() {}
+  Pointer()
+    : bytes(nullptr),
+      size(0),
+      offset(0)
+  {}
 
   void checkOffset(size_t offs) const
   {
