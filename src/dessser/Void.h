@@ -6,8 +6,6 @@ namespace dessser {
 
 struct Void {};
 
-#define VOID Void()
-
 inline std::ostream &operator<<(std::ostream &os, Void const &)
 {
   return os;
