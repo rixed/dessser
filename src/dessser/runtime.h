@@ -22,6 +22,7 @@
 #include "dessser/Heap.h"
 #include "dessser/Lst.h"
 #include "dessser/Mask.h"
+#include "dessser/Ip.h"
 
 #define _STRIZE(arg) #arg
 #define STRIZE(x)  _STRIZE(x)

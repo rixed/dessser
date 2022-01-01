@@ -1031,19 +1031,13 @@ struct
     | E1 (StringOfIp, e1) ->
         let n1 = print p l e1 in
         let str = gen_sym ?name "str_" in
-        let ip = gen_sym ?name "ip_" in
-        ppi p.P.def "char %s[INET6_ADDRSTRLEN];\n" str ;
+        ppi p.P.def "std::string %s;\n" str ;
         let case_u mn n =
           match T.develop_mn mn with
           | T.{ typ = TU32 ; _ } ->
-              (* Make sure we can take the address of that thing: *)
-              ppi p.P.def "const uint32_t %s { %s };\n" ip n ;
-              ppi p.P.def
-                "inet_ntop(AF_INET, &%s, %s, sizeof(%s));\n" ip str str ;
+              ppi p.P.def "%s = dessser::string_of_ipv4(%s);\n" str n
           | T.{ typ = TU128 ; _ } ->
-              ppi p.P.def "const uint128_t %s{ %s };\n" ip n ;
-              ppi p.P.def
-                "inet_ntop(AF_INET6, &%s, %s, sizeof(%s));\n" ip str str ;
+              ppi p.P.def "%s = dessser::string_of_ipv6(%s);\n" str n
           | _ ->
               assert false (* because of type checking *)
         in
@@ -1860,7 +1854,6 @@ struct
     | P.Declaration ->
         "#ifndef DESSSER_GEN_"^ m ^"\n\
          #define DESSSER_GEN_"^ m ^"\n\
-         #include <arpa/inet.h>\n\
          #include <functional>\n" ^
         (if !pointer_type <> Raw then "#include <memory>\n" else "") ^
         "#include <optional>\n\
@@ -1873,8 +1866,7 @@ struct
          using dessser::operator<<;\n\n"
     | P.Definition ->
         "#include <algorithm>\n\
-         #include <arpa/inet.h>\n\
-         #include <charconv>\n\
+         #include <charconv>  // for from_chars\n\
          #include <chrono>\n\
          #include <cmath>\n\
          #include <cstdlib>\n\
