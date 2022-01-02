@@ -42,15 +42,15 @@ inline std::string string_of_ipv4(uint32_t const ip)
 
 inline char char_of_digit(uint8_t const d)
 {
-  if (d < 10) return '0' + d else return 'a' + (d - 10);
+  if (d < 10) return '0' + d; else return 'a' + (d - 10);
 }
 
 inline std::string string_of_ipv6_word(uint16_t const w)
 {
   return
-    std::string(char_of_digit((w >> 12U) & 0xf)) +
-    std::string(char_of_digit((w >> 8U) & 0xf)) +
-    std::string(char_of_digit((w >> 4U) & 0xf)) +
+    std::string(1, char_of_digit((w >> 12U) & 0xf)) +
+    char_of_digit((w >> 8U) & 0xf) +
+    char_of_digit((w >> 4U) & 0xf) +
     char_of_digit((w >> 0U) & 0xf);
 }
 
@@ -61,6 +61,7 @@ inline std::string string_of_ipv6(uint128_t const ip)
     if (i) s += ':';
     s += string_of_ipv6_word((ip >> (16U*i)) & 0xffff);
   }
+  return s;
 }
 
 }  // namespace dessser
