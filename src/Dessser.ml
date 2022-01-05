@@ -263,6 +263,8 @@ struct
          sstate dstate mn0 path src_dst =
     let open E.Ops in
     E.with_sploded_pair "ds1" src_dst (fun src dst ->
+      (* TODO: if not is_present or v looks like the default then
+       * try skip_default before actually encoding the default. *)
       let v_src =
         if_ is_present
           ~then_:(des dstate mn0 path src)
