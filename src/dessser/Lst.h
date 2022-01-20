@@ -126,7 +126,6 @@ struct Lst {
 
   // Range based loops:
 
-  // FIXME: also a const iterator
   struct Iterator {
     using iterator_category = std::forward_iterator_tag;
     using difference_type = std::size_t;
@@ -170,6 +169,53 @@ struct Lst {
 
   Iterator begin() { return Iterator(cells); }
   Iterator end() { return Iterator(std::shared_ptr<Cell>()); }
+
+  struct ConstIterator {
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::size_t;
+    using value_type = T;
+    using pointer = T const *;
+    using reference = T const &;
+
+    std::shared_ptr<Cell> cells;
+
+    ConstIterator(std::shared_ptr<Cell> cells_) : cells(cells_) {}
+
+    reference operator*() const {
+      return cells->val;
+    }
+
+    pointer operator->() {
+      return &cells->val;
+    }
+
+    ConstIterator &operator++() {
+      cells = cells->next.cells;
+      return *this;
+    }
+
+    ConstIterator operator++(int) {
+      ConstIterator tmp { cells };
+      ++(*this);
+      return tmp;
+    }
+
+    inline bool operator==(ConstIterator const &o)
+    {
+      return cells.get() == o.cells.get();
+    }
+
+    inline bool operator!=(ConstIterator const &o)
+    {
+      return !operator==(o);
+    }
+  };
+
+  ConstIterator cbegin() const { return ConstIterator(cells); }
+  ConstIterator cend() const { return ConstIterator(std::shared_ptr<Cell>()); }
+
+  ConstIterator begin() const { return ConstIterator(cells); }
+  ConstIterator end() const { return ConstIterator(std::shared_ptr<Cell>()); }
 
   T const &operator[](std::size_t i) const {
     Lst<T> const *that { this };
