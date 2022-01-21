@@ -107,7 +107,8 @@ struct
       | Object -> "-c"
       | SharedObject -> "-shared"
       | Executable -> "-linkpkg")
-      src dst
+      src
+      (if link <> Executable then valid_source_name dst else dst)
 
   let mod_of_set_type = function
     | Simple -> "SimpleSet"
@@ -1721,15 +1722,17 @@ include DessserBackEndCLike.Make (Config)
 let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
             ?outro ?(keep_temp_files=false) compunit =
   let dst_fname =
-    (match dst_fname with
+    match dst_fname with
     | None ->
         Filename.get_temp_dir_name () ^"/"^
         compunit.U.module_name ^"."^
         preferred_comp_extension link
     | Some f ->
-        f) |> valid_source_name in
-  let src_fname = change_ext preferred_def_extension dst_fname in
-  let cmd = compile_cmd ?dev_mode ?extra_search_paths ?optim ~link src_fname dst_fname in
+        f in
+  let src_fname =
+    change_ext preferred_def_extension (valid_source_name dst_fname) in
+  let cmd =
+    compile_cmd ?dev_mode ?extra_search_paths ?optim ~link src_fname dst_fname in
   write_source ~src_fname (fun oc ->
     Option.may (print_comment oc "%s") comment ;
     print_comment oc "Compile with:\n  %s\n" cmd ;

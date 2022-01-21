@@ -1932,13 +1932,13 @@ include DessserBackEndCLike.Make (Config)
 let compile ?dev_mode ?(extra_search_paths=[]) ?optim ~link ?dst_fname ?comment
             ?outro ?(keep_temp_files=false) compunit =
   let dst_fname =
-    (match dst_fname with
+    match dst_fname with
     | None ->
         Filename.get_temp_dir_name () ^"/"^
         compunit.U.module_name ^"."^
         preferred_comp_extension link
     | Some f ->
-        f) |> valid_source_name in
+        f in
   let src_fname = change_ext preferred_def_extension dst_fname in
   let decl_fname = change_ext preferred_decl_extension dst_fname in
   let extra_search_paths = Filename.dirname src_fname :: extra_search_paths in
