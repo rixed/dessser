@@ -200,7 +200,7 @@ let converter
   let dst_fname =
     DessserDSTools.make_converter ~dev_mode ~optim ~dst_fname ~keep_temp_files
                                   compunit backend convert in
-  if not !quiet then Printf.printf "executable in %S\n" dst_fname
+  if not !quiet then Printf.printf "Executable in %S\n" dst_fname
 
 let destruct_pair = function
   | T.{ typ = TTup [| k ; v |] ; _ } ->
@@ -247,7 +247,7 @@ let lmdb main
   let dst_fname =
     BE.compile ~dev_mode ~optim ~link:Executable ~dst_fname ~outro ~keep_temp_files
                compunit in
-  if not !quiet then Printf.printf "executable in %S\n" dst_fname
+  if not !quiet then Printf.printf "Executable in %S\n" dst_fname
 
 let lmdb_dump =
   let main ext convert_key_id convert_val_id =
@@ -357,7 +357,7 @@ let aggregator
   let dst_fname =
     BE.compile ~dev_mode ~optim ~link:Executable ~outro ~dst_fname ~keep_temp_files
                compunit in
-  if not !quiet then Printf.printf "executable in %S\n" dst_fname
+  if not !quiet then Printf.printf "Executable in %S\n" dst_fname
 
 (*
  * Command line
