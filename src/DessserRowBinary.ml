@@ -150,32 +150,35 @@ struct
 
   type ssizer = T.mn -> Path.t -> E.t -> E.t
 
-  let ssize_of_float _ _ _ = size 8
-  let ssize_of_bool _ _ _ = size 1
-  let ssize_of_char _ _ _ = size 1
-  let ssize_of_i8 _ _ _ = size 1
-  let ssize_of_u8 _ _ _ = size 1
-  let ssize_of_i16 _ _ _ = size 2
-  let ssize_of_u16 _ _ _ = size 2
-  let ssize_of_i32 _ _ _ = size 4
-  let ssize_of_u32 _ _ _ = size 4
+  (* Try to avoid "unused parameter" warnings by ignoring unused value when the
+   * size is constant, although for now it is removed at partial evaluation: *)
+  let fixed_size v sz = seq [ ignore_ v ; size sz ]
+  let ssize_of_float _ _ v = fixed_size v 8
+  let ssize_of_bool _ _ v = fixed_size v 1
+  let ssize_of_char _ _ v = fixed_size v 1
+  let ssize_of_i8 _ _ v = fixed_size v 1
+  let ssize_of_u8 _ _ v = fixed_size v 1
+  let ssize_of_i16 _ _ v = fixed_size v 2
+  let ssize_of_u16 _ _ v = fixed_size v 2
+  let ssize_of_i32 _ _ v = fixed_size v 4
+  let ssize_of_u32 _ _ v = fixed_size v 4
   let ssize_of_i24 = ssize_of_i32
   let ssize_of_u24 = ssize_of_u32
-  let ssize_of_i64 _ _ _ = size 8
-  let ssize_of_u64 _ _ _ = size 8
+  let ssize_of_i64 _ _ v = fixed_size v 8
+  let ssize_of_u64 _ _ v = fixed_size v 8
   let ssize_of_i40 = ssize_of_i64
   let ssize_of_u40 = ssize_of_u64
   let ssize_of_i48 = ssize_of_i64
   let ssize_of_u48 = ssize_of_u64
   let ssize_of_i56 = ssize_of_i64
   let ssize_of_u56 = ssize_of_u64
-  let ssize_of_i128 _ _ _ = size 16
-  let ssize_of_u128 _ _ _ = size 16
+  let ssize_of_i128 _ _ v = fixed_size v 16
+  let ssize_of_u128 _ _ v = fixed_size v 16
 
-  let ssize_of_tup _ _ _ = size 0
-  let ssize_of_rec _ _ _ = size 0
+  let ssize_of_tup _ _ v = fixed_size v 0
+  let ssize_of_rec _ _ v = fixed_size v 0
   let ssize_of_sum = ssize_of_u16
-  let ssize_of_vec _ _ _ = size 0
+  let ssize_of_vec _ _ v = fixed_size v 0
 
   let ssize_of_leb128 n =
     let_ ~name:"n_ref" (make_ref n) (fun n_ref ->

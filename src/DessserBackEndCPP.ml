@@ -746,6 +746,7 @@ struct
       ppi p.P.def "if (std::isnan(*%s)) %s.reset();" res res ;
       res in
     (* Convert from string to nullable number: *)
+    (* FIXME: make do with from_chars to avoid exceptions *)
     let of_string e1 prefix cpp_op =
       let n1 = print p l e1 in
       let res = gen_sym ?name (prefix ^"_res_")

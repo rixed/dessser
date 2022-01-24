@@ -54,8 +54,9 @@ module Materialize (Des : DES) :
 struct
   module Des = Des
 
-  let local_des_for n =
-    (if n = "t" then "" else n ^"-")^ string_of_type_method (DesNoMask Des.id)
+  let local_des_for type_name =
+    (if type_name = "t" then "" else type_name ^"-")^
+    string_of_type_method (DesNoMask Des.id)
 
   let rec dvec dim mn dstate mn0 path src =
     let src = Des.vec_opn dim mn dstate mn0 path src in
@@ -205,23 +206,23 @@ struct
     Des.dext (fun src ->
       apply (type_method name (DesNoMask Des.id)) [ src ])
 
-  (* Call the decoder for type name [n]: *)
-  and dthis n dstate mn0 path src =
+  (* Call the decoder for type name [type_name]: *)
+  and dthis type_name dstate mn0 path src =
     let f =
-      let mn = T.required (T.find_this n) in
+      let mn = T.required (T.find_this type_name) in
       if T.eq_mn mn mn0 then
         myself T.(pair mn0 (T.dptr_of_enc Des.id))
       else
-        identifier (local_des_for n) in
+        identifier (local_des_for type_name) in
     Des.dext (fun src -> apply f [ src ]) dstate mn0 path src
 
   and make_mn dstate mn0 path mn src =
     let rec des_of_vt = function
-      | T.TNamed (n, _) ->
+      | T.TNamed (type_name, _) ->
           (* assume this had been defined already with [make_des_for_subtypes]: *)
-          dthis n
-      | TThis n -> dthis n
-      | TExt n -> dext n
+          dthis type_name
+      | TThis type_name -> dthis type_name
+      | TExt type_name -> dext type_name
       | TVoid -> dvoid
       | TFloat -> Des.dfloat
       | TString -> Des.dstring
@@ -289,10 +290,10 @@ struct
         make_mn dstate mn0 path mn src
 
   (* Build the deserializer, using augmented pointers: *)
-  let rec make_ dstate n mn0 compunit =
+  let rec make_ dstate type_name mn0 compunit =
     (* Pretend first that this desserializer is defined, so that mutually recursive
      * calls can type-check: *)
-    let name = local_des_for n in
+    let name = local_des_for type_name in
     let dptr = T.dptr_of_enc Des.id in
     let mn = T.(func1 dptr (pair mn0 dptr)) in
     let compunit, _, name = U.add_identifier_of_type compunit ~name mn in
@@ -303,8 +304,8 @@ struct
     U.add_identifier_of_expression compunit ~name expr
 
   and make_des_for_subtypes dstate compunit = function
-    | T.TNamed (n, t) ->
-        let compunit, _, _ = make_ dstate n T.(required t) compunit in
+    | T.TNamed (type_name, t) ->
+        let compunit, _, _ = make_ dstate type_name T.(required t) compunit in
         compunit
         (* No further recursion needed since [make_] have added subtypes
          * already *)
@@ -326,9 +327,9 @@ struct
     | _ ->
         compunit
 
-  let make ?config n mn0 compunit =
+  let make ?config type_name mn0 compunit =
     let dstate = Des.make_state ?config mn0 in
-    let compunit, id, name = make_ dstate n mn0 compunit in
+    let compunit, id, name = make_ dstate type_name mn0 compunit in
     (* If that Des uses a custom pointer then we need to return a wrapper.
      * the [local_des_for] name must not be that of the wrapper though, since
      * that's the name recursive calls will use. So in this case we need a
@@ -380,8 +381,9 @@ module Serialize (Ser : SER) :
 struct
   module Ser = Ser
 
-  let local_ser_for ~with_fieldmask n =
-    (if n = "t" then "" else n ^"-")^ string_of_type_method
+  let local_ser_for ~with_fieldmask type_name =
+    (if type_name = "t" then "" else type_name ^"-")^
+    string_of_type_method
       (if with_fieldmask then SerWithMask Ser.id else SerNoMask Ser.id)
 
   let rec svec dim mn ma sstate mn0 path v dst =
@@ -489,14 +491,14 @@ struct
       | CompTimeMask ->
           apply (type_method name (SerNoMask Ser.id)) [ v ; dst ])
 
-  and sthis n ma sstate mn0 path v dst =
+  and sthis type_name ma sstate mn0 path v dst =
     let f =
-      let mn = T.required (T.find_this n) in
+      let mn = T.required (T.find_this type_name) in
       if T.eq_mn mn mn0 then
         myself (T.sptr_of_enc Ser.id)
       else
         let with_fieldmask = ma <> CompTimeMask in
-        identifier (local_ser_for ~with_fieldmask n) in
+        identifier (local_ser_for ~with_fieldmask type_name) in
     (* Call ourself recursively *)
     Ser.sext (fun v dst ->
       apply f (
@@ -507,11 +509,11 @@ struct
 
   and ser1 sstate mn0 path mn v ma dst =
     let rec ser_of_vt = function
-      | T.TNamed (n, _) ->
+      | T.TNamed (type_name, _) ->
           (* assume this had been defined already with [make_ser_for_subtypes]: *)
-          sthis n ma
-      | TThis n -> sthis n ma
-      | TExt n -> sext n ma
+          sthis type_name ma
+      | TThis type_name -> sthis type_name ma
+      | TExt type_name -> sext type_name ma
       | TVoid -> svoid
       | TFloat -> Ser.sfloat
       | TString -> Ser.sstring
@@ -575,10 +577,10 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec serialize_ sstate ~with_fieldmask n mn0 compunit =
+  let rec serialize_ sstate ~with_fieldmask type_name mn0 compunit =
     (* Pretend first that this sersize is defined, so that mutually recursive
      * calls can type-check: *)
-    let name = local_ser_for ~with_fieldmask n in
+    let name = local_ser_for ~with_fieldmask type_name in
     let sptr = T.sptr_of_enc Ser.id in
     let mn =
       if with_fieldmask then
@@ -604,8 +606,8 @@ struct
     let make_ser_for_subtypes = make_ser_for_subtypes sstate ~with_fieldmask
     and serialize = serialize_ sstate ~with_fieldmask in
     function
-    | T.TNamed (n, t) ->
-        let compunit, _, _ = serialize n T.(required t) compunit in
+    | T.TNamed (type_name, t) ->
+        let compunit, _, _ = serialize type_name T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
@@ -627,9 +629,10 @@ struct
     | _ ->
         compunit
 
-  let serialize ?config ?(with_fieldmask=true) n mn0 compunit =
+  let serialize ?config ?(with_fieldmask=true) type_name mn0 compunit =
     let sstate = Ser.make_state ?config mn0 in
-    let compunit, id, name = serialize_ sstate ~with_fieldmask n mn0 compunit in
+    let compunit, id, name =
+      serialize_ sstate ~with_fieldmask type_name mn0 compunit in
     let wrapper =
       if with_fieldmask then
         func3 T.mask mn0 T.ptr (fun ma v dst ->
@@ -648,8 +651,9 @@ struct
    * Compute the sersize of a expression:
    *)
 
-  let local_ssize_for ~with_fieldmask n =
-    (if n = "t" then "" else n ^"-")^ string_of_type_method
+  let local_ssize_for ~with_fieldmask type_name =
+    (if type_name = "t" then "" else type_name ^"-")^
+    string_of_type_method
       (if with_fieldmask then SSizeWithMask Ser.id else SSizeNoMask Ser.id)
 
   let rec ssvec dim mn ma mn0 path v sz =
@@ -730,7 +734,8 @@ struct
               ~else_:(choose_cstr (i + 1)) in
         choose_cstr 0)
 
-  and ssvoid _ _ _ sz = sz
+  and ssvoid _mn0 _path v sz =
+    seq [ ignore_ v ; sz ]
 
   and ssext name ma _ _ v =
     match ma with
@@ -739,14 +744,14 @@ struct
     | CompTimeMask ->
         apply (type_method name (SSizeNoMask Ser.id)) [ v ]
 
-  and ssthis n ma mn0 _path v =
+  and ssthis type_name ma mn0 _path v =
     let f =
-      let mn = T.required (T.find_this n) in
+      let mn = T.required (T.find_this type_name) in
       if T.eq_mn mn mn0 then
         myself T.size
       else
         let with_fieldmask = ma <> CompTimeMask in
-        identifier (local_ssize_for ~with_fieldmask n) in
+        identifier (local_ssize_for ~with_fieldmask type_name) in
     apply f (
       match ma with
       | RunTimeMask ma -> [ ma ; v ]
@@ -756,9 +761,9 @@ struct
     let cumul ssizer mn0 path v sz =
       add sz (ssizer mn0 path v) in
     let rec ssz_of_vt = function
-      | T.TNamed (n, _)
-      | TThis n -> cumul (ssthis n ma)
-      | TExt n -> cumul (ssext n ma)
+      | T.TNamed (type_name, _)
+      | TThis type_name -> cumul (ssthis type_name ma)
+      | TExt type_name -> cumul (ssext type_name ma)
       | TVoid -> ssvoid
       | TFloat -> cumul Ser.ssize_of_float
       | TString -> cumul Ser.ssize_of_string
@@ -818,10 +823,10 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec sersize ?config ?(with_fieldmask=true) n mn0 compunit =
+  let rec sersize ?config ?(with_fieldmask=true) type_name mn0 compunit =
     (* Pretend first that this sersize is defined, so that mutually recursive
      * calls can type-check: *)
-    let name = local_ssize_for ~with_fieldmask n in
+    let name = local_ssize_for ~with_fieldmask type_name in
     let mn =
       if with_fieldmask then
         T.(func2 mask mn0 size)
@@ -843,11 +848,12 @@ struct
     U.add_identifier_of_expression compunit ~name expr
 
   and make_ssize_for_subtypes ?config ~with_fieldmask compunit =
-    let make_ssize_for_subtypes = make_ssize_for_subtypes ?config ~with_fieldmask
+    let make_ssize_for_subtypes =
+      make_ssize_for_subtypes ?config ~with_fieldmask
     and sersize = sersize ?config ~with_fieldmask in
     function
-    | T.TNamed (n, t) ->
-        let compunit, _, _ = sersize n T.(required t) compunit in
+    | T.TNamed (type_name, t) ->
+        let compunit, _, _ = sersize type_name T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
