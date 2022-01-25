@@ -856,7 +856,6 @@ struct
 
   let sum_opn mns lbl _conf mn0 path p =
     let p = write_field mn0 path p in
-    let p = write_u8 p (u8_of_const_char '{') in
     let s =
       StdLib.cases (
         Array.enum mns |>
@@ -865,8 +864,13 @@ struct
           string n) |>
         List.of_enum
       ) ~else_:(seq [ assert_ false_ ; string "" ]) in
-    let p = write_str p s in
-    write_u8 p (u8_of_const_char ':')
+    let no_value_cstrs = no_value_cstrs mn0 path in
+    if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
+      ~then_:(write_str p s)
+      ~else_:(
+        let p = write_u8 p (u8_of_const_char '{') in
+        let p = write_str p s in
+        write_u8 p (u8_of_const_char ':'))
 
   let sum_cls lbl _conf mn0 path p =
     let no_value_cstrs = no_value_cstrs mn0 path in
