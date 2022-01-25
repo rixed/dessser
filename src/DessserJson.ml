@@ -10,7 +10,13 @@ module T = DessserTypes
 module U = DessserCompilationUnit
 open E.Ops
 
-let debug_flag = true
+let debug_flag = false
+
+type json_config =
+  { newline : char option }
+
+let default_config =
+  { newline = None }
 
 (* The name of the game is to be able to skip any JSON value quickly to locate
  * field values: *)
@@ -43,7 +49,7 @@ let skip_number p =
   skip_while p (is_byte_in_string "0123456789+-eE.")
 
 let skip_1_char p c =
-  (* On debug_flag, check that the expected character is present: *)
+  (* On debug, check that the expected character is present: *)
   if debug_flag then
     let_ ~name:"skip_char_p" p (fun p ->
       seq [
@@ -398,7 +404,7 @@ let no_value_cstrs mn0 path =
   | _ ->
       assert false
 
-type config = unit
+type config = json_config
 
 (* For parsing JSON objects (as records), fields need to be reordered.
  * Therefore, when "opening" a record, all fields are located within the
@@ -407,12 +413,13 @@ type config = unit
  * All objects we are currently in form a stack of such objects. *)
 let frame_t = T.(tuple [| required (arr nptr) ; ptr |])
 
-module Des : DES with type config = config =
+module Des : DES with type config = json_config =
 struct
   let id = JSON
 
-  type config = unit
-  type state = unit
+  type config = json_config
+
+  type state = config
 
   let frame_push ptrs end_p stk =
     let frame = make_tup [ ptrs ; end_p ] in
@@ -451,19 +458,19 @@ struct
     | _ ->
         not_null p
 
-  let make_state ?(config=()) _mn = config
+  let make_state ?(config=default_config) _mn = config
 
   (* Pass the compunit to this function, so it can register its own stuff,
    * such as the skip function? *)
   let start _conf p =
     make_pair p (end_of_list frame_t)
 
-  let stop () p_stk =
+  let stop _conf p_stk =
     skip_blanks (first p_stk)
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
 
-  let with_p_stk f () mn0 path p_stk =
+  let with_p_stk f _conf mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       (* If we are currently decoding an object, the given [p] is not
        * where the value is. Instead, it is one of the already located
@@ -479,8 +486,8 @@ struct
       let_pair ~n1:"b" ~n2:"p" (parse_bytes p) (fun bytes p ->
         make_pair (parse_string bytes) (make_pair p stk)))
 
-  let dbytes () mn0 path p_stk =
-    let_pair ~n1:"v" ~n2:"p" (dstring () mn0 path p_stk) (fun v p ->
+  let dbytes conf mn0 path p_stk =
+    let_pair ~n1:"v" ~n2:"p" (dstring conf mn0 path p_stk) (fun v p ->
       make_pair (bytes_of_string v) p)
 
   let dbool : des =
@@ -529,7 +536,7 @@ struct
   let du128 = dnum u128_of_ptr
   let dfloat = dnum float_of_ptr
 
-  let dext f () mn0 path p_stk =
+  let dext f _conf mn0 path p_stk =
     (* Adapted from with_p_stk: *)
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let p_opt = locate_p mn0 path p stk in
@@ -545,7 +552,7 @@ struct
       make_pair p stk)
 
   (* Skip the character regardless of where the pointer is: *)
-  let skip_1 c () _mn0 _path p_stk =
+  let skip_1 c _conf _mn0 _path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let p = skip_char p c in
       make_pair p stk)
@@ -575,10 +582,10 @@ struct
       let_pair ~n1:"p" ~n2:"stop" ptrs_p (fun ptrs end_p ->
         make_pair end_p (frame_push ptrs end_p stk)))
 
-  let rec_sep () _mn0 _path p_stk =
+  let rec_sep _conf _mn0 _path p_stk =
     p_stk
 
-  let rec_cls () _mn0 _path p_stk =
+  let rec_cls _conf _mn0 _path p_stk =
     let stk = secnd p_stk in
     frame_pop stk
 
@@ -610,16 +617,16 @@ struct
               let p_stk = make_pair p stk in
               make_pair i p_stk))))
 
-  let sum_cls lbl () mn0 path p_stk =
+  let sum_cls lbl conf mn0 path p_stk =
     let_ ~name:"p_stk" p_stk (fun p_stk ->
       let no_value_cstrs = no_value_cstrs mn0 path in
       if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
         ~then_:p_stk
-        ~else_:(skip_1 '}' () mn0 path p_stk))
+        ~else_:(skip_1 '}' conf mn0 path p_stk))
 
-  let arr_opn () =
+  let arr_opn conf =
     UnknownSize (
-      (fun _mn -> skip_1_reloc '[' ()),
+      (fun _mn -> skip_1_reloc '[' conf),
       (fun _mn0 _path p_stk ->
         let p = first p_stk in
         let p = skip_blanks p in
@@ -629,14 +636,14 @@ struct
 
   let arr_sep = skip_1 ','
 
-  let is_present () mn0 path p_stk =
+  let is_present _conf mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
         not_ (is_null p_opt)))
 
   (* Note that even without a default value the value could be entirely
    * missing and be NULLs *)
-  let is_null () mn0 path p_stk =
+  let is_null _conf mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
         let res =
@@ -651,7 +658,7 @@ struct
             debug (string "is_null: ") ; debug res ; debug (char '\n') ;
             res ])))
 
-  let dnull _t () mn0 path p_stk =
+  let dnull _t _conf mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
         (* If the field is not even present, just do nothing: *)
@@ -666,25 +673,31 @@ struct
                 let p = ptr_add p (size 4) in
                 make_pair p stk ]))))
 
-  let dnotnull _t () _mn0 _path p_stk =
+  let dnotnull _t _conf _mn0 _path p_stk =
     p_stk
 end
 
 (* Compared to desserialization, serialization offers little sophistication,
  * as we are free to dump values in the order specified by the schema. *)
 
-module Ser : SER with type config = config =
+module Ser : SER with type config = json_config =
 struct
   let id = JSON
 
-  type config = unit
-  type state = unit
+  type config = json_config
 
-  let make_state ?(config=()) _mn = config
+  type state = config
+
+  let make_state ?(config=default_config) _mn = config
 
   let start _conf p = p
 
-  let stop () p = p
+  let stop conf p =
+    match conf.newline with
+    | None ->
+        p
+    | Some c ->
+        write_u8 p (u8_of_const_char c)
 
   type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
 
@@ -773,19 +786,19 @@ struct
         (* No need for a field name: *)
         p
 
-  let write_bytes_of to_bytes () mn0 path v p =
+  let write_bytes_of to_bytes _conf mn0 path v p =
     let p = write_field mn0 path p in
     write_bytes p (to_bytes v)
 
   let sfloat =
     write_bytes_of (bytes_of_string % decimal_string_of_float)
 
-  let sstring () mn0 path v p =
+  let sstring _conf mn0 path v p =
     let p = write_field mn0 path p in
     write_str p v
 
-  let sbytes () mn0 path v p =
-    sstring () mn0 path (string_of_bytes v) p
+  let sbytes conf mn0 path v p =
+    sstring conf mn0 path (string_of_bytes v) p
 
   let sbool =
     write_bytes_of
@@ -793,8 +806,8 @@ struct
         bytes_of_string (
           if_ v ~then_:(string "true") ~else_:(string "false")))
 
-  let schar () mn0 path v p =
-    sstring () mn0 path (string_of_char v) p
+  let schar conf mn0 path v p =
+    sstring conf mn0 path (string_of_char v) p
 
   let num =
     write_bytes_of (bytes_of_string % string_of_int_)
@@ -818,15 +831,15 @@ struct
   let su64 = num
   let su128 = num
 
-  let sext f () mn0 path v p =
+  let sext f _conf mn0 path v p =
     let p = write_field mn0 path p in
     f v p
 
-  let write_opn_chr c () mn0 path p =
+  let write_opn_chr c _conf mn0 path p =
     let p = write_field mn0 path p in
     write_u8 p (u8_of_const_char c)
 
-  let write_chr c () _mn0 _path p =
+  let write_chr c _conf _mn0 _path p =
     write_u8 p (u8_of_const_char c)
 
   let tup_opn _mns = write_opn_chr '['
@@ -841,7 +854,7 @@ struct
 
   let rec_sep = write_chr ','
 
-  let sum_opn mns lbl () mn0 path p =
+  let sum_opn mns lbl _conf mn0 path p =
     let p = write_field mn0 path p in
     let p = write_u8 p (u8_of_const_char '{') in
     let s =
@@ -855,7 +868,7 @@ struct
     let p = write_str p s in
     write_u8 p (u8_of_const_char ':')
 
-  let sum_cls lbl () mn0 path p =
+  let sum_cls lbl _conf mn0 path p =
     let no_value_cstrs = no_value_cstrs mn0 path in
     if_ (StdLib.is_in lbl T.u16 no_value_cstrs T.(required (arr u16)))
       ~then_:p
@@ -873,18 +886,18 @@ struct
 
   let arr_sep = write_chr ','
 
-  let nullable () _mn0 _path p = p
+  let nullable _conf _mn0 _path p = p
 
-  let snull _t () mn0 path p =
+  let snull _t _conf mn0 path p =
     (* TODO: when we have a field, then skip the 'null' altogether! *)
     let p = write_field mn0 path p in
     write_u32 BigEndian p (u32 (Uint32.of_int32 0x6e_75_6c_6cl))
 
-  let snotnull _t () _mn0 _path p = p
+  let snotnull _t _conf _mn0 _path p = p
 
   type ssizer = T.mn -> Path.t -> E.t -> E.t
 
-  let ssize_start ?(config=()) _mn0 =
+  let ssize_start ?(config=default_config) _mn0 =
     ignore config ;
     size 0
 
