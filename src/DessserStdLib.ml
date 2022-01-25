@@ -51,139 +51,164 @@ let repeat ~from ~to_ body =
 let random_i32 =
   to_i32 random_u32
 
-let rec random_lst mn =
-  let max_list_length = i32_of_int 8 in
-  let from = i32_of_int 0
-  and to_ =
-    force ~what:"random_lst rem"
-      (rem (add (i32_of_int 1) random_i32) max_list_length) in
-  let_ ~name:"lst" (make_ref (eol mn)) (fun lst_ref ->
-    let lst = get_ref lst_ref in
-    seq [
-      repeat ~from ~to_ (fun _n ->
-        set_ref lst_ref (cons (random mn) lst)) ;
-      lst ])
+(* Returns a random value of type [mn]. Behavior on TThis is configurable.
+ * Not meant to be used directly. See [random] and [func_random]. *)
+let random_gen handle_this mn0 =
+  let rec random_lst mn =
+    let max_list_length = i32_of_int 8 in
+    let from = i32_of_int 0
+    and to_ =
+      force ~what:"random_lst rem"
+        (rem (add (i32_of_int 1) random_i32) max_list_length) in
+    let_ ~name:"lst" (make_ref (eol mn)) (fun lst_ref ->
+      let lst = get_ref lst_ref in
+      seq [
+        repeat ~from ~to_ (fun _n ->
+          set_ref lst_ref (cons (random mn) lst)) ;
+        lst ])
+  and random mn =
+    if mn.T.nullable then
+      if_ (random T.bool)
+        ~then_:(null mn.typ)
+        ~else_:(not_null (random { mn with nullable = false }))
+    else match mn.typ with
+    | T.TUnknown ->
+        invalid_arg "random for unknown type"
+    | TNamed (_, t) ->
+        random T.(required t)
+    | TThis n ->
+        handle_this n
+    | TVoid ->
+        void
+    | TFloat ->
+        random_float
+    | TBool ->
+        eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
+    | TString ->
+        (* Just 5 random letters for now: *)
+        let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
+          let s = get_ref s_ref in
+          seq [
+            repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
+                let c = random T.char in
+                let s' = append_string s (string_of_char_ c) in
+                (set_ref s_ref s')) ;
+            s ])
+    | TChar ->
+        (* Just a random lowercase letter for now *)
+        (char_of_u8
+          (add (u8_of_char (char 'a'))
+               (force ~what:"random rem"
+                      (rem (random T.u8)
+                           (u8_of_int 26)))))
+    | TU8 ->
+        random_u8
+    | TU16 ->
+        to_u16 random_u32
+    | TU24 ->
+        to_u24 random_u32
+    | TU32 ->
+        random_u32
+    | TU40 ->
+        to_u40 random_u64
+    | TU48 ->
+        to_u48 random_u64
+    | TU56 ->
+        to_u56 random_u64
+    | TU64 ->
+        random_u64
+    | TU128 ->
+        random_u128
+    | TI8 ->
+        to_i8 random_u8
+    | TI16 ->
+        to_i16 random_u32
+    | TI24 ->
+        to_i24 random_u32
+    | TI32 ->
+        to_i32 random_u32
+    | TI40 ->
+        to_i40 random_u64
+    | TI48 ->
+        to_i48 random_u64
+    | TI56 ->
+        to_i56 random_u64
+    | TI64 ->
+        to_i64 random_u64
+    | TI128 ->
+        to_i128 random_u128
+    | TUsr ut ->
+        random T.(required ut.def)
+    | TExt n ->
+        invalid_arg ("random for Ext type "^ n)
+    | TVec (dim, mn) ->
+        List.init dim (fun _ -> random mn) |>
+        make_vec
+    | TArr mn ->
+        random_lst mn |>
+        arr_of_lst
+    | TSet (Simple, mn) ->
+        random_lst mn |>
+        set_of_lst
+    | TSet _ ->
+        todo "random for non simple sets"
+    | TTup mns ->
+        Array.map random mns |>
+        Array.to_list |>
+        make_tup
+    | TRec mns ->
+        Array.map (fun (name, mn) -> name, random mn) mns |>
+        Array.to_list |>
+        make_rec
+    | TSum mns ->
+        let num_options = Array.length mns in
+        assert (num_options > 0) ;
+        let index = rem (random T.u16) (u16_of_int num_options) in
+        let index = force ~what:"num_options>0" index in
+        let_ ~name:"index" index (fun index ->
+          let rec loop i =
+            let _label, mn = mns.(i) in
+            if i >= num_options - 1 then
+              seq [
+                assert_ (eq index (u16_of_int i)) ;
+                construct mns i (random mn) ]
+            else
+              if_ (eq index (u16_of_int i))
+                  ~then_:(construct mns i (random mn))
+                  ~else_:(loop (i + 1)) in
+          loop 0)
+    | TMap _ ->
+        invalid_arg "random for Map type"
+    | TSize | TPtr | TAddress | TBytes | TMask | TLst _ ->
+        todo "random"
+    | TFunction _ ->
+        todo "randomfunctions"
+  in
+  random mn0
 
 (* [random mn] returns an expression with a (runtime) random value of
- * maybe-nullable type [mn]: *)
-and random mn =
-  if mn.T.nullable then
-    if_ (random T.bool)
-      ~then_:(null mn.typ)
-      ~else_:(not_null (random { mn with nullable = false }))
-  else match mn.typ with
-  | T.TUnknown ->
-      invalid_arg "random for unknown type"
-  | TNamed (_, t) ->
-      random T.(required t)
-  | TThis n ->
-      let t = T.find_this n in
-      random T.(required t)
-  | TVoid ->
-      void
-  | TFloat ->
-      random_float
-  | TBool ->
-      eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
-  | TString ->
-      (* Just 5 random letters for now: *)
-      let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
-        let s = get_ref s_ref in
-        seq [
-          repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
-              let c = random T.char in
-              let s' = append_string s (string_of_char_ c) in
-              (set_ref s_ref s')) ;
-          s ])
-  | TChar ->
-      (* Just a random lowercase letter for now *)
-      (char_of_u8
-        (add (u8_of_char (char 'a'))
-             (force ~what:"random rem"
-                    (rem (random T.u8)
-                         (u8_of_int 26)))))
-  | TU8 ->
-      random_u8
-  | TU16 ->
-      to_u16 random_u32
-  | TU24 ->
-      to_u24 random_u32
-  | TU32 ->
-      random_u32
-  | TU40 ->
-      to_u40 random_u64
-  | TU48 ->
-      to_u48 random_u64
-  | TU56 ->
-      to_u56 random_u64
-  | TU64 ->
-      random_u64
-  | TU128 ->
-      random_u128
-  | TI8 ->
-      to_i8 random_u8
-  | TI16 ->
-      to_i16 random_u32
-  | TI24 ->
-      to_i24 random_u32
-  | TI32 ->
-      to_i32 random_u32
-  | TI40 ->
-      to_i40 random_u64
-  | TI48 ->
-      to_i48 random_u64
-  | TI56 ->
-      to_i56 random_u64
-  | TI64 ->
-      to_i64 random_u64
-  | TI128 ->
-      to_i128 random_u128
-  | TUsr ut ->
-      random T.(required ut.def)
-  | TExt n ->
-      invalid_arg ("random for Ext type "^ n)
-  | TVec (dim, mn) ->
-      List.init dim (fun _ -> random mn) |>
-      make_vec
-  | TArr mn ->
-      random_lst mn |>
-      arr_of_lst
-  | TSet (Simple, mn) ->
-      random_lst mn |>
-      set_of_lst
-  | TSet _ ->
-      todo "random for non simple sets"
-  | TTup mns ->
-      Array.map random mns |>
-      Array.to_list |>
-      make_tup
-  | TRec mns ->
-      Array.map (fun (name, mn) -> name, random mn) mns |>
-      Array.to_list |>
-      make_rec
-  | TSum mns ->
-      let num_options = Array.length mns in
-      assert (num_options > 0) ;
-      let index = rem (random T.u16) (u16_of_int num_options) in
-      let index = force ~what:"num_options>0" index in
-      let_ ~name:"index" index (fun index ->
-        let rec loop i =
-          let _label, mn = mns.(i) in
-          if i >= num_options - 1 then
-            seq [
-              assert_ (eq index (u16_of_int i)) ;
-              construct mns i (random mn) ]
-          else
-            if_ (eq index (u16_of_int i))
-                ~then_:(construct mns i (random mn))
-                ~else_:(loop (i + 1)) in
-        loop 0)
-  | TMap _ ->
-      invalid_arg "random for Map type"
-  | TSize | TPtr | TAddress | TBytes | TMask | TLst _ ->
-      todo "random"
-  | TFunction _ ->
-      todo "randomfunctions"
+ * maybe-nullable type [mn]. No support for recursive types (but see
+ * [func_random]) *)
+let random mn =
+  let rec handle_this n =
+    let mn = T.(required (find_this n)) in
+    (* Will blow the stack on recursive types: *)
+    random_gen handle_this mn in
+  random_gen handle_this mn
+
+(* [func_random mn] generates a function taking no parameters and returning
+ * a random value of type [mn]. Support recursive types. *)
+let func_random mn0 =
+  let rec handle_this n =
+    let mn = T.(required (find_this n)) in
+    if T.eq_mn mn mn0 then
+      (* Call myself recursively: *)
+      apply (myself mn0) []
+    else
+      (* Will blow the stack on mutually recursive types: *)
+      random_gen handle_this mn in
+  func0 (fun () ->
+    random_gen handle_this mn0)
 
 (*
  * Kahan sums for better accuracy when summing large number of floats:
