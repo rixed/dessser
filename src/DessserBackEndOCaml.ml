@@ -68,6 +68,9 @@ struct
     let dirname, basename =
       try String.rsplit ~by:"/" n
       with Not_found -> "", n in
+    let basename, extension =
+      try String.rsplit ~by:"." basename
+      with Not_found -> basename, "" in
     let basename =
       if basename = "" then "f" else
       String.mapi (fun i c ->
@@ -79,7 +82,9 @@ struct
           )
         then c else '_'
       ) basename in
-    (if dirname <> "" then dirname ^ "/" else "") ^ basename
+    (if dirname <> "" then dirname ^ "/" else "") ^
+    basename ^
+    (if extension <> "" then "." ^ extension else "")
 
   let preferred_def_extension = "ml"
 
