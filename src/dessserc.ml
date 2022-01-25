@@ -128,10 +128,10 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     List.fold_left (fun compunit with_fieldmask ->
       let compunit, sersize, _ =
         (* Compute the serialization size of a heap value: *)
-        OfValue.sersize ~with_fieldmask "t" schema compunit in
+        OfValue.sersize ~with_fieldmask schema compunit in
       let compunit, ser, _ =
         (* Convert from a heapvalue into encoding_out. *)
-        OfValue.serialize ~with_fieldmask "t" schema compunit in
+        OfValue.serialize ~with_fieldmask schema compunit in
       if !debug then (
         ignore (TC.type_check (U.environment compunit) sersize) ;
         ignore (TC.type_check (U.environment compunit) ser)) ;
@@ -323,7 +323,8 @@ let aggregator
    * in the given encoding: *)
   let module Ser = (val (ser_of_encoding encoding_out) : SER) in
   let module OfValue = DessserHeapValue.Serialize (Ser) in
-  let compunit, ser, _ = OfValue.serialize "output_t" output_t compunit in
+  let compunit, ser, _ =
+    OfValue.serialize ~type_name:"output_t" output_t compunit in
   (* Let's now assemble all this into just three functions:
    * - init_expr, that we already have;
    * - input_expr, that deserialize and then update and return the new source

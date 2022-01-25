@@ -359,7 +359,7 @@ sig
     ?config:Ser.config ->
     ?with_fieldmask:bool ->
     (* Type name as in TThis: *)
-    string ->
+    ?type_name:string ->
     T.mn ->
     U.t ->
     (* Same output type than U.add_identifier_of_expression: *)
@@ -369,7 +369,7 @@ sig
     ?config:Ser.config ->
     ?with_fieldmask:bool ->
     (* Type name as in TThis: *)
-    string ->
+    ?type_name:string ->
     T.mn ->
     U.t ->
     (* Same output type than U.add_identifier_of_expression: *)
@@ -629,7 +629,7 @@ struct
     | _ ->
         compunit
 
-  let serialize ?config ?(with_fieldmask=true) type_name mn0 compunit =
+  let serialize ?config ?(with_fieldmask=true) ?(type_name="t") mn0 compunit =
     let sstate = Ser.make_state ?config mn0 in
     let compunit, id, name =
       serialize_ sstate ~with_fieldmask type_name mn0 compunit in
@@ -823,7 +823,7 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec sersize ?config ?(with_fieldmask=true) type_name mn0 compunit =
+  let rec sersize ?config ?(with_fieldmask=true) ?(type_name="t") mn0 compunit =
     (* Pretend first that this sersize is defined, so that mutually recursive
      * calls can type-check: *)
     let name = local_ssize_for ~with_fieldmask type_name in
@@ -853,7 +853,7 @@ struct
     and sersize = sersize ?config ~with_fieldmask in
     function
     | T.TNamed (type_name, t) ->
-        let compunit, _, _ = sersize type_name T.(required t) compunit in
+        let compunit, _, _ = sersize ~type_name T.(required t) compunit in
         compunit
         (* No further recursion needed since [make] have added subtypes
          * already *)
