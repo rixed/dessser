@@ -382,14 +382,10 @@ struct
 
   let is_null _conf _ _ p =
     (* null *)
-    and_ (and_ (eq (peek_u8 p (size 0)) (u8_of_int 0x6e))
-               (and_ (eq (peek_u8 p (size 1)) (u8_of_int 0x75))
-                     (and_ (eq (peek_u8 p (size 2)) (u8_of_int 0x6c))
-                           (eq (peek_u8 p (size 3)) (u8_of_int 0x6c)))))
-         (or_ (eq (rem_size p) (size 4))
-              (let_ ~name:"b" (peek_u8 p (size 4)) (fun b ->
-                or_ (eq b (u8_of_const_char ' '))
-                    (eq b (u8_of_const_char ')')))))
+    (and_ (eq (peek_u8 p (size 0)) (u8_of_int 0x6e))
+          (and_ (eq (peek_u8 p (size 1)) (u8_of_int 0x75))
+                (and_ (eq (peek_u8 p (size 2)) (u8_of_int 0x6c))
+                      (eq (peek_u8 p (size 3)) (u8_of_int 0x6c)))))
 
   let dnull _t _conf _ _ p = skip 4 p
 
