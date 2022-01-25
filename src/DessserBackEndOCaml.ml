@@ -64,16 +64,22 @@ struct
   let id = OCaml
 
   let valid_source_name n =
-    if n = "" then "f" else
-    String.mapi (fun i c ->
-      if c >= 'a' && c <= 'z' ||
-         c >= 'A' && c <= 'Z' ||
-         i > 0 && (
-           c >= '0' && c <= '9' ||
-           c = '_'
-        )
-      then c else '_'
-    ) n
+    (* FIXME: batFilename.split *)
+    let dirname, basename =
+      try String.rsplit ~by:"/" n
+      with Not_found -> "", n in
+    let basename =
+      if basename = "" then "f" else
+      String.mapi (fun i c ->
+        if c >= 'a' && c <= 'z' ||
+           c >= 'A' && c <= 'Z' ||
+           i > 0 && (
+             c >= '0' && c <= '9' ||
+             c = '_'
+          )
+        then c else '_'
+      ) basename in
+    (if dirname <> "" then dirname ^ "/" else "") ^ basename
 
   let preferred_def_extension = "ml"
 
