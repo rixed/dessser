@@ -485,7 +485,6 @@ JSON_TESTS = \
   tests/json/empty-object.type \
   tests/json/deadloop_non_reg.type
 
-# TODO: OCaml and C++
 json-check: src/dessserc $(JSON_TESTS)
 	@set -e ;\
 	for be in OCaml C++; do \

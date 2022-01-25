@@ -905,7 +905,8 @@ struct
               p.P.indent n1 m1 ;
             pp oc "%slet n_, o_ = %s.of_substring ~pos:(snd %s) s_ in\n"
               p.P.indent m n1 ;
-            pp oc "%sassert (o_ > snd %s) ;\n" p.P.indent n1 ;
+            pp oc "%sassert (o_ > snd %s) ; (* must read at least 1 char *)\n"
+              p.P.indent n1 ;
             pp oc "%sn_, %s.skip %s (o_ - snd %s)" p.P.indent m1 n1 n1))
     | E1 (FloatOfU64, e1) ->
         let n = print p l e1 in

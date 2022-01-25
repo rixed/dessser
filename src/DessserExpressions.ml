@@ -1820,7 +1820,7 @@ struct
 
   let tail e = T.E1 (Tail, e)
 
-  let rec if_ cond ~then_ ~else_ = T.E3 (If, cond, then_, else_)
+  let if_ cond ~then_ ~else_ = T.E3 (If, cond, then_, else_)
 
   let if_null d ~then_ ~else_ = if_ (is_null d) ~then_ ~else_
 
