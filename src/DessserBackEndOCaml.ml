@@ -1351,8 +1351,12 @@ struct
                 E.add_local n2 t2 in
         print ?name p l e2
     | E1 (Function [||], e1) ->
-        emit ?name p l e (fun oc ->
+        let name = gen_sym ?name "fun" in
+        emit ?name:(Some name) p l e (fun oc ->
           pp oc "(fun () ->\n" ;
+          (* Pick the name here so we can add it to the environment, where it
+           * can later be found by Myself: *)
+          let l = E.enter_function ~name ~ts:[||] l in
           P.indent_more p (fun () ->
             let n = print p l e1 in
             pp oc "%s%s)" p.P.indent n))
