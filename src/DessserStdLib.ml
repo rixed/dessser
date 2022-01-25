@@ -161,8 +161,23 @@ and random mn =
       Array.map (fun (name, mn) -> name, random mn) mns |>
       Array.to_list |>
       make_rec
-  | TSum _mns ->
-      todo "random for sum types"
+  | TSum mns ->
+      let num_options = Array.length mns in
+      assert (num_options > 0) ;
+      let index = rem (random T.u16) (u16_of_int num_options) in
+      let index = force ~what:"num_options>0" index in
+      let_ ~name:"index" index (fun index ->
+        let rec loop i =
+          let _label, mn = mns.(i) in
+          if i >= num_options - 1 then
+            seq [
+              assert_ (eq index (u16_of_int i)) ;
+              construct mns i (random mn) ]
+          else
+            if_ (eq index (u16_of_int i))
+                ~then_:(construct mns i (random mn))
+                ~else_:(loop (i + 1)) in
+        loop 0)
   | TMap _ ->
       invalid_arg "random for Map type"
   | TSize | TPtr | TAddress | TBytes | TMask | TLst _ ->
