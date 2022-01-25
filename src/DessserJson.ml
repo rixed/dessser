@@ -708,37 +708,37 @@ struct
       let p = get_ref p_ref in
       seq [
         for_each ~name:"write_str_c" v (fun c ->
-          if_ (or_ (lt c (char ' ')) (gt c (char '~')))
-            ~then_:(
-              (* Here any non ascii is going to be encoded as a 8 bits
-               * UTF2. TODO: decode multichars as UTF8. *)
-              let p = escape p in
-              let p = write_u8 p (u8_of_const_char 'u') in
-              let p = write_u8 p (u8_of_const_char '0') in
-              let p = write_u8 p (u8_of_const_char '0') in
-              let p = write_u8 p (StdLib.hex_digit_of_u8
-                           (right_shift (u8_of_char c) (u8_of_int 4))) in
-              let p = write_u8 p
-                        (StdLib.hex_digit_of_u8
-                          (bit_and (u8_of_char c) (u8_of_int 15))) in
-              set_ref p_ref p)
-            ~else_:(
-              let escape_char c =
+          let escape_char c =
+            let p = escape p in
+            write_u8 p (u8_of_char c) in
+          let p =
+            StdLib.cases [
+              eq c (char '\b'), escape_char (char 'b') ;
+              eq c (char '\012'), escape_char (char 'f') ;
+              eq c (char '\n'), escape_char (char 'n') ;
+              eq c (char '\r'), escape_char (char 'r') ;
+              eq c (char '\t'), escape_char (char 't') ;
+              or_ (lt c (char ' ')) (gt c (char '~')), (
+                (* Here any non ascii is going to be encoded as a 8 bits
+                 * UTF2. TODO: decode multichars as UTF8. *)
                 let p = escape p in
-                write_u8 p (u8_of_char c) in
-              let p =
-                StdLib.cases [
-                  or_ (eq c (char '"'))
-                      (or_ (eq c (char '\\'))
-                           (* This one sacrificed to gods it seems: *)
-                           (eq c (char '/'))), escape_char c ;
-                  eq c (char '\b'), escape_char (char 'b') ;
-                  eq c (char '\012'), escape_char (char 'f') ;
-                  eq c (char '\n'), escape_char (char 'n') ;
-                  eq c (char '\r'), escape_char (char 'r') ;
-                  eq c (char '\t'), escape_char (char 't') ;
-                ] ~else_:(write_u8 p (u8_of_char c)) in
-              set_ref p_ref p)) ;
+                let p = write_u8 p (u8_of_const_char 'u') in
+                let p = write_u8 p (u8_of_const_char '0') in
+                let p = write_u8 p (u8_of_const_char '0') in
+                let p = write_u8 p (StdLib.hex_digit_of_u8
+                             (right_shift (u8_of_char c) (u8_of_int 4))) in
+                let p = write_u8 p
+                          (StdLib.hex_digit_of_u8
+                            (bit_and (u8_of_char c) (u8_of_int 15))) in
+                p) ]
+            ~else_:(
+              if_ (or_ (eq c (char '"'))
+                       (or_ (eq c (char '\\'))
+                            (* This one sacrificed to gods it seems: *)
+                            (eq c (char '/'))))
+                ~then_:(escape_char c)
+                ~else_:(write_u8 p (u8_of_char c))) in
+          set_ref p_ref p) ;
         write_u8 p (u8_of_const_char '"') ])
 
   let json_string s =
