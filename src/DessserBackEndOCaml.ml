@@ -1597,7 +1597,7 @@ struct
         emit ?name p l e (fun oc ->
           pp oc "Array.init %d (fun i_ -> %s.(i_ + %d))" len n1 o)
     | E1 (Convert _, _)
-    | E1S (CopyRec, _, _)
+    | E1S ((CopyRec | CopyTup), _, _)
     | E2 (NullMap _, _, _) ->
         assert false (* because of type checking *)
     | E2 (SplitBy, e1, e2) ->

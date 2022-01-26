@@ -556,3 +556,15 @@ let copy_rec l ?(with_=[]) r =
         BatList.of_enum)
   | _ ->
       invalid_arg "copy_rec"
+
+(* Same as [copy_rec] with for tuples, with [with_] referring to item indices
+ * with integers instead of field names: *)
+let copy_tup l ?(with_=[]) r =
+  match E.type_of l r |> T.develop1 with
+  | { typ = T.TTup mns ; nullable = false } ->
+      make_tup (
+        List.init (Array.length mns) (fun i ->
+          try List.assoc i with_
+          with Not_found -> get_item i r))
+  | _ ->
+      invalid_arg "copy_tup"

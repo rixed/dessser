@@ -850,7 +850,7 @@ let rec peval l e =
           (* In case we have no constant function (an identifier then) there is
            * nothing to simplify in the body: *)
           E1S (Apply, e1, es))
-  | E1S (CopyRec, _, _) ->
+  | E1S ((CopyRec | CopyTup), _, _) ->
       assert false (* Because of type_checking *)
 (*  Unused for now since the only E1S is Apply:
   | E1S (op, e1, es) ->

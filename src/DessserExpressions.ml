@@ -101,7 +101,7 @@ let rec can_precompute ?(has_function_body=false) i = function
       false
   | E1 (_, e) -> can_precompute ~has_function_body i e
   | E1S (Apply, E1 (Function _, e1), e2s)
-  | E1S (CopyRec, e1, e2s) ->
+  | E1S ((CopyRec | CopyTup), e1, e2s) ->
       List.for_all (can_precompute ~has_function_body i) e2s &&
       can_precompute ~has_function_body:true i e1
   | E1S (Apply, _, _) ->
@@ -636,6 +636,19 @@ and type_of l e0 =
               | new_val -> type_of l new_val
             ) mns in
           { mn with typ = TRec mns' }
+      | t -> raise (Type_error (e0, r, t, "be a record")))
+  | E1S (CopyTup, r, with_) ->
+      (match type_of l r |> T.develop1 with
+      | T. { typ = TTup mns ; nullable = false ; _ } as mn ->
+          let mns' =
+            Array.mapi (fun i mn ->
+              match list_find_after (fun e ->
+                      to_cst_int e = i
+                    ) with_ with
+              | exception Not_found -> mn
+              | new_val -> type_of l new_val
+            ) mns in
+          { mn with typ = TTup mns' }
       | t -> raise (Type_error (e0, r, t, "be a record")))
   | E1 (GetItem n, E0S (MakeTup, es)) -> (* Shortcut: *)
       check_get_item n (List.length es) ;
@@ -1947,6 +1960,8 @@ struct
   let apply f es = T.E1S (Apply, f, es)
 
   let copy_rec ~with_ e = T.E1S (CopyRec, e, with_)
+
+  let copy_tup ~with_ e = T.E1S (CopyTup, e, with_)
 
   let while_ cond ~do_ = T.E2 (While, cond, do_)
 

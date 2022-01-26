@@ -1018,6 +1018,7 @@ and e =
   (* e1s *)
   | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
   | Lst (Sym "copy-rec" :: x1 :: xs) -> E1S (CopyRec, e x1, List.map e xs)
+  | Lst (Sym "copy-tup" :: x1 :: xs) -> E1S (CopyTup, e x1, List.map e xs)
   (* e2 *)
   | Lst [ Sym "let" ; Str n ; x1 ; x2 ] ->
       E2 (Let (n, ref None), e x1, e x2)

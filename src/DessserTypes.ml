@@ -366,6 +366,8 @@ and e1s =
    * Like Convert it is actually replaced during type-checking by a call to
    * StdLib.copy_rec. *)
   | CopyRec
+  (* Same as CopyRec but for tuples: *)
+  | CopyTup
 
 and memo_mn = mn option ref
 
@@ -589,6 +591,7 @@ and string_of_e0r = function
 and string_of_e1s = function
   | Apply -> "apply"
   | CopyRec -> "copy-rec"
+  | CopyTup -> "copy-tup"
 
 and string_of_e1 = function
   | Function typs ->
