@@ -1761,8 +1761,10 @@ let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
 (* Compile and dynload the given compunit.
  * The compunit should do something on its own to register something
  * to the main program, as usual with Dynlink. *)
-let compile_and_load ?optim ?extra_search_paths compunit =
+let compile_and_load
+      ?dev_mode ?extra_search_paths ?optim ?keep_temp_files compunit =
   let dest_fname =
-    compile ?optim ?extra_search_paths ~link:SharedObject compunit in
+    compile ?dev_mode ?extra_search_paths ?optim ~link:SharedObject
+            ?keep_temp_files compunit in
   (* Dynload dest_fname *)
   Dynlink.loadfile dest_fname
