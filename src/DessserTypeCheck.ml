@@ -4,6 +4,7 @@ open Stdint
 module E = DessserExpressions
 module C = DessserConversions
 module T = DessserTypes
+module L = DessserStdLib
 
 (*$inject
   open Stdint
@@ -126,6 +127,20 @@ let rec type_check l =
         let from = E.type_of l e1 in
         let res = C.conv_mn ~from ~to_ e1 in
         type_check l res
+    (* Similarly, CopyRec is expanded using the StdLib: *)
+    | E1S (CopyRec, r, es) ->
+        let rec with_ =
+          let rec loop w = function
+            | [] ->
+                List.rev w
+            | [ _ ] ->
+                raise (E.Struct_error (e0, "overwritten field list must \
+                                            be even"))
+            | n :: v :: rest ->
+                loop ((E.field_name_of_expr n, v) :: w) rest in
+          loop [] es in
+        let res = L.copy_rec l ~with_ r in
+        type_check l res
     | E2 (NullMap (n, r), x, body) ->
         let res =
           let open E.Ops in
@@ -143,6 +158,7 @@ let rec type_check l =
     | e0 ->
         (match e0 with
         | E1 (Convert _, _)
+        | E1S (CopyRec, _, _)
         | E2 (NullMap _, _, _) ->
             assert false (* Handled right above *)
         | E0 (Null _ | Myself _ | EndOfList _ | EmptySet _ | Now

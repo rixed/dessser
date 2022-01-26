@@ -100,9 +100,10 @@ let rec can_precompute ?(has_function_body=false) i = function
   | E1 ((Dump | Assert | MaskGet _), _) ->
       false
   | E1 (_, e) -> can_precompute ~has_function_body i e
-  | E1S (Apply, E1 (Function _, body), e2s) ->
+  | E1S (Apply, E1 (Function _, e1), e2s)
+  | E1S (CopyRec, e1, e2s) ->
       List.for_all (can_precompute ~has_function_body i) e2s &&
-      can_precompute ~has_function_body:true i body
+      can_precompute ~has_function_body:true i e1
   | E1S (Apply, _, _) ->
       false
   | E2 (Let (n, _), e1, e2) ->
@@ -622,6 +623,20 @@ and type_of l e0 =
       (match type_of l f with
       | T.{ typ = TFunction (_, mn) ; nullable = false ; _ } -> mn
       | t -> raise (Type_error (e0, f, t, "be a function")))
+  | E1S (CopyRec, r, with_) ->
+      (match type_of l r |> T.develop1 with
+      | T. { typ = TRec mns ; nullable = false ; _ } as mn ->
+          let mns' =
+            Array.map (fun (name, mn) ->
+              name,
+              match list_find_after (fun e ->
+                      field_name_of_expr e = name
+                    ) with_ with
+              | exception Not_found -> mn
+              | new_val -> type_of l new_val
+            ) mns in
+          { mn with typ = TRec mns' }
+      | t -> raise (Type_error (e0, r, t, "be a record")))
   | E1 (GetItem n, E0S (MakeTup, es)) -> (* Shortcut: *)
       check_get_item n (List.length es) ;
       type_of l (List.nth es n)
@@ -1930,6 +1945,8 @@ struct
   let void = nop
 
   let apply f es = T.E1S (Apply, f, es)
+
+  let copy_rec ~with_ e = T.E1S (CopyRec, e, with_)
 
   let while_ cond ~do_ = T.E2 (While, cond, do_)
 

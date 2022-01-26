@@ -362,6 +362,10 @@ and e1 =
 
 and e1s =
   | Apply
+  (* Make a shallow copy of an existing array but for some fields.
+   * Like Convert it is actually replaced during type-checking by a call to
+   * StdLib.copy_rec. *)
+  | CopyRec
 
 and memo_mn = mn option ref
 
@@ -584,6 +588,7 @@ and string_of_e0r = function
 
 and string_of_e1s = function
   | Apply -> "apply"
+  | CopyRec -> "copy-rec"
 
 and string_of_e1 = function
   | Function typs ->

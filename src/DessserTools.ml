@@ -111,6 +111,11 @@ let rec list_last = function
   | x :: [] -> x
   | _ :: rest -> list_last rest
 
+let rec list_find_after f = function
+  | [] | [ _ ] -> raise Not_found
+  | x :: n :: _ when f x -> n
+  | _ :: _ :: rest -> list_find_after f rest
+
 let assoc_merge l1 l2 =
   let rec loop l = function
     | [] -> l

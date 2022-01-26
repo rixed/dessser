@@ -539,3 +539,20 @@ let check_byte p c =
                 dump (char '\n') ;
                 assert_ false_ ])
         ~else_:nop))
+
+(* [copy_rec ~with_:["field1", val1 ; ... ] r] will make a shallow copy of r1,
+ * replacing named fields's value by other values (not necessarily of the same
+ * types. Meant to compensate somewhat for the immutability of records. *)
+let copy_rec l ?(with_=[]) r =
+  match E.type_of l r |> T.develop1 with
+  | { typ = T.TRec mns ; nullable = false } ->
+      make_rec (
+        BatArray.enum mns |>
+        BatEnum.map (fun (name, _mn) ->
+          name,
+          try List.assoc name with_
+          with Not_found -> get_field name r
+        ) |>
+        BatList.of_enum)
+  | _ ->
+      invalid_arg "copy_rec"
