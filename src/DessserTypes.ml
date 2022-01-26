@@ -1032,14 +1032,6 @@ let rec develop = function
 and develop_mn mn =
   { mn with typ = develop mn.typ }
 
-(* This develop user types at first level (ie. excluding sub-branches but
- * including when a user type is implemented with another): *)
-let rec develop1 = function
-  | { typ = TUsr { def ; _ } ; nullable ; default } ->
-      develop1 ({ typ = def ; nullable ; default })
-  | t ->
-      t
-
 (* Top-down folding of a type: *)
 (* FIXME: either consider Usr types as opaque and stop the recursion, or as
  * transparent and do not call [f] on Usr: *)
@@ -1084,12 +1076,6 @@ exception Redefined_type of string
 
 let these = ref []
 
-let find_this n =
-  try
-    List.assoc n !these
-  with Not_found ->
-    raise (Unbound_type n)
-
 let () =
   Printexc.register_printer (function
     | Unbound_type n ->
@@ -1102,6 +1088,36 @@ let () =
           Printf.sprintf "Type %S can be defined only once" n)
     | _ ->
         None)
+
+let find_this n =
+  try
+    List.assoc n !these
+  with Not_found ->
+    raise (Unbound_type n)
+
+(* In some places "this" cannot be accepted or it would loop around without
+ * performing any work at all, and must be unrolled once. This convenience
+ * function does just that: *)
+let develop_this = function
+  | TThis t -> find_this t
+  | t -> t
+
+let develop_this_mn = function
+  | { typ = TThis t ; _ } as mn ->
+      { mn with typ = find_this t }
+  | mn ->
+      mn
+
+(* This develop user types and "this" at first level until the actual type
+ * appears (ie. excluding sub-branches but including when a user type is
+ * implemented with another): *)
+let rec develop1 = function
+  | { typ = TUsr { def ; _ } ; _ } as mn ->
+      develop1 { mn with typ = def }
+  | { typ = TThis t ; _ } as mn ->
+      develop1 { mn with typ = find_this t }
+  | t ->
+      t
 
 (* We need types featuring `this`, that can come with various degrees of
  * unfolding, to all look equal.

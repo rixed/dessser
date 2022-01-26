@@ -667,6 +667,7 @@ struct
    * Since this very function is never called recursively it is OK that it takes
    * regular pointers. *)
   let desser ?ser_config ?des_config mn0 ?transform src dst =
+    let mn0 = T.develop_this_mn mn0 in
     let no_transform _mn0 _path v = v in
     let transform = transform |? no_transform in
 (*

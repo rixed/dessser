@@ -199,6 +199,9 @@ let random mn =
 (* [func_random mn] generates a function taking no parameters and returning
  * a random value of type [mn]. Support recursive types. *)
 let func_random mn0 =
+  (* "this" is not allowed as the tope level or this would just loop around
+   * without doing any work: *)
+  let mn0 = T.develop_this_mn mn0 in
   let rec handle_this n =
     let mn = T.(required (find_this n)) in
     if T.eq_mn mn mn0 then

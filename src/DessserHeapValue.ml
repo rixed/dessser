@@ -328,6 +328,7 @@ struct
         compunit
 
   let make ?config type_name mn0 compunit =
+    let mn0 = T.develop_this_mn mn0 in
     let dstate = Des.make_state ?config mn0 in
     let compunit, id, name = make_ dstate type_name mn0 compunit in
     (* If that Des uses a custom pointer then we need to return a wrapper.
@@ -630,6 +631,7 @@ struct
         compunit
 
   let serialize ?config ?(with_fieldmask=true) ?(type_name="t") mn0 compunit =
+    let mn0 = T.develop_this_mn mn0 in
     let sstate = Ser.make_state ?config mn0 in
     let compunit, id, name =
       serialize_ sstate ~with_fieldmask type_name mn0 compunit in
@@ -823,7 +825,7 @@ struct
     | CompTimeMask ->
         on_copy
 
-  let rec sersize ?config ?(with_fieldmask=true) ?(type_name="t") mn0 compunit =
+  let rec sersize_ ?config ?(with_fieldmask=true) ?(type_name="t") mn0 compunit =
     (* Pretend first that this sersize is defined, so that mutually recursive
      * calls can type-check: *)
     let name = local_ssize_for ~with_fieldmask type_name in
@@ -850,7 +852,7 @@ struct
   and make_ssize_for_subtypes ?config ~with_fieldmask compunit =
     let make_ssize_for_subtypes =
       make_ssize_for_subtypes ?config ~with_fieldmask
-    and sersize = sersize ?config ~with_fieldmask in
+    and sersize = sersize_ ?config ~with_fieldmask in
     function
     | T.TNamed (type_name, t) ->
         let compunit, _, _ = sersize ~type_name T.(required t) compunit in
@@ -874,4 +876,8 @@ struct
         make_ssize_for_subtypes compunit vt.T.typ
     | _ ->
         compunit
+
+  let sersize ?config ?with_fieldmask ?type_name mn0 compunit =
+    let mn0 = T.develop_this_mn mn0 in
+    sersize_ ?config ?with_fieldmask ?type_name mn0 compunit
 end

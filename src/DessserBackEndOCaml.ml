@@ -45,7 +45,6 @@ let let_of ~recurs ~rec_seq =
 (* When [get_field_name] is not initialized, the default is to always prefix
  * with a hash of the type: *)
 let default_get_field_name n t =
-  let t = T.develop t in
   valid_module_name T.(uniq_id t) ^"_"^ n
 
 let get_field_name = ref default_get_field_name
@@ -54,9 +53,16 @@ let init mn =
   get_field_name := make_get_field_name mn
 
 let uniq_field_name vt n =
+  (* To build the field name we need the properly developed type, ie:
+   * - user types must be fully developed (because we want the same underlying
+   * types than for their definitions)
+   * - this must be developed at top level *)
+  let vt = T.develop_this vt |> T.develop in
   valid_identifier (!get_field_name n vt)
 
 let uniq_cstr_name vt n =
+  (* See [uniq_field_name about developing that type *)
+  let vt = T.develop_this vt |> T.develop in
   valid_upper_identifier (!get_field_name n vt)
 
 module Config =
@@ -1480,12 +1486,12 @@ struct
         res
     | E1 (GetField s, e1) ->
         let n1 = print p l e1 in
-        let mn = E.type_of l e1 |> T.develop_mn in
+        let mn = E.type_of l e1 in
         emit ?name p l e (fun oc ->
           Printf.fprintf oc "%s.%s" n1 (uniq_field_name mn.typ s))
     | E1 (GetAlt s, e1) ->
         let n1 = print p l e1 in
-        let mn = E.type_of l e1 |> T.develop_mn in
+        let mn = E.type_of l e1 in
         emit ?name p l e (fun oc ->
           let cstr = uniq_cstr_name mn.typ s in
           (* FIXME: figure out where to add this whether the expression is a
