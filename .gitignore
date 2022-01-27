@@ -79,6 +79,7 @@ tests/json/not_an_object
 tests/json/nullable_array
 tests/json/simple_object
 tests/json/deadloop_non_reg
+tests/json/sum
 *.dSYM
 src/all_tests.ml
 testdb_dump
