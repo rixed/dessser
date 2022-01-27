@@ -45,6 +45,9 @@ let print_sexpr oc =
         Printf.fprintf oc ")" in
   loop "" "" oc
 
+let string_of_sexpr s =
+  IO.to_string print_sexpr s
+
 (* Returns both the tokens and the number of characters read from [str]: *)
 let rec tok str res i =
   let can_be_symbol c =
@@ -1155,11 +1158,14 @@ and expr str =
     (expr "(comment \"foo\" (u32 2))")
   [ E.Ops.(make_vec [ u8 Uint8.one ; u8 (Uint8.of_int 2) ]) ] \
     (expr "(make-vec (u8 1) (u8 2))")
+  [ E.Ops.(copy_rec (param 0) ~with_:[ "foo", u8_of_int 42 ]) ] \
+    (expr "(copy-rec (param 0) (string \"foo\") (u8 42))")
 *)
 
 and expr_of_string s =
   match expr s with
-  | [ e ] -> e
+  | [ e ] ->
+      e
   | _ ->
       Printf.sprintf2 "Cannot parse %S as a single expression" s |>
       failwith
