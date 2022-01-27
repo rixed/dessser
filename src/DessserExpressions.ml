@@ -2112,8 +2112,8 @@ struct
     | [] -> void
     | es ->
         (* Flatten the list to comply with E0S structure.
-         * Although field order does not matter in records, it's nice to keep user order
-         * when parsing/printing: *)
+         * Although field order does not matter in records, it's nice to keep
+         * user order when parsing/printing: *)
         let es =
           List.rev es |>
           List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] in
