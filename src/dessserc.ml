@@ -119,7 +119,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     let module Des = (val (des_of_encoding encoding_in) : DES) in
     let module ToValue = DessserHeapValue.Materialize (Des) in
     (* convert from encoding_in into a heapvalue: *)
-    let compunit, des, _ = ToValue.make "t" schema compunit in
+    let compunit, des, _ = ToValue.make schema compunit in
     if !debug then ignore (TC.type_check (U.environment compunit) des) ;
     compunit
   and add_encoder compunit encoding_out =
@@ -290,7 +290,7 @@ let aggregator
   let compunit = U.make module_name in
   let compunit = init_encoding compunit encoding_in in
   let compunit = init_encoding compunit encoding_out in
-  let compunit, des, _ = ToValue.make "t" schema compunit in
+  let compunit, des, _ = ToValue.make schema compunit in
   (* Check the function that creates the initial state that will be used by
    * the update function: *)
   if !debug then ignore (TC.type_check (U.environment compunit) init_expr) ;

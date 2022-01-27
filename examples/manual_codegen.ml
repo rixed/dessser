@@ -83,7 +83,7 @@ let () =
 
       let ma = copy_field in
       let compunit, des, _ =
-        ToValue.make "t" typ compunit in
+        ToValue.make typ compunit in
       let compunit, ser_func, _ =
         OfValue2.serialize ~config:sexpr_config typ compunit in
       let compunit, sersize, _ =

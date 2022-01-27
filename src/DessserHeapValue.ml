@@ -42,7 +42,7 @@ sig
 
   val make : ?config:Des.config ->
              (* The type name (as used with TThis): *)
-             string ->
+             ?type_name:string ->
              T.mn ->
              U.t ->
              (* Same return type than U.add_identifier_of_expression: *)
@@ -327,7 +327,7 @@ struct
     | _ ->
         compunit
 
-  let make ?config type_name mn0 compunit =
+  let make ?config ?(type_name="t") mn0 compunit =
     let mn0 = T.develop_this_mn mn0 in
     let dstate = Des.make_state ?config mn0 in
     let compunit, id, name = make_ dstate type_name mn0 compunit in
