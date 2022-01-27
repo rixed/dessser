@@ -1959,9 +1959,18 @@ struct
 
   let apply f es = T.E1S (Apply, f, es)
 
-  let copy_rec ~with_ e = T.E1S (CopyRec, e, with_)
+  (* Flatten an association list, transforming even items with to_expr: *)
+  let flatten_assoc to_expr xs =
+    List.fold_left (fun lst (n, v) -> v :: to_expr n :: lst) [] xs |>
+    List.rev
 
-  let copy_tup ~with_ e = T.E1S (CopyTup, e, with_)
+  let copy_rec ~with_ e =
+    let es = flatten_assoc string with_ in
+    T.E1S (CopyRec, e, es)
+
+  let copy_tup ~with_ e =
+    let es = flatten_assoc u16_of_int with_ in
+    T.E1S (CopyTup, e, es)
 
   let while_ cond ~do_ = T.E2 (While, cond, do_)
 
@@ -2114,9 +2123,7 @@ struct
         (* Flatten the list to comply with E0S structure.
          * Although field order does not matter in records, it's nice to keep
          * user order when parsing/printing: *)
-        let es =
-          List.rev es |>
-          List.fold_left (fun lst (n, v) -> (string n) :: v :: lst) [] in
+        let es = flatten_assoc string es in
         T.E0S (MakeRec, es)
 
   let make_usr name es =
