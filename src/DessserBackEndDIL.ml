@@ -67,7 +67,7 @@ let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
     | Some f -> f
     | None ->
         let ext = "."^ preferred_def_extension in
-        Filename.temp_file "dessserQCheck_" ext in
+        Filename.temp_file "dessser_QCheck_" ext in
   write_source ~src_fname (fun oc ->
     Option.may (print_comment oc "%s") comment ;
     print_definitions oc compunit ;

@@ -333,8 +333,8 @@ examples-check: examples/simplest.opt examples/manual_codegen.opt
 	@echo Testing examples
 	@ulimit -n 5000 ;\
 	 export DESSSER_DEV_MODE=1 ;\
-	 $(RM) /tmp/simplest_gen.x && examples/simplest.opt ocaml && /tmp/simplest_gen.x && echo "simplest ocaml OK" && \
-	 $(RM) /tmp/simplest_gen.x && examples/simplest.opt c++ && /tmp/simplest_gen.x && echo "simplest c++ OK" && \
+	 $(RM) /tmp/dessser_simplest_gen.x && examples/simplest.opt ocaml && /tmp/dessser_simplest_gen.x && echo "simplest ocaml OK" && \
+	 $(RM) /tmp/dessser_simplest_gen.x && examples/simplest.opt c++ && /tmp/dessser_simplest_gen.x && echo "simplest c++ OK" && \
 	 examples/manual_codegen.opt ocaml && \
 	 examples/rowbinary2sexpr.x < udp_v30.chb > examples/rowbinary2sexpr.x.out && \
 	 diff examples/rowbinary2sexpr.expected examples/rowbinary2sexpr.x.out && \

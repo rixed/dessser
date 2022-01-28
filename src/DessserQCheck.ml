@@ -681,10 +681,9 @@ let expression =
   let can_be_compiled_with_backend be e =
     let module BE = (val be : BACKEND) in
     let test_name = test_name () in
-    let dst_fname = Filename.get_temp_dir_name () ^"/"^ test_name in
     let compunit = U.make test_name in
     let compunit, _, _ = U.add_identifier_of_expression compunit e in
-    try BE.compile ~dev_mode:true ~optim:0 ~link:Object ~dst_fname compunit |> ignore ;
+    try BE.compile ~dev_mode:true ~optim:0 ~link:Object compunit |> ignore ;
         true
     with e ->
         Printf.eprintf "FAILURE: %s\n" (Printexc.to_string e) ;

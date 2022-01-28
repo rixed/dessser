@@ -1747,9 +1747,9 @@ let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
   let dst_fname =
     match dst_fname with
     | None ->
-        Filename.get_temp_dir_name () ^"/"^
-        compunit.U.module_name ^"."^
-        preferred_comp_extension link
+        Filename.temp_file
+          ("dessser_"^ compunit.U.module_name)
+          ("."^ preferred_comp_extension link)
     | Some f ->
         f in
   let src_fname =

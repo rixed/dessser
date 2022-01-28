@@ -202,7 +202,8 @@ let test_backend () =
   let compunit = U.make "simplest_gen" in
   let compunit, _, _entry_point =
     U.add_identifier_of_expression compunit ~name:"entry_point" e in
-  BE.compile ~dev_mode:true ~link:Executable ~outro compunit
+  let dst_fname = Filename.get_temp_dir_name () ^"/dessser_simplest_gen.x" in
+  BE.compile ~dst_fname ~dev_mode:true ~link:Executable ~outro compunit
 
 let main =
   test_backend ()
