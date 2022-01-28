@@ -222,7 +222,7 @@ examples/manual_codegen.opt: src/dessser.cmxa examples/manual_codegen.ml
 # Generated sources
 
 META: Makefile
-	@echo 'Building findlib configuration (META) for Ramen'
+	@echo 'Building findlib configuration (META)'
 	@echo 'description = "(de)serializer generator"' > $@
 	@echo 'version = "$(VERSION)"' >> $@
 	@echo 'archive(native) = "dessser.cmxa"' >> $@
