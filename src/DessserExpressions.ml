@@ -867,7 +867,9 @@ and type_of l e0 =
   | E2 (NullMap (n, r), e1, e2) ->
       let t = get_memo_mn r l (T.E1 (Force "NullMap", e1)) in
       let l = add_local n t l in
-      type_of l e2
+      let mn1 = type_of l e1 in
+      let mn = type_of l e2 in
+      if mn1.nullable then T.to_nullable mn else mn
   | E2 (Index, _, _) -> T.nu32
   | E1 (GetEnv, _) -> T.nstring
   | E1 (GetMin, e) ->
