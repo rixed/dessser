@@ -566,3 +566,15 @@ let rec type_check l =
     let e = loop 10 z in \
     ignore (type_check no_env e)) < 10.
 *)
+
+(* Check that get-field of an unknown field raises a type-checking error: *)
+(*$T type_check
+  let e = Ops.(get_field "x" (make_rec [ "y", u8_of_int 42 ])) in \
+  try ignore (type_check no_env e) ; false \
+  with E.Struct_error _ -> true
+
+  let e = Ops.(copy_rec (make_rec [ "y", u8_of_int 42 ]) \
+                        ~with_:["x", u8_of_int 0]) in \
+  try BatPrintf.eprintf "e=%a\n" (print ?max_depth:None) (type_check no_env e) ; false \
+  with E.Struct_error _ -> true
+*)

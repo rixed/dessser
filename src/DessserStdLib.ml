@@ -548,6 +548,12 @@ let check_byte p c =
 let copy_rec l ?(with_=[]) r =
   match E.type_of l r |> T.develop1 with
   | { typ = T.TRec mns ; nullable = false } ->
+      (* Check invalid fields first: *)
+      List.iter (fun (n, _) ->
+        if not (Array.exists (fun (n', _) -> n = n') mns) then
+          let e0 = copy_rec ~with_ r in
+          raise (E.Struct_error (e0, "Unknown field '"^ n ^"'"))
+      ) with_ ;
       let_ ~name:"rec" r (fun r ->
         make_rec (
           BatArray.enum mns |>
@@ -565,6 +571,12 @@ let copy_rec l ?(with_=[]) r =
 let copy_tup l ?(with_=[]) r =
   match E.type_of l r |> T.develop1 with
   | { typ = T.TTup mns ; nullable = false } ->
+      (* Check invalid indices first: *)
+      List.iter (fun (i, _) ->
+        if i < 0 || i >= Array.length mns then
+          let e0 = copy_tup ~with_ r in
+          raise (E.Struct_error (e0, "Invalid indice '"^ string_of_int i ^"'"))
+      ) with_ ;
       let_ ~name:"tup" r (fun r ->
         make_tup (
           List.init (Array.length mns) (fun i ->
