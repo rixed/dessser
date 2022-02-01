@@ -85,15 +85,17 @@ let random_gen handle_this mn0 =
     | TBool ->
         eq (u32_of_int 0) (bit_and random_u32 (u32_of_int 128))
     | TString ->
-        (* Just 5 random letters for now: *)
+        (* Just a few random letters for now: *)
         let_ ~name:"s_ref" (make_ref (string "")) (fun s_ref ->
           let s = get_ref s_ref in
-          seq [
-            repeat ~from:(i32 0l) ~to_:(i32 5l) (fun _i ->
-                let c = random T.char in
-                let s' = append_string s (string_of_char_ c) in
-                (set_ref s_ref s')) ;
-            s ])
+          let len = to_i32 (bit_and random_u32 (u32_of_int 15)) in
+          let_ ~name:"len" len (fun len ->
+            seq [
+              repeat ~from:(i32 0l) ~to_:len (fun _i ->
+                  let c = random T.char in
+                  let s' = append_string s (string_of_char_ c) in
+                  (set_ref s_ref s')) ;
+              s ]))
     | TChar ->
         (* Just a random lowercase letter for now *)
         (char_of_u8
