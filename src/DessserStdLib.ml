@@ -548,14 +548,15 @@ let check_byte p c =
 let copy_rec l ?(with_=[]) r =
   match E.type_of l r |> T.develop1 with
   | { typ = T.TRec mns ; nullable = false } ->
-      make_rec (
-        BatArray.enum mns |>
-        BatEnum.map (fun (name, _mn) ->
-          name,
-          try List.assoc name with_
-          with Not_found -> get_field name r
-        ) |>
-        BatList.of_enum)
+      let_ ~name:"rec" r (fun r ->
+        make_rec (
+          BatArray.enum mns |>
+          BatEnum.map (fun (name, _mn) ->
+            name,
+            try List.assoc name with_
+            with Not_found -> get_field name r
+          ) |>
+          BatList.of_enum))
   | _ ->
       invalid_arg "copy_rec"
 
@@ -564,9 +565,10 @@ let copy_rec l ?(with_=[]) r =
 let copy_tup l ?(with_=[]) r =
   match E.type_of l r |> T.develop1 with
   | { typ = T.TTup mns ; nullable = false } ->
-      make_tup (
-        List.init (Array.length mns) (fun i ->
-          try List.assoc i with_
-          with Not_found -> get_item i r))
+      let_ ~name:"tup" r (fun r ->
+        make_tup (
+          List.init (Array.length mns) (fun i ->
+            try List.assoc i with_
+            with Not_found -> get_item i r)))
   | _ ->
       invalid_arg "copy_tup"
