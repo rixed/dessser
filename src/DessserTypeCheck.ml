@@ -11,6 +11,20 @@ module L = DessserStdLib
   module P = DessserParser
   module T = DessserTypes *)
 
+(* [unflatten f es] returns an assoc list out of the flat [es], each keys
+ * returned from [f] applied to each odd items of [es].
+ * See also [DessserExpressions.flatten] *)
+let unflatten e0 to_label es =
+  let rec loop w = function
+    | [] ->
+        List.rev w
+    | [ _ ] ->
+        raise (E.Struct_error (e0, "overwritten fields list must \
+                                    be even"))
+    | n :: v :: rest ->
+        loop ((to_label n, v) :: w) rest in
+  loop [] es
+
 (* [l] is the stack of expr * type *)
 let rec type_check l =
   E.map_env l (fun l e0 ->
@@ -129,29 +143,11 @@ let rec type_check l =
         type_check l res
     (* Similarly, CopyRec and CopyTup are expanded using the StdLib: *)
     | E1S (CopyRec, r, es) ->
-        let rec with_ =
-          let rec loop w = function
-            | [] ->
-                List.rev w
-            | [ _ ] ->
-                raise (E.Struct_error (e0, "overwritten fields list must \
-                                            be even"))
-            | n :: v :: rest ->
-                loop ((E.field_name_of_expr n, v) :: w) rest in
-          loop [] es in
+        let rec with_ = unflatten e0 E.field_name_of_expr es in
         let res = L.copy_rec l ~with_ r in
         type_check l res
     | E1S (CopyTup, t, es) ->
-        let rec with_ =
-          let rec loop w = function
-            | [] ->
-                List.rev w
-            | [ _ ] ->
-                raise (E.Struct_error (e0, "overwritten items list must \
-                                            be even"))
-            | n :: v :: rest ->
-                loop ((E.to_cst_int n, v) :: w) rest in
-          loop [] es in
+        let rec with_ = unflatten e0 E.to_cst_int es in
         let res = L.copy_tup l ~with_ t in
         type_check l res
     | E2 (NullMap (n, r), x, body) ->
