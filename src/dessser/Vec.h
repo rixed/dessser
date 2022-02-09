@@ -4,6 +4,7 @@
 #include <functional>
 #include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 namespace dessser {

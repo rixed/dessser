@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <functional>
 #include <list>
+#include <memory>
 #include <ostream>
 #include <utility>
 
