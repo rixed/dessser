@@ -1089,18 +1089,22 @@ let () =
         Some (
           Printf.sprintf2 "Unknown type %S. Only known types are: %a"
             n
-            (pretty_list_print (fun oc (n, _) -> String.print oc n)) !these)
+            (pretty_list_print (fun oc (n, _, _) -> String.print oc n)) !these)
     | Redefined_type n ->
         Some (
           Printf.sprintf "Type %S can be defined only once" n)
     | _ ->
         None)
 
-let find_this n =
+let find_this_type_and_rec n =
   try
-    List.assoc n !these
+    List.find_map (fun (n', t, r) ->
+      if n = n' then Some (t, r) else None
+    ) !these
   with Not_found ->
     raise (Unbound_type n)
+
+let find_this n = find_this_type_and_rec n |> fst
 
 (* In some places "this" cannot be accepted or it would loop around without
  * performing any work at all, and must be unrolled once. This convenience
@@ -1133,7 +1137,7 @@ let rec develop1 = function
  * (but for the top level): *)
 let rec shrink t =
   let find_def t =
-    List.find (fun (_, def) ->
+    List.find (fun (_, def, _) ->
       (* Beware that t might reference types not yet in [these] when we are
        * shrinking a new type before registering it. In that case [t] cannot be
        * equal to a previously registered type: *)
@@ -1158,7 +1162,7 @@ let rec shrink t =
     if t == t' then t else
     match find_def t' with
     | exception Not_found -> t'
-    | n, _ -> TThis n
+    | n, _, _ -> TThis n
   in
   (* Avoid replacing the whole type with TThis: *)
   match find_def t with
@@ -1167,21 +1171,6 @@ let rec shrink t =
 
 and shrink_mn mn =
   { mn with typ = shrink mn.typ }
-
-(* Will also add declared subtypes: *)
-and add_type_as n t =
-  (* As fold is top down, the result lst is bottom-up: *)
-  let lst =
-    fold [ n, t ] (fun lst -> function
-      | TNamed (n, t) -> (n, t) :: lst
-      | _ -> lst
-    ) t in
-  (* Shrink and add them, depth first: *)
-  List.iter (fun (n, t) ->
-    if List.mem_assoc n !these then raise (Redefined_type n) ;
-    let t = shrink t in
-    these := (n, t) :: !these
-  ) lst
 
 (*
  * Comparators
@@ -1283,7 +1272,37 @@ let required = maybe_nullable ~nullable:false
 
 let optional = maybe_nullable ~nullable:true
 
+(* Will also add declared subtypes: *)
+let add_type_as n t =
+  (* As fold is top down, the result lst is bottom-up: *)
+  let lst =
+    fold [ n, t, ref false ] (fun lst -> function
+      | TNamed (n, t) ->
+          (* Add this new named type in the list, assuming non recursive at
+           * first: *)
+          (n, t, ref false) :: lst
+      | TThis n ->
+          (* Mark this type as recursive: *)
+          (try
+            let _, _, rec_ref = List.find (fun (n', _, _) -> n' = n) lst in
+            (*Printf.eprintf "Type %S found to be recursive.\n" n ;*)
+            rec_ref := true
+          with Not_found -> ()) ;
+          lst
+      | _ ->
+          lst
+    ) t in
+  (* Shrink and add them, depth first: *)
+  List.iter (fun (n, t, rec_ref) ->
+    if List.exists (fun (n', _, _) -> n' = n) !these then
+      raise (Redefined_type n) ;
+    let t = shrink t in
+    these := (n, t, !rec_ref) :: !these
+  ) lst
+
 let named n t =
+  (* add_type_as makes it possible to refer to this type by name to reuse it,
+   * including recursively: *)
   add_type_as n t ;
   TNamed (n, t)
 

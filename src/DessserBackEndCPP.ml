@@ -126,9 +126,8 @@ struct
     | TThis _ | TSet _ ->
         true
     | (TTup _ | TRec _ | TSum _) as t ->
-        (* Even if expanded, any named type that's susceptible to be used
-         * recursively must be pointy. *)
-        List.exists (fun (_, def) -> T.eq t def) !T.these
+        (* Even if expanded, any named type that's recursive must be pointy. *)
+        List.exists (fun (_, def, r) -> r && T.eq t def) !T.these
     | TNamed (_, t) ->
         is_pointy t
     | TExt _ ->
@@ -150,7 +149,7 @@ struct
       | TNamed (_, t) ->
           aux t
       | _ ->
-          false in
+          true in
     aux mn.typ
 
   (* Can we declare a "const t"? (false if unsure) *)
@@ -179,10 +178,9 @@ struct
     | TThis _ | TSet _ ->
         star
     | (TTup _ | TRec _ | TSum _) as t ->
-        (* Even if expanded, any named type that's susceptible to be used
-         * recursively must be pointy. (Note that scalar TNamed are not
-         * necessarily pointy, cf is_pointy) *)
-        if List.exists (fun (_, def) -> T.eq t def) !T.these then
+        (* Even if expanded, any named type that's recursive must be pointy.
+         * (Note that scalar TNamed are not necessarily pointy, cf is_pointy) *)
+        if List.exists (fun (_, def, r) -> r && T.eq t def) !T.these then
           star
         else
           s
@@ -633,9 +631,11 @@ struct
               "std::function<"^ type_identifier_mn ret ^
                 IO.to_string (
                   Array.print ~first:"(" ~last:")" ~sep:"," (fun oc t ->
-                    Printf.fprintf oc "%s%s"
+                    Printf.fprintf oc "%s %s%s"
                       (type_identifier_mn t)
-                      (if is_mutable t.T.typ then "&" else ""))
+                      (if is_const t.T.typ then "const " else "")
+                      (if is_mutable t.T.typ ||
+                          not (is_trivial t) then "&" else ""))
                 ) args ^">" |>
               declare_if_named
           | TPtr -> declare_if_named "Pointer"
@@ -1132,7 +1132,7 @@ struct
         ppi p.P.def "char *%s;" stop ;
         (* This assumes there will always be a non-digit at the end to prevent
          * strtod to read past the end of the buffer: *)
-        ppi p.P.def "double const %s = strtod(%s, &%s);" val_ start stop ;
+        ppi p.P.def "double const %s { strtod(%s, &%s) };" val_ start stop ;
         emit ?name p l e (fun oc ->
           pp oc "%s, %s.skip(%s - %s)" val_ n stop start)
     | E1 ((U8OfPtr | U16OfPtr | U24OfPtr | U32OfPtr | U40OfPtr |
@@ -1902,8 +1902,8 @@ struct
   let source_outro _ p =
     match p.P.context with
     | P.Declaration ->
-        (* Define a type t_ext to reference t as an external type (if t is
-         * pointy then it must be passed/received as a pointer) *)
+        (* Define a type t_ext to reference t as an external type.
+         * If t is pointy then ext_t must be pointy. *)
         (match T.find_this "t" with
         | exception T.Unbound_type _ ->
             ""

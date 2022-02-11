@@ -87,9 +87,9 @@ let declared_type p t f =
   let s = new_declaration p (fun oc -> f oc "_") in
   let id =
     let t = T.shrink t in
-    match List.find (fun (_n, t') -> T.eq t t') !T.these with
+    match List.find (fun (_n, t', _r) -> T.eq t t') !T.these with
     | exception Not_found -> "t"^ Digest.to_hex (Digest.string s)
-    | n, _ -> n in
+    | n, _, _ -> n in
   if Set.String.mem id p.declared then id
   else (
     let s = new_declaration p (fun oc -> f oc id) in
@@ -105,7 +105,7 @@ let declared_type p t f =
  * need no such validation. The returned boolean helps to distinguish between
  * those two cases. *)
 let declare_if_named p t s f =
-  if List.exists (fun (_n, t') -> T.eq t' t) !T.these
+  if List.exists (fun (_n, t', _r) -> T.eq t' t) !T.these
   then true, declared_type p t f
   else false, s
 
