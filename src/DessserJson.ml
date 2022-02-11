@@ -426,14 +426,14 @@ struct
     cons frame stk
 
   let frame_top stk =
-    head stk
+    force ~what:"Json.frame_top" (head stk)
 
   (* Pop the last frame from the stack, returning both the pointer at the end
    * of the object and the previous stack: *)
   let frame_pop stk =
     let_ ~name:"stk" stk (fun stk ->
       let end_p = secnd (frame_top stk) in
-      make_pair end_p (tail stk))
+      make_pair end_p (force ~what:"Json.frame_pop" (tail stk)))
 
   let locate_p mn0 path p stk =
     match Path.type_of_parent mn0 path with

@@ -887,18 +887,16 @@ and type_of l e0 =
       T.(required (lst (type_of l e1)))
   (* Shortcut: *)
   | E1 (Head, E2 (Cons, e, _)) ->
-      type_of l e
+      T.to_nullable (type_of l e)
   | E1 (Head, e) ->
       (match type_of l e |> T.develop1 with
-      | T.{ typ = TLst mn ; nullable = false ; _ } -> mn
+      | T.{ typ = TLst mn ; nullable = false ; _ } -> T.to_nullable mn
       | t -> raise (Type_error (e0, e, t, "be a lst")))
   (* Shortcuts: *)
   | E1 (Tail, E2 (Cons, _, E0 (EndOfList mn))) ->
-      mn
-  | E1 (Tail, E2 (Cons, _, e)) ->
-      type_of l (E1 (Tail, e))
+      T.to_nullable mn
   | E1 (Tail, e) ->
-      type_of l e
+      T.to_nullable (type_of l e)
   | E2 ((Min | Max), e1, e2) ->
       either e1 e2
   | E2 (Member, _, _) -> T.bool

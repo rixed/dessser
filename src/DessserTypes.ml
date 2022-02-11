@@ -320,7 +320,6 @@ and e1 =
   | Lower
   | Upper
   | Hash (* Turns anything into an u64 *)
-  (* FIXME: make Head and Tail return nullables: *)
   | Head
   | Tail
   | ReadU16 of endianness

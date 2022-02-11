@@ -93,26 +93,28 @@ let t_frame = T.(pair ptr size)
 
 let leave_frame p_stk =
   E.with_sploded_pair "leave_frame" p_stk (fun p stk ->
-    make_pair p (tail stk))
+    make_pair p (force ~what:"RingBuf.leave_frame" (tail stk)))
 
 (* Set the next nullbit and return the new stack with increased nullbit
  * position: *)
 let set_nullbit stk =
-  E.with_sploded_pair "set_nullbit" (head stk) (fun p bi ->
+  let p_bi = force ~what:"RingBuf.set_nullbit" (head stk) in
+  E.with_sploded_pair "set_nullbit" p_bi (fun p bi ->
     seq [ debug (string "set nullbit at ") ;
           debug (string_of_int_ bi) ;
           debug (char '\n') ;
           set_bit p bi (bit true) ;
           let frame = make_pair p (add bi (size 1)) in
-          cons frame (tail stk) ])
+          cons frame (force ~what:"RingBuf.set_nullbit" (tail stk)) ])
 
 let skip_nullbit stk =
-  E.with_sploded_pair "skip_nullbit" (head stk) (fun p bi ->
+  let p_bi = force ~what:"RingBuf.skip_nullbit" (head stk) in
+  E.with_sploded_pair "skip_nullbit" p_bi (fun p bi ->
     seq [ debug (string "skip nullbit at ") ;
           debug (string_of_int_ bi) ;
           debug (char '\n') ;
           let frame = make_pair p (add bi (size 1)) in
-          cons frame (tail stk) ])
+          cons frame (force ~what:"RingBuf.skip_nullbit" (tail stk)) ])
 
 let set_nullbit_to bit stk =
   (if bit then set_nullbit else skip_nullbit) stk
@@ -877,7 +879,8 @@ struct
     (* TODO: assert stk <> end_of_list *)
     (* Do not advance the nullbit index as it's already done on a per
      * value basis: *)
-    E.with_sploded_pair "is_null2" (head (secnd p_stk)) (fun p bi ->
+    let p_bi = force ~what:"RingBuf.is_null" (head (secnd p_stk)) in
+    E.with_sploded_pair "is_null2" p_bi (fun p bi ->
       let_ (not_ (get_bit p bi)) (fun b ->
         seq [ debug (string "des: get nullbit at ") ;
               debug (string_of_int_ bi) ;

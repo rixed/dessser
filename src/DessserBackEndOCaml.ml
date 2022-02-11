@@ -1238,9 +1238,9 @@ struct
           pp oc "                (logor (shift_left (of_int (Random.bits ())) 90)" ;
           pp oc "                       (shift_left (of_int (Random.bits ())) 120)))))")
     | E1 (Head, e1) ->
-        unary_op "List.hd" e1
+        unary_op "BatList.Exceptionless.hd" e1
     | E1 (Tail, e1) ->
-        unary_op "List.tl" e1
+        unary_op "BatList.Exceptionless.tl" e1
     | E2 (Min, e1, e2) ->
         binary_op "min" e1 e2
     | E2 (Max, e1, e2) ->

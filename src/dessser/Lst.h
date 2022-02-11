@@ -4,6 +4,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include "dessser/typedefs.h"
 #include "dessser/Arr.h"
 #include "dessser/SimpleSet.h"
@@ -50,15 +51,15 @@ struct Lst {
 
   bool empty() const { return !cells; }
 
-  T head() const
+  std::optional<T> head() const
   {
-    assert(! empty());
+    if (empty()) return std::nullopt;
     return cells->val;
   }
 
-  Lst<T> tail() const
+  std::optional<Lst<T>> tail() const
   {
-    assert(! empty());
+    if (empty()) return std::nullopt;
     return cells->next;
   }
 
@@ -75,7 +76,7 @@ struct Lst {
   {
     Arr<T> l;
     for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
-      l.push_back(sl->head());
+      l.push_back(*sl->head());
     }
     return l;
   }
@@ -86,7 +87,7 @@ struct Lst {
     size_t i = length();
     l.resize(i);
     for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
-      l[--i] = sl->head();
+      l[--i] = *sl->head();
     }
     return l;
   }
@@ -99,7 +100,7 @@ struct Lst {
     /* In this Lst the deserialized values are stored from youngest to
      * oldest and so must be reversed here: */
     for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
-      s->l.push_front(sl->head());
+      s->l.push_front(*sl->head());
     }
     return s;
   }
