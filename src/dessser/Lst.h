@@ -71,7 +71,7 @@ struct Lst {
 
   uint32_t size() const { return (uint32_t)length(); }  // For Cardinality
 
-  Arr<T> toList() const
+  Arr<T> toArr() const
   {
     Arr<T> l;
     for (Lst<T> const *sl = this; !sl->empty(); sl = &sl->cells->next) {
@@ -80,7 +80,7 @@ struct Lst {
     return l;
   }
 
-  Arr<T> toListRev() const
+  Arr<T> toArrRev() const
   {
     Arr<T> l;
     size_t i = length();

@@ -1206,9 +1206,9 @@ struct
         emit ?name p l e (fun oc ->
           print_cast p t (fun oc -> pp oc "%s" n) oc)
     | E1 (ArrOfLst, e1) ->
-        method_call e1 "toList" []
+        method_call e1 "toArr" []
     | E1 (ArrOfLstRev, e1) ->
-        method_call e1 "toListRev" []
+        method_call e1 "toArrRev" []
     | E1 (SetOfLst, e1) ->
         method_call e1 "toSet" []
     | E1 (ArrOfVec, e1) ->
