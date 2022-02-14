@@ -208,6 +208,9 @@ struct
           List.find (fun (n, _) -> n = n') nvs
         ) names'
 
+  let sum_is_enum mns =
+    Array.for_all (fun (_, mn) -> T.(eq_mn void mn)) mns
+
   (* When printing definitions, there is no way to tell if a type has already
    * been output in the declarations or not (definitions typically need
    * additional types not present in identifiers signature, thus not visible
@@ -390,7 +393,7 @@ struct
         (pointer_to id) ;
     )
 
-  and print_sum p oc id mns =
+  and print_sum_variant p oc id mns =
     let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
     let id = valid_identifier id in
     ppi oc "struct %s : public std::variant<" id ;
@@ -479,6 +482,45 @@ struct
            os << *v; return os; }\n"
         (pointer_to id)
     )
+
+  and print_sum_enum p oc id mns =
+    let ppi oc fmt = pp oc ("%s" ^^ fmt ^^"\n") p.P.indent in
+    let id = valid_identifier id in
+    ppi oc "enum %s {" id ;
+    P.indent_more p (fun () ->
+      Array.iter (fun (n, mn) ->
+        assert T.(eq_mn void mn) ;
+        ppi oc "%s," (uniq_cstr_name (T.TSum mns) n)
+      ) mns
+    ) ;
+    ppi oc "};\n" ;
+    ppi oc "constexpr size_t %s_size { %d };" id (Array.length mns) ;
+    if id <> "_" && p.context = P.Declaration then (
+      ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;
+      P.indent_more p (fun () ->
+        (* too smart for its own good:
+         * ppi oc "std::visit([&os](auto arg){ os << arg; }, v);" ;*)
+        ppi oc "switch (v) {" ;
+        P.indent_more p (fun () ->
+          for i = 0 to Array.length mns - 1 do
+            let n, _mn = mns.(i) in
+            ppi oc "case %s: os << %S; break;"
+              (uniq_cstr_name (T.TSum mns) n)
+              n
+          done ;
+          ppi oc "default: assert(false); break;") ;
+        ppi oc "}" ;
+        ppi oc "return os;") ;
+      ppi oc "}\n" ;
+      ppi oc
+        "inline std::ostream &operator<<(std::ostream &os, %sconst v) { \
+           os << *v; return os; }\n"
+        (pointer_to id)
+    )
+
+  and print_sum p oc id mns =
+    (* Use a mere enum if no constructor have a value: *)
+    (if sum_is_enum mns then print_sum_enum else print_sum_variant) p oc id mns
 
   and type_identifier_mn ?blunted p mn =
     if mn.T.nullable then
@@ -1052,6 +1094,7 @@ struct
         | { typ = TSum mns ; _ } ->
             (* Since the type checking accept any sum type made of u32 and
              * u128, let's be as general as possible: *)
+            assert (not (sum_is_enum mns)) ;
             ppi p.P.def "switch (%s.index()) {\n" n1 ;
             P.indent_more p (fun () ->
               Array.iteri (fun i (cstr, mn) ->
@@ -1642,15 +1685,20 @@ struct
                 (deref mn1.T.typ n1))
         | _ ->
             assert false)
-    | E1 (Construct (_, lbl), e1) ->
+    | E1 (Construct (mns, lbl), e1) ->
         let n1 = print p l e1 in
         emit ?name p l e (fun oc ->
-          if is_pointy t.T.typ then
+          if is_pointy t.T.typ then (
             let tn = type_identifier_mn ~blunted:true p t in
-            Printf.fprintf oc "%s(std::in_place_index<%d>, %s)"
-              (make_pointer tn) lbl n1
-          else
-            Printf.fprintf oc "std::in_place_index<%d>, %s" lbl n1)
+            Printf.fprintf oc "%s(" (make_pointer tn)) ;
+          if sum_is_enum mns then (
+            let n, _ = mns.(lbl) in
+            String.print oc (uniq_cstr_name (T.TSum mns) n)
+            (* n1 is then a void value *)
+          ) else (
+            Printf.fprintf oc "std::in_place_index<%d>, %s" lbl n1
+          ) ;
+          if is_pointy t.T.typ then Printf.fprintf oc ")")
     | E1 (Assert, e1) ->
         let n = print p l e1 in
         emit ?name p l e (fun oc -> pp oc "assert(%s)" n)
@@ -1659,9 +1707,14 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s.get(%d)" n1 i)
     | E1 (LabelOf, e1) ->
         let n1 = print p l e1 in
-        let mn1 = E.type_of l e1 in
-        emit ?name p l e (fun oc -> pp oc "uint16_t(%s.index())"
-          (deref mn1.T.typ n1))
+        (match E.type_of l e1 |> T.develop1 with
+        | T.{ nullable = false ; typ = TSum mns } as mn1 ->
+            emit ?name p l e (fun oc ->
+              pp oc "uint16_t(%s%s)"
+                (deref mn1.T.typ n1)
+                (if sum_is_enum mns then "" else ".index()"))
+        | _ ->
+            assert false)  (* because of type checking *)
     | E0 CopyField ->
         emit ?name p l e (fun oc -> pp oc "Mask::COPY")
     | E0 SkipField ->
