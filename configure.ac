@@ -1,4 +1,4 @@
-AC_INIT(dessser, 28.5.4)
+AC_INIT(dessser, 29.0.0)
 m4_include([m4/ocaml.m4])
 
 AC_ARG_VAR(OCAMLOPTFLAGS, [Additional flags to pass to the ocaml native compiler])
