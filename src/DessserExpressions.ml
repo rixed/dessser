@@ -1508,6 +1508,52 @@ struct
       and p5 = T.E0 (Param 4) in
       f p1 p2 p3 p4 p5)
 
+  let func6 t1 t2 t3 t4 t5 t6 f =
+    func [| t1 ; t2 ; t3 ; t4 ; t5 ; t6 |] (fun () ->
+      let p1 = T.E0 (Param 0)
+      and p2 = T.E0 (Param 1)
+      and p3 = T.E0 (Param 2)
+      and p4 = T.E0 (Param 3)
+      and p5 = T.E0 (Param 4)
+      and p6 = T.E0 (Param 5) in
+      f p1 p2 p3 p4 p5 p6)
+
+  let func7 t1 t2 t3 t4 t5 t6 t7 f =
+    func [| t1 ; t2 ; t3 ; t4 ; t5 ; t6 ; t7 |] (fun () ->
+      let p1 = T.E0 (Param 0)
+      and p2 = T.E0 (Param 1)
+      and p3 = T.E0 (Param 2)
+      and p4 = T.E0 (Param 3)
+      and p5 = T.E0 (Param 4)
+      and p6 = T.E0 (Param 5)
+      and p7 = T.E0 (Param 6) in
+      f p1 p2 p3 p4 p5 p6 p7)
+
+  let func8 t1 t2 t3 t4 t5 t6 t7 t8 f =
+    func [| t1 ; t2 ; t3 ; t4 ; t5 ; t6 ; t7 ; t8 |] (fun () ->
+      let p1 = T.E0 (Param 0)
+      and p2 = T.E0 (Param 1)
+      and p3 = T.E0 (Param 2)
+      and p4 = T.E0 (Param 3)
+      and p5 = T.E0 (Param 4)
+      and p6 = T.E0 (Param 5)
+      and p7 = T.E0 (Param 6)
+      and p8 = T.E0 (Param 7) in
+      f p1 p2 p3 p4 p5 p6 p7 p8)
+
+  let func9 t1 t2 t3 t4 t5 t6 t7 t8 t9 f =
+    func [| t1 ; t2 ; t3 ; t4 ; t5 ; t6 ; t7 ; t8 ; t9 |] (fun () ->
+      let p1 = T.E0 (Param 0)
+      and p2 = T.E0 (Param 1)
+      and p3 = T.E0 (Param 2)
+      and p4 = T.E0 (Param 3)
+      and p5 = T.E0 (Param 4)
+      and p6 = T.E0 (Param 5)
+      and p7 = T.E0 (Param 6)
+      and p8 = T.E0 (Param 7)
+      and p9 = T.E0 (Param 8) in
+      f p1 p2 p3 p4 p5 p6 p7 p8 p9)
+
   let identity e1 = T.E1 (Identity, e1)
 
   let ignore_ e1 = T.E1 (Ignore, e1)
