@@ -1954,6 +1954,8 @@ struct
 
   let bit_xor e1 e2 = T.E2 (BitXor, e1, e2)
 
+  let bit_not e = T.E1 (BitNot, e)
+
   let and_ e1 e2 = T.E2 (And, e1, e2)
 
   let or_ e1 e2 = T.E2 (Or, e1, e2)
