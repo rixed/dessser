@@ -26,7 +26,7 @@ Recursive types are supported to some extend.
 There is also limited support for user defined types.
 There is no support for type parameters, though. In other words, users cannot define polymorphic types.
 
-Roughly, types are organized in three classes:
+Types are organized in two abstraction layers:
 
 - the types that can store user manipulable values, belonging to the
   type named `typ`. Most of those types can be (de)serialized and manipulated in many

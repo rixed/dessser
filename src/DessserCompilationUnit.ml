@@ -108,6 +108,7 @@ let add_identifier_of_type compunit ?name mn =
 
 (* Returns the new compilation unit, the Identifier expression to use in new
  * expressions, and the identifier name in the source code. *)
+(* TODO: reify inline functions into separate identifiers *)
 let add_identifier_of_expression compunit ?name expr =
   let name, public =
     match name with

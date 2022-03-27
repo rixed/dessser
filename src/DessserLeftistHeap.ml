@@ -85,16 +85,18 @@ let rec fold_left cmp f init = function
       let init' = f init mi in
       fold_left cmp f init' t'
 
+(*
 (* Note: cmp is used to navigate in the heap, while equality is used to spot
  * which item to delete. *)
 let rec rem cmp x = function
   | E -> E
-  | T t (* as a *) ->
+  | T t as a ->
       (* FIXME: no need for the cmp check: *)
       if x = t.value && cmp x t.value = 0 then
         merge cmp t.left t.right
-      (* FIXME: give up when we reached a value biger than the one we are looking for *)
-      (* else if cmp x t.value < 0 then a *)
+      (* Give up when we reached a value bigger than the one we are looking for *)
+      else if cmp x t.value < 0 then
+        a
       else
         makeT t.value (rem cmp x t.left) (rem cmp x t.right)
 
@@ -111,7 +113,7 @@ let rec rem_phys cmp x = function
         a
       else
         makeT t.value (rem_phys cmp x t.left) (rem_phys cmp x t.right)
-
+*)
 (* Returns the number of items in that heap.
  * Slow and non recursive, for debugging only: *)
 let length t =

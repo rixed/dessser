@@ -430,7 +430,6 @@ let rec type_check l =
               as f_t ->
                 check_eq l init init_t ;
                 let check_fun_type_with mn =
-                  (* FIXME: why isn't map allowed to change the item type?! *)
                   if not (T.eq_mn mn item_t) then (
                     let err = "be a function of "^ T.mn_to_string mn in
                     raise (E.Type_error (e0, f, f_t, err))) in
