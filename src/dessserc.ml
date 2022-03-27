@@ -67,7 +67,7 @@ let init_encoding compunit = function
 
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
-let lib dbg quiet_ schema backend encodings_in encodings_out converters
+let lib dbg gen_dbg quiet_ schema backend encodings_in encodings_out converters
         with_fieldmask include_base pointer_type dst_fname optim skip_decls skip_defs () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
@@ -77,6 +77,7 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
     failwith "Nothing to do" ;
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
+  DessserExpressions.dump_debug := gen_dbg ;
   quiet := quiet_ ;
   DessserBackEndCPP.include_base := include_base ;
   DessserBackEndCPP.pointer_type := pointer_type ;
@@ -171,10 +172,11 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
   )
 
 let converter
-      dbg quiet_ schema backend encoding_in encoding_out
+      dbg gen_dbg quiet_ schema backend encoding_in encoding_out
       modifier_exprs dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
+  DessserExpressions.dump_debug := gen_dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
   T.add_type_as "t" schema.T.typ ;
@@ -210,10 +212,11 @@ let destruct_pair = function
       failwith
 
 let lmdb main
-      dbg quiet_ key_schema val_schema backend encoding_in encoding_out
+      dbg gen_dbg quiet_ key_schema val_schema backend encoding_in encoding_out
       dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
+  DessserExpressions.dump_debug := gen_dbg ;
   quiet := quiet_ ;
   T.add_type_as "val" val_schema.T.typ ;
   T.add_type_as "key" key_schema.T.typ ;
@@ -263,18 +266,19 @@ let lmdb_load =
       convert_key_id convert_val_id in
   lmdb main
 
-let lmdb_query _ _ _ _ _ _ _ _ () =
+let lmdb_query _ _ _ _ _ _ _ _ _ () =
   todo "lmdb_query"
 
 (* In dessser IL we have to explicitly describe the initial state, the update
  * function and the finalizer function. Ramen will have to keep working hard
  * to convert simple RaQL aggregation functions into DIL programs. *)
 let aggregator
-      dbg quiet_ schema backend encoding_in encoding_out
+      dbg gen_dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
       dst_fname dev_mode optim keep_temp_files () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
+  DessserExpressions.dump_debug := gen_dbg ;
   quiet := quiet_ ;
   (* Make "this" refers to top-level type: *)
   T.add_type_as "t" schema.T.typ ;
@@ -376,6 +380,13 @@ let quiet =
   let doc = "Suppress all output but errors" in
   let env = Term.env_info "DESSSER_QUIET" in
   let i = Arg.info ~env ~doc [ "quiet" ] in
+  Arg.flag i
+
+let gen_debug =
+  let doc =
+    "Generate debug code (dumps will be printed rather than ignored)" in
+  let env = Term.env_info "DESSSER_GEN_DEBUG" in
+  let i = Arg.info ~env ~doc [ "gen-debug" ] in
   Arg.flag i
 
 let maybe_nullable =
@@ -590,6 +601,7 @@ let converter_cmd =
   Term.(
     (const converter
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
@@ -620,6 +632,7 @@ let lib_cmd =
   Term.(
     (const lib
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
@@ -641,6 +654,7 @@ let lmdb_dump_cmd =
   Term.(
     (const lmdb_dump
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
@@ -659,6 +673,7 @@ let lmdb_load_cmd =
   Term.(
     (const lmdb_load
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
@@ -677,6 +692,7 @@ let lmdb_query_cmd =
   Term.(
     (const lmdb_query
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required key_schema
      $ Arg.required val_schema
@@ -691,6 +707,7 @@ let aggregator_cmd =
   Term.(
     (const aggregator
      $ Arg.value debug
+     $ Arg.value gen_debug
      $ Arg.value quiet
      $ Arg.required val_schema
      $ Arg.required backend
