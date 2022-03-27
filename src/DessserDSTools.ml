@@ -6,16 +6,26 @@ module E = DessserExpressions
 module TC = DessserTypeCheck
 module U = DessserCompilationUnit
 
-let timeout_cmd = ref "/usr/bin/timeout"
-
-let has_timeout () =
+let has_executable fname =
   let open Unix in
-  match stat !timeout_cmd with
+  match stat fname with
   | exception Unix_error (ENOENT, _, _) ->
       false
   | s ->
       s.st_kind = S_REG &&
       s.st_perm land 1 = 1
+
+let timeout_cmd =
+  let possible_locations =
+    [ "/usr/bin/timeout" ;
+      "/usr/local/bin/timeout" ] in
+  ref (
+    try List.find has_executable possible_locations
+    with Not_found -> "/usr/bin/timeout.not_found"
+  )
+
+let has_timeout () =
+  has_executable !timeout_cmd
 
 module FragmentsCPP = DessserDSTools_FragmentsCPP
 module FragmentsOCaml = DessserDSTools_FragmentsOCaml
