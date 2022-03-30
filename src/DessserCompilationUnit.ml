@@ -108,7 +108,6 @@ let add_identifier_of_type compunit ?name mn =
 
 (* Returns the new compilation unit, the Identifier expression to use in new
  * expressions, and the identifier name in the source code. *)
-(* TODO: reify inline functions into separate identifiers *)
 let add_identifier_of_expression compunit ?name expr =
   let name, public =
     match name with
@@ -165,6 +164,41 @@ let add_identifier_of_expression compunit ?name expr =
   compunit,
   T.E0 (Identifier name),
   name
+
+(* Reify one layer of lambda functions from compunit, and return the new
+   one, and a flag that's false if nothing was done. *)
+let reify_some_lambdas compunit =
+  let modified = ref false in
+  let compunit' = ref compunit in
+  List.iter (fun (_name, identifier, _mn) ->
+    let reify_expression e =
+      E.map ~enter_functions:false (function
+        | T.E1 (Function _, _) as f ->
+            let u, id, _ = add_identifier_of_expression !compunit' f in
+            compunit' := u ;
+            modified := true ;
+            id
+        | e ->
+            e
+      ) e in
+    match identifier.expr with
+    | None ->
+        ()
+    | Some (T.E1 (Function ts, body)) ->
+        (* Top level functions are not lambdas: *)
+        (* The new compunit is reusing the previous one's identifiers so let's
+           merely modify it: *)
+        identifier.expr <- Some (T.E1 (Function ts, reify_expression body))
+    | Some e ->
+        (* The new compunit is reusing the previous one's identifiers so let's
+           merely modify it: *)
+        identifier.expr <- Some (reify_expression e)
+    ) compunit.identifiers ;
+  !compunit', !modified
+
+let rec reify_lambdas compunit =
+  let compunit', modified = reify_some_lambdas compunit in
+  if modified then reify_lambdas compunit' else compunit
 
 let get_type_of_identifier compunit name =
   let _, _, t =

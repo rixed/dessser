@@ -62,6 +62,7 @@ let compile ?dev_mode ?extra_search_paths ?optim ~link ?dst_fname ?comment
   ignore optim ;
   ignore link ;
   ignore keep_temp_files ;
+  let compunit = U.reify_lambdas compunit in (* Not required but good test *)
   let src_fname =
     match dst_fname with
     | Some f -> f
