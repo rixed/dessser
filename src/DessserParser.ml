@@ -394,14 +394,17 @@ and mn m =
   (
     typ ++ opt_question_mark ++
     optional ~def:None (
-      some (
-        !blanks -- string "default" -- !blanks -+ (
-          s_expr >>: fun s ->
-            try e s
+      some (!blanks -- string "default" -- !blanks -+ s_expr)) >>: function
+      | (typ, nullable), None ->
+          simplify { typ ; nullable ; default = None }
+      | (typ, nullable), Some default_sexpr ->
+          let default =
+            try
+              Some (e ~current_mn:{ typ ; nullable ; default = None }
+                      default_sexpr)
             with _ ->
-              raise (Reject "not a valid default expression")))) >>:
-      fun ((typ, nullable), default) ->
-        simplify { typ ; nullable ; default }
+              raise (Reject "not a valid default expression") in
+          simplify { typ ; nullable ; default }
   ) m
 
 and typ m =
@@ -730,25 +733,25 @@ and mn_of_str s d =
   try mn_of_string d
   with _ -> raise (Must_be_quoted_type s)
 
-and e =
+and e ?current_mn s =
   let is_int32 n =
     try ignore (Int32.of_string n) ; true with _ -> false
   and is_float f =
     try ignore (FloatTools.float_of_anystring f) ; true with _ -> false in
-  function
+  match s with
   (* e0 *)
-  | Lst [ Sym "param" ; Sym n ] as s ->
+  | Lst [ Sym "param" ; Sym n ] ->
       E0 (Param (int_of_symbol s n))
-  | Lst [ Sym "myself" ; Str mn ] as s ->
+  | Lst [ Sym "myself" ; Str mn ] ->
       E0 (Myself (mn_of_str s mn))
   | Lst [ Sym "null" ; Str t ] ->
       E0 (Null (typ_of_string t))
-  | Lst [ Sym ("end-of-list" | "eol") ; Str mn ] as s ->
+  | Lst [ Sym ("end-of-list" | "eol") ; Str mn ] ->
       E0 (EndOfList (mn_of_str s mn))
   | Sym "[[]]" ->
       (* Taking advantage of universal convertibility of empty lists: *)
       E0 (EndOfList void)
-  | Lst [ Sym "empty-set" ; Str mn ] as s ->
+  | Lst [ Sym "empty-set" ; Str mn ] ->
       E0 (EmptySet (mn_of_str s mn))
   | Lst [ Sym "now" ] -> E0 Now
   | Lst [ Sym "random-float" ] -> E0 RandomFloat
@@ -784,7 +787,7 @@ and e =
   | Lst [ Sym "i56" ; Sym n ] -> E0 (I56 (Int56.of_string n))
   | Lst [ Sym "i64" ; Sym n ] -> E0 (I64 (Int64.of_string n))
   | Lst [ Sym "i128" ; Sym n ] -> E0 (I128 (Int128.of_string n))
-  | Lst [ Sym "size" ; Sym n ] as s -> E0 (Size (int_of_symbol s n))
+  | Lst [ Sym "size" ; Sym n ] -> E0 (Size (int_of_symbol s n))
   | Lst [ Sym "address" ; Sym n ] -> E0 (Address (Uint64.of_string n))
   | Lst [ Sym "bytes" ; Str s ] -> E0 (Bytes (Bytes.of_string s))
   | Lst [ Sym "identifier" ; Str s ] -> E0 (Identifier s)
@@ -803,7 +806,7 @@ and e =
   | Lst (Sym "make-vec" :: xs) ->
       E0R (MakeVec,
            List.enum xs /@ e |> Array.of_enum)
-  | Lst (Sym "make-arr" :: Str mn :: xs) as s ->
+  | Lst (Sym "make-arr" :: Str mn :: xs) ->
       E0R (MakeArr (mn_of_str s mn),
            List.enum xs /@ e |> Array.of_enum)
   | Sym "[]" ->
@@ -812,13 +815,10 @@ and e =
   | Sym "{}" ->
       (* Taking advantage of universal convertibility of empty sets: *)
       E0 (EmptySet void)
-  | Sym "null" ->
-      (* Also taking advantage of universal convertibility of NULLs: *)
-      E0 (Null TVoid)
   | Lst (Sym "make-tup" :: xs) -> E0S (MakeTup, List.map e xs)
   | Lst (Sym "make-rec" :: xs) -> E0S (MakeRec, List.map e xs)
   | Lst (Sym "make-usr" :: Str n :: xs) -> E0S (MakeUsr n, List.map e xs)
-  | Lst (Sym "verbatim" :: Lst temps :: Str mn :: xs) as s ->
+  | Lst (Sym "verbatim" :: Lst temps :: Str mn :: xs) ->
       let temp_of_strings = function
         | Lst [ Sym id ; Str temp ] -> backend_of_string id, temp
         | x ->
@@ -827,7 +827,7 @@ and e =
       let temps = List.map temp_of_strings temps in
       E0S (Verbatim (temps, mn_of_str s mn), List.map e xs)
   (* e1 *)
-  | Lst [ Sym ("function" | "fun") ; Lst typs ; body ] as s ->
+  | Lst [ Sym ("function" | "fun") ; Lst typs ; body ] ->
       (* Syntax for functions is:
        *    (fun ("type arg 1" "type arg 2" ...) body)
        * where:
@@ -843,13 +843,13 @@ and e =
       E1 (Function typs, e body)
   | Lst [ Sym "comment" ; Str s ; x ] ->
       E1 (Comment s, e x)
-  | Lst [ Sym "get-item" ; Sym n ; x ] as s ->
+  | Lst [ Sym "get-item" ; Sym n ; x ] ->
       E1 (GetItem (int_of_symbol s n), e x)
   | Lst [ Sym "get-field" ; Str s ; x ] ->
       E1 (GetField s, e x)
   | Lst [ Sym "get-alt" ; Str s ; x ] ->
       E1 (GetAlt s, e x)
-  | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] as s ->
+  | Lst [ Sym "construct" ; Str mn ; Sym i ; x ] ->
       let i = int_of_symbol s i in
       (match mn_of_str s mn with
       | { typ = TSum mns ; nullable = false } ->
@@ -993,16 +993,16 @@ and e =
   | Lst [ Sym "read-u128" ; Sym en ; x ] ->
       E1 (ReadU128 (endianness_of_string en), e x)
   | Lst [ Sym "assert" ; x1 ] -> E1 (Assert, e x1)
-  | Lst [ Sym "mask-get" ; Sym d ; x1 ] as s ->
+  | Lst [ Sym "mask-get" ; Sym d ; x1 ] ->
       E1 (MaskGet (int_of_symbol s d), e x1)
   | Lst [ Sym "label-of" ; x ] -> E1 (LabelOf, e x)
-  | Lst [ Sym "sliding-window" ; Str mn ; x ] as s ->
+  | Lst [ Sym "sliding-window" ; Str mn ; x ] ->
       E1 (SlidingWindow (mn_of_str s mn), e x)
-  | Lst [ Sym "tumbling-window" ; Str mn ; x ] as s ->
+  | Lst [ Sym "tumbling-window" ; Str mn ; x ] ->
       E1 (TumblingWindow (mn_of_str s mn), e x)
-  | Lst [ Sym "sampling" ; Str mn ; x ] as s ->
+  | Lst [ Sym "sampling" ; Str mn ; x ] ->
       E1 (Sampling (mn_of_str s mn), e x)
-  | Lst [ Sym "hash-table" ; Str mn ; x ] as s ->
+  | Lst [ Sym "hash-table" ; Str mn ; x ] ->
       E1 (HashTable (mn_of_str s mn), e x)
   | Lst [ Sym "heap" ; x ] ->
       E1 (Heap, e x)
@@ -1014,9 +1014,9 @@ and e =
       E1 (GetEnv, e x)
   | Lst [ Sym "get-min" ; x ] ->
       E1 (GetMin, e x)
-  | Lst [ Sym "alloc-vec" ; Sym d ; x ] as s ->
+  | Lst [ Sym "alloc-vec" ; Sym d ; x ] ->
       E1 (AllocVec (int_of_symbol s d), e x)
-  | Lst [ Sym "convert" ; Str mn ; x ] as s ->
+  | Lst [ Sym "convert" ; Str mn ; x ] ->
       E1 (Convert (mn_of_str s mn), e x)
   (* e1s *)
   | Lst (Sym "apply" :: x1 :: xs) -> E1S (Apply, e x1, List.map e xs)
@@ -1127,14 +1127,38 @@ and e =
       E3 (PtrOfPtr, e x1, e x2, e x3)
   | Lst [ Sym "find-substring" ; x1 ; x2 ; x3 ] ->
       E3 (FindSubstring, e x1, e x2, e x3)
-  | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] as s ->
+  | Lst [ Sym "top" ; Str mn ; x1 ; x2 ; x3 ] ->
       E3 (Top (mn_of_str s mn), e x1, e x2, e x3)
   | Lst [ Sym "insert-weighted" ; x1 ; x2 ; x3 ] ->
       E3 (InsertWeighted, e x1, e x2, e x3)
   | Lst [ Sym "substring" ; x1 ; x2 ; x3 ] ->
       E3 (SubString, e x1, e x2, e x3)
-
-  | x -> raise (Unknown_expression x)
+  (* Some literal values (such as null or constructed values) require the full
+   * type to be specified. This is overkill when specifying a default value for
+   * a type, since we just spelled out the type. So in that case a lighter
+   * syntax is accepted: *)
+  | Sym "null" when current_mn <> None ->
+      let current_mn = Option.get current_mn in
+      if not current_mn.nullable then failwith "Current type is not nullable" ;
+      E0 (Null (current_mn).typ)
+  | Lst [ Sym cstr ; x ] when current_mn <> None ->
+      let mns, label =
+        match current_mn with
+        | Some { typ = TSum mns ; _ } ->
+            mns,
+            (try
+              Array.findi (fun (c, _mn) -> c = cstr) mns
+            with Not_found ->
+              failwith ("Current type has no constructor named "^
+                        String.quote cstr))
+        | _ ->
+            failwith "Current type has no constructors" in
+      E1 (Construct (mns, label), e x)
+  | Sym "null" ->
+      (* Also taking advantage of universal convertibility of NULLs: *)
+      E0 (Null TVoid)
+  | x ->
+      raise (Unknown_expression x)
 
 and expr_of_toks toks str =
   List.map e (sexpr_of_toks toks str)
