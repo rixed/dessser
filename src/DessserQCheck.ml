@@ -979,8 +979,8 @@ let sexpr ?sexpr_config mn =
 (*$R
   Gen.generate ~n:5 maybe_nullable_gen |>
   List.iter (fun mn ->
-    (* RamenRingBuffer cannot encode nullable outermost values (FIXME) *)
-    let mn_ringbuf = T.{ mn with nullable = false } in
+    (* RamenRingBuffer cannot encode nullable with explicit defaults *)
+    let mn_ringbuf = DessserRamenRingBuffer.make_serializable mn in
     (* CSV cannot encode some nullable compound types: *)
     let mn_csv = DessserCsv.make_serializable mn in
 
@@ -1175,19 +1175,19 @@ let sexpr ?sexpr_config mn =
 (*$= check_ser & ~printer:BatPervasives.identity
   "2a" \
     (check_ser rowbinary_ser  ocaml_be "u8" "42")
-  "2a 00 00 00" \
+  "01 01 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "u8" "42")
-  "01 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 01 00 00 01 03 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8; i8)" "(42 58)")
-  "01 01 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 01 00 00 01 03 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8)" "(42 58)")
-  "01 03 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 01 00 00 01 03 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)" "(42 58)")
-  "00 00 00 00 2a 00 00 00" \
+  "01 01 00 00 01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16]" "(0 42)")
-  "00 00 00 00 2a 00 00 00" \
+  "01 01 00 00 01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16?]" "(0 42)")
-  "01 00 00 00 2a 00 00 00" \
+  "01 01 00 00 01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8? | big u16]" "(0 42)")
   "30 2c 34 32" \
     (check_ser csv_ser ocaml_be "[small u8? | big u16]" "(0 42)")

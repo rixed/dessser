@@ -1050,6 +1050,24 @@ let rec fold u f t =
   | TUsr { def ; _ } ->
       fold u f def
   | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
+      fold u f mn.typ
+  | TTup mns ->
+      Array.fold_left (fun u mn -> fold u f mn.typ) u mns
+  | TRec mns | TSum mns ->
+      Array.fold_left (fun u (_, mn) -> fold u f mn.typ) u mns
+  | TMap (mn1, mn2) ->
+      fold (fold u f mn1.typ) f mn2.typ
+  | _ ->
+      u
+
+let rec fold_mn u f mn =
+  let u = f u mn in
+  match mn.typ with
+  | TNamed (_, t) ->
+      fold_mn u f { nullable = false ; default = None ; typ = t }
+  | TUsr { def ; _ } ->
+      fold_mn u f { nullable = false ; default = None ; typ = def }
+  | TVec (_, mn) | TArr mn | TSet (_, mn) | TLst mn ->
       fold_mn u f mn
   | TTup mns ->
       Array.fold_left (fun u mn -> fold_mn u f mn) u mns
@@ -1059,9 +1077,6 @@ let rec fold u f t =
       fold_mn (fold_mn u f mn1) f mn2
   | _ ->
       u
-
-and fold_mn u f mn =
-  fold u f mn.typ
 
 let iter f t =
   fold () (fun () t -> f t) t

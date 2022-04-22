@@ -98,7 +98,7 @@ let lib dbg gen_dbg quiet_ schema backend encodings_in encodings_out converters
   (* Then declare all referenced external types as if we had the same methods
    * than those we are generating for this type: *)
   let compunit =
-    T.fold_mn compunit (fun compunit -> function
+    T.fold compunit (fun compunit -> function
       | T.TExt name ->
           U.register_external_type compunit name (fun _p -> function
             | DIL ->
@@ -114,7 +114,7 @@ let lib dbg gen_dbg quiet_ schema backend encodings_in encodings_out converters
                 "dessser::gen::"^ m ^"::t_ext")
       | _ ->
           compunit
-    ) schema in
+    ) schema.T.typ in
   let module BE = (val backend : BACKEND) in
   let add_decoder compunit encoding_in =
     let module Des = (val (des_of_encoding encoding_in) : DES) in
