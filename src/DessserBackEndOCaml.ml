@@ -1496,8 +1496,25 @@ struct
           let cstr = uniq_cstr_name mn.typ s in
           (* FIXME: figure out where to add this whether the expression is a
            * binding or inlined: [@@ocaml.warning "-8"] *)
-          Printf.fprintf oc "(match %s with %s x -> x)"
-            n1 cstr)
+          (* If the alternative has no value, just check the constructor
+           * and set unit: *)
+          match T.develop_mn mn with
+          | T.{ typ = TSum mns ; nullable = false } as mn ->
+              (* Make sure the sum type, that is not the type of the result and
+               * that may be inlined in [e1], is actually defined: *)
+              let tn = type_identifier_mn p mn in
+              (match Array.find (fun (n, _) -> n = s) mns with
+              | exception Not_found ->
+                  Printf.sprintf2 "Invalid GetAlt %S, not in %a"
+                    s T.print_mn mn |>
+                  failwith
+              | mn ->
+                  if sum_has_arg mn then
+                    Printf.fprintf oc "(match (%s : %s) with %s x -> x)" n1 tn cstr
+                  else
+                    Printf.fprintf oc "(match (%s : %s) with %s -> ())" n1 tn cstr)
+          | _ ->
+              assert false (* Because of type checking *))
     | E1 (Construct (mns, i), e1) ->
         let n1 = print p l e1 in
         assert (i < Array.length mns) ;
