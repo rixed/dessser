@@ -378,7 +378,8 @@ struct
 
   let arr_sep _conf _ _ p = skip1 p
 
-  let is_present _conf _ _ _p = true_
+  let is_present _conf _ _ p =
+    make_pair true_ p
 
   let is_null _conf _ _ p =
     (* null *)

@@ -117,7 +117,7 @@ sig
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_present :
-                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*bool*) E.t
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*bool*ptr*) E.t
   val is_null : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*bool*) E.t
   val dnull : T.typ ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
@@ -645,23 +645,32 @@ struct
   and desser_ is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
     let mn = Path.type_of_path mn0 path in
-    match mn.T.default with
-    | None ->
-        desser_mn mn is_present def transform sstate dstate mn0 path src_dst
-    | Some new_def ->
-        let_ ~name:"src_dst" src_dst (fun src_dst ->
-          let_pair ~n1:"is_present" ~n2:"def"
-            (if_ is_present
-              (* We were not using the default [def]: *)
-              ~then_:(
-                make_pair
-                  (Des.is_present dstate mn0 path (first src_dst))
-                  (convert mn new_def))
-              (* We are currently using the default [def]:*)
-              ~else_:(make_pair true_ def))
-            (fun is_present def ->
-              desser_mn mn is_present def transform sstate dstate
-                        mn0 path src_dst))
+    let new_def =
+      match mn.T.default with
+      | Some v -> v
+      | None -> E.default_mn mn in
+    let_ ~name:"src_dst" src_dst (fun src_dst ->
+      let_pair ~n1:"is_present" ~n2:"def"
+        (if_ is_present
+          (* We were not using the default [def]: *)
+          ~then_:(
+            E.with_sploded_pair "src_dst" src_dst (fun src dst ->
+              let_pair ~n1:"is_present" ~n2:"src"
+                (Des.is_present dstate mn0 path src)
+                (fun is_present src ->
+                  make_pair
+                    (make_pair src dst)
+                    (make_pair is_present
+                               (convert mn new_def)))))
+          (* We are currently using the default [def]:*)
+          ~else_:(
+            make_pair
+              src_dst
+              (make_pair false_ def)))
+        (fun src_dst is_present_def ->
+          E.with_sploded_pair "is_present_def" is_present_def (fun is_present def ->
+            desser_mn mn is_present def transform sstate dstate
+                      mn0 path src_dst)))
 
   (* Creates a function that converts values of the the given type [mn0].
    * Since this very function is never called recursively it is OK that it takes

@@ -16,7 +16,11 @@ let debug_flag = false
  * default values of nullable type must not be non-null, or the logic
  * implemented in Dessser.ml will not work (it assumes any absent value
  * is the declared default when deserializing and will also skip any default
- * value when encoding). *)
+ * value when encoding).
+ * Size of this bitmask is always known at compile time but for variable
+ * length TArr (TSet and TList are converted into TArr beforehand).
+ * In those cases, a word prefixes the bitmask that gives the number of
+ * items. *)
 
 let is_serializable0 = function
   | T.{ nullable = true ; default = (None | Some (E0 (Null _))) ; _ } -> true
@@ -167,8 +171,10 @@ let leave_frame p_stk =
 let set_fieldbit stk =
   let p_bi = force ~what:"RingBuf.set_fieldbit" (head stk) in
   E.with_sploded_pair "set_fieldbit" p_bi (fun p bi ->
-    seq [ debug (string "set fieldbit at ") ;
+    seq [ debug (string "set fieldbit ") ;
           debug (string_of_int_ bi) ;
+          debug (string "@") ;
+          debug (string_of_int_ (offset p)) ;
           debug (char '\n') ;
           set_bit p bi (bit true) ;
           let frame = make_pair p (add bi (size 1)) in
@@ -185,9 +191,6 @@ let skip_fieldbit stk =
           debug (char '\n') ;
           let frame = make_pair p (add bi (size 1)) in
           cons frame (force ~what:"RingBuf.skip_fieldbit" (tail stk)) ])
-
-let set_fieldbit_to bit stk =
-  (if bit then set_fieldbit else skip_fieldbit) stk
 
 let skip_fieldbit_from_frame p_stk =
   E.with_sploded_pair "skip_fieldbit_from_frame" p_stk (fun p stk ->
@@ -228,7 +231,7 @@ struct
   (* Return the number of bytes required to encode the bitmask *)
   let bytes_of_type typ =
     let bits = of_type typ in
-    round_up_const_bits (bits + 8) (* with prefix length *)
+    round_up_const_bits bits
 
   (* Return the number of words required to encode the bitmask *)
   let words_of_type =
@@ -248,37 +251,31 @@ struct
    * pointer. *)
   let zero_bitmask_const bits p =
     let sz = (bits + 7) / 8 in
-    let words = words_of_const_bytes (sz + 1) in
-    let p = write_u8 p (u8_of_int words) in
     let p = blit_byte p (u8_of_int 0) (size sz) in
-    align_const p (1 + sz)
+    align_const p sz
 
   (* Zero the bitmask known only at runtime (which size in words a given
    * in the first byte of the mask) and advance the pointer *)
   let zero_bitmask_dyn bits p =
     let_ ~name:"sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
       (fun sz ->
-        (* The bitmask is prefixed with a byte for the length (in words): *)
-        let_ ~name:"sz_pfx_" (add sz (u32_of_int 1)) (fun sz_with_prefix ->
-          let words = words_of_dyn_bytes sz_with_prefix in
-          let p = write_u8 p (to_u8 words) in
-          let p = blit_byte p (u8_of_int 0) (size_of_u32 sz) in
-          align_dyn p (size_of_u32 sz_with_prefix)))
+        let p = blit_byte p (u8_of_int 0) (size_of_u32 sz) in
+        align_dyn p (size_of_u32 sz))
 
-  (* Enter a new compound type by zeroing a bitmask of the given [max_width]
+  (* Enter a new compound type by zeroing a bitmask of the given [width]
    * and setting up a new frame for it, all this after having set its own
    * fieldbit. *)
-  let enter_frame to_expr zero_bitmask max_width p_stk =
+  let enter_frame to_expr zero_bitmask width p_stk =
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
-      let stk = set_fieldbit_to true stk in
-      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
+      let stk = set_fieldbit stk in
+      let new_frame = make_pair p (size 0) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
             debug (string " with ") ;
-            debug (string_of_int_ (to_expr max_width)) ;
+            debug (string_of_int_ (to_expr width)) ;
             debug (string " fieldbits\n") ;
             make_pair
-              (zero_bitmask max_width p)
+              (zero_bitmask width p)
               (cons new_frame stk) ])
 
   (* Enter a new compound type by zeroing a bitmask and setting up a new
@@ -288,18 +285,21 @@ struct
 
   let with_fieldbit_done p_stk f =
     E.with_sploded_pair "with_fieldbit_done1" p_stk (fun p stk ->
-      let stk = set_fieldbit_to true stk in
-      let p = f p in
-      make_pair p stk)
+      let stk = set_fieldbit stk in
+      let_ ~name:"with_fieldbit_done_p" p (fun p ->
+        let p = f p in
+        make_pair p stk))
 
   let make_state ?(config=()) mn0 =
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
   let start _conf p =
-    let stk = end_of_list t_frame in
-    let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
-    make_pair (zero_bitmask_const 1 p) (cons new_frame stk)
+    let_ ~name:"start_p" p (fun p ->
+      let new_frame = make_pair p (size 0) in
+      let stk = cons new_frame (end_of_list t_frame) in
+      let p = zero_bitmask_const 1 p in
+      make_pair p stk)
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -421,7 +421,7 @@ struct
 
   let sext f () _ _ v p_stk =
     E.with_sploded_pair "sext" p_stk (fun p stk ->
-      let stk = set_fieldbit_to true stk in
+      let stk = set_fieldbit stk in
       let p_stk = make_pair p stk in
       f v p_stk)
 
@@ -452,8 +452,8 @@ struct
    * - the u16 of the label index. *)
   let sum_opn _mns lbl () _ _ p_stk =
     E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
-      (* Set my own nulbit if needed: *)
-      let stk = set_fieldbit_to true stk in
+      (* Set my own bit: *)
+      let stk = set_fieldbit stk in
       (* Prepare the new frame: *)
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
@@ -476,16 +476,17 @@ struct
 
   let vec_sep () _ _ p_stk = p_stk
 
-  (* [n] is an u32 *)
+  (* First prefix is the length (in items), then the bitmask.
+   * [n] is an u32 *)
   let arr_opn _mn n () _ _ p_stk =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
-    let bits = BitMaskWidth.lst_bits n in
     let p_stk =
       E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
         let p = write_u32 LittleEndian p n in
         make_pair p stk) in
+    let bits = BitMaskWidth.lst_bits n in
     enter_frame_dyn bits p_stk
 
   let arr_cls () _ _ p_stk =
@@ -499,9 +500,14 @@ struct
   let snull _t () _ _ p_stk =
     skip_fieldbit_from_frame p_stk
 
-  (* fieldbits are set when actual values are written: *)
+  (* bitmask is set when actual values are written: *)
   let snotnull _t () _ _ p_stk =
     p_stk
+
+  (* SerSizes: Every value also has a bit for presence in some bitmask
+   * somewhere. Every inner value is part of some compound type which
+   * regroup these bits in a single bitmask. The outer value has its own
+   * bitmask with a single bit in the beginning though. *)
 
   type ssizer = T.mn -> Path.t -> E.t -> E.t
 
@@ -519,10 +525,8 @@ struct
   (* SerSize of the list header: *)
   let ssize_of_arr _ _ id =
     let bitmask_bits_dyn = cardinality id in
-    (* Add the bitmask length prefix: *)
-    let bitmask_sz_bits = add bitmask_bits_dyn (u32_of_int 8) in
     (* Round up to ringbuf words: *)
-    let bitmask_bytes = round_up_dyn_bits bitmask_sz_bits in
+    let bitmask_bytes = round_up_dyn_bits bitmask_bits_dyn in
     add (size word_size) (* list length *)
         bitmask_bytes
 
@@ -601,7 +605,7 @@ struct
       BitMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
     size (bitmask_words * word_size)
 
-  (* Just the additional label: *)
+  (* Just the additional label and "bitmask": *)
   let ssize_of_sum _ _ _ =
     size word_size
 
@@ -616,7 +620,7 @@ struct
 
   let ssize_start ?(config=()) _ =
     ignore config ;
-    size 0
+    size (round_up_const_bits 1)  (* The outer value "bitmask" *)
 end
 
 module Des : DES with type config = unit =
@@ -626,38 +630,17 @@ struct
   type config = unit
   type state = unit
 
-  (* Enter a new compound type by recording its location in the stack
-   * and jumping over it, after having incremented the current fieldbit
-   * index.
-   * The fieldbit index of the new stack is set to 8 after the bitmask
-   * length prefix (so sum deserializer cannot use this function) *)
-  let enter_frame p stk =
-    let stk = set_fieldbit_to false stk in
-    (* The following [8] is the size of the length prefix. *)
-    let new_frame = make_pair p (size 8) in
-    seq [ debug (string "des: enter a new frame at ") ;
-          debug (string_of_int_ (offset p)) ;
-          debug (string "\n") ;
-          let words = read_u8 p |> first in
-          let bytes = left_shift (to_u32 words)
-                                 (u8_of_int (log2 word_size)) in
-          let p = ptr_add p (size_of_u32 bytes)
-          and stk = cons new_frame stk in
-          make_pair p stk ]
-
   let make_state ?(config=()) mn0 =
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
   let start _conf p =
-    let new_frame = make_pair p (size 8) in
-    let words = read_u8 p |> first in
-    let bytes = left_shift (to_u32 words)
-                           (u8_of_int (log2 word_size)) in
-    let p = ptr_add p (size_of_u32 bytes) in
-    let stk = end_of_list t_frame in
-    let stk = cons new_frame stk in
-    make_pair p stk
+    let_ ~name:"start_p" p (fun p ->
+      let new_frame = make_pair p (size 0) in
+      let stk = cons new_frame (end_of_list t_frame) in
+      (* Outer value always start with a one word "bitmask": *)
+      let p = ptr_add p (size word_size) in
+      make_pair p stk)
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)
@@ -665,142 +648,130 @@ struct
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
 
-  (* When we deserialize any value, we have to increment the fieldbit: *)
-  let with_fieldbit_done p_stk f =
-    E.with_sploded_pair "with_fieldbit_done2" p_stk (fun p stk ->
-      let stk = set_fieldbit_to false stk in
-      E.with_sploded_pair "with_fieldbit_done3" (f p) (fun v p ->
-        make_pair v (make_pair p stk)))
+  (* Enter a new compound type by recording its location in the stack
+   * and jumping over it. *)
+  let enter_frame width p stk =
+    let_ ~name:"enter_frame_p" p (fun p ->
+      let new_frame = make_pair p (size 0) in
+      let bytes = round_up_dyn_bits (to_u32 width) in
+      seq [ debug (string "des: enter a new frame at ") ;
+            debug (string_of_int_ (offset p)) ;
+            debug (string " of size ") ;
+            debug (string_of_int_ bytes) ;
+            debug (string "\n") ;
+            make_pair
+              (ptr_add p bytes)
+              (cons new_frame stk) ])
+
+  let with_debug p_stk what read cont =
+    E.with_sploded_pair "debug1" p_stk (fun p stk ->
+      seq [ debug (string ("des a "^ what ^" at ")) ;
+            debug (string_of_int_ (offset p)) ;
+            debug (char '\n') ;
+            E.with_sploded_pair ("d"^ what ^"0") (read p) (fun v p ->
+              E.with_sploded_pair (what ^"1") (cont v p) (fun v p ->
+                make_pair v (make_pair p stk))) ])
 
   let dfloat () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      seq [ debug (string "desser a float from ") ;
-            debug (string_of_int_ (offset p)) ;
-            debug (char '\n') ;
-            E.with_sploded_pair "dfloat" (read_u64 LittleEndian p) (fun w p ->
-              make_pair (float_of_u64 w) p) ])
+    with_debug p_stk "float" (read_u64 LittleEndian) (fun w p ->
+      make_pair (float_of_u64 w) p)
 
   let dbytes () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      seq [ debug (string "deser bytes from ") ;
-            debug (string_of_int_ (offset p)) ;
-            debug (char '\n') ;
-            E.with_sploded_pair "dbytes1" (read_u32 LittleEndian p) (fun len p ->
-              let len = size_of_u32 len in
-              E.with_sploded_pair "dbytes2" (read_bytes p len) (fun v p ->
-                make_pair v (align_dyn p len))) ])
+    with_debug p_stk "bytes" (read_u32 LittleEndian) (fun len p ->
+      let len = size_of_u32 len in
+      E.with_sploded_pair "dbytes2" (read_bytes p len) (fun v p ->
+        make_pair v (align_dyn p len)))
 
   let dstring () mn0 path p_stk =
     let_pair ~n1:"v" ~n2:"p" (dbytes () mn0 path p_stk) (fun v p ->
       make_pair (string_of_bytes v) p)
 
   let dbool () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "dbool" (read_u8 p) (fun b p ->
-        make_pair (bool_of_u8 b) (align_const p 1)))
+    with_debug p_stk "bool" read_u8 (fun b p ->
+      make_pair (bool_of_u8 b) (align_const p 1))
 
   let dchar () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "dchar" (read_u8 p) (fun b p ->
-        make_pair (char_of_u8 b) (align_const p 1)))
+    with_debug p_stk "char" read_u8 (fun b p ->
+      make_pair (char_of_u8 b) (align_const p 1))
 
   let du8 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du8" (read_u8 p) (fun b p ->
-        make_pair b (align_const p 1)))
+    with_debug p_stk "u8" read_u8 (fun b p ->
+      make_pair b (align_const p 1))
 
   let du16 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du16" (read_u16 LittleEndian p) (fun w p ->
-        make_pair w (align_const p 2)))
+    with_debug p_stk "u16" (read_u16 LittleEndian) (fun w p ->
+      make_pair w (align_const p 2))
 
   let du24 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du24" (read_u32 LittleEndian p) (fun w p ->
-        make_pair (to_u24 w) (align_const p 4)))
+    with_debug p_stk "u24" (read_u32 LittleEndian) (fun w p ->
+      make_pair (to_u24 w) (align_const p 4))
 
   let du32 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du32" (read_u32 LittleEndian p) (fun w p ->
-        make_pair w (align_const p 4)))
+    with_debug p_stk "u32" (read_u32 LittleEndian) (fun w p ->
+      make_pair w (align_const p 4))
 
   let du40 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du40" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_u40 w) (align_const p 8)))
+    with_debug p_stk "u40" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_u40 w) (align_const p 8))
 
   let du48 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du48" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_u48 w) (align_const p 8)))
+    with_debug p_stk "u48" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_u48 w) (align_const p 8))
 
   let du56 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du56" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_u56 w) (align_const p 8)))
+    with_debug p_stk "u56" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_u56 w) (align_const p 8))
 
   let du64 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du64" (read_u64 LittleEndian p) (fun w p ->
-        make_pair w (align_const p 8)))
+    with_debug p_stk "u64" (read_u64 LittleEndian) (fun w p ->
+      make_pair w (align_const p 8))
 
   let du128 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "du128" (read_u128 LittleEndian p) (fun w p ->
-        make_pair w (align_const p 8)))
+    with_debug p_stk "u128" (read_u128 LittleEndian) (fun w p ->
+      make_pair w (align_const p 8))
 
   let di8 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di8" (read_u8 p) (fun b p ->
-        make_pair (to_i8 b) (align_const p 1)))
+    with_debug p_stk "i8" read_u8 (fun b p ->
+      make_pair (to_i8 b) (align_const p 1))
 
   let di16 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di16" (read_u16 LittleEndian p) (fun w p ->
-        make_pair (to_i16 w) (align_const p 2)))
+    with_debug p_stk "i16" (read_u16 LittleEndian) (fun w p ->
+      make_pair (to_i16 w) (align_const p 2))
 
   let di24 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di24" (read_u32 LittleEndian p) (fun w p ->
-        make_pair (to_i24 w) (align_const p 4)))
+    with_debug p_stk "i24" (read_u32 LittleEndian) (fun w p ->
+      make_pair (to_i24 w) (align_const p 4))
 
   let di32 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di32" (read_u32 LittleEndian p) (fun w p ->
-        make_pair (to_i32 w) (align_const p 4)))
+    with_debug p_stk "i32" (read_u32 LittleEndian) (fun w p ->
+      make_pair (to_i32 w) (align_const p 4))
 
   let di40 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di40" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_i40 w) (align_const p 8)))
+    with_debug p_stk "i40" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_i40 w) (align_const p 8))
 
   let di48 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di48" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_i48 w) (align_const p 8)))
+    with_debug p_stk "i48" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_i48 w) (align_const p 8))
 
   let di56 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di56" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_i56 w) (align_const p 8)))
+    with_debug p_stk "i56" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_i56 w) (align_const p 8))
 
   let di64 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di64" (read_u64 LittleEndian p) (fun w p ->
-        make_pair (to_i64 w) (align_const p 8)))
+    with_debug p_stk "i64" (read_u64 LittleEndian) (fun w p ->
+      make_pair (to_i64 w) (align_const p 8))
 
   let di128 () _ _ p_stk =
-    with_fieldbit_done p_stk (fun p ->
-      E.with_sploded_pair "di128" (read_u128 LittleEndian p) (fun w p ->
-        make_pair (to_i128 w) (align_const p 8)))
+    with_debug p_stk "i128" (read_u128 LittleEndian) (fun w p ->
+      make_pair (to_i128 w) (align_const p 8))
 
   let dext f () _ _ p_stk =
     E.with_sploded_pair "dext" p_stk (fun p stk ->
-      let stk = set_fieldbit_to false stk in
       let_ ~name:"p_stk" (make_pair p stk) f)
 
-  let tup_rec_opn _mns _ _ p_stk =
-    E.with_sploded_pair "tup_rec_opn" p_stk enter_frame
+  let tup_rec_opn mns _ _ p_stk =
+    E.with_sploded_pair "tup_rec_opn" p_stk (enter_frame (size (Array.length mns)))
 
   let tup_opn mns () mn0 path p_stk =
     tup_rec_opn mns mn0 path p_stk
@@ -819,8 +790,8 @@ struct
 
   let rec_sep () _ _ p_stk = p_stk
 
-  let vec_opn _dim _mn () _ _ p_stk =
-    E.with_sploded_pair "vec_opn" p_stk enter_frame
+  let vec_opn dim _mn () _ _ p_stk =
+    E.with_sploded_pair "vec_opn" p_stk (enter_frame (size dim))
 
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
@@ -831,8 +802,6 @@ struct
    * the label as a u16: *)
   let sum_opn _mns () _ _ p_stk =
     E.with_sploded_pair "sum_opn2" p_stk (fun p stk ->
-      (* Skip my own fieldbit if needed: *)
-      let stk = skip_fieldbit stk in
       (* Prepare the new frame: *)
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
@@ -851,8 +820,9 @@ struct
   let arr_opn () = KnownSize
     (fun _mn _ _ p_stk ->
       E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
-        E.with_sploded_pair "list_opn2" (read_u32 LittleEndian p) (fun n p ->
-          let p_stk = enter_frame p stk in
+        let n = read_u32 LittleEndian p in
+        E.with_sploded_pair "list_opn2" n (fun n p ->
+          let p_stk = enter_frame n p stk in
           make_pair n p_stk)))
 
   let arr_cls () _ _ p_stk =
@@ -862,20 +832,25 @@ struct
 
   let is_present () _ _ p_stk =
     (* TODO: assert stk <> end_of_list *)
-    (* Do not advance the nullbit index as it's already done on a per
-     * value basis: *)
-    let p_bi = force ~what:"RingBuf.is_present" (head (secnd p_stk)) in
-    E.with_sploded_pair "is_present" p_bi (fun p bi ->
-      let_ (not_ (get_bit p bi)) (fun b ->
-        seq [ debug (string "des: get fieldbit at ") ;
-              debug (string_of_int_ bi) ;
-              debug (string " -> ") ;
-              debug (string_of_int_ (u8_of_bool b)) ;
-              debug (char '\n') ;
-              b ]))
+    E.with_sploded_pair "is_present1" p_stk (fun p stk ->
+      let fp_bi = force ~what:"Ringbuf.is_present" (head stk) in
+      E.with_sploded_pair "is_present2" fp_bi (fun fp bi ->
+        (* Increment bi in the stack: *)
+        let frame = make_pair fp (add bi (size 1)) in
+        let stk = cons frame (force ~what:"is_present3" (tail stk)) in
+        let p_stk = make_pair p stk in
+        let_ (get_bit fp bi) (fun b ->
+          seq [ debug (string ("des: get fieldbit ")) ;
+                debug (string_of_int_ bi) ;
+                debug (string "@") ;
+                debug (string_of_int_ (offset fp)) ;
+                debug (string " -> ") ;
+                debug (string_of_int_ (u8_of_bool b)) ;
+                debug (char '\n') ;
+                make_pair b p_stk ])))
 
-  let is_null () mn0 path p_stk =
-    is_present () mn0 path p_stk
+  let is_null () _ _ _ =
+    false_ (* Always false because is_present is checked first *)
 
   let dnull _t () _ _ p_stk =
     skip_fieldbit_from_frame p_stk

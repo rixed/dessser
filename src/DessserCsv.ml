@@ -684,7 +684,8 @@ struct
     else
       skip_sep conf p
 
-  let is_present _conf _mn0 _path _p = true_
+  let is_present _conf _mn0 _path p =
+    make_pair true_ p
 
   let is_null conf mn0 path p =
     let len = String.length conf.null in

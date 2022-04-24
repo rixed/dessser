@@ -283,9 +283,12 @@ struct
   and make1 dstate mn0 path mn src =
     match mn.default with
     | Some def ->
-        if_ (Des.is_present dstate mn0 path src)
-          ~then_:(make_mn dstate mn0 path mn src)
-          ~else_:(make_pair (convert mn def) src)
+        let_pair ~n1:"is_present" ~n2:"src"
+          (Des.is_present dstate mn0 path src)
+          (fun is_present src ->
+            if_ is_present
+              ~then_:(make_mn dstate mn0 path mn src)
+              ~else_:(make_pair (convert mn def) src))
     | None ->
         make_mn dstate mn0 path mn src
 

@@ -639,7 +639,7 @@ struct
   let is_present _conf mn0 path p_stk =
     let_pair ~n1:"p" ~n2:"stk" p_stk (fun p stk ->
       let_ ~name:"p_opt" (locate_p mn0 path p stk) (fun p_opt ->
-        not_ (is_null p_opt)))
+        make_pair (not_ (is_null p_opt)) p_stk))
 
   (* Note that even without a default value the value could be entirely
    * missing and be NULLs *)
