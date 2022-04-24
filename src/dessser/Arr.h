@@ -47,12 +47,32 @@ struct Arr : public std::vector<T> {
     });
   }
 
-  // Mapped from another Arr:
+  // Mapped from another Arr
   template<class TInit, class T2>
-  Arr(TInit init, std::function<T(TInit, T2)> f, Arr<T2> that)
+  Arr(TInit init, std::function<T(TInit, const T2)> f, Arr<T2> that)
   {
     this->reserve(that.size());
-    for (T2 const &x2 : that) {
+    for (T2 &x2 : that) {
+      this->push_back(f(init, x2));
+    }
+  }
+
+  // Same as above, for non trivial types passed by ref:
+  template<class TInit, class T2>
+  Arr(TInit init, std::function<T(TInit, T2 &)> f, Arr<T2> that)
+  {
+    this->reserve(that.size());
+    for (T2 &x2 : that) {
+      this->push_back(f(init, x2));
+    }
+  }
+
+  // And finally another one for when the callback takes a const ref:
+  template<class TInit, class T2>
+  Arr(TInit init, std::function<T(TInit, T2 const &)> f, Arr<T2> that)
+  {
+    this->reserve(that.size());
+    for (T2 &x2 : that) {
       this->push_back(f(init, x2));
     }
   }

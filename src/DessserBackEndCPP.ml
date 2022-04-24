@@ -1259,7 +1259,7 @@ struct
         emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E1 (ArrOfSet, e1) ->
         let n1 = print p l e1 in
-        emit ?name p l e (fun oc -> pp oc "&%s" n1)
+        emit ?name p l e (fun oc -> pp oc "%s" n1)
     | E2 (AppendByte, e1, e2) ->
         let n1 = print p l e1
         and n2 = print p l e2 in
