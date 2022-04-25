@@ -12,11 +12,12 @@ open E.Ops
 let debug_flag = false
 
 (* This is the encoding used to pass values in between Ramen workers.
- * Notice that there is a single bitmask for missing values; So explicit
- * default values of nullable type must not be non-null, or the logic
- * implemented in Dessser.ml will not work (it assumes any absent value
- * is the declared default when deserializing and will also skip any default
- * value when encoding).
+ * Notice that there is a single bitmask for missing values (0=value is
+ * present, 1=value is default).
+ * So explicit default values of nullable type must not be non-null, otherwise
+ * the logic implemented in Dessser.ml will not work (it assumes that any
+ * absent value is the declared default when deserializing and will also skip
+ * any default value when encoding).
  * Size of this bitmask is always known at compile time but for variable
  * length TArr (TSet and TList are converted into TArr beforehand).
  * In those cases, a word prefixes the bitmask that gives the number of
@@ -263,11 +264,10 @@ struct
         align_dyn p (size_of_u32 sz))
 
   (* Enter a new compound type by zeroing a bitmask of the given [width]
-   * and setting up a new frame for it, all this after having set its own
-   * fieldbit. *)
+   * and setting up a new frame for it, and increment the bitfield. *)
   let enter_frame to_expr zero_bitmask width p_stk =
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
-      let stk = set_fieldbit stk in
+      let stk = skip_fieldbit stk in
       let new_frame = make_pair p (size 0) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
@@ -279,13 +279,13 @@ struct
               (cons new_frame stk) ])
 
   (* Enter a new compound type by zeroing a bitmask and setting up a new
-   * frame for it, all this after having set its own fieldbit: *)
+   * frame for it: *)
   let enter_frame_dyn = enter_frame identity zero_bitmask_dyn
   let enter_frame_const = enter_frame u8_of_int zero_bitmask_const
 
   let with_fieldbit_done p_stk f =
-    E.with_sploded_pair "with_fieldbit_done1" p_stk (fun p stk ->
-      let stk = set_fieldbit stk in
+    E.with_sploded_pair "with_fieldbit_done" p_stk (fun p stk ->
+      let stk = skip_fieldbit stk in
       let_ ~name:"with_fieldbit_done_p" p (fun p ->
         let p = f p in
         make_pair p stk))
@@ -421,7 +421,7 @@ struct
 
   let sext f () _ _ v p_stk =
     E.with_sploded_pair "sext" p_stk (fun p stk ->
-      let stk = set_fieldbit stk in
+      let stk = skip_fieldbit stk in
       let p_stk = make_pair p stk in
       f v p_stk)
 
@@ -452,8 +452,8 @@ struct
    * - the u16 of the label index. *)
   let sum_opn _mns lbl () _ _ p_stk =
     E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
-      (* Set my own bit: *)
-      let stk = set_fieldbit stk in
+      (* Increase bitfield: *)
+      let stk = skip_fieldbit stk in
       (* Prepare the new frame: *)
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
@@ -496,11 +496,15 @@ struct
 
   let nullable () _ _ p_stk = p_stk
 
-  (* The bitmask has been zeroed already: *)
+  (* That's the only default value that is set for now.
+   * TODO: Dessser.ml should call an [sdefault] function in other cases: *)
   let snull _t () _ _ p_stk =
-    skip_fieldbit_from_frame p_stk
+    E.with_sploded_pair "snull" p_stk (fun p stk ->
+      let stk = set_fieldbit stk in
+      make_pair p stk)
 
-  (* bitmask is set when actual values are written: *)
+  (* The bitmask has been zeroed already; the fieldbit is increased when
+   * actually serializing the value (for both nullable and non nullable): *)
   let snotnull _t () _ _ p_stk =
     p_stk
 
@@ -840,7 +844,7 @@ struct
         let frame = make_pair fp (add bi (size 1)) in
         let stk = cons frame (force ~what:"is_present3" (tail stk)) in
         let p_stk = make_pair p stk in
-        let_ (get_bit fp bi) (fun b ->
+        let_ (not_ (get_bit fp bi)) (fun b ->
           seq [ debug (string ("des: get fieldbit ")) ;
                 debug (string_of_int_ bi) ;
                 debug (string "@") ;
@@ -854,7 +858,7 @@ struct
     false_ (* Always false because is_present is checked first *)
 
   let dnull _t () _ _ p_stk =
-    skip_fieldbit_from_frame p_stk
+    p_stk
 
   let dnotnull _t () _ _ p_stk =
     p_stk
