@@ -196,6 +196,8 @@ let reify_some_lambdas compunit =
     ) compunit.identifiers ;
   !compunit', !modified
 
+(* Should be called only after partial-eval had a chance to optimise some
+ * of those lambdas *)
 let rec reify_lambdas compunit =
   let compunit', modified = reify_some_lambdas compunit in
   if modified then reify_lambdas compunit' else compunit

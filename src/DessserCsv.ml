@@ -15,7 +15,7 @@ open E.Ops
   module T = DessserTypes
 *)
 
-let debug = false
+let debug_flag = false
 
 type csv_config =
   { separator : char ;
@@ -160,7 +160,7 @@ let rec make_serializable mn =
       invalid_arg "make_serializable"
 
 let make_serializable =
-  if debug then
+  if debug_flag then
     fun mn ->
       let mn = make_serializable mn in
       assert (is_serializable mn) ;
@@ -448,7 +448,7 @@ struct
 
   let skip_byte b p =
     (* On debug, check that the expected character is present: *)
-    if debug then
+    if debug_flag then
       let_ ~name:"skip_byte_p" p (fun p ->
         seq [
           StdLib.check_byte p b ;

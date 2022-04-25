@@ -869,13 +869,16 @@ let sexpr ?sexpr_config mn =
   open QCheck
   open E.Ops
 
+  let keep_temp_files = true
+  let () = DessserExpressions.dump_debug := false
+
   let sexpr_to_sexpr be mn =
     let module S2S = DesSer (DessserSExpr.Des) (DessserSExpr.Ser) in
     let e =
       func2 (T.dptr_of_enc DessserSExpr.Des.id) (T.sptr_of_enc DessserSExpr.Ser.id)
         (fun src dst -> S2S.desser mn src dst) in
     let compunit = U.make (test_name ()) in
-    make_converter ~dev_mode:true ~mn compunit be e
+    make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e
 
   let test_desser ?sexpr_config alloc_dst be mn des ser =
     let module Des = (val des : DES) in
@@ -900,7 +903,7 @@ let sexpr ?sexpr_config mn =
     ) ;
     let compunit = U.make (test_name ()) |> DessserJson.init in
     try
-      make_converter ~dev_mode:true ~mn compunit be e
+      make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e
     with exn ->
       let e' =
         try DessserEval.peval E.no_env e
@@ -973,7 +976,7 @@ let sexpr ?sexpr_config mn =
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter ~dev_mode:true ~mn compunit be e in
+    let exe = make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     test_exe "heap-value" mn exe
 *)
 (*$R
@@ -1052,7 +1055,7 @@ let sexpr ?sexpr_config mn =
     let compunit, e = heap_convert_expr compunit mn in
     if dbg then
       Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
-    let exe = make_converter ~dev_mode:true ~mn compunit be e in
+    let exe = make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 *)
 
@@ -1161,7 +1164,7 @@ let sexpr ?sexpr_config mn =
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make (test_name ()) in
-      make_converter ~dev_mode:true ~mn compunit be e in
+      make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 
@@ -1176,7 +1179,7 @@ let sexpr ?sexpr_config mn =
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make (test_name ()) in
-      make_converter ~dev_mode:true ~mn compunit be e in
+      make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs) |>
     hexify_string
 *)
@@ -1215,7 +1218,7 @@ let sexpr ?sexpr_config mn =
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make (test_name ()) in
-      make_converter ~dev_mode:true ~mn compunit be e in
+      make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let check_ser_csv ?config be ts vs =
@@ -1228,7 +1231,7 @@ let sexpr ?sexpr_config mn =
       if dbg then
         Format.eprintf "@[<v>Expression:@,%a@." (E.pretty_print ?max_depth:None) e ;
       let compunit = U.make (test_name ()) in
-      make_converter ~dev_mode:true ~mn compunit be e in
+      make_converter ~dev_mode:true ~keep_temp_files ~mn compunit be e in
     String.trim (run_converter ~timeout:2 exe vs)
 
   let csv_config_0 =

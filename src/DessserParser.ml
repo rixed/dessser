@@ -13,7 +13,9 @@ module ParseUsual = ParsersUsual.Make (P)
 include P
 include ParseUsual
 
-(* First a small s-expression parser: *)
+(*
+ * First a small s-expression parser
+ *)
 
 (* String representation of expressions are mere s-expressions.
  * strings are represented as OCaml quoted strings. *)

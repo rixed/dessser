@@ -493,7 +493,7 @@ struct
         ppi oc "%s," (uniq_cstr_name (T.TSum mns) n)
       ) mns
     ) ;
-    ppi oc "};\n" ;
+    ppi oc "};" ;
     ppi oc "constexpr size_t %s_size { %d };" id (Array.length mns) ;
     if id <> "_" && p.context = P.Declaration then (
       ppi oc "inline std::ostream &operator<<(std::ostream &os, %s const &v) {" id ;

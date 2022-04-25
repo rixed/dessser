@@ -314,7 +314,7 @@ struct
           write ]
 
   let sfloat () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun  p ->
+    with_fieldbit_done p_stk (fun p ->
       with_debug p "float"
         (write_u64 LittleEndian p (u64_of_float v)))
 
@@ -828,7 +828,8 @@ struct
   let arr_cls () _ _ p_stk =
     leave_frame p_stk
 
-  let arr_sep () _ _ p_stk = p_stk
+  let arr_sep () _ _ p_stk =
+    p_stk
 
   let is_present () _ _ p_stk =
     (* TODO: assert stk <> end_of_list *)
@@ -855,7 +856,8 @@ struct
   let dnull _t () _ _ p_stk =
     skip_fieldbit_from_frame p_stk
 
-  let dnotnull _t () _ _ p_stk = p_stk
+  let dnotnull _t () _ _ p_stk =
+    p_stk
 end
 
 let () =

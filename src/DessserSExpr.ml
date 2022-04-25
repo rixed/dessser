@@ -363,6 +363,8 @@ struct
 
   let vec_sep _conf _ _ p = skip1 p
 
+  (* FIXME: we should return functions for both cases and dessser will use one
+   * or the other set depending on the availability of the length: *)
   let arr_opn conf =
     if conf.list_prefix_length then
       KnownSize (fun mn0 path _ p ->
