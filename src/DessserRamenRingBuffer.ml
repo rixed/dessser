@@ -13,11 +13,11 @@ let debug_flag = false
 
 (* This is the encoding used to pass values in between Ramen workers.
  * Notice that there is a single bitmask for missing values (0=value is
- * present, 1=value is default).
- * So explicit default values of nullable type must not be non-null, otherwise
- * the logic implemented in Dessser.ml will not work (it assumes that any
- * absent value is the declared default when deserializing and will also skip
- * any default value when encoding).
+ * present, 1=value is default).  Therefore, explicit default values of
+ * nullable types must not be non-null, otherwise the logic implemented in
+ * Dessser.ml will not work (it assumes that any absent value is the declared
+ * default when deserializing and will also skip any default value when
+ * encoding).
  * Size of this bitmask is always known at compile time but for variable
  * length TArr (TSet and TList are converted into TArr beforehand).
  * In those cases, a word prefixes the bitmask that gives the number of
