@@ -232,7 +232,7 @@ struct
   (* Return the number of bytes required to encode the bitmask *)
   let bytes_of_type typ =
     let bits = of_type typ in
-    round_up_const_bits bits
+    round_up_const_bits (8 + bits) (* size prefix + bitmask *)
 
   (* Return the number of words required to encode the bitmask *)
   let words_of_type =
@@ -252,23 +252,31 @@ struct
    * pointer. *)
   let zero_bitmask_const bits p =
     let sz = (bits + 7) / 8 in
+    let words = words_of_const_bytes (sz + 1) in
+    let p = write_u8 p (u8_of_int words) in
     let p = blit_byte p (u8_of_int 0) (size sz) in
-    align_const p sz
+    align_const p (sz + 1)
 
   (* Zero the bitmask known only at runtime (which size in words a given
    * in the first byte of the mask) and advance the pointer *)
   let zero_bitmask_dyn bits p =
     let_ ~name:"sz_" (right_shift (add (u32_of_int 7) bits) (u8_of_int 3))
       (fun sz ->
-        let p = blit_byte p (u8_of_int 0) (size_of_u32 sz) in
-        align_dyn p (size_of_u32 sz))
+        (* The bitmask is prefixed with a byte for the length (in words) to
+         * greatly simplify decoding of values generated with a runtime
+         * fieldmask: *)
+        let_ ~name:"sz_pfx_" (add sz (u32_of_int 1)) (fun sz_with_prefix ->
+          let words = words_of_dyn_bytes sz_with_prefix in
+          let p = write_u8 p (to_u8 words) in
+          let p = blit_byte p (u8_of_int 0) (size_of_u32 sz) in
+          align_dyn p (size_of_u32 sz_with_prefix)))
 
   (* Enter a new compound type by zeroing a bitmask of the given [width]
    * and setting up a new frame for it, and increment the bitfield. *)
   let enter_frame to_expr zero_bitmask width p_stk =
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
       let stk = skip_fieldbit stk in
-      let new_frame = make_pair p (size 0) in
+      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
             debug (string " with ") ;
@@ -296,7 +304,7 @@ struct
 
   let start _conf p =
     let_ ~name:"start_p" p (fun p ->
-      let new_frame = make_pair p (size 0) in
+      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       let stk = cons new_frame (end_of_list t_frame) in
       let p = zero_bitmask_const 1 p in
       make_pair p stk)
@@ -529,8 +537,10 @@ struct
   (* SerSize of the list header: *)
   let ssize_of_arr _ _ id =
     let bitmask_bits_dyn = cardinality id in
+    (* Add the bitmask length prefix: *)
+    let bitmask_sz_bits = add bitmask_bits_dyn (u32_of_int 8) in
     (* Round up to ringbuf words: *)
-    let bitmask_bytes = round_up_dyn_bits bitmask_bits_dyn in
+    let bitmask_bytes = round_up_dyn_bits bitmask_sz_bits in
     add (size word_size) (* list length *)
         bitmask_bytes
 
@@ -640,10 +650,13 @@ struct
 
   let start _conf p =
     let_ ~name:"start_p" p (fun p ->
-      let new_frame = make_pair p (size 0) in
-      let stk = cons new_frame (end_of_list t_frame) in
-      (* Outer value always start with a one word "bitmask": *)
-      let p = ptr_add p (size word_size) in
+      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
+      let words = read_u8 p |> first in
+      let bytes = left_shift (to_u32 words)
+                             (u8_of_int (log2 word_size)) in
+      let p = ptr_add p (size_of_u32 bytes) in
+      let stk = end_of_list t_frame in
+      let stk = cons new_frame stk in
       make_pair p stk)
 
   let stop () p_stk =
@@ -654,18 +667,21 @@ struct
 
   (* Enter a new compound type by recording its location in the stack
    * and jumping over it. *)
-  let enter_frame width p stk =
+  let enter_frame p stk =
     let_ ~name:"enter_frame_p" p (fun p ->
-      let new_frame = make_pair p (size 0) in
-      let bytes = round_up_dyn_bits (to_u32 width) in
-      seq [ debug (string "des: enter a new frame at ") ;
-            debug (string_of_int_ (offset p)) ;
-            debug (string " of size ") ;
-            debug (string_of_int_ bytes) ;
-            debug (string "\n") ;
-            make_pair
-              (ptr_add p bytes)
-              (cons new_frame stk) ])
+      (* The following [8] is the size of the length prefix. *)
+      let new_frame = make_pair p (size 8) in
+      seq ( [ debug (string "des: enter a new frame at ") ;
+              debug (string_of_int_ (offset p)) ] @
+            let words = read_u8 p |> first in
+            let bytes = left_shift (to_u32 words)
+                                   (u8_of_int (log2 word_size)) in
+            [ debug (string " of size ") ;
+              debug (string_of_int_ bytes) ;
+              debug (string "\n") ;
+              make_pair
+                (ptr_add p (size_of_u32 bytes))
+                (cons new_frame stk) ]))
 
   let with_debug p_stk what read cont =
     E.with_sploded_pair "debug1" p_stk (fun p stk ->
@@ -774,8 +790,8 @@ struct
     E.with_sploded_pair "dext" p_stk (fun p stk ->
       let_ ~name:"p_stk" (make_pair p stk) f)
 
-  let tup_rec_opn mns _ _ p_stk =
-    E.with_sploded_pair "tup_rec_opn" p_stk (enter_frame (size (Array.length mns)))
+  let tup_rec_opn _mns _ _ p_stk =
+    E.with_sploded_pair "tup_rec_opn" p_stk enter_frame
 
   let tup_opn mns () mn0 path p_stk =
     tup_rec_opn mns mn0 path p_stk
@@ -794,8 +810,8 @@ struct
 
   let rec_sep () _ _ p_stk = p_stk
 
-  let vec_opn dim _mn () _ _ p_stk =
-    E.with_sploded_pair "vec_opn" p_stk (enter_frame (size dim))
+  let vec_opn _dim _mn () _ _ p_stk =
+    E.with_sploded_pair "vec_opn" p_stk enter_frame
 
   let vec_cls () _ _ p_stk =
     leave_frame p_stk
@@ -826,7 +842,7 @@ struct
       E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
         let n = read_u32 LittleEndian p in
         E.with_sploded_pair "list_opn2" n (fun n p ->
-          let p_stk = enter_frame n p stk in
+          let p_stk = enter_frame p stk in
           make_pair n p_stk)))
 
   let arr_cls () _ _ p_stk =

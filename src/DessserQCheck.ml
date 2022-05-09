@@ -1189,19 +1189,19 @@ let sexpr ?sexpr_config mn =
 (*$= check_ser & ~printer:BatPervasives.identity
   "2a" \
     (check_ser rowbinary_ser  ocaml_be "u8" "42")
-  "00 00 00 00 2a 00 00 00" \
+  "01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "u8" "42")
-  "00 00 00 00 00 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8; i8)" "(42 58)")
-  "00 00 00 00 00 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8)" "(42 58)")
-  "00 00 00 00 00 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)" "(42 58)")
-  "00 00 00 00 00 00 00 00 2a 00 00 00" \
+  "01 00 00 00 00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16]" "(0 42)")
-  "00 00 00 00 00 00 00 00 2a 00 00 00" \
+  "01 00 00 00 00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16?]" "(0 42)")
-  "00 00 00 00 00 00 00 00 2a 00 00 00" \
+  "01 00 00 00 00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8? | big u16]" "(0 42)")
   "30 2c 34 32" \
     (check_ser csv_ser ocaml_be "[small u8? | big u16]" "(0 42)")
