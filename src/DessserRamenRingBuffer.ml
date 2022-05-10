@@ -232,7 +232,7 @@ struct
   (* Return the number of bytes required to encode the bitmask *)
   let bytes_of_type typ =
     let bits = of_type typ in
-    round_up_const_bits (8 + bits) (* size prefix + bitmask *)
+    round_up_const_bits (if bits > 0 then 8 + bits else 0) (* size prefix + bitmask *)
 
   (* Return the number of words required to encode the bitmask *)
   let words_of_type =
