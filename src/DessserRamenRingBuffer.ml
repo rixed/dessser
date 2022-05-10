@@ -229,6 +229,23 @@ struct
     | _ ->
         0
 
+  (* When there is a dynamic fieldmask when serializing, the size of the
+   * bitmask depends on the fieldmask: *)
+  let dyn_length ~def = function
+    | DessserMasks.Copy ->
+        def
+    | Skip | SetNull ->
+        0
+    | Recurse m ->
+        Array.fold_left (fun s -> function
+          | DessserMasks.Copy | Recurse _ -> succ s
+          | Skip | SetNull | Replace _ | Insert _ -> s
+        ) 0 m
+    | Replace _ ->
+        todo "DessserMasks.length for Replace"
+    | Insert _ ->
+        todo "DessserMasks.length for Insert"
+
   (* Return the number of bytes required to encode the bitmask *)
   let bytes_of_type typ =
     let bits = of_type typ in
