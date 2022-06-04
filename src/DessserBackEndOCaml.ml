@@ -204,7 +204,8 @@ struct
           pp oc "and %s = %s\n" (valid_identifier type_id) s) in
       if is_id then valid_identifier s else s in
     match t with
-    | TUnknown -> invalid_arg "type_identifier"
+    | TUnknown ->
+        invalid_arg "type_identifier"
     | TNamed (_, t) ->
         type_identifier t
     (* We want TThis to refer to the actual type by *name*, breaking
@@ -1553,6 +1554,8 @@ struct
         emit ?name p l e (fun oc -> pp oc "DessserMasks.Skip")
     | E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "DessserMasks.SetNull")
+    | E0 (NoReturn _) ->
+        emit ?name p l e (fun oc -> pp oc "assert false")
     | E1 (SlidingWindow mn, e1) ->
         let n1 = print p l e1
         and def = print p l (E.default_mn mn)

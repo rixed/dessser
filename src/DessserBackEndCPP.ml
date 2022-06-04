@@ -1721,6 +1721,8 @@ struct
         emit ?name p l e (fun oc -> pp oc "Mask::SKIP")
     | E0 SetFieldNull ->
         emit ?name p l e (fun oc -> pp oc "Mask::SET_NULL")
+    | E0 (NoReturn _) ->
+        emit ?name p l e (fun oc -> pp oc "assert(false)")
     | E1 (SlidingWindow mn, e1) ->
         let n1 = print p l e1 in
         (* Cannot use emit since we want to select a specific type of set: *)

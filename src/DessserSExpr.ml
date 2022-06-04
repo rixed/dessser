@@ -120,13 +120,16 @@ struct
   let vec_sep _conf _ _ p =
     write_u8 p (u8_of_const_char ' ')
 
+  (* conf.list_prefix_length tells us if we *prefers* to prefix lists with
+   * prefix but when we have no choice (because [n] is unknown) we make it do
+   * with what we have. *)
   let arr_opn _ n conf mn0 path p =
     let p =
       match n with
-      | Some n ->
+      | Some n when conf.list_prefix_length ->
           let p = su32 conf mn0 path n p in
           write_u8 p (u8_of_const_char ' ')
-      | None ->
+      | _ ->
           p in
     write_u8 p (u8_of_const_char '(')
 

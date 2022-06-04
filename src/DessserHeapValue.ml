@@ -281,16 +281,20 @@ struct
     )
 
   and make1 dstate mn0 path mn src =
-    match mn.default with
-    | Some def ->
-        let_pair ~n1:"is_present" ~n2:"src"
-          (Des.is_present dstate mn0 path src)
-          (fun is_present src ->
-            if_ is_present
-              ~then_:(make_mn dstate mn0 path mn src)
-              ~else_:(make_pair (convert mn def) src))
-    | None ->
-        make_mn dstate mn0 path mn src
+    let_pair ~n1:"is_present" ~n2:"src"
+      (Des.is_present dstate mn0 path src)
+      (fun is_present src ->
+        if_ is_present
+          ~then_:(make_mn dstate mn0 path mn src)
+          ~else_:(
+            let def =
+              match mn.default with
+              | Some def -> def
+              | None ->
+                  (try E.default_mn mn
+                  with Invalid_argument _ -> no_return mn)
+            in
+            make_pair (convert mn def) src))
 
   (* Build the deserializer, using augmented pointers: *)
   let rec make_ dstate type_name mn0 compunit =

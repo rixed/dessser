@@ -26,12 +26,12 @@ let unflatten e0 to_label es =
   loop [] es
 
 (* [l] is the stack of expr * type *)
-let rec type_check l =
+let rec type_check l e =
   E.map_env l (fun l e0 ->
     let check_void l e =
-      match E.type_of l e |> T.develop1 with
-      | T.{ typ = TVoid ; nullable = false ; _ } -> ()
-      | t -> raise (E.Type_error (e0, e, t, "be Void")) in
+      let t = E.type_of l e |> T.develop1 in
+      if not (T.eq_mn T.void t) then
+        raise (E.Type_error (e0, e, t, "be Void")) in
     let check_nullable b l e =
       match E.type_of l e |> T.develop1 with
       | { nullable ; _ } when nullable = b -> ()
@@ -180,7 +180,7 @@ let rec type_check l =
              | Size _ | Address _
              | Bytes _ | Identifier _
              | ExtIdentifierUnmanaged _ | ExtIdentifierManaged _
-             | Param _ | CopyField | SkipField | SetFieldNull)
+             | Param _ | CopyField | SkipField | SetFieldNull | NoReturn _)
         | E0S (Verbatim _, _)
         | E1 ((Comment _ | NotNull | Force _ | Dump | Identity | Ignore
               | Function _ | Hash | AllocVec _), _)
@@ -531,7 +531,7 @@ let rec type_check l =
                 raise (E.Type_error (e0, e, t, "be a vector")))
         ) ;
         e0
-  )
+  ) e
 
 (*$inject
   let pass_type_check s =

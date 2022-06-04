@@ -81,7 +81,7 @@ let rec can_precompute ?(has_function_body=false) i = function
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Char _ | Size _ | Address _
-       | Bytes _ | CopyField | SkipField | SetFieldNull
+       | Bytes _ | CopyField | SkipField | SetFieldNull | NoReturn _
        | ExtIdentifierUnmanaged _ | ExtIdentifierManaged _) ->
       true
   | E0 (Param _) ->
@@ -146,7 +146,9 @@ let rec default ?(allow_null=true) t =
   and default_mn = default_mn ~allow_null in
   match t with
   | T.TUnknown | TExt _ | TPtr | TAddress ->
-      invalid_arg "default"
+      Printf.sprintf2 "No default value for type %a"
+        T.print t |>
+      invalid_arg
   | TNamed (_, t) ->
       default t
   | TThis n ->
@@ -588,8 +590,7 @@ and type_of l e0 =
   | E0 (Size _) -> T.size
   | E0 (Address _) -> T.address
   | E0 (Bytes _) -> T.bytes
-  | E0S (Seq, [])
-  | E1 ((Dump | Ignore), _) ->
+  | E0S (Seq, []) | E1 ((Dump | Ignore), _) ->
       T.void
   | E0S (Seq, es) ->
       type_of l (List.last es)
@@ -920,6 +921,8 @@ and type_of l e0 =
       T.func2 sptr dptr T.(pair sptr dptr)
   | E0 (CopyField|SkipField|SetFieldNull) ->
       T.mask
+  | E0 (NoReturn mn) ->
+      mn
   | E2 (Let (n, r), e1, e2) ->
       let t = get_memo_mn r l e1 in
       let l = add_local n t l in
@@ -937,8 +940,8 @@ and type_of l e0 =
       (try find_id l.local e
       with Not_found ->
         raise (Unbound_parameter (e0, p, l)))
-  | E3 (If, _, e1, e2) ->
-      either e1 e2
+  | E3 (If, _e1, e2, e3) ->
+      either e2 e3
   | E3 (Map, _, f, set) ->
       (match type_of l f |> T.develop1 with
       | T.{ typ = TFunction (_, ot) ; nullable = false ; _ } ->
@@ -1414,7 +1417,7 @@ let let_ ?name value f =
        | U8 _ | U16 _ | U24 _ | U32 _ | U40 _ | U48 _ | U56 _ | U64 _ | U128 _
        | I8 _ | I16 _ | I24 _ | I32 _ | I40 _ | I48 _ | I56 _ | I64 _ | I128 _
        | Size _ | Address _
-       | CopyField | SkipField | SetFieldNull)
+       | CopyField | SkipField | SetFieldNull | NoReturn _)
   | E0S (Seq, []) ->
       f value
   | _ ->
@@ -2200,6 +2203,8 @@ struct
   let skip_field = T.E0 SkipField
 
   let set_field_null = T.E0 SetFieldNull
+
+  let no_return mn = T.E0 (NoReturn mn)
 
   let getenv e = T.E1 (GetEnv, e)
 

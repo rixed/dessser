@@ -21,7 +21,9 @@ let debug_flag = false
  * Size of this bitmask is always known at compile time but for variable
  * length TArr (TSet and TList are converted into TArr beforehand).
  * In those cases, a word prefixes the bitmask that gives the number of
- * items. *)
+ * items.
+ * In any case, because of dynamic fieldmasks, the bitmask itself is prefixed
+ * with a byte byte indicating the length (in words) of the bitmask.  *)
 
 let is_serializable0 = function
   | T.{ nullable = true ; default = (None | Some (E0 (Null _))) ; _ } -> true
@@ -187,16 +189,13 @@ let set_fieldbit stk =
 let skip_fieldbit stk =
   let p_bi = force ~what:"RingBuf.skip_fieldbit" (head stk) in
   E.with_sploded_pair "skip_fieldbit" p_bi (fun p bi ->
-    seq [ debug (string "skip fieldbit at ") ;
+    seq [ debug (string "skip fieldbit ") ;
           debug (string_of_int_ bi) ;
+          debug (char '@') ;
+          debug (string_of_int_ (offset p)) ;
           debug (char '\n') ;
           let frame = make_pair p (add bi (size 1)) in
           cons frame (force ~what:"RingBuf.skip_fieldbit" (tail stk)) ])
-
-let skip_fieldbit_from_frame p_stk =
-  E.with_sploded_pair "skip_fieldbit_from_frame" p_stk (fun p stk ->
-    let stk = skip_fieldbit stk in
-    make_pair p stk)
 
 module BitMaskWidth =
 struct
@@ -323,8 +322,13 @@ struct
     let_ ~name:"start_p" p (fun p ->
       let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       let stk = cons new_frame (end_of_list t_frame) in
-      let p = zero_bitmask_const 1 p in
-      make_pair p stk)
+      let p' = zero_bitmask_const 1 p in
+      seq [ debug (string "ser: outermost at offs ") ;
+            debug (string_of_int_ (offset p)) ;
+            debug (string " until offs ") ;
+            debug (string_of_int_ (offset p')) ;
+            debug (char '\n') ;
+            make_pair p' stk ])
 
   let stop () p_stk =
     (* TODO: assert tail stk = end_of_list *)

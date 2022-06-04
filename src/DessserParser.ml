@@ -801,6 +801,8 @@ and e ?current_mn s =
   | Lst [ Sym "copy-field" ] -> E0 CopyField
   | Lst [ Sym "skip-field" ] -> E0 SkipField
   | Lst [ Sym "set-field-null" ] -> E0 SetFieldNull
+  | Lst [ Sym "no-return" ; Str mn ] ->
+      E0 (NoReturn (mn_of_str s mn))
   (* e0s *)
   | Lst (Sym "seq" :: xs) -> E0S (Seq, List.map e xs)
   | Lst [] -> E0S (Seq, [])

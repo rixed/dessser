@@ -816,6 +816,8 @@ let rec peval l e =
           u32_of_int 0 |> repl1
       | Assert, E0 (Bool true) ->
           repl1 nop
+      | Assert, E0 (Bool false) ->
+          repl1 (no_return T.void)
       | BitNot, f1 ->
           (try arith1 f1 no_float Int128.lognot Uint128.lognot |> repl1
           with Invalid_argument _ -> T.E1 (BitNot, e1))

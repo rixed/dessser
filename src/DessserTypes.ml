@@ -163,6 +163,8 @@ and e0 =
   | CopyField
   | SkipField
   | SetFieldNull
+  (* An expression that will never be reached, of type [typ]: *)
+  | NoReturn of mn
 
 and e0s =
   | Seq
@@ -570,6 +572,7 @@ let rec string_of_e0 = function
   | CopyField -> "copy-field"
   | SkipField -> "skip-field"
   | SetFieldNull -> "set-field-null"
+  | NoReturn mn -> "no-return"^ String.quote (mn_to_string mn)
 
 and string_of_e0s = function
   | Seq -> "seq"
