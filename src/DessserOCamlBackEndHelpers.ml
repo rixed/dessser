@@ -454,7 +454,7 @@ struct
     (p, o + sz)
 
   let pokeU8 (p, o) v =
-    check_length Input (o + 1) p.stop ;
+    check_length Output (o + 1) p.stop ;
     p.impl.poke1 o v
 
   let pokeU16Little (p, o) v =
