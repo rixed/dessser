@@ -18,8 +18,8 @@ struct
   type state = unit
 
   let make_state ?(config=()) _mn0 = config
-  let start _conf src = src
-  let stop () src = src
+  let start _mn0 _conf src = src
+  let stop _mn0 () src = src
   type des = state -> T.mn -> Path.t -> (*dataptr*) E.t -> (* (v * dataptr) *) E.t
 
   let from_byte v1 v2 _ _ src =
@@ -65,13 +65,13 @@ struct
   let sum_opn _ () _ _ src = src
   let sum_cls _ () _ _ src = src
   let vec_opn _ _ () _ _ src = src
-  let vec_cls () _ _ src = src
+  let vec_cls _ () _ _ src = src
   let vec_sep () _ _ src = src
   let arr_opn () =
     KnownSize (fun _ _ _ src ->
       E.with_sploded_pair "b_src" (read_u8 src) (fun b src ->
         make_pair (to_u32 b) src))
-  let arr_cls () _ _ src = src
+  let arr_cls _ () _ _ src = src
   let arr_sep () _ _ src = src
   let is_present () _ _ src = make_pair true_ src
   let is_null () _ _ src =
@@ -88,8 +88,8 @@ struct
   type state = unit
 
   let make_state ?(config=()) _ = config
-  let start () dst = dst
-  let stop () dst = dst
+  let start _mn0 () dst = dst
+  let stop _mn0 () dst = dst
   type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*dataptr*) E.t -> (*dataptr*) E.t
 
   let from_bool b dst =
@@ -129,10 +129,10 @@ struct
   let sum_opn _ _ () _ _ dst = dst
   let sum_cls _ () _ _ dst = dst
   let vec_opn _ _ () _ _ dst = dst
-  let vec_cls () _ _ dst = dst
+  let vec_cls _ () _ _ dst = dst
   let vec_sep () _ _ dst = dst
   let arr_opn _ _ () _ _ dst = dst
-  let arr_cls () _ _ dst = dst
+  let arr_cls _ () _ _ dst = dst
   let arr_sep () _ _ dst = dst
   let nullable () _ _ dst = dst
   let snull _t () _ _ dst = write_u8 dst (u8_of_int 1)

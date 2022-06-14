@@ -48,9 +48,9 @@ sig
    * [dptr_of_enc].
    * Those two functions wrap a normal [T.ptr] into such an augmented pointer,
    * and back. *)
-  val start : state -> (*ptr*) E.t -> (*augmented ptr*) E.t
+  val start : T.mn -> state -> (*ptr*) E.t -> (*augmented ptr*) E.t
 
-  val stop : state -> (*augmented ptr*) E.t -> (*ptr*) E.t
+  val stop : T.mn -> state -> (*augmented ptr*) E.t -> (*ptr*) E.t
 
   (* A basic value deserializer takes a state, an expression
    * yielding a pointer (either a CodePtr pointing at a byte stream or a
@@ -110,10 +110,12 @@ sig
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_cls : T.mn ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_opn : state -> arr_opener
-  val arr_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_cls : T.mn ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
   val is_present :
@@ -142,9 +144,9 @@ sig
   (* Build the initial state: *)
   val make_state : ?config:config -> T.mn -> state
 
-  val start : state -> (*ptr*) E.t -> (*augmented ptr*) E.t
+  val start : T.mn -> state -> (*ptr*) E.t -> (*augmented ptr*) E.t
 
-  val stop : state -> (*augmented ptr*) E.t -> (*ptr*) E.t
+  val stop : T.mn -> state -> (*augmented ptr*) E.t -> (*ptr*) E.t
 
   (* FIXME: make this type "private": *)
   type ser = state -> T.mn -> Path.t -> (*v*) E.t -> (*ptr*) E.t -> (*ptr*) E.t
@@ -195,11 +197,13 @@ sig
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val vec_opn : (*dim*) int -> T.mn ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val vec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_opn : T.mn -> (*u32*) E.t option ->
+  val vec_cls : T.mn ->
                 state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
-  val arr_cls : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val vec_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_opn : T.mn (* item's type *) -> (*u32*) E.t option ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
+  val arr_cls : T.mn (* item's type *) ->
+                state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
   val arr_sep : state -> T.mn -> Path.t -> (*ptr*) E.t -> (*ptr*) E.t
 
 (* TODO: desser should skip serialization when skip_default succeeds
@@ -458,9 +462,9 @@ struct
     E.with_sploded_pair "dsvec3" src_dst (fun src dst ->
       make_pair
         (if_ is_present
-          ~then_:(Des.vec_cls dstate mn0 path src)
+          ~then_:(Des.vec_cls mn dstate mn0 path src)
           ~else_:src)
-        (Ser.vec_cls sstate mn0 path dst))
+        (Ser.vec_cls mn sstate mn0 path dst))
 
   and dsarr mn is_present def transform sstate dstate mn0 path src_dst =
     let open E.Ops in
@@ -507,8 +511,8 @@ struct
                       src_dst ])) in
               let_pair ~n1:"src" ~n2:"dst" src_dst (fun src dst ->
                 make_pair
-                  (Des.arr_cls dstate mn0 path src)
-                  (Ser.arr_cls sstate mn0 path dst))
+                  (Des.arr_cls mn dstate mn0 path src)
+                  (Ser.arr_cls mn sstate mn0 path dst))
           | UnknownSize (arr_opn, end_of_arr) ->
               let src = arr_opn mn mn0 path src in
               let dst = Ser.arr_opn mn None sstate mn0 path dst in
@@ -538,8 +542,8 @@ struct
                             (desser_ is_present def transform sstate dstate
                                      mn0 subpath (get_ref src_dst_ref)) ])) ;
                     make_pair
-                      (Des.arr_cls dstate mn0 path src)
-                      (Ser.arr_cls sstate mn0 path dst) ])) in
+                      (Des.arr_cls mn dstate mn0 path src)
+                      (Ser.arr_cls mn sstate mn0 path dst) ])) in
         let use_default () =
           (* Similar than KnownSize, with fixed src: *)
           let dim = cardinality def in
@@ -564,7 +568,7 @@ struct
                     set_ref dst_ref (secnd src_dst)))) ;
                 make_pair
                   src
-                  (Ser.arr_cls sstate mn0 path dst) ])) in
+                  (Ser.arr_cls mn sstate mn0 path dst) ])) in
         if_ is_present ~then_:(not_default ())
                        ~else_:(use_default ())))
 
@@ -698,15 +702,15 @@ struct
      * will convert back into normal pointers at the end (by calling [stop]). *)
     let sstate = Ser.make_state ?config:ser_config mn0
     and dstate = Des.make_state ?config:des_config mn0 in
-    let dst = Ser.start sstate dst
-    and src = Des.start dstate src in
+    let dst = Ser.start mn0 sstate dst
+    and src = Des.start mn0 dstate src in
     let src_dst = make_pair src dst in
     let def = E.default_mn mn0 in
     let src_dst = desser_ true_ def transform sstate dstate mn0 [] src_dst in
     E.with_sploded_pair "desser" src_dst (fun src dst ->
       make_pair
-        (Des.stop dstate src)
-        (Ser.stop sstate dst))
+        (Des.stop mn0 dstate src)
+        (Ser.stop mn0 sstate dst))
 end
 
 (*

@@ -462,10 +462,10 @@ struct
 
   (* Pass the compunit to this function, so it can register its own stuff,
    * such as the skip function? *)
-  let start _conf p =
+  let start _mn0 _conf p =
     make_pair p (end_of_list frame_t)
 
-  let stop _conf p_stk =
+  let stop _mn0 _conf p_stk =
     skip_blanks (first p_stk)
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
@@ -569,7 +569,7 @@ struct
 
   let vec_opn _dim _mn = skip_1_reloc '['
 
-  let vec_cls = skip_1 ']'
+  let vec_cls _ = skip_1 ']'
 
   let vec_sep = skip_1 ','
 
@@ -632,7 +632,7 @@ struct
         let p = skip_blanks p in
         eq (peek_u8 p (size 0)) (u8_of_const_char ']')))
 
-  let arr_cls = skip_1 ']'
+  let arr_cls _ = skip_1 ']'
 
   let arr_sep = skip_1 ','
 
@@ -690,9 +690,9 @@ struct
 
   let make_state ?(config=default_config) _mn = config
 
-  let start _conf p = p
+  let start _mn0 _conf p = p
 
-  let stop conf p =
+  let stop _mn0 conf p =
     match conf.newline with
     | None ->
         p
@@ -880,13 +880,13 @@ struct
 
   let vec_opn _dim _mns = write_opn_chr '['
 
-  let vec_cls = write_chr ']'
+  let vec_cls _ = write_chr ']'
 
   let vec_sep = write_chr ','
 
   let arr_opn _mns _card = write_opn_chr '['
 
-  let arr_cls = write_chr ']'
+  let arr_cls _ = write_chr ']'
 
   let arr_sep = write_chr ','
 

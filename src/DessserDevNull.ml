@@ -14,9 +14,9 @@ struct
 
   let make_state ?(config=()) _ = config
 
-  let start _conf p = p
+  let start _mn0 _conf p = p
 
-  let stop () p = p
+  let stop _mn0 () p = p
 
   type ser = state -> T.mn -> Path.t -> E.t -> E.t -> E.t
 
@@ -53,10 +53,10 @@ struct
   let sum_opn _ _ () _ _ p = p
   let sum_cls _ () _ _ p = p
   let vec_opn _ _ () _ _ p = p
-  let vec_cls () _ _ p = p
+  let vec_cls _ () _ _ p = p
   let vec_sep () _ _ p = p
   let arr_opn _ _ () _ _ p = p
-  let arr_cls () _ _ p = p
+  let arr_cls _ () _ _ p = p
   let arr_sep () _ _ p = p
   let nullable () _ _ p = p
   let snull _t () _ _ p = p

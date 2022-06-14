@@ -29,9 +29,9 @@ struct
 
   let make_state ?(config=default_config) _ = config
 
-  let start _ p = p
+  let start _mn0 _ p = p
 
-  let stop conf p =
+  let stop _mn0 conf p =
     match conf.newline with
     | None ->
         p
@@ -114,7 +114,7 @@ struct
   let vec_opn _ _ _conf _ _ p =
     write_u8 p (u8_of_const_char '(')
 
-  let vec_cls _conf _ _ p =
+  let vec_cls _mn _conf _ _ p =
     write_u8 p (u8_of_const_char ')')
 
   let vec_sep _conf _ _ p =
@@ -133,7 +133,7 @@ struct
           p in
     write_u8 p (u8_of_const_char '(')
 
-  let arr_cls _conf _ _ p =
+  let arr_cls _mn _conf _ _ p =
     write_u8 p (u8_of_const_char ')')
 
   let arr_sep _conf _ _ p =
@@ -245,7 +245,7 @@ struct
 
   let make_state ?(config=default_config) _mn = config
 
-  let start _conf p = p
+  let start _mn0 _conf p = p
 
   let skip n p = ptr_add p (size n)
 
@@ -262,7 +262,7 @@ struct
   let skip_char c p =
     skip_byte (u8_of_const_char c) p
 
-  let stop conf p =
+  let stop _mn0 conf p =
     match conf.newline with
     | None ->
         p
@@ -362,7 +362,7 @@ struct
 
   let vec_opn _conf _ _ _ _ p = skip1 p
 
-  let vec_cls _conf _ _ p = skip1 p
+  let vec_cls _mn _conf _ _ p = skip1 p
 
   let vec_sep _conf _ _ p = skip1 p
 
@@ -379,7 +379,7 @@ struct
         (fun _ _ p ->
           eq (peek_u8 p (size 0)) (u8_of_const_char ')')))
 
-  let arr_cls _conf _ _ p = skip1 p
+  let arr_cls _mn _conf _ _ p = skip1 p
 
   let arr_sep _conf _ _ p = skip1 p
 

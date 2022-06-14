@@ -64,7 +64,7 @@ struct
       if i >= dim then
         make_pair
           (make_vec (List.rev ids))
-          (Des.vec_cls dstate mn0 path src)
+          (Des.vec_cls mn dstate mn0 path src)
       else
         let src = if i = 0 then src else
                     Des.vec_sep dstate mn0 path src in
@@ -111,7 +111,7 @@ struct
                 inits_src ])) in
         E.with_sploded_pair "dlist4" inits_src (fun inits src ->
           let v = of_list inits
-          and src = Des.arr_cls dstate mn0 path src in
+          and src = Des.arr_cls mn dstate mn0 path src in
           make_pair v src)
     | UnknownSize (list_opn, is_end_of_list) ->
         let src = list_opn mn mn0 path src in
@@ -136,7 +136,8 @@ struct
                       set_ref n_ref (add n (u32_of_int 1)) ])) ;
                 (
                   let v = of_list (get_ref inits_ref)
-                  and src = Des.arr_cls dstate mn0 path (get_ref src_ref) in
+                  and src =
+                    Des.arr_cls mn dstate mn0 path (get_ref src_ref) in
                   make_pair v src
                 ) ])))
 
@@ -347,10 +348,10 @@ struct
      * this wrapper is needed in any cases:*)
     let wrapper =
       func1 T.ptr (fun src ->
-        let src = Des.start dstate src in
+        let src = Des.start mn0 dstate src in
         let v_src = apply id [ src ] in
         E.with_sploded_pair "make" v_src (fun v src ->
-          make_pair v (Des.stop dstate src))) in
+          make_pair v (Des.stop mn0 dstate src))) in
     let name' = "wrap-"^ name in
     U.add_identifier_of_expression compunit ~name:name' wrapper
 end
@@ -399,7 +400,7 @@ struct
     let rec loop i dst =
       let subpath = Path.(append (CompTime i) path) in
       if i >= dim then
-        Ser.vec_cls sstate mn0 path dst
+        Ser.vec_cls mn sstate mn0 path dst
       else
         let dst = if i = 0 then dst else
                     Ser.vec_sep sstate mn0 subpath dst in
@@ -434,7 +435,7 @@ struct
             seq [
               set_ref dst_ref (ser1 sstate mn0 subpath mn x ma dst) ;
               set_ref n_ref (add (i32 1l) n) ]) ;
-          Ser.arr_cls sstate mn0 path dst ]))
+          Ser.arr_cls mn sstate mn0 path dst ]))
 
   and stup mns ma sstate mn0 path v dst =
     let dst = Ser.tup_opn mns sstate mn0 path dst in
@@ -645,14 +646,14 @@ struct
     let wrapper =
       if with_fieldmask then
         func3 T.mask mn0 T.ptr (fun ma v dst ->
-          let dst = Ser.start sstate dst in
+          let dst = Ser.start mn0 sstate dst in
           let dst = apply id [ ma ; v ; dst ] in
-          Ser.stop sstate dst)
+          Ser.stop mn0 sstate dst)
       else
         func2 mn0 T.ptr (fun v dst ->
-          let dst = Ser.start sstate dst in
+          let dst = Ser.start mn0 sstate dst in
           let dst = apply id [ v ; dst ] in
-          Ser.stop sstate dst) in
+          Ser.stop mn0 sstate dst) in
     let name' = "wrap-"^ name in
     U.add_identifier_of_expression compunit ~name:name' wrapper
 

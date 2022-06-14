@@ -199,34 +199,56 @@ let skip_fieldbit stk =
 
 module BitMaskWidth =
 struct
+  (* Values of compound types (or outermost values) can have a bitmask to
+   * flag default values (ie nullable).
+   * Any record/tuple/sum/vec/arr item which has an explicit default value
+   * *or* is nullable is allocated a bit in the bitmask.
+   * Every bitmask is preceded by a one byte length.
+   * For records, tuples and sum types, even empty bitmask must be present
+   * (with a length of 1), whereas sums/vecs/arrays of mandatory values have no
+   * such bitmask.  *)
+  let has_bit mn =
+    mn.T.nullable || mn.T.default <> None
+
   let tup_bits mns =
-    Array.length mns
+    Array.fold_left (fun c mn -> if has_bit mn then c+1 else c) 0 mns
 
   let rec_bits mns =
-    Array.length mns
+    Array.fold_left (fun c (_, mn) -> if has_bit mn then c+1 else c) 0 mns
 
-  let vec_bits dim =
-    dim
+  let sum_bits mns =
+    if Array.exists (fun (_, mn) -> has_bit mn) mns then 1 else 0
 
-  let lst_bits n =
-    n
+  let vec_bits dim mn =
+    if has_bit mn then Some dim else None
+
+  let arr_bits n mn =
+    if has_bit mn then Some n else None
 
   let rec of_type = function
-    | T.TVec (dim, _) ->
-        vec_bits dim
+    | T.TVec (dim, mn) ->
+        vec_bits dim mn
     | TArr _ ->
         (* Arrays bitmask is dynamic and prefixed with a length *)
         invalid_arg "BitMaskWidth.of_type for lists"
     | TTup mns ->
-        tup_bits mns
+        Some (tup_bits mns)
     | TRec mns ->
-        rec_bits mns
-    | TSum _ ->
-        1
+        Some (rec_bits mns)
+    | TSum mns ->
+        Some (sum_bits mns)
     | TUsr { def ; _ } ->
         of_type def
     | _ ->
-        0
+        None
+
+  let has_nullmask mn =
+    has_bit mn ||
+    match mn.T.typ with
+    | T.TArr mn ->
+        has_bit mn
+    | mn ->
+        of_type mn <> None
 
   (* When there is a dynamic fieldmask when serializing, the size of the
    * bitmask depends on the fieldmask: *)
@@ -247,8 +269,9 @@ struct
 
   (* Return the number of bytes required to encode the bitmask *)
   let bytes_of_type typ =
-    let bits = of_type typ in
-    round_up_const_bits (if bits > 0 then 8 + bits else 0) (* size prefix + bitmask *)
+    match of_type typ with
+    | None -> 0
+    | Some bits -> round_up_const_bits (8 + bits) (* size prefix + bitmask *)
 
   (* Return the number of words required to encode the bitmask *)
   let words_of_type =
@@ -289,9 +312,10 @@ struct
 
   (* Enter a new compound type by zeroing a bitmask of the given [width]
    * and setting up a new frame for it, and increment the bitfield. *)
-  let enter_frame to_expr zero_bitmask width p_stk =
+  let enter_frame to_expr zero_bitmask width p_stk mn0 path =
+    let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
-      let stk = skip_fieldbit stk in
+      let stk = if has_bit then skip_fieldbit stk else stk in
       let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
@@ -307,9 +331,10 @@ struct
   let enter_frame_dyn = enter_frame identity zero_bitmask_dyn
   let enter_frame_const = enter_frame u8_of_int zero_bitmask_const
 
-  let with_fieldbit_done p_stk f =
+  let with_fieldbit_done mn0 path p_stk f =
+    let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
     E.with_sploded_pair "with_fieldbit_done" p_stk (fun p stk ->
-      let stk = skip_fieldbit stk in
+      let stk = if has_bit then skip_fieldbit stk else stk in
       let_ ~name:"with_fieldbit_done_p" p (fun p ->
         let p = f p in
         make_pair p stk))
@@ -318,20 +343,24 @@ struct
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
-  let start _conf p =
-    let_ ~name:"start_p" p (fun p ->
-      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
-      let stk = cons new_frame (end_of_list t_frame) in
-      let p' = zero_bitmask_const 1 p in
-      seq [ debug (string "ser: outermost at offs ") ;
-            debug (string_of_int_ (offset p)) ;
-            debug (string " until offs ") ;
-            debug (string_of_int_ (offset p')) ;
-            debug (char '\n') ;
-            make_pair p' stk ])
+  let start mn0 _conf p =
+    if BitMaskWidth.has_nullmask mn0 then
+      let_ ~name:"start_p" p (fun p ->
+        let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
+        let stk = cons new_frame (end_of_list t_frame) in
+        let p' = zero_bitmask_const 1 p in
+        seq [ debug (string "ser: outermost at offs ") ;
+              debug (string_of_int_ (offset p)) ;
+              debug (string " until offs ") ;
+              debug (string_of_int_ (offset p')) ;
+              debug (char '\n') ;
+              make_pair p' stk ])
+    else
+      let stk = end_of_list t_frame in
+      make_pair p stk
 
-  let stop () p_stk =
-    (* TODO: assert tail stk = end_of_list *)
+  let stop _mn0 () p_stk =
+    (* TODO: assert tail stk = end_of_list if has_nullmask *)
     first p_stk
 
   type ser = state -> T.mn -> Path.t -> E.t -> E.t -> E.t
@@ -342,13 +371,13 @@ struct
           debug (char '\n') ;
           write ]
 
-  let sfloat () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let sfloat () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       with_debug p "float"
         (write_u64 LittleEndian p (u64_of_float v)))
 
-  let sbytes () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let sbytes () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let len = bytes_length v in
       let p =
         seq [ debug (string "ser bytes at ") ;
@@ -364,37 +393,37 @@ struct
     let v = bytes_of_string v in
     sbytes () mn0 path v p_stk
 
-  let sbool () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let sbool () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "bool" (write_u8 p (u8_of_bool v)) in
       align_const p 1)
 
-  let schar () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let schar () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "char" (write_u8 p (u8_of_char v)) in
       align_const p 1)
 
-  let si8 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let si8 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "i8" (write_u8 p (to_u8 v)) in
       align_const p 1)
 
-  let si16 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let si16 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "i16"
                 (write_u16 LittleEndian p (to_u16 v)) in
       align_const p 2)
 
-  let si32 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let si32 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "i24/32"
                 (write_u32 LittleEndian p (to_u32 v)) in
       align_const p 4)
 
   let si24 = si32
 
-  let si64 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let si64 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "i40/48/56/64"
                 (write_u64 LittleEndian p (to_u64 v)) in
       align_const p 8)
@@ -405,33 +434,33 @@ struct
 
   let si56 = si64
 
-  let si128 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let si128 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "i128"
                 (write_u128 LittleEndian p (to_u128 v)) in
       align_const p 16)
 
-  let su8 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let su8 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "u8" (write_u8 p v) in
       align_const p 1)
 
-  let su16 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let su16 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "u16"
                 (write_u16 LittleEndian p v) in
       align_const p 2)
 
-  let su32 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let su32 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "u24/32"
                 (write_u32 LittleEndian p v) in
       align_const p 4)
 
   let su24 () vt0 path v p = su32 () vt0 path (to_u32 v) p
 
-  let su64 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let su64 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "u40/48/56/64"
                 (write_u64 LittleEndian p v) in
       align_const p 8)
@@ -442,22 +471,25 @@ struct
 
   let su56 () vt0 path v p = su64 () vt0 path (to_u64 v) p
 
-  let su128 () _ _ v p_stk =
-    with_fieldbit_done p_stk (fun p ->
+  let su128 () mn0 path v p_stk =
+    with_fieldbit_done mn0 path p_stk (fun p ->
       let p = with_debug p "u128"
                 (write_u128 LittleEndian p v) in
       align_const p 16)
 
-  let sext f () _ _ v p_stk =
-    E.with_sploded_pair "sext" p_stk (fun p stk ->
-      let stk = skip_fieldbit stk in
-      let p_stk = make_pair p stk in
-      f v p_stk)
+  let sext f () mn0 path v p_stk =
+    let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
+    if has_bit then
+      E.with_sploded_pair "sext" p_stk (fun p stk ->
+        let p_stk = make_pair p stk in
+        f v p_stk)
+    else
+      f v p_stk
 
-  let tup_rec_opn mns _ _ p_stk =
+  let tup_rec_opn mns mn0 path p_stk =
     (* Allocate one bit per item. *)
     let bits = BitMaskWidth.tup_bits mns in
-    enter_frame_const bits p_stk
+    enter_frame_const bits p_stk mn0 path
 
   let tup_opn mns () mn0 path p_stk =
     tup_rec_opn mns mn0 path p_stk
@@ -477,12 +509,13 @@ struct
   let rec_sep () _ _ p_stk = p_stk
 
   (* Sum types are encoded with a 1-dword header composed of:
-   * - a 16bits bitmask, of which only bit 0 will ever be used
+   * - a 16bits bitmask, of which only bit 0 (at most) could ever be used
    * - the u16 of the label index. *)
-  let sum_opn _mns lbl () _ _ p_stk =
+  let sum_opn mns lbl () _ _ p_stk =
+    let has_bit = Array.exists (fun (_, mn) -> BitMaskWidth.has_bit mn) mns in
     E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
       (* Increase bitfield: *)
-      let stk = skip_fieldbit stk in
+      let stk = if has_bit then skip_fieldbit stk else stk in
       (* Prepare the new frame: *)
       let new_frame = make_pair p (size 0) in
       let stk = cons new_frame stk in
@@ -496,30 +529,42 @@ struct
   let sum_cls _lbl () _ _ p_stk =
     leave_frame p_stk
 
-  let vec_opn dim _mn () _ _ p_stk =
-    let bits = BitMaskWidth.vec_bits dim in
-    enter_frame_const bits p_stk
+  let vec_opn dim mn () mn0 path p_stk =
+    match BitMaskWidth.vec_bits dim mn with
+    | None -> p_stk
+    | Some bits -> enter_frame_const bits p_stk mn0 path
 
-  let vec_cls () _ _ p_stk =
-    leave_frame p_stk
+  let vec_cls mn () _ _ p_stk =
+    if BitMaskWidth.has_bit mn then
+      leave_frame p_stk
+    else
+      p_stk
 
   let vec_sep () _ _ p_stk = p_stk
 
   (* First prefix is the length (in items), then the bitmask.
    * [n] is an u32 *)
-  let arr_opn _mn n () _ _ p_stk =
+  let arr_opn mn n () mn0 path p_stk =
     let n = match n with
       | Some n -> n
       | None -> failwith "RamenRingBuffer.Ser needs list size upfront" in
     let p_stk =
-      E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
-        let p = write_u32 LittleEndian p n in
-        make_pair p stk) in
-    let bits = BitMaskWidth.lst_bits n in
-    enter_frame_dyn bits p_stk
+      let_ ~name:"n" n (fun n ->
+        E.with_sploded_pair "with_data_ptr" p_stk (fun p stk ->
+          seq [ debug (string "ser: arr_opn length=") ;
+                debug (string_of_int_ n) ;
+                debug (char '\n') ;
+                let p = write_u32 LittleEndian p n in
+                make_pair p stk ])) in
+    match BitMaskWidth.arr_bits n mn with
+    | None -> p_stk
+    | Some bits -> enter_frame_dyn bits p_stk mn0 path
 
-  let arr_cls () _ _ p_stk =
-    leave_frame p_stk
+  let arr_cls mn () _ _ p_stk =
+    if BitMaskWidth.has_bit mn then
+      leave_frame p_stk
+    else
+      p_stk
 
   let arr_sep () _ _ p_stk = p_stk
 
@@ -556,14 +601,18 @@ struct
     add headsz (round_up_dyn_bytes sz)
 
   (* SerSize of the list header: *)
-  let ssize_of_arr _ _ id =
-    let bitmask_bits_dyn = cardinality id in
-    (* Add the bitmask length prefix: *)
-    let bitmask_sz_bits = add bitmask_bits_dyn (u32_of_int 8) in
-    (* Round up to ringbuf words: *)
-    let bitmask_bytes = round_up_dyn_bits bitmask_sz_bits in
-    add (size word_size) (* list length *)
-        bitmask_bytes
+  let ssize_of_arr mn0 path id =
+    let mn = Path.type_of_path mn0 path in
+    if BitMaskWidth.has_bit mn then
+      let bitmask_bits_dyn = cardinality id in
+      (* Add the bitmask length prefix: *)
+      let bitmask_sz_bits = add bitmask_bits_dyn (u32_of_int 8) in
+      (* Round up to ringbuf words: *)
+      let bitmask_bytes = round_up_dyn_bits bitmask_sz_bits in
+      add (size word_size) (* list length *)
+          bitmask_bytes
+    else
+      size word_size  (* list length *)
 
   let ssize_of_float _ _ _ =
     size (round_up_const_bytes 8)
@@ -645,17 +694,24 @@ struct
     size word_size
 
   let ssize_of_vec mn0 path _ =
-    let bitmask_words =
-      BitMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
-    size (bitmask_words * word_size)
+    let mn = Path.type_of_path mn0 path in
+    if BitMaskWidth.has_bit mn then
+      let bitmask_words =
+        BitMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
+      size (bitmask_words * word_size)
+    else
+      size 0
 
   let ssize_of_null _ _ = size 0
 
   let ssize_of_notnull _ _ = size 0
 
-  let ssize_start ?(config=()) _ =
+  let ssize_start ?(config=()) mn =
     ignore config ;
-    size (round_up_const_bits 1)  (* The outer value "bitmask" *)
+    if BitMaskWidth.has_bit mn then
+      size (round_up_const_bits 1)  (* The outer value "bitmask" *)
+    else
+      size 0
 end
 
 module Des : DES with type config = unit =
@@ -669,19 +725,23 @@ struct
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
-  let start _conf p =
-    let_ ~name:"start_p" p (fun p ->
-      let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
-      let words = read_u8 p |> first in
-      let bytes = left_shift (to_u32 words)
-                             (u8_of_int (log2 word_size)) in
-      let p = ptr_add p (size_of_u32 bytes) in
+  let start mn0 _conf p =
+    if BitMaskWidth.has_nullmask mn0 then
+      let_ ~name:"start_p" p (fun p ->
+        let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
+        let words = read_u8 p |> first in
+        let bytes = left_shift (to_u32 words)
+                               (u8_of_int (log2 word_size)) in
+        let p = ptr_add p (size_of_u32 bytes) in
+        let stk = end_of_list t_frame in
+        let stk = cons new_frame stk in
+        make_pair p stk)
+    else
       let stk = end_of_list t_frame in
-      let stk = cons new_frame stk in
-      make_pair p stk)
+      make_pair p stk
 
-  let stop () p_stk =
-    (* TODO: assert tail stk = end_of_list *)
+  let stop _mn0 () p_stk =
+    (* TODO: assert tail stk = end_of_list if has_nullmask *)
     first p_stk
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
@@ -831,11 +891,17 @@ struct
 
   let rec_sep () _ _ p_stk = p_stk
 
-  let vec_opn _dim _mn () _ _ p_stk =
-    E.with_sploded_pair "vec_opn" p_stk enter_frame
+  let vec_opn _dim mn () _ _ p_stk =
+    if BitMaskWidth.has_bit mn then
+      E.with_sploded_pair "vec_opn" p_stk enter_frame
+    else
+      p_stk
 
-  let vec_cls () _ _ p_stk =
-    leave_frame p_stk
+  let vec_cls mn () _ _ p_stk =
+    if BitMaskWidth.has_bit mn then
+      leave_frame p_stk
+    else
+      p_stk
 
   let vec_sep () _ _ p_stk = p_stk
 
@@ -859,37 +925,51 @@ struct
     leave_frame p_stk
 
   let arr_opn () = KnownSize
-    (fun _mn _ _ p_stk ->
-      E.with_sploded_pair "list_opn1" p_stk (fun p stk ->
+    (fun mn _ _ p_stk ->
+      E.with_sploded_pair "arr_opn1" p_stk (fun p stk ->
         let n = read_u32 LittleEndian p in
-        E.with_sploded_pair "list_opn2" n (fun n p ->
-          let p_stk = enter_frame p stk in
-          make_pair n p_stk)))
+        E.with_sploded_pair "arr_opn2" n (fun n p ->
+          seq [ debug (string "des: arr_opn length=") ;
+                debug (string_of_int_ n) ;
+                debug (char '\n') ;
+                if BitMaskWidth.has_bit mn then
+                  let p_stk = enter_frame p stk in
+                  make_pair n p_stk
+                else
+                  let p_stk = make_pair p (secnd p_stk) in
+                  make_pair n p_stk ])))
 
-  let arr_cls () _ _ p_stk =
-    leave_frame p_stk
+  let arr_cls mn () _ _ p_stk =
+    if BitMaskWidth.has_bit mn then
+      leave_frame p_stk
+    else
+      p_stk
 
   let arr_sep () _ _ p_stk =
     p_stk
 
-  let is_present () _ _ p_stk =
-    (* TODO: assert stk <> end_of_list *)
-    E.with_sploded_pair "is_present1" p_stk (fun p stk ->
-      let fp_bi = force ~what:"Ringbuf.is_present" (head stk) in
-      E.with_sploded_pair "is_present2" fp_bi (fun fp bi ->
-        (* Increment bi in the stack: *)
-        let frame = make_pair fp (add bi (size 1)) in
-        let stk = cons frame (force ~what:"is_present3" (tail stk)) in
-        let p_stk = make_pair p stk in
-        let_ (not_ (get_bit fp bi)) (fun b ->
-          seq [ debug (string ("des: get fieldbit ")) ;
-                debug (string_of_int_ bi) ;
-                debug (string "@") ;
-                debug (string_of_int_ (offset fp)) ;
-                debug (string " -> ") ;
-                debug (string_of_int_ (u8_of_bool b)) ;
-                debug (char '\n') ;
-                make_pair b p_stk ])))
+  let is_present () mn0 path p_stk =
+    let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
+    if has_bit then
+      (* TODO: assert stk <> end_of_list *)
+      E.with_sploded_pair "is_present1" p_stk (fun p stk ->
+        let fp_bi = force ~what:"Ringbuf.is_present" (head stk) in
+        E.with_sploded_pair "is_present2" fp_bi (fun fp bi ->
+          (* Increment bi in the stack: *)
+          let frame = make_pair fp (add bi (size 1)) in
+          let stk = cons frame (force ~what:"is_present3" (tail stk)) in
+          let p_stk = make_pair p stk in
+          let_ (not_ (get_bit fp bi)) (fun b ->
+            seq [ debug (string ("des: get fieldbit ")) ;
+                  debug (string_of_int_ bi) ;
+                  debug (string "@") ;
+                  debug (string_of_int_ (offset fp)) ;
+                  debug (string " -> ") ;
+                  debug (string_of_int_ (u8_of_bool b)) ;
+                  debug (char '\n') ;
+                  make_pair b p_stk ])))
+    else
+      make_pair true_ p_stk
 
   let is_null () _ _ _ =
     false_ (* Always false because is_present is checked first *)

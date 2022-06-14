@@ -228,9 +228,9 @@ struct
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
-  let start _conf p = p
+  let start _mn0 _conf p = p
 
-  let stop conf p =
+  let stop _mn0 conf p =
     match conf.newline with
     | None ->
         p
@@ -340,7 +340,7 @@ struct
     else
       p
 
-  let vec_cls conf mn0 path p =
+  let vec_cls _mn conf mn0 path p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -372,9 +372,9 @@ struct
       | None ->
           failwith "Csv.Ser needs list length upfront"
 
-  let arr_cls conf mn0 path p =
+  let arr_cls mn conf mn0 path p =
     if conf.clickhouse_syntax then
-      vec_cls conf mn0 path p
+      vec_cls mn conf mn0 path p
     else
       p
 
@@ -440,7 +440,7 @@ struct
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
 
-  let start _conf p = p
+  let start _mn0 _conf p = p
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
 
@@ -468,7 +468,7 @@ struct
     | Some c -> skip_char c p
 
   (* Skip the final newline if present: *)
-  let stop conf p =
+  let stop _mn0 conf p =
     match conf.newline with
     | None ->
         p
@@ -636,7 +636,7 @@ struct
     else
       p
 
-  let vec_cls conf mn0 path p =
+  let vec_cls _mn conf mn0 path p =
     if conf.vectors_of_chars_as_string && is_fixed_string mn0 path then
       match conf.quote with
       | None -> p
@@ -672,9 +672,9 @@ struct
         E.with_sploded_pair "list_opn" (du32 conf mn0 path p) (fun v p ->
           make_pair v (skip_sep conf p)))
 
-  let arr_cls conf mn0 path p =
+  let arr_cls mn conf mn0 path p =
     if conf.clickhouse_syntax then
-      vec_cls conf mn0 path p
+      vec_cls mn conf mn0 path p
     else
       p
 

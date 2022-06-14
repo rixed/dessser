@@ -16,9 +16,9 @@ struct
 
   let make_state ?(config=()) _mn = config
 
-  let start () p = p
+  let start _mn0 () p = p
 
-  let stop () p = p
+  let stop _mn0 () p = p
   type ser = state -> T.mn -> Path.t -> E.t -> E.t -> E.t
 
   let sfloat () _ _ v p =
@@ -128,7 +128,7 @@ struct
     tup_cls st mn0 path p
 
   let vec_opn _ _ () _ __ p = p
-  let vec_cls () _ _ p = p
+  let vec_cls _ () _ _ p = p
   let vec_sep () _ _ p = p
 
   let arr_opn _ n () _ _ p =
@@ -137,7 +137,7 @@ struct
       | None -> failwith "RowBinary.Ser needs list size upfront" in
     write_leb128 p n
 
-  let arr_cls () _ _ p = p
+  let arr_cls _ () _ _ p = p
   let arr_sep () _ _ p = p
 
   let nullable () _ _ p = p
@@ -224,9 +224,9 @@ struct
 
   let make_state ?(config=()) _mn = config
 
-  let start () p = p
+  let start _mn0 () p = p
 
-  let stop () p = p
+  let stop _mn0 () p = p
   type des = state -> T.mn -> Path.t -> E.t -> E.t
 
   let dfloat () _ _ p =
@@ -378,7 +378,7 @@ struct
    * So we assume vectors are not prefixed by any length, and our lists are
    * what ClickHouse refers to as arrays. *)
   let vec_opn _ _ () _ _ p = p
-  let vec_cls () _ _ p = p
+  let vec_cls _ () _ _ p = p
   let vec_sep () _ _ p = p
 
   let arr_opn () = KnownSize
@@ -386,7 +386,7 @@ struct
       E.with_sploded_pair "list_opn" (read_leb128 p) (fun dim p ->
         make_pair (u32_of_size dim) p))
 
-  let arr_cls () _ _ p = p
+  let arr_cls _ () _ _ p = p
   let arr_sep () _ _ p = p
 
   let is_present () _ _ p =
