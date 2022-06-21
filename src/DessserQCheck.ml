@@ -1020,7 +1020,6 @@ let sexpr ?sexpr_config mn =
       (module DessserJson.Des : DES)
       (module DessserJson.Ser : SER) format)
 *)
-(* Non regression tests: *)
 
 (* A function to test specifically a given value of a given type for a given
  * back-end: *)
@@ -1075,6 +1074,8 @@ let sexpr ?sexpr_config mn =
   check_sexpr ocaml_be "float" "-0x1.79c428d047e73p-16"
   check_sexpr cpp_be "float" "-0x1.79c428d047e73p-16"
 *)
+
+(* Non regression tests: *)
 (*$= check_rowbinary & ~printer:BatPervasives.identity
   "15134052" (check_rowbinary ocaml_be "u24" "15134052")
 
@@ -1109,6 +1110,7 @@ let sexpr ?sexpr_config mn =
                     u:string; m:float; w:bool; d:bool; o:string; e:float }|E|F]" \
         "(3 ((9 (1234 \"glop\")) (0 (0x1.79c428d047e73p-16 1234 \"\")) \"u\" -0x1.79c428d047e73p-16 T F \"o\" 0x1.79c428d047e73p-16))")
 *)
+
 (*$= check_ringbuffer & ~printer:BatPervasives.identity
   "\"foo\"" (check_ringbuffer ocaml_be "String" "\"foo\"")
   "(\"foo\" 1)" (check_ringbuffer ocaml_be "(String?; I40?)" "(\"foo\" 1)")
@@ -1132,6 +1134,9 @@ let sexpr ?sexpr_config mn =
     (check_ringbuffer ocaml_be \
       "{qbjt: U8?; kduw: U32?}" \
       "(76 null)")
+  "((48599 43985) 2 (null 45861965684654) null)" \
+    (check_ringbuffer ocaml_be "(U16[2]?; I48?{}; BOOL?)" \
+      "((48599 43985) 2 (null 45861965684654) null)")
 *)
 (*$= check_heapvalue & ~printer:BatPervasives.identity
   "1 ((1))" (check_heapvalue ocaml_be "U16[1][]" "1 ((1))")
@@ -1193,17 +1198,21 @@ let sexpr ?sexpr_config mn =
     (check_ser ringbuf_ser  ocaml_be "u8" "42")
   "01 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "u8?" "42")
-  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8; i8)" "(42 58)")
-  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8)" "(42 58)")
-  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
+  "01 00 00 00 2a 00 00 00 3a 00 00 00" \
     (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)" "(42 58)")
-  "01 00 00 00 00 00 00 00 2a 00 00 00" \
+  "01 00 00 00 01 00 00 00 2a 00 00 00 3a 00 00 00" \
+    (check_ser ringbuf_ser  ocaml_be "(u8?; i8?)?" "(42 58)")
+  "00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16]" "(0 42)")
   "01 00 00 00 00 00 00 00 2a 00 00 00" \
+    (check_ser ringbuf_ser ocaml_be "[small u8 | big u16]?" "(0 42)")
+  "00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8 | big u16?]" "(0 42)")
-  "01 00 00 00 00 00 00 00 2a 00 00 00" \
+  "00 00 00 00 2a 00 00 00" \
     (check_ser ringbuf_ser ocaml_be "[small u8? | big u16]" "(0 42)")
   "30 2c 34 32" \
     (check_ser csv_ser ocaml_be "[small u8? | big u16]" "(0 42)")

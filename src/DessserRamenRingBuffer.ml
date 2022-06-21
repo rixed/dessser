@@ -242,13 +242,8 @@ struct
     | _ ->
         None
 
-  let has_nullmask mn =
-    has_bit mn ||
-    match mn.T.typ with
-    | T.TArr mn ->
-        has_bit mn
-    | mn ->
-        of_type mn <> None
+  let has_outermost_nullmask mn =
+    has_bit mn
 
   (* When there is a dynamic fieldmask when serializing, the size of the
    * bitmask depends on the fieldmask: *)
@@ -315,7 +310,11 @@ struct
   let enter_frame to_expr zero_bitmask width p_stk mn0 path =
     let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
     E.with_sploded_pair "enter_frame" p_stk (fun p stk ->
-      let stk = if has_bit then skip_fieldbit stk else stk in
+      let stk =
+        if has_bit then
+          seq [ debug (string "ser: skip fieldbit") ;
+                skip_fieldbit stk ]
+        else stk in
       let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
       seq [ debug (string "ser: enter a new frame at ") ;
             debug (string_of_int_ (offset p)) ;
@@ -344,7 +343,7 @@ struct
     config
 
   let start mn0 _conf p =
-    if BitMaskWidth.has_nullmask mn0 then
+    if BitMaskWidth.has_outermost_nullmask mn0 then
       let_ ~name:"start_p" p (fun p ->
         let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
         let stk = cons new_frame (end_of_list t_frame) in
@@ -360,7 +359,7 @@ struct
       make_pair p stk
 
   let stop _mn0 () p_stk =
-    (* TODO: assert tail stk = end_of_list if has_nullmask *)
+    (* TODO: assert tail stk = end_of_list if has_outermost_nullmask *)
     first p_stk
 
   type ser = state -> T.mn -> Path.t -> E.t -> E.t -> E.t
@@ -481,6 +480,7 @@ struct
     let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
     if has_bit then
       E.with_sploded_pair "sext" p_stk (fun p stk ->
+        let stk = skip_fieldbit stk in
         let p_stk = make_pair p stk in
         f v p_stk)
     else
@@ -511,8 +511,8 @@ struct
   (* Sum types are encoded with a 1-dword header composed of:
    * - a 16bits bitmask, of which only bit 0 (at most) could ever be used
    * - the u16 of the label index. *)
-  let sum_opn mns lbl () _ _ p_stk =
-    let has_bit = Array.exists (fun (_, mn) -> BitMaskWidth.has_bit mn) mns in
+  let sum_opn _mns lbl () mn0 path p_stk =
+    let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
     E.with_sploded_pair "sum_opn1" p_stk (fun p stk ->
       (* Increase bitfield: *)
       let stk = if has_bit then skip_fieldbit stk else stk in
@@ -531,8 +531,17 @@ struct
 
   let vec_opn dim mn () mn0 path p_stk =
     match BitMaskWidth.vec_bits dim mn with
-    | None -> p_stk
-    | Some bits -> enter_frame_const bits p_stk mn0 path
+    | None ->
+        (* [enter_frame_*] deal with the outer fieldmask, but if it's not
+         * called we must deal with it here: *)
+        let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
+        if has_bit then
+          E.with_sploded_pair "vec_opn" p_stk (fun p stk ->
+            let stk = skip_fieldbit stk in
+            make_pair p stk)
+        else p_stk
+    | Some bits ->
+        enter_frame_const bits p_stk mn0 path
 
   let vec_cls mn () _ _ p_stk =
     if BitMaskWidth.has_bit mn then
@@ -557,10 +566,20 @@ struct
                 let p = write_u32 LittleEndian p n in
                 make_pair p stk ])) in
     match BitMaskWidth.arr_bits n mn with
-    | None -> p_stk
-    | Some bits -> enter_frame_dyn bits p_stk mn0 path
+    | None ->
+        (* [enter_frame_*] deal with the outer fieldmask, but if it's not
+         * called we must deal with it here: *)
+        let has_bit = BitMaskWidth.has_bit (Path.type_of_path mn0 path) in
+        if has_bit then
+          E.with_sploded_pair "arr_opn" p_stk (fun p stk ->
+            let stk = skip_fieldbit stk in
+            make_pair p stk)
+        else p_stk
+    | Some bits ->
+        enter_frame_dyn bits p_stk mn0 path
 
   let arr_cls mn () _ _ p_stk =
+    (* Using [has_bit] is like using [arr_bits] but with no need for [n] *)
     if BitMaskWidth.has_bit mn then
       leave_frame p_stk
     else
@@ -726,7 +745,7 @@ struct
     config
 
   let start mn0 _conf p =
-    if BitMaskWidth.has_nullmask mn0 then
+    if BitMaskWidth.has_outermost_nullmask mn0 then
       let_ ~name:"start_p" p (fun p ->
         let new_frame = make_pair p (size 8 (* width of the length prefix *)) in
         let words = read_u8 p |> first in
@@ -741,7 +760,7 @@ struct
       make_pair p stk
 
   let stop _mn0 () p_stk =
-    (* TODO: assert tail stk = end_of_list if has_nullmask *)
+    (* TODO: assert tail stk = end_of_list if has_outermost_nullmask *)
     first p_stk
 
   type des = state -> T.mn -> Path.t -> E.t -> E.t
@@ -959,7 +978,7 @@ struct
           let frame = make_pair fp (add bi (size 1)) in
           let stk = cons frame (force ~what:"is_present3" (tail stk)) in
           let p_stk = make_pair p stk in
-          let_ (not_ (get_bit fp bi)) (fun b ->
+          let_ (get_bit fp bi) (fun b ->
             seq [ debug (string ("des: get fieldbit ")) ;
                   debug (string_of_int_ bi) ;
                   debug (string "@") ;
@@ -967,7 +986,7 @@ struct
                   debug (string " -> ") ;
                   debug (string_of_int_ (u8_of_bool b)) ;
                   debug (char '\n') ;
-                  make_pair b p_stk ])))
+                  make_pair (not_ b) p_stk ])))
     else
       make_pair true_ p_stk
 
