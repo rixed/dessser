@@ -714,12 +714,8 @@ struct
 
   let ssize_of_vec mn0 path _ =
     let mn = Path.type_of_path mn0 path in
-    if BitMaskWidth.has_bit mn then
-      let bitmask_words =
-        BitMaskWidth.words_of_type (Path.type_of_path mn0 path).typ in
-      size (bitmask_words * word_size)
-    else
-      size 0
+    let bitmask_words = BitMaskWidth.words_of_type mn.typ in
+    size (bitmask_words * word_size)
 
   let ssize_of_null _ _ = size 0
 
