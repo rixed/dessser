@@ -5,18 +5,13 @@ open Dessser
 open DessserTools
 open DessserMiscTypes
 module E = DessserExpressions
+module Conf = DessserConfigs.Json
 module StdLib = DessserStdLib
 module T = DessserTypes
 module U = DessserCompilationUnit
 open E.Ops
 
 let debug_flag = false
-
-type json_config =
-  { newline : char option }
-
-let default_config =
-  { newline = None }
 
 (* The name of the game is to be able to skip any JSON value quickly to locate
  * field values: *)
@@ -404,8 +399,6 @@ let no_value_cstrs mn0 path =
   | _ ->
       assert false
 
-type config = json_config
-
 (* For parsing JSON objects (as records), fields need to be reordered.
  * Therefore, when "opening" a record, all fields are located within the
  * incoming bytes and recorded in an array of pointers, in order of
@@ -413,11 +406,11 @@ type config = json_config
  * All objects we are currently in form a stack of such objects. *)
 let frame_t = T.(tuple [| required (arr nptr) ; ptr |])
 
-module Des : DES with type config = json_config =
+module Des : DES with type config = Conf.t =
 struct
   let id = JSON
 
-  type config = json_config
+  type config = Conf.t
 
   type state = config
 
@@ -458,7 +451,11 @@ struct
     | _ ->
         not_null p
 
-  let make_state ?(config=default_config) _mn = config
+  let select_config _csv _sexpr =
+    (* TODO *)
+    DessserConfigs.Json.default
+
+  let make_state ?(config=Conf.default) _mn = config
 
   (* Pass the compunit to this function, so it can register its own stuff,
    * such as the skip function? *)
@@ -680,20 +677,24 @@ end
 (* Compared to desserialization, serialization offers little sophistication,
  * as we are free to dump values in the order specified by the schema. *)
 
-module Ser : SER with type config = json_config =
+module Ser : SER with type config = Conf.t =
 struct
   let id = JSON
 
-  type config = json_config
+  type config = Conf.t
 
   type state = config
 
-  let make_state ?(config=default_config) _mn = config
+  let select_config _csv _sexpr =
+    (* TODO *)
+    DessserConfigs.Json.default
+
+  let make_state ?(config=Conf.default) _mn = config
 
   let start _conf p = p
 
   let stop conf p =
-    match conf.newline with
+    match conf.Conf.newline with
     | None ->
         p
     | Some c ->
@@ -901,7 +902,7 @@ struct
 
   type ssizer = T.mn -> Path.t -> E.t -> E.t
 
-  let ssize_start ?(config=default_config) _mn0 =
+  let ssize_start ?(config=Conf.default) _mn0 =
     ignore config ;
     size 0
 

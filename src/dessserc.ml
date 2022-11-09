@@ -32,13 +32,21 @@ let module_of_backend = function
 
 (* cmdliner must be given enum values that are comparable, therefore not
  * functions: *)
+(* TODO: also return the configuration that's build from the command line,
+ * for instance with --csv-quote etc... *)
 let des_of_encoding = function
-  | RingBuff -> (module DessserRamenRingBuffer.Des : DES)
-  | RowBinary -> (module DessserRowBinary.Des : DES)
-  | SExpr -> (module DessserSExpr.Des : DES)
-  | CSV -> (module DessserCsv.Des : DES)
-  | JSON -> (module DessserJson.Des : DES)
-  | _ -> failwith "No desserializer for that encoding"
+  | RingBuff ->
+      (module DessserRamenRingBuffer.Des : DES)
+  | RowBinary ->
+      (module DessserRowBinary.Des : DES)
+  | SExpr ->
+      (module DessserSExpr.Des : DES)
+  | CSV ->
+      (module DessserCsv.Des : DES)
+  | JSON ->
+      (module DessserJson.Des : DES)
+  | _ ->
+      failwith "No desserializer for that encoding"
 
 let ser_of_encoding = function
   | Null -> (module DessserDevNull.Ser : SER)
@@ -68,7 +76,8 @@ let init_encoding compunit = function
 (* Generate just the code to convert from in to out (if they differ) and from
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg quiet_ schema backend encodings_in encodings_out converters
-        with_fieldmask include_base pointer_type dst_fname optim skip_decls skip_defs () =
+        with_fieldmask include_base pointer_type dst_fname optim skip_decls skip_defs
+        csv_config sexpr_config () =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -145,7 +154,9 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
       (* convert from encoding_in to encoding_out: *)
       func2 T.ptr T.ptr (fun p1 p2 ->
         let module DS = DesSer (Des) (Ser) in
-        DS.desser schema ?transform:None p1 p2) in
+        let ser_config = Ser.select_config csv_config sexpr_config
+        and des_config = Des.select_config csv_config sexpr_config in
+        DS.desser ~ser_config ~des_config schema ?transform:None p1 p2) in
     if !debug then ignore (TC.type_check (U.environment compunit) convert) ;
     let compunit, _, _ =
       let name =
@@ -172,7 +183,8 @@ let lib dbg quiet_ schema backend encodings_in encodings_out converters
 
 let converter
       dbg quiet_ schema backend encoding_in encoding_out
-      modifier_exprs dst_fname dev_mode optim keep_temp_files () =
+      modifier_exprs dst_fname dev_mode optim keep_temp_files
+      csv_config sexpr_config () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -189,9 +201,11 @@ let converter
     match List.find (fun (p, _) -> p = path) modifier_exprs with
     | exception Not_found -> v
     | _p, e -> apply e [ v ] in
+  let ser_config = Ser.select_config csv_config sexpr_config
+  and des_config = Des.select_config csv_config sexpr_config in
   let convert =
     (* convert from encoding_in to encoding_out: *)
-    func2 T.ptr T.ptr (DS.desser schema ~transform) in
+    func2 T.ptr T.ptr (DS.desser ~ser_config ~des_config schema ~transform) in
   if !debug then ignore (TC.type_check E.no_env convert) ;
   let module_name = Filename.(basename dst_fname |> remove_extension) in
   let compunit = U.make module_name in
@@ -211,7 +225,8 @@ let destruct_pair = function
 
 let lmdb main
       dbg quiet_ key_schema val_schema backend encoding_in encoding_out
-      dst_fname dev_mode optim keep_temp_files () =
+      dst_fname dev_mode optim keep_temp_files
+      csv_config sexpr_config () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -225,11 +240,13 @@ let lmdb main
   let module DS = DesSer (Des) (Ser) in
   init_backend backend T.(required (TRec [| "key", key_schema ;
                                             "value", val_schema |])) ;
+  let ser_config = Ser.select_config csv_config sexpr_config
+  and des_config = Des.select_config csv_config sexpr_config in
   let convert_key =
     (* convert from encoding_in to encoding_out: *)
-    func2 T.ptr T.ptr (DS.desser key_schema) in
+    func2 T.ptr T.ptr (DS.desser ~ser_config ~des_config key_schema) in
   let convert_val =
-    func2 T.ptr T.ptr (DS.desser val_schema) in
+    func2 T.ptr T.ptr (DS.desser ~ser_config ~des_config val_schema) in
   if !debug then (
     ignore (TC.type_check E.no_env convert_key) ;
     ignore (TC.type_check E.no_env convert_val)
@@ -263,7 +280,7 @@ let lmdb_load =
       convert_key_id convert_val_id in
   lmdb main
 
-let lmdb_query _ _ _ _ _ _ _ _ () =
+let lmdb_query _ _ _ _ _ _ _ _ _ _ () =
   todo "lmdb_query"
 
 (* In dessser IL we have to explicitly describe the initial state, the update
@@ -272,7 +289,8 @@ let lmdb_query _ _ _ _ _ _ _ _ () =
 let aggregator
       dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
-      dst_fname dev_mode optim keep_temp_files () =
+      dst_fname dev_mode optim keep_temp_files
+      _csv_config _sexpr_config () =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   quiet := quiet_ ;
@@ -585,6 +603,87 @@ let keep_temp_files =
   let i = Arg.info ~env ~doc [ "keep-temp-files" ] in
   Arg.flag i
 
+(* Same as Cmdliner.Arg.char but accept usual escaped special chars: *)
+let my_char=
+  let parse = function
+    | "\\n" -> Stdlib.Ok '\n'
+    | "\\t" -> Stdlib.Ok '\t'
+    | s when String.length s = 1 -> Stdlib.Ok s.[0]
+    | s -> Stdlib.Error (`Msg ("Invalid character: "^ String.quote s))
+  and print fmt c =
+    Legacy.Format.fprintf fmt "%C" c in
+  Arg.conv ~docv:"CHARACTER" (parse, print)
+
+let make_csv_config () =
+  let docs = Manpage.s_common_options in
+  let separator =
+    let doc = "Set the value separator" in
+    let env = Term.env_info "CSV_SEPARATOR" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-separator" ] in
+    Arg.(opt my_char DessserConfigs.Csv.default.separator i)
+  and newline =
+    let doc = "Optional newline character" in
+    let env = Term.env_info "CSV_NEWLINE" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-newline" ] in
+    Arg.(opt (some my_char) DessserConfigs.Csv.default.newline i)
+  and null =
+    let doc = "Special value for NULL" in
+    let env = Term.env_info "CSV_NULL" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-null" ] in
+    Arg.(opt string DessserConfigs.Csv.default.null i)
+  and quote =
+    let doc = "Optional quotation character" in
+    let env = Term.env_info "CSV_QUOTE" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-quote" ] in
+    Arg.(opt (some string) (Option.map String.of_char DessserConfigs.Csv.default.quote) i)
+  and true_ =
+    let doc = "Special value for TRUE" in
+    let env = Term.env_info "CSV_TRUE" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-true" ] in
+    Arg.(opt string DessserConfigs.Csv.default.true_ i)
+  and false_ =
+    let doc = "Special value for FALSE" in
+    let env = Term.env_info "CSV_FALSE" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-false" ] in
+    Arg.(opt string DessserConfigs.Csv.default.false_ i)
+  and vectors_of_chars_as_string =
+    let doc = "Should chars[] be represented as strings?" in
+    let env = Term.env_info "CSV_VECTORS_OF_CHARS_AS_STRING" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-vectors-of-chars-as-strings" ] in
+    Arg.flag i
+  and clickhouse_syntax =
+    let doc = "Should compound values be represented as in Clickhouse?" in
+    let env = Term.env_info "CSV_CLICKHOUSE_SYNTAX" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-clickhouse-syntax" ] in
+    Arg.flag i
+  in
+  Term.(const DessserConfigs.Csv.make
+      $ Arg.value separator
+      $ Arg.value newline
+      $ Arg.value null
+      $ Arg.value quote
+      $ Arg.value true_
+      $ Arg.value false_
+      $ Arg.value vectors_of_chars_as_string
+      $ Arg.value clickhouse_syntax)
+
+let make_sexpr_config () =
+  let docs = Manpage.s_common_options in
+  let list_prefix_length =
+    let doc = "Prefix lists with their length" in
+    let env = Term.env_info "SEXPR_LIST_PREFIX_LENGTH" in
+    let i = Arg.info ~docs ~env ~doc [ "sexpr-list-prefix-length" ] in
+    Arg.flag i
+  and newline =
+    let doc = "Optional newline character" in
+    let env = Term.env_info "SEXPR_NEWLINE" in
+    let i = Arg.info ~docs ~env ~doc [ "sexpr-newline" ] in
+    Arg.(opt (some my_char) DessserConfigs.SExpr.default.newline i)
+  in
+  Term.(const DessserConfigs.SExpr.make
+      $ Arg.value list_prefix_length
+      $ Arg.value newline)
+
 let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
   Term.(
@@ -599,7 +698,9 @@ let converter_cmd =
      $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim
-     $ Arg.value keep_temp_files),
+     $ Arg.value keep_temp_files
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "converter" ~doc)
 
 let skip_decls =
@@ -632,7 +733,9 @@ let lib_cmd =
      $ Arg.required dst_fname
      $ Arg.value optim
      $ Arg.value skip_decls
-     $ Arg.value skip_defs),
+     $ Arg.value skip_defs
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "lib" ~doc)
 
 let lmdb_dump_cmd =
@@ -650,7 +753,9 @@ let lmdb_dump_cmd =
      $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim
-     $ Arg.value keep_temp_files),
+     $ Arg.value keep_temp_files
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "lmdb-dump" ~doc)
 
 let lmdb_load_cmd =
@@ -668,7 +773,9 @@ let lmdb_load_cmd =
      $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim
-     $ Arg.value keep_temp_files),
+     $ Arg.value keep_temp_files
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "lmdb-load" ~doc)
 
 let lmdb_query_cmd =
@@ -683,7 +790,9 @@ let lmdb_query_cmd =
      $ Arg.required backend
      $ Arg.value encoding_in
      $ Arg.value encoding_out
-     $ Arg.required dst_fname),
+     $ Arg.required dst_fname
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "lmdb-query" ~doc)
 
 let aggregator_cmd =
@@ -702,7 +811,9 @@ let aggregator_cmd =
      $ Arg.required dst_fname
      $ Arg.value dev_mode
      $ Arg.value optim
-     $ Arg.value keep_temp_files),
+     $ Arg.value keep_temp_files
+     $ make_csv_config ()
+     $ make_sexpr_config ()),
     info "aggregator" ~doc)
 
 let default_cmd =

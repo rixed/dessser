@@ -266,6 +266,8 @@ struct
   let enter_frame_dyn = enter_frame identity zero_nullmask_dyn
   let enter_frame_const = enter_frame u8_of_int zero_nullmask_const
 
+  let select_config _csv _sexpr = ()
+
   let with_nullbit_done mn0 path p_stk f =
     E.with_sploded_pair "with_nullbit_done1" p_stk (fun p stk ->
       let stk = may_set_nullbit true mn0 path stk in
@@ -658,6 +660,8 @@ struct
             else p
           and stk = cons new_frame stk in
           make_pair p stk ]
+
+  let select_config _csv _sexpr = ()
 
   let make_state ?(config=()) _mn = config
 
