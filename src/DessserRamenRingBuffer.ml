@@ -338,6 +338,8 @@ struct
         let p = f p in
         make_pair p stk))
 
+  let select_config _csv _sexpr = ()
+
   let make_state ?(config=()) mn0 =
     if not (is_serializable mn0) then invalid_arg "not serializable" ;
     config
@@ -735,6 +737,8 @@ struct
 
   type config = unit
   type state = unit
+
+  let select_config _csv _sexpr = ()
 
   let make_state ?(config=()) mn0 =
     if not (is_serializable mn0) then invalid_arg "not serializable" ;

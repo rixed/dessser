@@ -17,6 +17,7 @@ struct
   type config = unit
   type state = unit
 
+  let select_config _csv _sexpr = ()
   let make_state ?(config=()) _mn0 = config
   let start _mn0 _conf src = src
   let stop _mn0 () src = src
@@ -87,6 +88,7 @@ struct
   type config = unit
   type state = unit
 
+  let select_config _csv _sexpr = ()
   let make_state ?(config=()) _ = config
   let start _mn0 () dst = dst
   let stop _mn0 () dst = dst

@@ -14,6 +14,8 @@ struct
   type config = unit
   type state = unit
 
+  let select_config _csv _sexpr = ()
+
   let make_state ?(config=()) _mn = config
 
   let start _mn0 () p = p
@@ -221,6 +223,8 @@ struct
   let id = RowBinary
   type config = unit
   type state = unit
+
+  let select_config _csv _sexpr = ()
 
   let make_state ?(config=()) _mn = config
 

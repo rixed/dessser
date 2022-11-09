@@ -39,6 +39,9 @@ sig
   (* RW state passed to every deserialization operations *)
   type state
 
+  (* Return the config from the set of all configured serializers: *)
+  val select_config : DessserConfigs.Csv.t -> DessserConfigs.SExpr.t -> config
+
   (* Build the initial state: *)
   val make_state : ?config:config -> T.mn -> state
 
@@ -140,6 +143,9 @@ sig
 
   (* RW state passed to every serialization operations *)
   type state
+
+  (* Return the config from the set of all configured serializers: *)
+  val select_config : DessserConfigs.Csv.t -> DessserConfigs.SExpr.t -> config
 
   (* Build the initial state: *)
   val make_state : ?config:config -> T.mn -> state

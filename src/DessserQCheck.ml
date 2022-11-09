@@ -815,7 +815,7 @@ let rec sexpr_of_typ_gen ?sexpr_config typ =
       list_repeat dim (sexpr_of_mn_gen ?sexpr_config mn) |> map to_sexpr
   | TArr mn ->
       tiny_list (sexpr_of_mn_gen ?sexpr_config mn) |> map (fun lst ->
-        (if DessserSExpr.((sexpr_config |? default_config).list_prefix_length)
+        (if DessserSExpr.((sexpr_config |? DessserConfigs.SExpr.default).list_prefix_length)
         then
           Stdlib.string_of_int (List.length lst) ^ " "
         else "") ^
@@ -1012,7 +1012,7 @@ let sexpr ?sexpr_config mn =
       (module DessserCsv.Ser : SER) format ;
     let format = "JSON" in
     let sexpr_config =
-      DessserSExpr.{ default_config with list_prefix_length = false } in
+      DessserConfigs.SExpr.{ default with list_prefix_length = false } in
     test_format ~sexpr_config ocaml_be mn
       (module DessserJson.Des : DES)
       (module DessserJson.Ser : SER) format ;
@@ -1224,7 +1224,7 @@ let sexpr ?sexpr_config mn =
     let mn = P.mn_of_string ts in
     let module DS = DesSer (DessserCsv.Des) (DessserSExpr.Ser) in
     let ser_config =
-      DessserSExpr.{ default_config with list_prefix_length = false } in
+      DessserConfigs.SExpr.{ default with list_prefix_length = false } in
     let exe =
       let e =
         func2 T.ptr T.ptr (fun src dst ->
@@ -1249,7 +1249,7 @@ let sexpr ?sexpr_config mn =
     String.trim (run_converter ~timeout:2 exe vs)
 
   let csv_config_0 =
-    DessserCsv.{ default_config with
+    DessserConfigs.Csv.{ default with
       separator = '|' ;
       null = "" ;
       true_ = "true" ;
@@ -1257,23 +1257,23 @@ let sexpr ?sexpr_config mn =
       clickhouse_syntax = false }
 
   let csv_config_1 =
-    DessserCsv.{ default_config with
+    DessserConfigs.Csv.{ default with
       null = "" ;
       true_ = "true" ;
       false_ = "false" ;
       clickhouse_syntax = false }
 
   let csv_config_2 =
-    DessserCsv.{ default_config with quote = None }
+    DessserConfigs.Csv.{ default with quote = None }
 
   let csv_config_CH =
-    DessserCsv.{ default_config with
+    DessserConfigs.Csv.{ default with
       true_ = "1" ;
       false_ = "0" ;
       clickhouse_syntax = true }
 
   let csv_config_ramen =
-    DessserCsv.{ default_config with
+    DessserConfigs.Csv.{ default with
       separator = '\t' ;
       quote = None ;
       clickhouse_syntax = true }
