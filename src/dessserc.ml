@@ -685,6 +685,11 @@ let make_sexpr_config () =
     let env = Term.env_info "SEXPR_LIST_PREFIX_LENGTH" in
     let i = Arg.info ~docs ~env ~doc [ "sexpr-list-prefix-length" ] in
     Arg.flag i
+  and no_list_prefix_length =
+    let doc = "Do not prefix lists with their length" in
+    let env = Term.env_info "SEXPR_NO_LIST_PREFIX_LENGTH" in
+    let i = Arg.info ~docs ~env ~doc [ "no-sexpr-list-prefix-length" ] in
+    Arg.flag i
   and newline =
     let doc = "Optional newline character" in
     let env = Term.env_info "SEXPR_NEWLINE" in
@@ -693,6 +698,7 @@ let make_sexpr_config () =
   in
   Term.(const DessserConfigs.SExpr.make
       $ Arg.value list_prefix_length
+      $ Arg.value no_list_prefix_length
       $ Arg.value newline)
 
 let converter_cmd =

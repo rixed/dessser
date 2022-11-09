@@ -531,6 +531,7 @@ csv-check: src/dessserc $(CSV_TESTS)
 	      --csv-null='\\N' \
 	      --csv-clickhouse-syntax \
 	      --sexpr-newline='\n' \
+	      --no-sexpr-list-prefix-length \
 	      --dev-mode -O3 --keep-temp-files -o $$base ;\
 	    for in in $$base.*.in; do \
 	      out=/tmp/$$(basename $$in .in).out ;\

@@ -65,7 +65,16 @@ struct
     { list_prefix_length = true ;
       newline = None }
 
-  let make list_prefix_length newline =
+  let make list_prefix_length no_list_prefix_length newline =
+    let list_prefix_length =
+      match list_prefix_length, no_list_prefix_length with
+      | false, false ->
+          (* None set from the command line, use default: *)
+          default.list_prefix_length
+      | true, true ->
+          invalid_arg "Cannot set and not set the list length prefix"
+      | v, _ ->
+          v in
     { list_prefix_length ; newline }
 end
 
