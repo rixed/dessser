@@ -58,7 +58,7 @@ let () =
       exit 1
     ) in
   let module BE = (val backend : BACKEND) in
-  let sexpr_config = { DessserSExpr.default_config with newline = Some '\n' } in
+  let sexpr_config = { DessserConfigs.SExpr.default with newline = Some '\n' } in
   let convert_only = false in
   let compunit = U.make "manual_codegen" in
   let compunit, convert =

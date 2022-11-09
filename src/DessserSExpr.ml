@@ -6,33 +6,27 @@ open DessserMiscTypes
 module T = DessserTypes
 module E = DessserExpressions
 module Path = DessserPath
+module Conf = DessserConfigs.SExpr
 open E.Ops
 
 let debug = false
 
-type sexpr_config =
-  { list_prefix_length : bool ;
-    (* Optional char added (or skipped) at end of values: *)
-    newline : char option }
-
-let default_config =
-  { list_prefix_length = true ;
-    newline = None }
-
-module Ser : SER with type config = sexpr_config =
+module Ser : SER with type config = Conf.t =
 struct
   let id = SExpr
 
-  type config = sexpr_config
+  type config = Conf.t
 
   type state = config
 
-  let make_state ?(config=default_config) _ = config
+  let select_config _csv sexpr = sexpr
+
+  let make_state ?(config=Conf.default) _ = config
 
   let start _ p = p
 
   let stop conf p =
-    match conf.newline with
+    match conf.Conf.newline with
     | None ->
         p
     | Some c ->
@@ -146,7 +140,7 @@ struct
   (* Overestimate some of them: *)
   type ssizer = T.mn -> Path.t -> E.t -> E.t
 
-  let ssize_start ?(config=default_config) _mn =
+  let ssize_start ?(config=Conf.default) _mn =
     size (if config.newline = None then 0 else 1)
 
   let ssize_of_float _ _ _ = size 22
@@ -232,15 +226,17 @@ struct
   let ssize_of_notnull _mn0 _path = size 0
 end
 
-module Des : DES with type config = sexpr_config =
+module Des : DES with type config = Conf.t =
 struct
   let id = SExpr
 
-  type config = sexpr_config
+  type config = Conf.t
 
   type state = config
 
-  let make_state ?(config=default_config) _mn = config
+  let select_config _csv sexpr = sexpr
+
+  let make_state ?(config=Conf.default) _mn = config
 
   let start _conf p = p
 
@@ -260,7 +256,7 @@ struct
     skip_byte (u8_of_const_char c) p
 
   let stop conf p =
-    match conf.newline with
+    match conf.Conf.newline with
     | None ->
         p
     | Some c ->
@@ -364,7 +360,7 @@ struct
   let vec_sep _conf _ _ p = skip1 p
 
   let arr_opn conf =
-    if conf.list_prefix_length then
+    if conf.Conf.list_prefix_length then
       KnownSize (fun mn0 path _ p ->
         E.with_sploded_pair "list_opn" (du32 conf mn0 path p) (fun v p ->
           make_pair v (skip 2 p))) (* skip separator and opening '(' *)
