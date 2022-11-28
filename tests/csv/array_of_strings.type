@@ -1,0 +1,6 @@
+{ from : string? ;
+  to : string[] ;
+  cc : string[] ;
+  id : string? ;
+  files : string[] ;
+  content_types : string[] }

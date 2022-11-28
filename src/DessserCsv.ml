@@ -207,6 +207,11 @@ let sep_byte conf mn0 path =
       conf.separator in
   u8_of_const_char sep_char
 
+let trimmed_string conf mn0 path =
+  if conf.Conf.clickhouse_syntax && is_in_list mn0 path then
+    " "
+  else
+    conf.trimmed
 
 module Ser : SER with type config = Conf.t =
 struct
@@ -454,16 +459,38 @@ struct
   let skip_char c p =
     skip_byte (u8_of_const_char c) p
 
-  let skip_sep conf p =
+  let skip_chars_ chars init_p =
+    let_ ~name:"p_ref" (make_ref init_p) (fun p_ref ->
+      let p = get_ref p_ref in
+      let_ ~name:"sz_ref" (make_ref (size 0)) (fun sz_ref ->
+        let sz = get_ref sz_ref in
+        seq [
+          while_
+            (and_ (lt sz (size (String.length chars)))
+                  (let b = peek_u8 p sz in
+                   StdLib.is_in (char_of_u8 b) T.char (string chars) T.string))
+            (set_ref sz_ref (add sz (size 1))) ;
+          ptr_add init_p sz ]))
+
+  let skip_chars conf mn0 path init_p =
+    let chars = trimmed_string conf mn0 path in
+    skip_chars_ chars init_p
+
+  let skip_sep conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     skip_char conf.Conf.separator p
 
-  let may_skip_quote conf p =
+  let may_skip_quote conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     match conf.Conf.quote with
     | None -> p
     | Some c -> skip_char c p
 
   (* Skip the final newline if present: *)
   let stop conf p =
+    (* We know we are outside of any special CH notation at stop, yet we still
+     * want to trim the last value: *)
+    let p = skip_chars_ conf.Conf.trimmed p in
     match conf.Conf.newline with
     | None ->
         p
@@ -472,13 +499,15 @@ struct
           ~then_:(skip_char c p)
           ~else_:p
 
-  let dfloat _conf _ _ p =
+  let dfloat conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     float_of_ptr p
 
-  let dbool conf _ _ p =
+  let dbool conf mn0 path p =
     (* TODO: Look for false_.[0] otherwise: *)
     (* TODO: find out where is the first distinct char of true and false (that
      * may not be in position 0) and test only that one *)
+    let p = skip_chars conf mn0 path p in
     assert (String.length conf.Conf.true_ > 0) ;
     if_ (eq (peek_u8 p (size 0)) (u8_of_const_char (conf.true_.[0])))
       ~then_:(make_pair true_ (skip (String.length conf.true_) p))
@@ -488,10 +517,12 @@ struct
     let sep_byte = sep_byte conf mn0 path in
     match conf.newline with
     | None ->
-        eq b sep_byte
-    | Some c ->
         or_ (eq b sep_byte)
-            (eq b (u8_of_const_char c))
+            (StdLib.is_in (char_of_u8 b) T.char (string conf.Conf.trimmed) T.string)
+    | Some c ->
+        or_ (or_ (eq b sep_byte)
+                 (eq b (u8_of_const_char c)))
+            (StdLib.is_in (char_of_u8 b) T.char (string conf.Conf.trimmed) T.string)
 
   (* Read a string of bytes and process them through [conv]: *)
   let dbytes_quoted conf mn0 path p =
@@ -553,6 +584,7 @@ struct
           read_bytes init_p sz ]))
 
   let dbytes conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     (
       if conf.Conf.quote <> None ||
          (conf.clickhouse_syntax && is_in_list mn0 path) then
@@ -562,6 +594,7 @@ struct
     ) conf mn0 path p
 
   let dstring conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
       make_pair (string_of_bytes v) p)
 
@@ -571,49 +604,54 @@ struct
       E.with_sploded_pair "dchar" (read_u8 p) (fun b p ->
         make_pair (char_of_u8 b) p)
     else
+      let p = skip_chars conf mn0 path p in
       let_pair ~n1:"v" ~n2:"p" (dbytes conf mn0 path p) (fun v p ->
         make_pair (char_of_u8 (unsafe_nth (u8_of_int 0) v)) p)
 
-  let di8 _conf _ _ p = i8_of_ptr p
-  let du8 _conf _ _ p = u8_of_ptr p
-  let di16 _conf _ _ p = i16_of_ptr p
-  let du16 _conf _ _ p = u16_of_ptr p
-  let di24 _conf _ _ p = i24_of_ptr p
-  let du24 _conf _ _ p = u24_of_ptr p
-  let di32 _conf _ _ p = i32_of_ptr p
-  let du32 _conf _ _ p = u32_of_ptr p
-  let di40 _conf _ _ p = i40_of_ptr p
-  let du40 _conf _ _ p = u40_of_ptr p
-  let di48 _conf _ _ p = i48_of_ptr p
-  let du48 _conf _ _ p = u48_of_ptr p
-  let di56 _conf _ _ p = i56_of_ptr p
-  let du56 _conf _ _ p = u56_of_ptr p
-  let di64 _conf _ _ p = i64_of_ptr p
-  let du64 _conf _ _ p = u64_of_ptr p
-  let di128 _conf _ _ p = i128_of_ptr p
-  let du128 _conf _ _ p = u128_of_ptr p
+  let trimmed x_of_ptr conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
+    x_of_ptr p
 
-  let dext f _conf _ _ p =
+  let di8 = trimmed i8_of_ptr
+  let du8 = trimmed u8_of_ptr
+  let di16 = trimmed i16_of_ptr
+  let du16 = trimmed u16_of_ptr
+  let di24 = trimmed i24_of_ptr
+  let du24 = trimmed u24_of_ptr
+  let di32 = trimmed i32_of_ptr
+  let du32 = trimmed u32_of_ptr
+  let di40 = trimmed i40_of_ptr
+  let du40 = trimmed u40_of_ptr
+  let di48 = trimmed i48_of_ptr
+  let du48 = trimmed u48_of_ptr
+  let di56 = trimmed i56_of_ptr
+  let du56 = trimmed u56_of_ptr
+  let di64 = trimmed i64_of_ptr
+  let du64 = trimmed u64_of_ptr
+  let di128 = trimmed i128_of_ptr
+  let du128 = trimmed u128_of_ptr
+
+  let dext f conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     f p
 
   let tup_opn _conf _ _ _ p = p
 
   let tup_cls _conf _ _ p = p
 
-  let tup_sep conf _ _ p =
-    skip_sep conf p
+  let tup_sep = skip_sep
 
   let rec_opn _conf _ _ _ p = p
 
   let rec_cls _conf _ _ p = p
 
-  let rec_sep conf _ _ p =
-      skip_sep conf p
+  let rec_sep = skip_sep
 
   let sum_opn _ conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     let c_p = du16 conf mn0 path p in
     E.with_sploded_pair "sum_opn_csv" c_p (fun c p ->
-      make_pair c (skip_sep conf p))
+      make_pair c (skip_sep conf mn0 path p))
 
   let sum_cls _lbl _conf _ _ p = p
 
@@ -626,7 +664,7 @@ struct
       (* FIXME: we may switch back from clickhouse's TSV from now on. *)
       (* Use mn0 and path to find out if opening that string is required *)
       (* TODO: support for optional quote around that notation? *)
-      let p = may_skip_quote conf p in
+      let p = may_skip_quote conf mn0 path p in
       skip_char '[' p
     else
       p
@@ -641,7 +679,7 @@ struct
       (* Use mn0 and path to find out if opening that string is required *)
       (* TODO: support for optional quote around that notation? *)
       let p = skip_char ']' p in
-      may_skip_quote conf p
+      may_skip_quote conf mn0 path p
     else
       p
 
@@ -649,23 +687,27 @@ struct
     if conf.Conf.vectors_of_chars_as_string && is_in_fixed_string mn0 path then
       p
     else if conf.clickhouse_syntax then
+      let p = skip_chars conf mn0 path p in
       skip_char ',' p
     else
-      skip_sep conf p
+      skip_sep conf mn0 path p
 
   let arr_opn conf =
     if conf.Conf.clickhouse_syntax then
       UnknownSize (
-        (fun _ _ _ p ->
-          let p = may_skip_quote conf p in
+        (fun _ mn0 path p ->
+          let p = may_skip_quote conf mn0 path p in
           skip_char '[' p),
-        (fun _mn0 _path p ->
+        (fun mn0 path p ->
           (* Won't work for nested compound types: *)
+          let p = skip_chars conf mn0 path p in
           eq (peek_u8 p (size 0)) (u8_of_const_char ']')))
     else
       KnownSize (fun _ mn0 path p ->
-        E.with_sploded_pair "arr_opn" (du32 conf mn0 path p) (fun v p ->
-          make_pair v (skip_sep conf p)))
+        let p = skip_chars conf mn0 path p in
+        let sz = du32 conf mn0 path p in
+        E.with_sploded_pair "arr_opn" sz (fun v p ->
+          make_pair v (skip_sep conf mn0 path p)))
 
   let arr_cls conf mn0 path p =
     if conf.Conf.clickhouse_syntax then
@@ -677,7 +719,7 @@ struct
     if conf.Conf.clickhouse_syntax then
       vec_sep conf mn0 path p
     else
-      skip_sep conf p
+      skip_sep conf mn0 path p
 
   let is_present _conf _mn0 _path _p = true_
 
@@ -698,12 +740,14 @@ struct
     in
     (* Note: avoids a warning when comparing size >= len if len is 0: *)
     if len > 0 then
+      let p = skip_chars conf mn0 path p in
       and_ (ge (rem_size p) (size len))
            (loop 0)
     else
       (loop 0)
 
-  let dnull _t conf _ _ p =
+  let dnull _t conf mn0 path p =
+    let p = skip_chars conf mn0 path p in
     skip (String.length conf.Conf.null) p
 
   let dnotnull _t _conf _ _ p = p
