@@ -1098,6 +1098,11 @@ let rec peval l e =
                         (fun a b -> bool (Int128.compare a b > 0))
                         (fun a b -> bool (Uint128.compare a b > 0))
           with Invalid_argument _ ->
+            (* TODO: if only one of f1 and f2 is known at compile time and
+             * we know the range of the other operand we can still evaluate
+             * Gt if the evaluated operand is on the boundary of that range,
+             * which is frequent when we have a size compared to 0 for
+             * instance. *)
             T.E2 (Gt, e1, e2))
       | Ge, f1, f2 ->
           (try

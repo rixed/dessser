@@ -5,6 +5,9 @@ module Csv =
 struct
   type t =
     { separator : char ;
+      (* Characters that must be skipped over at the beginning or end of
+       * values: *)
+      trimmed : string ;
       (* Optional char to add (or skip) at the end of values: *)
       newline : char option ;
       null : string ;
@@ -19,6 +22,7 @@ struct
 
   let default =
     { separator = ',' ;
+      trimmed = "" ;
       newline = Some '\n' ;
       null = "\\N" ;  (* À la Postgresql *)
       quote = Some '"' ;
@@ -27,8 +31,8 @@ struct
       vectors_of_chars_as_string = true ;
       clickhouse_syntax = false }
 
-  let make separator newline null quote true_ false_ vectors_of_chars_as_string
-           clickhouse_syntax =
+  let make separator trimmed newline null quote true_ false_
+           vectors_of_chars_as_string clickhouse_syntax =
     (* We want command line to be able to set no quote with an empty string: *)
     let quote =
       match quote with
@@ -38,6 +42,7 @@ struct
           assert (String.length s = 1) ;
           Some s.[0] in
     { separator ;
+      trimmed ;
       newline ;
       null ;
       quote ;

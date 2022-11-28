@@ -621,6 +621,11 @@ let make_csv_config () =
     let env = Term.env_info "CSV_SEPARATOR" in
     let i = Arg.info ~docs ~env ~doc [ "csv-separator" ] in
     Arg.(opt my_char DessserConfigs.Csv.default.separator i)
+  and trimmed =
+    let doc = "Characters to ignore before and after values" in
+    let env = Term.env_info "CSV_TRIMMED" in
+    let i = Arg.info ~docs ~env ~doc [ "csv-trimmed" ] in
+    Arg.(opt string DessserConfigs.Csv.default.trimmed i)
   and newline =
     let doc = "Optional newline character" in
     let env = Term.env_info "CSV_NEWLINE" in
@@ -659,6 +664,7 @@ let make_csv_config () =
   in
   Term.(const DessserConfigs.Csv.make
       $ Arg.value separator
+      $ Arg.value trimmed
       $ Arg.value newline
       $ Arg.value null
       $ Arg.value quote

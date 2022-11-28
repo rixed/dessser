@@ -297,7 +297,7 @@ let percentiles vs vs_t ps ps_t =
             unsafe_nth k vs)
           ) ks ])))
 
-(* Tells if a vector/list/set/lst/ptr is empty, dealing with nullable: *)
+(* Tells if a string/vector/list/set/lst/ptr is empty, dealing with nullable: *)
 let is_empty e e_t =
   let open E.Ops in
   let prop_null nullable e f =
