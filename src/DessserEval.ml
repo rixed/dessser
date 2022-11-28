@@ -186,6 +186,89 @@ let comp2 e1 e2 op_gen op_i128 op_u128 =
   | _ ->
       invalid_arg "comp2"
 
+let comp_to_boundary ~strict e1 e2 =
+  match e1, e2 with
+  (* Check lower boundary *)
+  | T.E0 (U8 v), _ when strict && v = Uint8.min_int -> false_
+  | E0 (U16 v), _ when strict && v = Uint16.min_int -> false_
+  | E0 (U24 v), _ when strict && v = Uint24.min_int -> false_
+  | E0 (U32 v), _ when strict && v = Uint32.min_int -> false_
+  | E0 (U40 v), _ when strict && v = Uint40.min_int -> false_
+  | E0 (U48 v), _ when strict && v = Uint48.min_int -> false_
+  | E0 (U56 v), _ when strict && v = Uint56.min_int -> false_
+  | E0 (U64 v), _ when strict && v = Uint64.min_int -> false_
+  | E0 (U128 v), _ when strict && v = Uint128.min_int -> false_
+  | E0 (I8 v), _ when strict && v = Int8.min_int -> false_
+  | E0 (I16 v), _ when strict && v = Int16.min_int -> false_
+  | E0 (I24 v), _ when strict && v = Int24.min_int -> false_
+  | E0 (I32 v), _ when strict && v = Int32.min_int -> false_
+  | E0 (I40 v), _ when strict && v = Int40.min_int -> false_
+  | E0 (I48 v), _ when strict && v = Int48.min_int -> false_
+  | E0 (I56 v), _ when strict && v = Int56.min_int -> false_
+  | E0 (I64 v), _ when strict && v = Int64.min_int -> false_
+  | E0 (I128 v), _ when strict && v = Int128.min_int -> false_
+  | E0 (Size v), _ when strict && v = 0 -> false_
+  | _, T.E0 (U8 v) when not strict && v = Uint8.min_int -> true_
+  | _, E0 (U16 v) when not strict && v = Uint16.min_int -> true_
+  | _, E0 (U24 v) when not strict && v = Uint24.min_int -> true_
+  | _, E0 (U32 v) when not strict && v = Uint32.min_int -> true_
+  | _, E0 (U40 v) when not strict && v = Uint40.min_int -> true_
+  | _, E0 (U48 v) when not strict && v = Uint48.min_int -> true_
+  | _, E0 (U56 v) when not strict && v = Uint56.min_int -> true_
+  | _, E0 (U64 v) when not strict && v = Uint64.min_int -> true_
+  | _, E0 (U128 v) when not strict && v = Uint128.min_int -> true_
+  | _, E0 (I8 v) when not strict && v = Int8.min_int -> true_
+  | _, E0 (I16 v) when not strict && v = Int16.min_int -> true_
+  | _, E0 (I24 v) when not strict && v = Int24.min_int -> true_
+  | _, E0 (I32 v) when not strict && v = Int32.min_int -> true_
+  | _, E0 (I40 v) when not strict && v = Int40.min_int -> true_
+  | _, E0 (I48 v) when not strict && v = Int48.min_int -> true_
+  | _, E0 (I56 v) when not strict && v = Int56.min_int -> true_
+  | _, E0 (I64 v) when not strict && v = Int64.min_int -> true_
+  | _, E0 (I128 v) when not strict && v = Int128.min_int -> true_
+  | _, E0 (Size v) when not strict && v = max_int -> true_
+  (* Check highest boundaries *)
+  | E0 (U8 v), _ when not strict && v = Uint8.max_int -> true_
+  | E0 (U16 v), _ when not strict && v = Uint16.max_int -> true_
+  | E0 (U24 v), _ when not strict && v = Uint24.max_int -> true_
+  | E0 (U32 v), _ when not strict && v = Uint32.max_int -> true_
+  | E0 (U40 v), _ when not strict && v = Uint40.max_int -> true_
+  | E0 (U48 v), _ when not strict && v = Uint48.max_int -> true_
+  | E0 (U56 v), _ when not strict && v = Uint56.max_int -> true_
+  | E0 (U64 v), _ when not strict && v = Uint64.max_int -> true_
+  | E0 (U128 v), _ when not strict && v = Uint128.max_int -> true_
+  | E0 (I8 v), _ when not strict && v = Int8.max_int -> true_
+  | E0 (I16 v), _ when not strict && v = Int16.max_int -> true_
+  | E0 (I24 v), _ when not strict && v = Int24.max_int -> true_
+  | E0 (I32 v), _ when not strict && v = Int32.max_int -> true_
+  | E0 (I40 v), _ when not strict && v = Int40.max_int -> true_
+  | E0 (I48 v), _ when not strict && v = Int48.max_int -> true_
+  | E0 (I56 v), _ when not strict && v = Int56.max_int -> true_
+  | E0 (I64 v), _ when not strict && v = Int64.max_int -> true_
+  | E0 (I128 v), _ when not strict && v = Int128.max_int -> true_
+  | E0 (Size v), _ when not strict && v = max_int -> true_
+  | _, E0 (U8 v) when strict && v = Uint8.max_int -> false_
+  | _, E0 (U16 v) when strict && v = Uint16.max_int -> false_
+  | _, E0 (U24 v) when strict && v = Uint24.max_int -> false_
+  | _, E0 (U32 v) when strict && v = Uint32.max_int -> false_
+  | _, E0 (U40 v) when strict && v = Uint40.max_int -> false_
+  | _, E0 (U48 v) when strict && v = Uint48.max_int -> false_
+  | _, E0 (U56 v) when strict && v = Uint56.max_int -> false_
+  | _, E0 (U64 v) when strict && v = Uint64.max_int -> false_
+  | _, E0 (U128 v) when strict && v = Uint128.max_int -> false_
+  | _, E0 (I8 v) when strict && v = Int8.max_int -> false_
+  | _, E0 (I16 v) when strict && v = Int16.max_int -> false_
+  | _, E0 (I24 v) when strict && v = Int24.max_int -> false_
+  | _, E0 (I32 v) when strict && v = Int32.max_int -> false_
+  | _, E0 (I40 v) when strict && v = Int40.max_int -> false_
+  | _, E0 (I48 v) when strict && v = Int48.max_int -> false_
+  | _, E0 (I56 v) when strict && v = Int56.max_int -> false_
+  | _, E0 (I64 v) when strict && v = Int64.max_int -> false_
+  | _, E0 (I128 v) when strict && v = Int128.max_int -> false_
+  | _, E0 (Size v) when strict && v = max_int -> false_
+  | _ ->
+      invalid_arg "comp_to_boundary"
+
 let arith1' e op_i128 cst =
   match e with
   | T.E0 (U128 _) ->
@@ -1098,19 +1181,24 @@ let rec peval l e =
                         (fun a b -> bool (Int128.compare a b > 0))
                         (fun a b -> bool (Uint128.compare a b > 0))
           with Invalid_argument _ ->
-            (* TODO: if only one of f1 and f2 is known at compile time and
+            (* If only one of f1 and f2 is known at compile time and
              * we know the range of the other operand we can still evaluate
              * Gt if the evaluated operand is on the boundary of that range,
              * which is frequent when we have a size compared to 0 for
              * instance. *)
-            T.E2 (Gt, e1, e2))
+            (try
+              comp_to_boundary ~strict:true f1 f2
+            with Invalid_argument _ ->
+              T.E2 (Gt, e1, e2)))
       | Ge, f1, f2 ->
           (try
             comp2 f1 f2 (fun a b -> bool (a >= b))
                         (fun a b -> bool (Int128.compare a b >= 0))
                         (fun a b -> bool (Uint128.compare a b >= 0))
           with Invalid_argument _ ->
-            T.E2 (Ge, e1, e2))
+            (try
+              comp_to_boundary ~strict:false f1 f2
+            with Invalid_argument _ -> T.E2 (Ge, e1, e2)))
       | Eq, f1, f2 ->
           (try
             comp2 f1 f2 (fun a b -> bool (a = b))
@@ -1538,6 +1626,11 @@ let rec peval l e =
                   (u8 7)) \
              (add (force (param 0)) \
                   (u8 1))))")
+
+  "nop" \
+    (test_peval 3 \
+      "(while (and (lt (identifier \"x\") (size 0)) (eq (u8 1) (u8 1))) \
+          (dump (string \"glop glop\")))")
 *)
 (* This one is but a wish for now:
   "(fun (\"u32\") \
