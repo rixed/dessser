@@ -417,7 +417,7 @@ let maybe_nullable =
           read_whole_file filename
         else
           s in
-      Stdlib.Ok (P.mn_of_string ~what:"schema" s)
+      Stdlib.Ok (P.mn_of_string ~any_format:true ~what:"schema" s)
     ) with e ->
       Stdlib.Error (`Msg (Printexc.to_string e))
   and print fmt mn =
