@@ -31,7 +31,7 @@ Types are organized in two abstraction layers:
 - the types that can store user manipulable values, belonging to the
   type named `typ`. Most of those types can be (de)serialized and manipulated in many
   ways (the exceptions being the types used to implement serializers
-  themselves, such as the pointer types etC).
+  themselves, such as the pointer types etc).
 
 - often times, values (of some value type) are optional (aka null or unknown).
   So the `maybe_nullable` type extends the `typ` type with a boolean indicating
