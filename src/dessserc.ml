@@ -77,7 +77,7 @@ let init_encoding compunit = function
  * in to a heap value and from a heap value to out, then link into a library. *)
 let lib dbg gen_dbg quiet_ schema backend encodings_in encodings_out converters
         with_fieldmask include_base pointer_type dst_fname optim skip_decls skip_defs
-        csv_config sexpr_config () =
+        csv_config sexpr_config =
   if encodings_in = [] && encodings_out = [] then
     failwith "No encoding specified" ;
   if List.exists (fun (i, o) -> i = o) converters then
@@ -185,7 +185,7 @@ let lib dbg gen_dbg quiet_ schema backend encodings_in encodings_out converters
 let converter
       dbg gen_dbg quiet_ schema backend encoding_in encoding_out
       modifier_exprs dst_fname dev_mode optim keep_temp_files
-      csv_config sexpr_config () =
+      csv_config sexpr_config =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   DessserExpressions.dump_debug := gen_dbg ;
@@ -228,7 +228,7 @@ let destruct_pair = function
 let lmdb main
       dbg gen_dbg quiet_ key_schema val_schema backend encoding_in encoding_out
       dst_fname dev_mode optim keep_temp_files
-      csv_config sexpr_config () =
+      csv_config sexpr_config =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   DessserExpressions.dump_debug := gen_dbg ;
@@ -283,7 +283,7 @@ let lmdb_load =
       convert_key_id convert_val_id in
   lmdb main
 
-let lmdb_query _ _ _ _ _ _ _ _ _ _ _ () =
+let lmdb_query _ _ _ _ _ _ _ _ _ _ _ =
   todo "lmdb_query"
 
 (* In dessser IL we have to explicitly describe the initial state, the update
@@ -293,7 +293,7 @@ let aggregator
       dbg gen_dbg quiet_ schema backend encoding_in encoding_out
       init_expr update_expr finalize_expr
       dst_fname dev_mode optim keep_temp_files
-      _csv_config _sexpr_config () =
+      _csv_config _sexpr_config =
   debug := dbg ;
   DessserCompilationUnit.debug := dbg ;
   DessserExpressions.dump_debug := gen_dbg ;
@@ -390,20 +390,20 @@ open Cmdliner
 
 let debug =
   let doc = "Enable debugging output on stdout and additional checks" in
-  let env = Term.env_info "DESSSER_DEBUG" in
+  let env = Cmd.Env.info "DESSSER_DEBUG" in
   let i = Arg.info ~env ~doc [ "debug" ] in
   Arg.flag i
 
 let quiet =
   let doc = "Suppress all output but errors" in
-  let env = Term.env_info "DESSSER_QUIET" in
+  let env = Cmd.Env.info "DESSSER_QUIET" in
   let i = Arg.info ~env ~doc [ "quiet" ] in
   Arg.flag i
 
 let gen_debug =
   let doc =
     "Generate debug code (dumps will be printed rather than ignored)" in
-  let env = Term.env_info "DESSSER_GEN_DEBUG" in
+  let env = Cmd.Env.info "DESSSER_GEN_DEBUG" in
   let i = Arg.info ~env ~doc [ "gen-debug" ] in
   Arg.flag i
 
@@ -598,19 +598,19 @@ let dst_fname =
 let dev_mode =
   let doc = "Compile in development mode (using local files rather than \
              installed libraries)" in
-  let env = Term.env_info "DESSSER_DEV_MODE" in
+  let env = Cmd.Env.info "DESSSER_DEV_MODE" in
   let i = Arg.info ~env ~doc [ "dev-mode" ] in
   Arg.flag i
 
 let optim =
   let doc = "Optimization level" in
-  let env = Term.env_info "DESSSER_OPTIMIZATION_LEVEL" in
+  let env = Cmd.Env.info "DESSSER_OPTIMIZATION_LEVEL" in
   let i = Arg.info ~env ~doc [ "O" ] in
   Arg.(opt int 3 i)
 
 let keep_temp_files =
   let doc = "Keep intermediary temporary files" in
-  let env = Term.env_info "DESSSER_KEEP_TEMP_FILES" in
+  let env = Cmd.Env.info "DESSSER_KEEP_TEMP_FILES" in
   let i = Arg.info ~env ~doc [ "keep-temp-files" ] in
   Arg.flag i
 
@@ -629,47 +629,47 @@ let make_csv_config () =
   let docs = Manpage.s_common_options in
   let separator =
     let doc = "Set the value separator" in
-    let env = Term.env_info "CSV_SEPARATOR" in
+    let env = Cmd.Env.info "CSV_SEPARATOR" in
     let i = Arg.info ~docs ~env ~doc [ "csv-separator" ] in
     Arg.(opt my_char DessserConfigs.Csv.default.separator i)
   and trimmed =
     let doc = "Characters to ignore before and after values" in
-    let env = Term.env_info "CSV_TRIMMED" in
+    let env = Cmd.Env.info "CSV_TRIMMED" in
     let i = Arg.info ~docs ~env ~doc [ "csv-trimmed" ] in
     Arg.(opt string DessserConfigs.Csv.default.trimmed i)
   and newline =
     let doc = "Optional newline character" in
-    let env = Term.env_info "CSV_NEWLINE" in
+    let env = Cmd.Env.info "CSV_NEWLINE" in
     let i = Arg.info ~docs ~env ~doc [ "csv-newline" ] in
     Arg.(opt (some my_char) DessserConfigs.Csv.default.newline i)
   and null =
     let doc = "Special value for NULL" in
-    let env = Term.env_info "CSV_NULL" in
+    let env = Cmd.Env.info "CSV_NULL" in
     let i = Arg.info ~docs ~env ~doc [ "csv-null" ] in
     Arg.(opt string DessserConfigs.Csv.default.null i)
   and quote =
     let doc = "Optional quotation character" in
-    let env = Term.env_info "CSV_QUOTE" in
+    let env = Cmd.Env.info "CSV_QUOTE" in
     let i = Arg.info ~docs ~env ~doc [ "csv-quote" ] in
     Arg.(opt (some string) (Option.map String.of_char DessserConfigs.Csv.default.quote) i)
   and true_ =
     let doc = "Special value for TRUE" in
-    let env = Term.env_info "CSV_TRUE" in
+    let env = Cmd.Env.info "CSV_TRUE" in
     let i = Arg.info ~docs ~env ~doc [ "csv-true" ] in
     Arg.(opt string DessserConfigs.Csv.default.true_ i)
   and false_ =
     let doc = "Special value for FALSE" in
-    let env = Term.env_info "CSV_FALSE" in
+    let env = Cmd.Env.info "CSV_FALSE" in
     let i = Arg.info ~docs ~env ~doc [ "csv-false" ] in
     Arg.(opt string DessserConfigs.Csv.default.false_ i)
   and vectors_of_chars_as_string =
     let doc = "Should chars[] be represented as strings?" in
-    let env = Term.env_info "CSV_VECTORS_OF_CHARS_AS_STRING" in
+    let env = Cmd.Env.info "CSV_VECTORS_OF_CHARS_AS_STRING" in
     let i = Arg.info ~docs ~env ~doc [ "csv-vectors-of-chars-as-strings" ] in
     Arg.flag i
   and clickhouse_syntax =
     let doc = "Should compound values be represented as in Clickhouse?" in
-    let env = Term.env_info "CSV_CLICKHOUSE_SYNTAX" in
+    let env = Cmd.Env.info "CSV_CLICKHOUSE_SYNTAX" in
     let i = Arg.info ~docs ~env ~doc [ "csv-clickhouse-syntax" ] in
     Arg.flag i
   in
@@ -688,17 +688,17 @@ let make_sexpr_config () =
   let docs = Manpage.s_common_options in
   let list_prefix_length =
     let doc = "Prefix lists with their length" in
-    let env = Term.env_info "SEXPR_LIST_PREFIX_LENGTH" in
+    let env = Cmd.Env.info "SEXPR_LIST_PREFIX_LENGTH" in
     let i = Arg.info ~docs ~env ~doc [ "sexpr-list-prefix-length" ] in
     Arg.flag i
   and no_list_prefix_length =
     let doc = "Do not prefix lists with their length" in
-    let env = Term.env_info "SEXPR_NO_LIST_PREFIX_LENGTH" in
+    let env = Cmd.Env.info "SEXPR_NO_LIST_PREFIX_LENGTH" in
     let i = Arg.info ~docs ~env ~doc [ "no-sexpr-list-prefix-length" ] in
     Arg.flag i
   and newline =
     let doc = "Optional newline character" in
-    let env = Term.env_info "SEXPR_NEWLINE" in
+    let env = Cmd.Env.info "SEXPR_NEWLINE" in
     let i = Arg.info ~docs ~env ~doc [ "sexpr-newline" ] in
     Arg.(opt (some my_char) DessserConfigs.SExpr.default.newline i)
   in
@@ -709,153 +709,149 @@ let make_sexpr_config () =
 
 let converter_cmd =
   let doc = "Generate a converter from in to out encodings" in
-  Term.(
-    (const converter
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
-     $ Arg.value modifier_exprs
-     $ Arg.required dst_fname
-     $ Arg.value dev_mode
-     $ Arg.value optim
-     $ Arg.value keep_temp_files
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "converter" ~doc)
+  Cmd.v (Cmd.info ~doc "converter")
+    Term.(
+      const converter
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encoding_in
+        $ Arg.value encoding_out
+        $ Arg.value modifier_exprs
+        $ Arg.required dst_fname
+        $ Arg.value dev_mode
+        $ Arg.value optim
+        $ Arg.value keep_temp_files
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let skip_decls =
   let doc = "Do not emit declarations" in
-  let env = Term.env_info "DESSSER_SKIP_DECLS" in
+  let env = Cmd.Env.info "DESSSER_SKIP_DECLS" in
   let i = Arg.info ~env ~doc [ "skip-decls" ; "no-decls" ] in
   Arg.flag i
 
 let skip_defs =
   let doc = "Do not emit declarations" in
-  let env = Term.env_info "DESSSER_SKIP_DEFS" in
+  let env = Cmd.Env.info "DESSSER_SKIP_DEFS" in
   let i = Arg.info ~env ~doc [ "skip-defs" ; "no-defs" ] in
   Arg.flag i
 
 let lib_cmd =
   let doc = "Generate a library with various converters from in to out \
              encodings" in
-  Term.(
-    (const lib
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encodings_in
-     $ Arg.value encodings_out
-     $ Arg.value converters
-     $ Arg.value with_fieldmask
-     $ Arg.value include_base
-     $ Arg.value pointer_type
-     $ Arg.required dst_fname
-     $ Arg.value optim
-     $ Arg.value skip_decls
-     $ Arg.value skip_defs
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "lib" ~doc)
+  Cmd.v (Cmd.info ~doc "lib")
+    Term.(
+      const lib
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encodings_in
+        $ Arg.value encodings_out
+        $ Arg.value converters
+        $ Arg.value with_fieldmask
+        $ Arg.value include_base
+        $ Arg.value pointer_type
+        $ Arg.required dst_fname
+        $ Arg.value optim
+        $ Arg.value skip_decls
+        $ Arg.value skip_defs
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let lmdb_dump_cmd =
   let doc = "Generate a tool to dump an LMDB storing values of the given \
              types" in
-  Term.(
-    (const lmdb_dump
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required key_schema
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
-     $ Arg.required dst_fname
-     $ Arg.value dev_mode
-     $ Arg.value optim
-     $ Arg.value keep_temp_files
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "lmdb-dump" ~doc)
+  Cmd.v (Cmd.info ~doc "lmdb-dump")
+    Term.(
+      const lmdb_dump
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required key_schema
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encoding_in
+        $ Arg.value encoding_out
+        $ Arg.required dst_fname
+        $ Arg.value dev_mode
+        $ Arg.value optim
+        $ Arg.value keep_temp_files
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let lmdb_load_cmd =
   let doc = "Generate a tool to load an LMDB storing values of the given \
              types" in
-  Term.(
-    (const lmdb_load
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required key_schema
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
-     $ Arg.required dst_fname
-     $ Arg.value dev_mode
-     $ Arg.value optim
-     $ Arg.value keep_temp_files
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "lmdb-load" ~doc)
+  Cmd.v (Cmd.info ~doc "lmdb-load")
+    Term.(
+      const lmdb_load
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required key_schema
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encoding_in
+        $ Arg.value encoding_out
+        $ Arg.required dst_fname
+        $ Arg.value dev_mode
+        $ Arg.value optim
+        $ Arg.value keep_temp_files
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let lmdb_query_cmd =
   let doc = "Generate a tool to query an LMDB storing values of the given \
              types" in
-  Term.(
-    (const lmdb_query
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required key_schema
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
-     $ Arg.required dst_fname
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "lmdb-query" ~doc)
+  Cmd.v (Cmd.info ~doc "lmdb-query")
+    Term.(
+      const lmdb_query
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required key_schema
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encoding_in
+        $ Arg.value encoding_out
+        $ Arg.required dst_fname
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let aggregator_cmd =
   let doc = "Generate a tool to compute an aggregated value of its input" in
-  Term.(
-    (const aggregator
-     $ Arg.value debug
-     $ Arg.value gen_debug
-     $ Arg.value quiet
-     $ Arg.required val_schema
-     $ Arg.required backend
-     $ Arg.value encoding_in
-     $ Arg.value encoding_out
-     $ Arg.required aggr_init
-     $ Arg.required aggr_update
-     $ Arg.required aggr_finalize
-     $ Arg.required dst_fname
-     $ Arg.value dev_mode
-     $ Arg.value optim
-     $ Arg.value keep_temp_files
-     $ make_csv_config ()
-     $ make_sexpr_config ()),
-    info "aggregator" ~doc)
-
-let default_cmd =
-  let sdocs = Manpage.s_common_options in
-  let doc = "Ramen Stream Processor" in
-  Term.((ret (const (`Help (`Pager, None)))),
-        info "dessserc" ~version ~doc ~sdocs)
+  Cmd.v (Cmd.info ~doc "aggregator")
+    Term.(
+      const aggregator
+        $ Arg.value debug
+        $ Arg.value gen_debug
+        $ Arg.value quiet
+        $ Arg.required val_schema
+        $ Arg.required backend
+        $ Arg.value encoding_in
+        $ Arg.value encoding_out
+        $ Arg.required aggr_init
+        $ Arg.required aggr_update
+        $ Arg.required aggr_finalize
+        $ Arg.required dst_fname
+        $ Arg.value dev_mode
+        $ Arg.value optim
+        $ Arg.value keep_temp_files
+        $ make_csv_config ()
+        $ make_sexpr_config ())
 
 let () =
-  match
-    Term.eval_choice default_cmd [
-      converter_cmd ; lib_cmd ; lmdb_dump_cmd ; lmdb_load_cmd ; lmdb_query_cmd ;
-      aggregator_cmd ] with
-  | `Error _ -> exit 1
-  | `Version | `Help -> exit 0
-  | `Ok f -> f ()
+  let cmd =
+    let doc = "Dessser Datatype Compiler"
+    and sdocs = Manpage.s_common_options
+    and default = Term.(ret (const (`Help (`Pager, None)))) in
+    Cmd.group ~default (Cmd.info ~doc ~sdocs ~version "dessserc")
+      [ converter_cmd ; lib_cmd ;
+        lmdb_dump_cmd ; lmdb_load_cmd ; lmdb_query_cmd ;
+        aggregator_cmd ] in
+  Cmd.eval cmd |> exit

@@ -2,9 +2,10 @@
 
 VERSION = @PACKAGE_VERSION@
 
-OCAMLOPT = OCAMLRUNPARAM= ocamlfind ocamlopt
-OCAMLC   = OCAMLRUNPARAM= ocamlfind ocamlc
-OCAMLDEP = OCAMLRUNPARAM= ocamlfind ocamldep
+DUPS_IN  = $(shell ocamlfind query compiler-libs):$(shell ocamlfind query num)
+OCAMLOPT = OCAMLRUNPARAM= OCAMLFIND_IGNORE_DUPS_IN="$(DUPS_IN)" ocamlfind ocamlopt
+OCAMLC   = OCAMLRUNPARAM= OCAMLFIND_IGNORE_DUPS_IN="$(DUPS_IN)" ocamlfind ocamlc
+OCAMLDEP = OCAMLRUNPARAM= OCAMLFIND_IGNORE_DUPS_IN="$(DUPS_IN)" ocamlfind ocamldep
 CPPO = cppo
 QTEST = qtest
 WARNS = -w -40-58+27
@@ -52,6 +53,7 @@ INSTALLED_HEADERS = \
 	src/dessser/Heap.h \
 	src/dessser/Lst.h \
 	src/dessser/Map.h \
+	src/dessser/Ip.h \
 	src/dessser/Mask.h \
 	src/dessser/Pointer.h \
 	src/dessser/Sampling.h \

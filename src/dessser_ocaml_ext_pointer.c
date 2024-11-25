@@ -56,7 +56,8 @@ value ext_pointer_new(value data_, value len_)
     ext_pointer_hash,
     custom_serialize_default,
     custom_deserialize_default,
-    custom_compare_ext_default
+    custom_compare_ext_default,
+    custom_fixed_length_default
   };
 
   res = caml_alloc_custom(&ext_pointer_ops, sizeof(struct ext_pointer_user_data), 0, 1);
@@ -241,7 +242,7 @@ CAMLprim value ext_pointer_peekn(value v, value offset_, value len_)
   slice = caml_alloc_tuple(3);
   if (! slice) caml_failwith("Cannot malloc slice for peekn");
 
-  memcpy(String_val(bytes), ExtPointerData_val(v) + offset, len);
+  memcpy((void *)String_val(bytes), ExtPointerData_val(v) + offset, len);
   Store_field(slice, 0, bytes);
   Store_field(slice, 1, Val_int(0));
   Store_field(slice, 2, len_);
